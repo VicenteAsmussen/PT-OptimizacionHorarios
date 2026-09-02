@@ -1,0 +1,11 @@
+CAPA DE RUTAS (ROUTES)
+=======================
+
+Propósito:
+Definir los puntos de entrada HTTP (endpoints) de la API REST y mapearlos a sus controladores correspondientes.
+
+Responsabilidades:
+1. Declarar los métodos HTTP (GET, POST, PUT, DELETE, PATCH) y las URLs para cada recurso (por ejemplo: /api/professors, /api/schedules, /api/optimization).
+2. Adjuntar los middlewares necesarios a cada ruta (autenticación, validación de esquemas Zod, verificación de roles como 'secretaria' o 'docente').
+3. Delegar la ejecución de la petición al controlador correspondiente.
+4. Mantener un enrutador principal que agrupe todas las sub-rutas de la aplicación.

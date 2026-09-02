@@ -1,0 +1,10 @@
+CAPA DE ESQUEMAS Y DTOs (SCHEMAS)
+===================================
+
+Propósito:
+Definir contratos de datos, validaciones de entrada en tiempo de ejecución (usando Zod) y tipos TypeScript estáticos.
+
+Responsabilidades:
+1. Definir esquemas para validar el cuerpo (body), parámetros de consulta (query) y parámetros de ruta (params) de las peticiones HTTP.
+2. Inferir tipos estáticos de TypeScript a partir de los esquemas Zod (z.infer<typeof ...>) para garantizar seguridad de tipos en todo el backend (DTOs - Data Transfer Objects).
+3. Asegurar que datos inválidos (como formatos de hora incorrectos, cargas docentes negativas o IDs inexistentes) sean rechazados antes de llegar a los servicios.

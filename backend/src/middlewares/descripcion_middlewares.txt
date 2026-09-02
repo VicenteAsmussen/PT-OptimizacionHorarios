@@ -1,0 +1,10 @@
+CAPA DE MIDDLEWARES (MIDDLEWARES)
+==================================
+
+Propósito:
+Interceptar, procesar y validar las peticiones HTTP antes de que alcancen los controladores, o manejar errores de forma centralizada.
+
+Responsabilidades:
+1. Validación de esquemas: Validar automáticamente los datos de entrada contra los esquemas de Zod antes de llegar al controlador.
+2. Manejo global de errores: Capturar excepciones no controladas y formatear respuestas de error coherentes para el cliente.
+3. Autenticación y Autorización: Verificar tokens/sesiones y restringir accesos según el rol (por ejemplo, acciones exclusivas de Secretaría vs acciones de Docente).

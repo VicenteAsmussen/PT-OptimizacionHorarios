@@ -1,0 +1,11 @@
+CAPA DE REPOSITORIOS (REPOSITORIES)
+=====================================
+
+Propósito:
+Encapsular el acceso directo a la base de datos, abstrayendo las consultas SQL y operaciones con Drizzle ORM.
+
+Responsabilidades:
+1. Ejecutar operaciones CRUD (crear, leer, actualizar, eliminar) sobre las tablas de la base de datos.
+2. Construir consultas avanzadas, joins, agregaciones y filtros para la obtención de datos complejos.
+3. Ejecutar transacciones de base de datos (por ejemplo, guardar la matriz de horarios generada por el modelo de optimización de forma atómica).
+4. Servir como la única capa que interactúa directamente con la instancia de Drizzle ORM.

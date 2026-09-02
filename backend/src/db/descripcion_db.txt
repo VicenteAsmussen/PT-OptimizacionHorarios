@@ -1,0 +1,10 @@
+CAPA DE BASE DE DATOS Y ESQUEMAS (DB)
+=======================================
+
+Propósito:
+Definir los esquemas de tablas, relaciones y migraciones de PostgreSQL utilizando Drizzle ORM.
+
+Responsabilidades:
+1. Definir la estructura de las tablas en TypeScript (docentes, asignaturas, cargas, disponibilidad de horarios, salas, periodos semestrales y asignaciones optimizadas).
+2. Declarar las relaciones entre tablas (uno a muchos, muchos a muchos) para facilitar joins y consultas tipadas.
+3. Gestionar los archivos de migración y la sincronización con PostgreSQL mediante Drizzle Kit.

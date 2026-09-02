@@ -1,0 +1,10 @@
+CAPA DE CONFIGURACIÓN (CONFIG)
+================================
+
+Propósito:
+Centralizar la configuración global del backend y la inicialización de recursos externos.
+
+Responsabilidades:
+1. Validar y cargar las variables de entorno (.env) de forma segura (puerto del servidor, credenciales de PostgreSQL, variables para el script de optimización).
+2. Configurar la conexión con la base de datos PostgreSQL e instanciar el cliente de Drizzle ORM.
+3. Proveer configuraciones tipadas y centralizadas a todas las demás capas del sistema.

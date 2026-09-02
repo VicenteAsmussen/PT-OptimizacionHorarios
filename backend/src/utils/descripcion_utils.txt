@@ -1,0 +1,11 @@
+CAPA DE UTILIDADES (UTILS)
+===========================
+
+Propósito:
+Proveer funciones auxiliares puras, clases de errores personalizados y herramientas reutilizables en todo el backend.
+
+Responsabilidades:
+1. Clases de error personalizadas: Definir errores tipados (NotFoundError, ConflictError, AppError) para estandarizar las respuestas HTTP ante fallos.
+2. Cálculos y formateadores de tiempo: Funciones puras para manipulación de bloques horarios (ej. validar solapamiento de bloques, conversión de horas a minutos).
+3. Adaptadores de datos: Transformaciones y formateo de datos para el script del modelo de optimización.
+4. Funciones de ayuda independientes del dominio (helpers generales).

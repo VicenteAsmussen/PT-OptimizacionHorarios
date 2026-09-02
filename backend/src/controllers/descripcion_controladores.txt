@@ -1,0 +1,11 @@
+CAPA DE CONTROLADORES (CONTROLLERS)
+=====================================
+
+Propósito:
+Gestionar las solicitudes HTTP entrantes y responder al cliente con los datos y códigos de estado correspondientes.
+
+Responsabilidades:
+1. Recibir los datos de la petición HTTP (cuerpo/body, parámetros de ruta, query params).
+2. Llamar a la capa de servicios (Services) pasando los parámetros necesarios.
+3. Responder al cliente HTTP (200 OK, 201 Created, etc.) con el formato de respuesta unificado.
+4. No incluir lógica de negocio ni consultas a la base de datos directamente; delegar siempre en los servicios.

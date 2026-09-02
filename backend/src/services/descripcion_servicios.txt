@@ -1,0 +1,11 @@
+CAPA DE SERVICIOS (SERVICES)
+=============================
+
+Propósito:
+Albergar el núcleo de la lógica de negocio, reglas de dominio y orquestación de procesos de la aplicación.
+
+Responsabilidades:
+1. Implementar las reglas de negocio del sistema académico (por ejemplo: validar que la disponibilidad del docente cubra su carga asignada, verificar choques de horario manuales).
+2. Orquestar la ejecución del modelo de optimización: preparar los datos de entrada (datasets de docentes, asignaturas, salas y disponibilidad), invocar el script del solver/algoritmo, y procesar los resultados obtenidos.
+3. Comunicarse con los repositorios para consultar y persistir información.
+4. Lanzar errores de negocio personalizados cuando una regla sea violada.
