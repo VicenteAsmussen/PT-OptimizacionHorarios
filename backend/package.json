@@ -8,19 +8,12 @@
     "build": "tsc",
     "start": "node dist/server.js",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "drizzle-kit migrate",
+    "db:migrate": "tsx src/db/migrate.ts",
     "db:studio": "drizzle-kit studio"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
-  "devEngines": {
-    "packageManager": {
-      "name": "pnpm",
-      "version": "11.25.0",
-      "onFail": "download"
-    }
-  },
   "packageManager": "pnpm@11.25.0",
   "type": "module",
   "dependencies": {
@@ -40,3 +33,5 @@
     "typescript": "^7.0.2"
   }
 }
+
+
