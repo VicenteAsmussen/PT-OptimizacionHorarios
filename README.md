@@ -31,7 +31,7 @@ flowchart LR
 ```
 
 1. **Gestión Académica**: La secretaría/coordinación habilita la oferta de asignaturas del semestre y asigna la carga correspondiente a cada docente.
-2. **Disponibilidad Docente**: Los profesores ingresan sus bloques de preferencia y disponibilidad horaria (superiores a su carga horaria asignada).
+2. **Disponibilidad Docente**: Los profesores ingresan sus bloques de preferencia y disponibilidad horaria.
 3. **Optimización Automática**: El sistema ejecuta el modelo matemático/solver que asigna bloques, salas y cursos minimizando conflictos.
 4. **Ajuste y Flexibilidad**: La secretaría puede revisar los resultados y realizar modificaciones manuales finas sobre la matriz generada.
 
@@ -41,10 +41,10 @@ flowchart LR
 
 | Capa | Tecnología | Descripción |
 | :--- | :--- | :--- |
-| **Backend** | **Node.js + Express + TypeScript** | API REST estructurada con arquitectura en capas y tipado estricto. |
+| **Backend** | **Node.js + Express + TypeScript** | API REST estructurada con arquitectura limpia en capas y tipado estricto. |
 | **Base de Datos** | **PostgreSQL** | Motor relacional robusto y ACID para persistencia de datos. |
 | **ORM / DAL** | **Drizzle ORM + Drizzle Kit** | Tipado TypeScript nativo de extremo a extremo y control de migraciones. |
-| **Validación** | **Zod** | Validación de esquemas y DTOs en tiempo de ejecución. |
+| **Validación** | **Zod** | Validación de esquemas y DTOs en tiempo de ejecución con mensajes en español. |
 | **Frontend** | **React + TypeScript** *(en desarrollo)* | Interfaz moderna, reactiva e intuitiva para secretaría y docentes. |
 | **Package Manager** | **pnpm** | Gestión estricta y eficiente de dependencias monorepo/multi-paquete. |
 
@@ -52,7 +52,7 @@ flowchart LR
 
 ## 🏛️ Arquitectura del Backend
 
-El backend sigue los principios de **Clean Architecture** con separación estricta de responsabilidades en 9 capas:
+El backend sigue los principios de **Clean Architecture** con separación estricta de responsabilidades en capas:
 
 ```text
 backend/src/
@@ -60,14 +60,36 @@ backend/src/
 ├── controllers/     # Manejo de peticiones y respuestas HTTP
 ├── db/
 │   ├── schema/      # Definición de tablas y relaciones con Drizzle ORM
-│   └── migrations/  # Migraciones SQL generadas por Drizzle Kit
-├── middlewares/     # Manejador global de errores, autenticación y validación
-├── repositories/    # Capa de acceso a datos (consultas SQL y transacciones)
+│   ├── migrations/  # Migraciones SQL generadas por Drizzle Kit
+│   └── seed.ts      # Población inicial de catálogos base (bloques UBB, salas, deptos, carreras)
+├── middlewares/     # Manejador global de errores y validación Zod
+├── repositories/    # Capa de acceso a datos (consultas SQL y transacciones atómicas)
 ├── routes/          # Definición y mapeo de endpoints REST
-├── schemas/         # Esquemas Zod para validación de DTOs y parámetros
-├── services/        # Lógica de negocio, reglas de dominio y orquestación del solver
-└── utils/           # Helpers puros, manejo de bloques horarios y clases de error
+├── services/        # Lógica de negocio, reglas de dominio y errores tipados
+├── utils/           # Helpers puros, manejo de errores y constantes
+└── validations/     # Esquemas Zod para validación de DTOs y parámetros con mensajes en español
 ```
+
+---
+
+## 📊 Estado del Desarrollo
+
+### ✅ Módulos Implementados (Backend)
+- [x] **Base de Datos & Migraciones**: Modelado relacional completo (16 tablas), soporte para tipos de hora desacoplados (`asignatura_tipo_hora`) y subtipo de perfil para `secretarias`.
+- [x] **Script de Seed**: Carga inicial de bloques pedagógicos UBB (16 módulos diarios de 40 min), 3 departamentos, 2 carreras, tipos de hora (`Teórica`, `Práctica`, `Laboratorio`) y salas.
+- [x] **Asignaturas** (`/asignaturas`): CRUD completo con sincronización transaccional de tipos de hora y carreras.
+- [x] **Salas** (`/salas`): CRUD para espacios físicos restringido a `Sala` y `Laboratorio`.
+- [x] **Semestres** (`/semestres`): CRUD para periodos académicos.
+- [x] **Departamentos y Carreras** (`/departamentos`, `/carreras`): CRUD y gestión N:M de carreras y departamentos.
+- [x] **Usuarios y Secretarias** (`/usuarios`): CRUD con sanitización de credenciales y asignación obligatoria de carrera para secretarias.
+- [x] **Profesores** (`/profesores`): CRUD con vinculación a departamentos y cuentas de usuario.
+- [x] **Disponibilidad Docente** (`/disponibilidad-profesores`): Endpoints individuales y endpoint masivo atómico (`POST /sincronizar`) para la grilla interactiva.
+
+### ⏳ Pendientes para la Próxima Sesión
+- [ ] **Fase 3: Ofertas de Asignaturas** (`/ofertas-asignaturas`): Creación y gestión de secciones por semestre, docente y cupos.
+- [ ] **Fase 3: Horarios de Asignaturas** (`/horarios-asignaturas`): Asignación final en la grilla y detección de choques de sala/bloque.
+- [ ] **Fase 4: Verificación y Colección Postman**: Creación y ejecución de la suite de pruebas `.json` para validar todos los endpoints en lote.
+- [ ] **Control de Acceso / Autenticación**: Implementación de JWT y middlewares de roles (`admin`, `secretaria`, `profesor`).
 
 ---
 
@@ -76,35 +98,26 @@ backend/src/
 ### Requisitos Previos
 * [Node.js](https://nodejs.org/) (v20 o superior)
 * [pnpm](https://pnpm.io/) (`npm install -g pnpm`)
-* [PostgreSQL](https://www.postgresql.org/)
+* [Docker & Docker Compose](https://www.docker.com/)
 
 ### Instalación y Ejecución
 
-1. **Clonar el repositorio**:
+1. **Iniciar Base de Datos con Docker**:
    ```bash
-   git clone https://github.com/VicenteAsmussen/PT-OptimizacionHorarios.git
-   cd PT-OptimizacionHorarios/backend
+   docker compose up -d postgres pgadmin
    ```
 
-2. **Instalar dependencias**:
+2. **Instalar dependencias e iniciar desarrollo**:
    ```bash
+   cd backend
    pnpm install
-   ```
-
-3. **Configurar variables de entorno**:
-   ```bash
-   cp .env.example .env
-   # Configura tu DATABASE_URL y PORT en el archivo .env
-   ```
-
-4. **Ejecutar en modo desarrollo**:
-   ```bash
    pnpm dev
    ```
 
-5. **Comandos de Base de Datos (Drizzle)**:
+3. **Comandos de Base de Datos**:
    ```bash
-   pnpm run db:generate   # Generar nuevas migraciones
+   pnpm run db:generate   # Generar nuevas migraciones SQL
    pnpm run db:migrate    # Aplicar migraciones a PostgreSQL
-   pnpm run db:studio     # Abrir interfaz visual Drizzle Studio
+   pnpm run db:seed       # Poblar catálogos base (bloques UBB, salas, etc.)
+   pnpm run db:studio     # Abrir visor web Drizzle Studio
    ```
