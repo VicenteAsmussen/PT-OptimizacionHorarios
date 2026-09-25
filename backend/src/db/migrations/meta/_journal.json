@@ -8,6 +8,13 @@
       "when": 1790002685160,
       "tag": "0000_illegal_red_hulk",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1790362174111,
+      "tag": "0001_confused_electro",
+      "breakpoints": true
     }
   ]
 }

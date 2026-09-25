@@ -2,6 +2,7 @@ import { pgTable, serial, text, varchar, integer } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { ofertasAsignaturas, disponibilidadProfesores } from "./planificacion.schema.js";
 import { horariosAsignaturas } from "./horarios.schema.js";
+import { asignaturaTipoHora } from "./asignaturas.schema.js";
 
 export const semestres = pgTable("semestres", {
   id: serial("id").primaryKey(),
@@ -42,6 +43,7 @@ export const bloquesHorariosRelations = relations(bloquesHorarios, ({ many }) =>
 
 export const tiposHoraRelations = relations(tiposHora, ({ many }) => ({
   horarios: many(horariosAsignaturas),
+  asignaturas: many(asignaturaTipoHora),
 }));
 
 export const salasRelations = relations(salas, ({ many }) => ({
