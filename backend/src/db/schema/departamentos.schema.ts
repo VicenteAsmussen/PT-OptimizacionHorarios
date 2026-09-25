@@ -2,6 +2,7 @@ import { pgTable, serial, text, integer, primaryKey } from "drizzle-orm/pg-core"
 import { relations } from "drizzle-orm";
 import { profesores } from "./profesores.schema.js";
 import { carreraAsignatura } from "./asignaturas.schema.js";
+import { secretarias } from "./usuarios.schema.js";
 
 export const departamentos = pgTable("departamentos", {
   id: serial("id").primaryKey(),
@@ -36,6 +37,7 @@ export const departamentosRelations = relations(departamentos, ({ many }) => ({
 export const carrerasRelations = relations(carreras, ({ many }) => ({
   carreraDepartamentos: many(carreraDepartamento),
   carreraAsignaturas: many(carreraAsignatura),
+  secretarias: many(secretarias),
 }));
 
 export const carreraDepartamentoRelations = relations(carreraDepartamento, ({ one }) => ({
