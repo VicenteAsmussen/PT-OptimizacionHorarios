@@ -72,27 +72,6 @@ backend/src/
 
 ---
 
-## 📊 Estado del Desarrollo
-
-### ✅ Módulos Implementados (Backend)
-- [x] **Base de Datos & Migraciones**: Modelado relacional completo (16 tablas), soporte para tipos de hora desacoplados (`asignatura_tipo_hora`) y subtipo de perfil para `secretarias`.
-- [x] **Script de Seed**: Carga inicial de bloques pedagógicos UBB (16 módulos diarios de 40 min), 3 departamentos, 2 carreras, tipos de hora (`Teórica`, `Práctica`, `Laboratorio`) y salas.
-- [x] **Asignaturas** (`/asignaturas`): CRUD completo con sincronización transaccional de tipos de hora y carreras.
-- [x] **Salas** (`/salas`): CRUD para espacios físicos restringido a `Sala` y `Laboratorio`.
-- [x] **Semestres** (`/semestres`): CRUD para periodos académicos.
-- [x] **Departamentos y Carreras** (`/departamentos`, `/carreras`): CRUD y gestión N:M de carreras y departamentos.
-- [x] **Usuarios y Secretarias** (`/usuarios`): CRUD con sanitización de credenciales y asignación obligatoria de carrera para secretarias.
-- [x] **Profesores** (`/profesores`): CRUD con vinculación a departamentos y cuentas de usuario.
-- [x] **Disponibilidad Docente** (`/disponibilidad-profesores`): Endpoints individuales y endpoint masivo atómico (`POST /sincronizar`) para la grilla interactiva.
-
-### ⏳ Pendientes para la Próxima Sesión
-- [ ] **Fase 3: Ofertas de Asignaturas** (`/ofertas-asignaturas`): Creación y gestión de secciones por semestre, docente y cupos.
-- [ ] **Fase 3: Horarios de Asignaturas** (`/horarios-asignaturas`): Asignación final en la grilla y detección de choques de sala/bloque.
-- [ ] **Fase 4: Verificación y Colección Postman**: Creación y ejecución de la suite de pruebas `.json` para validar todos los endpoints en lote.
-- [ ] **Control de Acceso / Autenticación**: Implementación de JWT y middlewares de roles (`admin`, `secretaria`, `profesor`).
-
----
-
 ## 🚀 Puesta en Marcha (Backend)
 
 ### Requisitos Previos

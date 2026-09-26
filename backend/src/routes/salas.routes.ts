@@ -1,6 +1,8 @@
 import { Router } from "express";
 import { salasController } from "../controllers/salas.controller.js";
 import { validateRequest } from "../middlewares/validation.middleware.js";
+import { authenticate } from "../middlewares/auth.middleware.js";
+import { authorizeRoles } from "../middlewares/roles.middleware.js";
 import {
   createSalaValidation,
   updateSalaValidation,
@@ -8,6 +10,8 @@ import {
 } from "../validations/salas.validation.js";
 
 const router = Router();
+
+router.use(authenticate, authorizeRoles("admin", "secretaria"));
 
 router.get("/", salasController.getAll);
 

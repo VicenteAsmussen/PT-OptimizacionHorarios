@@ -1,12 +1,36 @@
 import { drizzle } from "drizzle-orm/postgres-js";
+import { sql } from "drizzle-orm";
 import postgres from "postgres";
 import { env } from "../config/env.js";
 import * as schema from "./schema/index.js";
+import { hashPassword } from "../utils/password.js";
 
 async function seed() {
   console.log("Conectando a la base de datos para ejecutar el seed...");
   const client = postgres(env.DATABASE_URL, { max: 1 });
   const db = drizzle(client, { schema });
+
+  console.log("Limpiando tablas para refrescar catálogos...");
+  await db.execute(sql`
+    TRUNCATE TABLE 
+      "horarios_asignaturas",
+      "ofertas_asignaturas",
+      "disponibilidad_profesores",
+      "profesores",
+      "secretarias",
+      "usuarios",
+      "carrera_asignatura",
+      "asignatura_tipo_hora",
+      "asignaturas",
+      "salas",
+      "bloques_horarios",
+      "semestres",
+      "carrera_departamento",
+      "carreras",
+      "departamentos",
+      "tipos_hora"
+    CASCADE;
+  `);
 
   console.log("Poblando catálogos base...");
 
@@ -117,6 +141,55 @@ async function seed() {
     ])
     .returning();
   console.log(`✓ Insertadas ${insertedSalas.length} salas`);
+
+  // 8. Usuarios Base (Admin, Secretaria, Profesor)
+  const defaultPasswordHash = await hashPassword("123456");
+  const insertedUsuarios = await db
+    .insert(schema.usuarios)
+    .values([
+      {
+        nombre: "Administrador del Sistema",
+        correo: "admin@ubiobio.cl",
+        clave: defaultPasswordHash,
+        rol: "admin",
+      },
+      {
+        nombre: "Secretaria de Carrera",
+        correo: "secretaria@ubiobio.cl",
+        clave: defaultPasswordHash,
+        rol: "secretaria",
+      },
+      {
+        nombre: "Profesor Docente",
+        correo: "profesor@ubiobio.cl",
+        clave: defaultPasswordHash,
+        rol: "profesor",
+      },
+    ])
+    .returning();
+  console.log(`✓ Insertados ${insertedUsuarios.length} usuarios base (clave: '123456')`);
+
+  // Asociar secretaria a carrera
+  const secUser = insertedUsuarios.find((u) => u.rol === "secretaria");
+  if (secUser && insertedCarreras.length > 0) {
+    await db.insert(schema.secretarias).values({
+      usuarioId: secUser.id,
+      carreraId: insertedCarreras[0].id,
+    });
+    console.log("✓ Asociada secretaria a la carrera");
+  }
+
+  // Asociar profesor a departamento
+  const profUser = insertedUsuarios.find((u) => u.rol === "profesor");
+  if (profUser && insertedDepartamentos.length > 0) {
+    await db.insert(schema.profesores).values({
+      nombre: profUser.nombre,
+      departamentoId: insertedDepartamentos[0].id,
+      tipo: "Jornada Completa",
+      usuarioId: profUser.id,
+    });
+    console.log("✓ Asociado perfil de profesor al departamento");
+  }
 
   console.log("\nSeed completado con éxito.");
   await client.end();

@@ -1,6 +1,7 @@
 import { usuariosRepository } from "../repositories/usuarios.repository.js";
 import { type CreateUsuarioDTO, type UpdateUsuarioDTO } from "../validations/usuarios.validation.js";
 import { NotFoundError, ConflictError, BadRequestError } from "../utils/errors.js";
+import { hashPassword } from "../utils/password.js";
 
 function sanitizeUser<T extends { clave?: string }>(user: T): Omit<T, "clave"> {
   const { clave, ...rest } = user;
@@ -38,7 +39,15 @@ export const usuariosService = {
     }
 
     const { carreraId, ...userData } = dto;
-    const created = await usuariosRepository.create(userData, carreraId);
+    const hashedPassword = await hashPassword(userData.clave);
+
+    const created = await usuariosRepository.create(
+      {
+        ...userData,
+        clave: hashedPassword,
+      },
+      carreraId
+    );
     return await this.getUsuarioById(created.id);
   },
 
@@ -60,7 +69,13 @@ export const usuariosService = {
     }
 
     const { carreraId, ...userData } = dto;
-    await usuariosRepository.update(id, userData, carreraId);
+    const dataToUpdate = { ...userData };
+
+    if (dataToUpdate.clave) {
+      dataToUpdate.clave = await hashPassword(dataToUpdate.clave);
+    }
+
+    await usuariosRepository.update(id, dataToUpdate, carreraId);
 
     return await this.getUsuarioById(id);
   },

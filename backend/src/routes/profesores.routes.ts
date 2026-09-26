@@ -1,6 +1,8 @@
 import { Router } from "express";
 import { profesoresController } from "../controllers/profesores.controller.js";
 import { validateRequest } from "../middlewares/validation.middleware.js";
+import { authenticate } from "../middlewares/auth.middleware.js";
+import { authorizeRoles } from "../middlewares/roles.middleware.js";
 import {
   createProfesorValidation,
   updateProfesorValidation,
@@ -8,6 +10,8 @@ import {
 } from "../validations/profesores.validation.js";
 
 const router = Router();
+
+router.use(authenticate, authorizeRoles("admin", "secretaria"));
 
 router.get("/", profesoresController.getAll);
 
