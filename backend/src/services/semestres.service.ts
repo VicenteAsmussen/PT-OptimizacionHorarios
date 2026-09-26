@@ -7,6 +7,19 @@ export const semestresService = {
     return await semestresRepository.findAll();
   },
 
+  async getSemestreActual() {
+    const actual = await semestresRepository.findActual();
+    if (!actual) {
+      throw new NotFoundError("No hay ningún semestre configurado como actual");
+    }
+    return actual;
+  },
+
+  async setSemestreActual(id: number) {
+    await this.getSemestreById(id);
+    return await semestresRepository.setActual(id);
+  },
+
   async getSemestreById(id: number) {
     const semestre = await semestresRepository.findById(id);
     if (!semestre) {
@@ -21,7 +34,11 @@ export const semestresService = {
       throw new ConflictError(`Ya existe un semestre con el código '${dto.codigo}'`);
     }
 
-    return await semestresRepository.create(dto);
+    const created = await semestresRepository.create(dto);
+    if (dto.actual) {
+      return await semestresRepository.setActual(created.id);
+    }
+    return created;
   },
 
   async updateSemestre(id: number, dto: UpdateSemestreDTO) {
@@ -34,8 +51,16 @@ export const semestresService = {
       }
     }
 
-    const updated = await semestresRepository.update(id, dto);
-    return updated;
+    if (dto.actual === true) {
+      await semestresRepository.setActual(id);
+      const { actual, ...rest } = dto;
+      if (Object.keys(rest).length > 0) {
+        return await semestresRepository.update(id, rest);
+      }
+      return await this.getSemestreById(id);
+    }
+
+    return await semestresRepository.update(id, dto);
   },
 
   async deleteSemestre(id: number) {

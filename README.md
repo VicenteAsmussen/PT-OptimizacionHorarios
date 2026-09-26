@@ -72,6 +72,13 @@ backend/src/
 
 ---
 
+## ⏳ Tareas Pendientes (Por Hacer)
+- [ ] **Gestión de Archivos Excel**: Endpoints y lógica para importación masiva (catálogos, docentes, asignaturas) y exportación de matrices de horario y cargas académicas.
+- [ ] **Control de Bloqueo de Disponibilidad Docente**: Regla y estado para congelar/bloquear la edición de disponibilidad docente una vez que se inicia o ejecuta la generación de horarios de prueba.
+- [ ] **Versionado y Estados de Horarios**: Mecanismo para identificar y diferenciar un horario en estado *Borrador / Planificación* de un horario *Publicado / Final*.
+
+---
+
 ## 🚀 Puesta en Marcha (Backend)
 
 ### Requisitos Previos

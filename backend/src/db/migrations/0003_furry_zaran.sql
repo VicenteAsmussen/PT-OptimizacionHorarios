@@ -1,0 +1,1 @@
+ALTER TABLE "semestres" ADD COLUMN "actual" boolean DEFAULT false NOT NULL;

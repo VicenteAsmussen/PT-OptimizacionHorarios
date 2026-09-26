@@ -17,6 +17,27 @@ export const semestresRepository = {
     return result;
   },
 
+  async findActual(): Promise<Semestre | undefined> {
+    const [result] = await db
+      .select()
+      .from(semestres)
+      .where(eq(semestres.actual, true))
+      .limit(1);
+    return result;
+  },
+
+  async setActual(id: number): Promise<Semestre | undefined> {
+    return await db.transaction(async (tx) => {
+      await tx.update(semestres).set({ actual: false });
+      const [updated] = await tx
+        .update(semestres)
+        .set({ actual: true })
+        .where(eq(semestres.id, id))
+        .returning();
+      return updated;
+    });
+  },
+
   async create(data: NuevoSemestre): Promise<Semestre> {
     const [created] = await db.insert(semestres).values(data).returning();
     return created;

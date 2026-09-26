@@ -22,6 +22,13 @@
       "when": 1790367052018,
       "tag": "0002_magenta_human_torch",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1790464148954,
+      "tag": "0003_furry_zaran",
+      "breakpoints": true
     }
   ]
 }

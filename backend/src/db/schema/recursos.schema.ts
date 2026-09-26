@@ -1,4 +1,4 @@
-import { pgTable, serial, text, varchar, integer } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, varchar, integer, boolean } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { ofertasAsignaturas, disponibilidadProfesores } from "./planificacion.schema.js";
 import { horariosAsignaturas } from "./horarios.schema.js";
@@ -9,6 +9,7 @@ export const semestres = pgTable("semestres", {
   codigo: varchar("codigo", { length: 20 }).notNull().unique(), // e.g. "2026-1"
   nombre: text("nombre").notNull(),
   anio: integer("anio").notNull(),
+  actual: boolean("actual").notNull().default(false),
 });
 
 export const bloquesHorarios = pgTable("bloques_horarios", {

@@ -14,6 +14,18 @@ export const semestresController = {
     }
   },
 
+  async getActual(_req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const data = await semestresService.getSemestreActual();
+      res.status(200).json({
+        status: "success",
+        data,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
   async getById(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = Number(req.params.id);
@@ -43,6 +55,19 @@ export const semestresController = {
     try {
       const id = Number(req.params.id);
       const data = await semestresService.updateSemestre(id, req.body);
+      res.status(200).json({
+        status: "success",
+        data,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async setActual(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const id = Number(req.params.id);
+      const data = await semestresService.setSemestreActual(id);
       res.status(200).json({
         status: "success",
         data,

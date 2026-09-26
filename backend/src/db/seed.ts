@@ -83,8 +83,8 @@ async function seed() {
   const insertedSemestres = await db
     .insert(schema.semestres)
     .values([
-      { codigo: "2026-1", nombre: "Primer Semestre 2026", anio: 2026 },
-      { codigo: "2026-2", nombre: "Segundo Semestre 2026", anio: 2026 },
+      { codigo: "2026-1", nombre: "Primer Semestre 2026", anio: 2026, actual: true },
+      { codigo: "2026-2", nombre: "Segundo Semestre 2026", anio: 2026, actual: false },
     ])
     .returning();
   console.log(`✓ Insertados ${insertedSemestres.length} semestres`);
