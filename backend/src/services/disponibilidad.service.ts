@@ -4,7 +4,7 @@ import {
   type SyncDisponibilidadDTO,
   type DisponibilidadQueryDTO,
 } from "../validations/disponibilidad.validation.js";
-import { NotFoundError, ConflictError, BadRequestError } from "../utils/errors.js";
+import { NotFoundError, ConflictError, BadRequestError, ForbiddenError } from "../utils/errors.js";
 
 export const disponibilidadService = {
   async getDisponibilidad(query?: DisponibilidadQueryDTO) {
@@ -28,6 +28,13 @@ export const disponibilidadService = {
     const semExists = await disponibilidadRepository.checkSemestreExists(dto.semestreId);
     if (!semExists) {
       throw new BadRequestError(`El semestre con ID ${dto.semestreId} no existe`);
+    }
+
+    const horariosExist = await disponibilidadRepository.checkHorariosExistForSemestre(dto.semestreId);
+    if (horariosExist) {
+      throw new ForbiddenError(
+        "No es posible registrar disponibilidad: ya existe una propuesta de horarios generada para este semestre."
+      );
     }
 
     const bloqueExists = await disponibilidadRepository.checkBloqueExists(dto.bloqueId);
@@ -59,6 +66,13 @@ export const disponibilidadService = {
       throw new BadRequestError(`El semestre con ID ${dto.semestreId} no existe`);
     }
 
+    const horariosExist = await disponibilidadRepository.checkHorariosExistForSemestre(dto.semestreId);
+    if (horariosExist) {
+      throw new ForbiddenError(
+        "No es posible modificar la disponibilidad: ya existe una propuesta de horarios generada para este semestre."
+      );
+    }
+
     const uniqueBloquesIds = Array.from(new Set(dto.bloquesIds));
 
     if (uniqueBloquesIds.length > 0) {
@@ -77,7 +91,13 @@ export const disponibilidadService = {
   },
 
   async deleteSingle(id: number) {
-    await this.getById(id);
+    const record = await this.getById(id);
+    const horariosExist = await disponibilidadRepository.checkHorariosExistForSemestre(record.semestreId);
+    if (horariosExist) {
+      throw new ForbiddenError(
+        "No es posible eliminar la disponibilidad: ya existe una propuesta de horarios generada para este semestre."
+      );
+    }
     await disponibilidadRepository.delete(id);
   },
 
@@ -90,6 +110,13 @@ export const disponibilidadService = {
     const semExists = await disponibilidadRepository.checkSemestreExists(semestreId);
     if (!semExists) {
       throw new BadRequestError(`El semestre con ID ${semestreId} no existe`);
+    }
+
+    const horariosExist = await disponibilidadRepository.checkHorariosExistForSemestre(semestreId);
+    if (horariosExist) {
+      throw new ForbiddenError(
+        "No es posible limpiar la disponibilidad: ya existe una propuesta de horarios generada para este semestre."
+      );
     }
 
     return await disponibilidadRepository.deleteByProfesorAndSemestre(profesorId, semestreId);

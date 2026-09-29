@@ -23,17 +23,20 @@ El sistema resuelve un problema combinatorio de alta complejidad (*Timetabling P
 ## 🔄 Flujo Operativo Principal
 
 ```mermaid
-flowchart LR
-    A[Secretaría: Habilitación de Ramos y Carga] --> B[Docentes: Registro de Disponibilidad]
-    B --> C[Ejecución del Modelo de Optimización]
-    C --> D[Visualización de Horarios Generados]
-    D --> E[Ajustes Manuales y Publicación Final]
+flowchart TD
+    A["1. Secretaría: Habilitación de Ramos y Carga Docente"] --> B["2. Docentes: Registro de Disponibilidad Horaria"]
+    B --> C["3. Ejecución del Modelo: Generación de Propuesta (Sin Salas)"]
+    C -->|Bloqueo automático de disponibilidad docente| D["4. Exportación Excel: Solicitud de Salas a Dpto. Externo (Cupos/Tipo)"]
+    D --> E["5. Importación Excel: Asignación de Salas Aprobadas"]
+    E --> F["6. Revisión Secretaría y Publicación Oficial (horario_publicado = true)"]
 ```
 
 1. **Gestión Académica**: La secretaría/coordinación habilita la oferta de asignaturas del semestre y asigna la carga correspondiente a cada docente.
-2. **Disponibilidad Docente**: Los profesores ingresan sus bloques de preferencia y disponibilidad horaria.
-3. **Optimización Automática**: El sistema ejecuta el modelo matemático/solver que asigna bloques, salas y cursos minimizando conflictos.
-4. **Ajuste y Flexibilidad**: La secretaría puede revisar los resultados y realizar modificaciones manuales finas sobre la matriz generada.
+2. **Disponibilidad Docente**: Los profesores ingresan sus bloques de disponibilidad horaria mientras el semestre está en fase de recepción.
+3. **Optimización Automática (Propuesta sin Sala)**: El sistema ejecuta el modelo matemático/solver que asigna bloques horarios minimizando choques de asignaturas y preferencias docentes. Los bloques se registran con `sala_id = null`. Al existir horarios generados para el semestre, la disponibilidad docente queda **bloqueada automáticamente**.
+4. **Solicitud de Infraestructura (Exportación Excel)**: Se exporta la propuesta de horarios a formato Excel detallando necesidades de cupos, bloques y tipos de sala para enviarlo a la unidad universitaria encargada de la administración central de aulas.
+5. **Carga de Salas Aprobadas (Importación Excel)**: Tras la respuesta de la unidad de salas, se importa la planilla para asociar cada bloque de clase con su `sala_id` definitiva.
+6. **Ajuste y Publicación Oficial**: La secretaría realiza ajustes manuales de última hora si se requiere y activa la publicación oficial del horario (`horario_publicado = true`) para consulta de toda la comunidad universitaria.
 
 ---
 
@@ -72,10 +75,14 @@ backend/src/
 
 ---
 
-## ⏳ Tareas Pendientes (Por Hacer)
-- [ ] **Gestión de Archivos Excel**: Endpoints y lógica para importación masiva (catálogos, docentes, asignaturas) y exportación de matrices de horario y cargas académicas.
-- [ ] **Control de Bloqueo de Disponibilidad Docente**: Regla y estado para congelar/bloquear la edición de disponibilidad docente una vez que se inicia o ejecuta la generación de horarios de prueba.
-- [ ] **Versionado y Estados de Horarios**: Mecanismo para identificar y diferenciar un horario en estado *Borrador / Planificación* de un horario *Publicado / Final*.
+## ⏳ Tareas Pendientes y Estado del Proyecto
+
+- [x] **Control de Bloqueo de Disponibilidad Docente**: Regla de negocio implementada en `disponibilidad.service.ts` para congelar automáticamente la edición/sincronización de disponibilidad docente una vez generadas propuestas de horarios para el semestre.
+- [x] **Diferenciación de Horario Propuesta vs Oficial**: Columna `horario_publicado` en `semestres` y campo `sala_id` opcional/nullable en `horarios_asignaturas` para soportar horarios borrador antes de la asignación de infraestructura física.
+- [ ] **Gestión de Archivos Excel (Flujo de Solicitud y Asignación de Salas)**:
+  - **Exportación de Solicitud de Salas (Excel)**: Generar planilla con la propuesta de horarios del modelo (asignaturas, secciones, bloques, cupos y tipos de aula) para tramitar la reserva de infraestructura con el departamento externo de salas de la universidad.
+  - **Importación y Vinculación de Salas (Excel)**: Leer la planilla de respuesta de salas y actualizar masivamente `horarios_asignaturas` vinculando cada bloque con su `sala_id`.
+  - **Carga y Reportes Base**: Endpoints auxiliares para carga masiva de catálogos y descarga de matrices horarias consolidadas.
 
 ---
 

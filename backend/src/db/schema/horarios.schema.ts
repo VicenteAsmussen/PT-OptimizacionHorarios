@@ -11,7 +11,6 @@ export const horariosAsignaturas = pgTable(
       .notNull()
       .references(() => ofertasAsignaturas.id, { onDelete: "cascade" }),
     salaId: integer("sala_id")
-      .notNull()
       .references(() => salas.id, { onDelete: "restrict" }),
     bloqueId: integer("bloque_id")
       .notNull()

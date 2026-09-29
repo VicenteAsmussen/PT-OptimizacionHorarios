@@ -10,6 +10,7 @@ export const semestres = pgTable("semestres", {
   nombre: text("nombre").notNull(),
   anio: integer("anio").notNull(),
   actual: boolean("actual").notNull().default(false),
+  horarioPublicado: boolean("horario_publicado").notNull().default(false),
 });
 
 export const bloquesHorarios = pgTable("bloques_horarios", {

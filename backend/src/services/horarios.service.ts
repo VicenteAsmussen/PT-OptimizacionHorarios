@@ -37,11 +37,6 @@ export const horariosService = {
       throw new BadRequestError(`El semestre con ID ${semestreId} no existe`);
     }
 
-    const salaExists = await horariosRepository.checkSalaExists(dto.salaId);
-    if (!salaExists) {
-      throw new BadRequestError(`La sala con ID ${dto.salaId} no existe`);
-    }
-
     const bloqueExists = await horariosRepository.checkBloqueExists(dto.bloqueId);
     if (!bloqueExists) {
       throw new BadRequestError(`El bloque horario con ID ${dto.bloqueId} no existe`);
@@ -52,16 +47,23 @@ export const horariosService = {
       throw new BadRequestError(`El tipo de hora con ID ${dto.tipoHoraId} no existe`);
     }
 
-    // Hard Constraint 1: Choque de sala en el mismo bloque y semestre
-    const salaConflict = await horariosRepository.findBySalaBloqueSemestre(
-      dto.salaId,
-      dto.bloqueId,
-      semestreId
-    );
-    if (salaConflict) {
-      throw new ConflictError(
-        `Conflicto de horario: La sala ya se encuentra ocupada en este bloque para el semestre indicado`
+    if (dto.salaId) {
+      const salaExists = await horariosRepository.checkSalaExists(dto.salaId);
+      if (!salaExists) {
+        throw new BadRequestError(`La sala con ID ${dto.salaId} no existe`);
+      }
+
+      // Hard Constraint 1: Choque de sala en el mismo bloque y semestre
+      const salaConflict = await horariosRepository.findBySalaBloqueSemestre(
+        dto.salaId,
+        dto.bloqueId,
+        semestreId
       );
+      if (salaConflict) {
+        throw new ConflictError(
+          `Conflicto de horario: La sala ya se encuentra ocupada en este bloque para el semestre indicado`
+        );
+      }
     }
 
     // Hard Constraint 2: Choque de la misma oferta en el mismo bloque
@@ -144,15 +146,17 @@ export const horariosService = {
     }
 
     // Validar Choque de Sala
-    const salaConflict = await horariosRepository.findBySalaBloqueSemestre(
-      targetSalaId,
-      targetBloqueId,
-      targetSemestreId
-    );
-    if (salaConflict && salaConflict.id !== id) {
-      throw new ConflictError(
-        `Conflicto de horario: La sala ya se encuentra ocupada en este bloque para el semestre indicado`
+    if (targetSalaId) {
+      const salaConflict = await horariosRepository.findBySalaBloqueSemestre(
+        targetSalaId,
+        targetBloqueId,
+        targetSemestreId
       );
+      if (salaConflict && salaConflict.id !== id) {
+        throw new ConflictError(
+          `Conflicto de horario: La sala ya se encuentra ocupada en este bloque para el semestre indicado`
+        );
+      }
     }
 
     // Validar Choque de Oferta

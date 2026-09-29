@@ -6,9 +6,11 @@ export const createHorarioValidation = z.object({
     .int("El ID de la oferta debe ser un número entero")
     .positive("El ID de la oferta debe ser mayor a 0"),
   salaId: z
-    .number({ message: "El ID de la sala es obligatorio" })
+    .number({ message: "El ID de la sala debe ser numérico" })
     .int("El ID de la sala debe ser un número entero")
-    .positive("El ID de la sala debe ser mayor a 0"),
+    .positive("El ID de la sala debe ser mayor a 0")
+    .optional()
+    .nullable(),
   bloqueId: z
     .number({ message: "El ID del bloque horario es obligatorio" })
     .int("El ID del bloque horario debe ser un número entero")
@@ -34,7 +36,8 @@ export const updateHorarioValidation = z.object({
     .number()
     .int("El ID de la sala debe ser un número entero")
     .positive("El ID de la sala debe ser mayor a 0")
-    .optional(),
+    .optional()
+    .nullable(),
   bloqueId: z
     .number()
     .int("El ID del bloque horario debe ser un número entero")

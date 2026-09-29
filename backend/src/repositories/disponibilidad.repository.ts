@@ -7,6 +7,7 @@ import {
 } from "../db/schema/planificacion.schema.js";
 import { profesores } from "../db/schema/profesores.schema.js";
 import { semestres, bloquesHorarios } from "../db/schema/recursos.schema.js";
+import { horariosAsignaturas } from "../db/schema/horarios.schema.js";
 
 export const disponibilidadRepository = {
   async findAll(filter?: { profesorId?: number; semestreId?: number }) {
@@ -72,6 +73,15 @@ export const disponibilidadRepository = {
       .where(eq(semestres.id, semestreId))
       .limit(1);
     return !!sem;
+  },
+
+  async checkHorariosExistForSemestre(semestreId: number): Promise<boolean> {
+    const [horario] = await db
+      .select({ id: horariosAsignaturas.id })
+      .from(horariosAsignaturas)
+      .where(eq(horariosAsignaturas.semestreId, semestreId))
+      .limit(1);
+    return !!horario;
   },
 
   async checkBloqueExists(bloqueId: number): Promise<boolean> {
