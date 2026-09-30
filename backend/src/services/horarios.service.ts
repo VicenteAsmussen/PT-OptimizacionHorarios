@@ -3,8 +3,9 @@ import {
   type CreateHorarioDTO,
   type UpdateHorarioDTO,
   type HorarioQueryDTO,
+  type MiHorarioQueryDTO,
 } from "../validations/horarios.validation.js";
-import { NotFoundError, ConflictError, BadRequestError } from "../utils/errors.js";
+import { NotFoundError, ConflictError, BadRequestError, ForbiddenError } from "../utils/errors.js";
 
 export const horariosService = {
   async getAllHorarios(filter?: HorarioQueryDTO) {
@@ -201,5 +202,25 @@ export const horariosService = {
       throw new NotFoundError(`Oferta de asignatura con ID ${ofertaId} no encontrada`);
     }
     return await horariosRepository.deleteByOferta(ofertaId);
+  },
+
+  async getMiHorario(usuarioId: number, query?: MiHorarioQueryDTO) {
+    const profesor = await horariosRepository.findProfesorByUsuarioId(usuarioId);
+    if (!profesor) {
+      throw new ForbiddenError("El usuario autenticado no tiene un perfil de profesor asociado");
+    }
+
+    let semestreId = query?.semestreId;
+    if (!semestreId) {
+      const semestreActual = await horariosRepository.findActualSemestre();
+      if (semestreActual) {
+        semestreId = semestreActual.id;
+      }
+    }
+
+    return await horariosRepository.findAll({
+      semestreId,
+      profesorId: profesor.id,
+    });
   },
 };

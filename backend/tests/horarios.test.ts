@@ -5,6 +5,7 @@ import { db } from "../src/config/db.js";
 
 describe("Gestión de Horarios y Detección de Choques (/api/horarios-asignaturas)", () => {
   let secretariaCookie: string[];
+  let profesorCookie: string[];
   const asignaturaCodigo = `TEST${Date.now()}`.slice(0, 15);
   let profesorId: number;
   let semestreId: number;
@@ -17,11 +18,16 @@ describe("Gestión de Horarios y Detección de Choques (/api/horarios-asignatura
   let horarioId: number;
 
   beforeAll(async () => {
-    // 1. Iniciar sesión como secretaria
+    // 1. Iniciar sesión como secretaria y profesor
     const secRes = await request(app)
       .post("/api/auth/login")
       .send({ correo: "secretaria@ubiobio.cl", clave: "123456" });
     secretariaCookie = secRes.headers["set-cookie"];
+
+    const profRes = await request(app)
+      .post("/api/auth/login")
+      .send({ correo: "profesor@ubiobio.cl", clave: "123456" });
+    profesorCookie = profRes.headers["set-cookie"];
 
     // 2. Obtener IDs reales desde la BD
     const prof = await db.query.profesores.findFirst();
@@ -136,5 +142,53 @@ describe("Gestión de Horarios y Detección de Choques (/api/horarios-asignatura
       .set("Cookie", secretariaCookie);
 
     expect(res.status).toBe(204);
+  });
+
+  it("Debe permitir crear un horario de propuesta sin sala asignada (salaId ausente o null) (201)", async () => {
+    const res = await request(app)
+      .post("/api/horarios-asignaturas")
+      .set("Cookie", secretariaCookie)
+      .send({
+        ofertaId: ofertaId1,
+        bloqueId,
+        tipoHoraId,
+        semestreId,
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.status).toBe("success");
+    expect(res.body.data.salaId).toBeNull();
+
+    const tempHorarioId = res.body.data.id;
+
+    // Probar filtro por semestreMalla (la asignatura creada tiene semestreMalla=3)
+    const filterMallaRes = await request(app)
+      .get(`/api/horarios-asignaturas?semestreId=${semestreId}&semestreMalla=3`)
+      .set("Cookie", secretariaCookie);
+
+    expect(filterMallaRes.status).toBe(200);
+    expect(filterMallaRes.body.data.some((h: { id: number }) => h.id === tempHorarioId)).toBe(true);
+
+    // Probar filtro por profesorId
+    const filterProfRes = await request(app)
+      .get(`/api/horarios-asignaturas?semestreId=${semestreId}&profesorId=${profesorId}`)
+      .set("Cookie", secretariaCookie);
+
+    expect(filterProfRes.status).toBe(200);
+    expect(filterProfRes.body.data.some((h: { id: number }) => h.id === tempHorarioId)).toBe(true);
+
+    // Probar endpoint GET /mi-horario como profesor autenticado
+    const miHorarioRes = await request(app)
+      .get(`/api/horarios-asignaturas/mi-horario?semestreId=${semestreId}`)
+      .set("Cookie", profesorCookie);
+
+    expect(miHorarioRes.status).toBe(200);
+    expect(miHorarioRes.body.status).toBe("success");
+    expect(Array.isArray(miHorarioRes.body.data)).toBe(true);
+
+    // Limpiar el horario de prueba
+    await request(app)
+      .delete(`/api/horarios-asignaturas/${tempHorarioId}`)
+      .set("Cookie", secretariaCookie);
   });
 });

@@ -1,4 +1,4 @@
-import { eq, and } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { db } from "../config/db.js";
 import {
   horariosAsignaturas,
@@ -6,6 +6,8 @@ import {
   type NuevoHorarioAsignatura,
 } from "../db/schema/horarios.schema.js";
 import { ofertasAsignaturas } from "../db/schema/planificacion.schema.js";
+import { asignaturas } from "../db/schema/asignaturas.schema.js";
+import { profesores } from "../db/schema/profesores.schema.js";
 import { salas, bloquesHorarios, tiposHora, semestres } from "../db/schema/recursos.schema.js";
 
 export const horariosRepository = {
@@ -14,6 +16,8 @@ export const horariosRepository = {
     ofertaId?: number;
     salaId?: number;
     bloqueId?: number;
+    semestreMalla?: number;
+    profesorId?: number;
   }) {
     const conditions = [];
     if (filter?.semestreId) {
@@ -27,6 +31,32 @@ export const horariosRepository = {
     }
     if (filter?.bloqueId) {
       conditions.push(eq(horariosAsignaturas.bloqueId, filter.bloqueId));
+    }
+    if (filter?.semestreMalla) {
+      conditions.push(
+        inArray(
+          horariosAsignaturas.ofertaId,
+          db
+            .select({ id: ofertasAsignaturas.id })
+            .from(ofertasAsignaturas)
+            .innerJoin(
+              asignaturas,
+              eq(ofertasAsignaturas.asignaturaCodigo, asignaturas.codigo)
+            )
+            .where(eq(asignaturas.semestreMalla, filter.semestreMalla))
+        )
+      );
+    }
+    if (filter?.profesorId) {
+      conditions.push(
+        inArray(
+          horariosAsignaturas.ofertaId,
+          db
+            .select({ id: ofertasAsignaturas.id })
+            .from(ofertasAsignaturas)
+            .where(eq(ofertasAsignaturas.profesorId, filter.profesorId))
+        )
+      );
     }
 
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
@@ -195,5 +225,17 @@ export const horariosRepository = {
       .where(eq(horariosAsignaturas.ofertaId, ofertaId))
       .returning();
     return deleted.length;
+  },
+
+  async findProfesorByUsuarioId(usuarioId: number) {
+    return await db.query.profesores.findFirst({
+      where: eq(profesores.usuarioId, usuarioId),
+    });
+  },
+
+  async findActualSemestre() {
+    return await db.query.semestres.findFirst({
+      where: eq(semestres.actual, true),
+    });
   },
 };

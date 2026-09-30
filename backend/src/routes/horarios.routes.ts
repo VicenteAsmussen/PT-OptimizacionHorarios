@@ -9,12 +9,21 @@ import {
   horarioIdParamValidation,
   ofertaParamValidation,
   horarioQueryValidation,
+  miHorarioQueryValidation,
 } from "../validations/horarios.validation.js";
 
 const router = Router();
 
 // Todas las rutas requieren estar autenticado
 router.use(authenticate);
+
+// Consultar horario propio del docente autenticado (debe ir antes de /:id)
+router.get(
+  "/mi-horario",
+  authorizeRoles("profesor", "admin"),
+  validateRequest({ query: miHorarioQueryValidation }),
+  horariosController.getMiHorario
+);
 
 // Consultar horarios: permitido para admin, secretaria y profesor
 router.get(

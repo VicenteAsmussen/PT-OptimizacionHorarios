@@ -88,4 +88,57 @@ describe("Módulo Disponibilidad Docente (/api/disponibilidad-profesores)", () =
     expect(res.status).toBe(400);
     expect(res.body.status).toBe("error");
   });
+
+  it("Debe bloquear la edición de disponibilidad si ya existen propuestas/horarios creados para el semestre (403 Forbidden)", async () => {
+    // 1. Obtener datos base y crear oferta temporal
+    const asignatura = await db.query.asignaturas.findFirst();
+    const tipoHora = await db.query.tiposHora.findFirst();
+
+    const ofertaRes = await request(app)
+      .post("/api/ofertas-asignaturas")
+      .set("Cookie", secretariaCookie)
+      .send({
+        asignaturaCodigo: asignatura!.codigo,
+        profesorId,
+        semestreId,
+        seccion: 99,
+        cupos: 20,
+      });
+    const ofertaId = ofertaRes.body.data.id;
+
+    // Crear horario de propuesta para el semestre
+    const horarioRes = await request(app)
+      .post("/api/horarios-asignaturas")
+      .set("Cookie", secretariaCookie)
+      .send({
+        ofertaId,
+        bloqueId: bloqueId1,
+        tipoHoraId: tipoHora!.id,
+        semestreId,
+      });
+    const tempHorarioId = horarioRes.body.data.id;
+
+    // 2. Intentar sincronizar disponibilidad para ese semestre -> Debe ser rechazado con 403
+    const syncRes = await request(app)
+      .post("/api/disponibilidad-profesores/sincronizar")
+      .set("Cookie", profesorCookie)
+      .send({
+        profesorId,
+        semestreId,
+        bloquesIds: [bloqueId1],
+      });
+
+    expect(syncRes.status).toBe(403);
+    expect(syncRes.body.status).toBe("error");
+    expect(syncRes.body.message).toContain("ya existe una propuesta de horarios");
+
+    // 3. Limpiar horario y oferta de prueba
+    await request(app)
+      .delete(`/api/horarios-asignaturas/${tempHorarioId}`)
+      .set("Cookie", secretariaCookie);
+
+    await request(app)
+      .delete(`/api/ofertas-asignaturas/${ofertaId}`)
+      .set("Cookie", secretariaCookie);
+  });
 });

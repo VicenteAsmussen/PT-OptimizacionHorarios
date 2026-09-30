@@ -90,6 +90,25 @@ export const horarioQueryValidation = z.object({
     .int()
     .positive()
     .optional(),
+  semestreMalla: z.coerce
+    .number()
+    .int()
+    .min(1, "El semestre de la malla debe ser al menos 1")
+    .max(14, "El semestre de la malla no puede superar 14")
+    .optional(),
+  profesorId: z.coerce
+    .number()
+    .int()
+    .positive()
+    .optional(),
+});
+
+export const miHorarioQueryValidation = z.object({
+  semestreId: z.coerce
+    .number()
+    .int()
+    .positive()
+    .optional(),
 });
 
 export type CreateHorarioDTO = z.infer<typeof createHorarioValidation>;
@@ -97,4 +116,5 @@ export type UpdateHorarioDTO = z.infer<typeof updateHorarioValidation>;
 export type HorarioIdParamDTO = z.infer<typeof horarioIdParamValidation>;
 export type OfertaParamDTO = z.infer<typeof ofertaParamValidation>;
 export type HorarioQueryDTO = z.infer<typeof horarioQueryValidation>;
+export type MiHorarioQueryDTO = z.infer<typeof miHorarioQueryValidation>;
 

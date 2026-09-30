@@ -1,11 +1,26 @@
 import type { Request, Response, NextFunction } from "express";
 import { horariosService } from "../services/horarios.service.js";
-import { type HorarioQueryDTO } from "../validations/horarios.validation.js";
+import { type HorarioQueryDTO, type MiHorarioQueryDTO } from "../validations/horarios.validation.js";
 
 export const horariosController = {
   async getAll(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const data = await horariosService.getAllHorarios(req.query as unknown as HorarioQueryDTO);
+      res.status(200).json({
+        status: "success",
+        data,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async getMiHorario(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const data = await horariosService.getMiHorario(
+        req.user!.id,
+        req.query as unknown as MiHorarioQueryDTO
+      );
       res.status(200).json({
         status: "success",
         data,

@@ -69,4 +69,36 @@ describe("Módulo Semestres (/api/semestres)", () => {
 
     expect(res.status).toBe(403);
   });
+
+  it("Debe crear un semestre sin campo 'nombre' y con horarioPublicado=false por defecto (201)", async () => {
+    const nuevoCodigo = `2099-${Date.now().toString().slice(-3)}`;
+    const res = await request(app)
+      .post("/api/semestres")
+      .set("Cookie", secretariaCookie)
+      .send({
+        codigo: nuevoCodigo,
+        anio: 2099,
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.status).toBe("success");
+    expect(res.body.data.codigo).toBe(nuevoCodigo);
+    expect(res.body.data.horarioPublicado).toBe(false);
+
+    const nuevoId = res.body.data.id;
+
+    // Secretaría publica el horario del semestre
+    const patchRes = await request(app)
+      .patch(`/api/semestres/${nuevoId}`)
+      .set("Cookie", secretariaCookie)
+      .send({ horarioPublicado: true });
+
+    expect(patchRes.status).toBe(200);
+    expect(patchRes.body.data.horarioPublicado).toBe(true);
+
+    // Limpiar semestre de prueba
+    await request(app)
+      .delete(`/api/semestres/${nuevoId}`)
+      .set("Cookie", secretariaCookie);
+  });
 });
