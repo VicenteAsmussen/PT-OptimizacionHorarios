@@ -1,0 +1,5 @@
+{
+  "vitest.enable": true,
+  "vitest.commandLine": "pnpm --filter backend exec vitest",
+  "vitest.rootConfig": "backend/vitest.config.ts"
+}

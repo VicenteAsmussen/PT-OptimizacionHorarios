@@ -55,6 +55,16 @@ router.put(
   semestresController.update
 );
 
+router.patch(
+  "/:id",
+  authorizeRoles("admin", "secretaria"),
+  validateRequest({
+    params: semestreIdParamValidation,
+    body: updateSemestreValidation,
+  }),
+  semestresController.update
+);
+
 // 6. Activar un semestre como actual (exclusivo admin y secretaria)
 router.patch(
   "/:id/activar",
