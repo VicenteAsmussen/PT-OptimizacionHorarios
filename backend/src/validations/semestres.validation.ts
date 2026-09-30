@@ -6,10 +6,6 @@ export const createSemestreValidation = z.object({
     .trim()
     .min(1, "El código del semestre no puede estar vacío")
     .max(20, "El código no puede exceder los 20 caracteres"),
-  nombre: z
-    .string({ message: "El nombre del semestre es obligatorio" })
-    .trim()
-    .min(1, "El nombre del semestre no puede estar vacío"),
   anio: z
     .number({ message: "El año es obligatorio y debe ser numérico" })
     .int("El año debe ser un número entero")
@@ -25,11 +21,6 @@ export const updateSemestreValidation = z.object({
     .trim()
     .min(1, "El código no puede estar vacío")
     .max(20, "El código no puede exceder los 20 caracteres")
-    .optional(),
-  nombre: z
-    .string()
-    .trim()
-    .min(1, "El nombre no puede estar vacío")
     .optional(),
   anio: z
     .number()

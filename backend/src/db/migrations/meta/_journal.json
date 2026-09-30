@@ -36,6 +36,13 @@
       "when": 1790723897020,
       "tag": "0004_colorful_mantis",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790727980453,
+      "tag": "0005_silent_emma_frost",
+      "breakpoints": true
     }
   ]
 }

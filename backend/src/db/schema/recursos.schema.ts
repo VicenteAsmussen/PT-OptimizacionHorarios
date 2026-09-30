@@ -7,7 +7,6 @@ import { asignaturaTipoHora } from "./asignaturas.schema.js";
 export const semestres = pgTable("semestres", {
   id: serial("id").primaryKey(),
   codigo: varchar("codigo", { length: 20 }).notNull().unique(), // e.g. "2026-1"
-  nombre: text("nombre").notNull(),
   anio: integer("anio").notNull(),
   actual: boolean("actual").notNull().default(false),
   horarioPublicado: boolean("horario_publicado").notNull().default(false),
