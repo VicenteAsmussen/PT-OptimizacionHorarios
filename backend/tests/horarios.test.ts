@@ -143,7 +143,7 @@ describe.skipIf(!runDatabaseTests)("Gestión de Horarios y Detección de Choques
   it("Debe leer y actualizar publicación en la entrada existente", async () => {
     for (const horarioPublicado of [true, false]) {
       const updated = await request(app)
-        .patch(`/api/horarios-asignaturas/${horarioId}`)
+        .put(`/api/horarios-asignaturas/${horarioId}`)
         .set("Cookie", secretariaCookie)
         .send({ horarioPublicado });
       expect(updated.status).toBe(200);
