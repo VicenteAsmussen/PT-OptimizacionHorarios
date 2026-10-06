@@ -34,11 +34,7 @@ export const semestresService = {
       throw new ConflictError(`Ya existe un semestre con el código '${dto.codigo}'`);
     }
 
-    const created = await semestresRepository.create(dto);
-    if (dto.actual) {
-      return await semestresRepository.setActual(created.id);
-    }
-    return created;
+    return await semestresRepository.create(dto);
   },
 
   async updateSemestre(id: number, dto: UpdateSemestreDTO) {
@@ -49,15 +45,6 @@ export const semestresService = {
       if (existing && existing.id !== id) {
         throw new ConflictError(`Ya existe otro semestre con el código '${dto.codigo}'`);
       }
-    }
-
-    if (dto.actual === true) {
-      await semestresRepository.setActual(id);
-      const { actual, ...rest } = dto;
-      if (Object.keys(rest).length > 0) {
-        return await semestresRepository.update(id, rest);
-      }
-      return await this.getSemestreById(id);
     }
 
     return await semestresRepository.update(id, dto);

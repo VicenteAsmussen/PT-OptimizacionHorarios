@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const createHorarioValidation = z.object({
+  horarioPublicado: z.boolean().default(false),
   ofertaId: z
     .number({ message: "El ID de la oferta de asignatura es obligatorio" })
     .int("El ID de la oferta debe ser un número entero")
@@ -27,6 +28,7 @@ export const createHorarioValidation = z.object({
 });
 
 export const updateHorarioValidation = z.object({
+  horarioPublicado: z.boolean().optional(),
   ofertaId: z
     .number()
     .int("El ID de la oferta debe ser un número entero")

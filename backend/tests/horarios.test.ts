@@ -1,9 +1,11 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import request from "supertest";
-import { app } from "../src/app.js";
-import { db } from "../src/config/db.js";
+// Opt in only with an explicitly isolated, disposable database.
+const runDatabaseTests = process.env.RUN_ISOLATED_DATABASE_TESTS === "true";
+const app = runDatabaseTests ? (await import("../src/app.js")).app : undefined!;
+const db = runDatabaseTests ? (await import("../src/config/db.js")).db : undefined!;
 
-describe("Gestión de Horarios y Detección de Choques (/api/horarios-asignaturas)", () => {
+describe.skipIf(!runDatabaseTests)("Gestión de Horarios y Detección de Choques (/api/horarios-asignaturas)", () => {
   let secretariaCookie: string[];
   let profesorCookie: string[];
   const asignaturaCodigo = `TEST${Date.now()}`.slice(0, 15);
@@ -98,6 +100,8 @@ describe("Gestión de Horarios y Detección de Choques (/api/horarios-asignatura
     expect(res.status).toBe(201);
     expect(res.body.status).toBe("success");
     expect(res.body.data.ofertaId).toBe(ofertaId1);
+    expect(res.body.data.horarioPublicado).toBe(false);
+    expect(res.body.data.semestre).not.toHaveProperty("horarioPublicado");
     horarioId = res.body.data.id;
   });
 
@@ -134,6 +138,21 @@ describe("Gestión de Horarios y Detección de Choques (/api/horarios-asignatura
     expect(res.status).toBe(409);
     expect(res.body.status).toBe("error");
     expect(res.body.message).toContain("Conflicto de horario: El docente");
+  });
+
+  it("Debe leer y actualizar publicación en la entrada existente", async () => {
+    for (const horarioPublicado of [true, false]) {
+      const updated = await request(app)
+        .put(`/api/horarios-asignaturas/${horarioId}`)
+        .set("Cookie", secretariaCookie)
+        .send({ horarioPublicado });
+      expect(updated.status).toBe(200);
+      expect(updated.body.data.horarioPublicado).toBe(horarioPublicado);
+      const read = await request(app)
+        .get(`/api/horarios-asignaturas/${horarioId}`)
+        .set("Cookie", secretariaCookie);
+      expect(read.body.data.horarioPublicado).toBe(horarioPublicado);
+    }
   });
 
   it("Debe eliminar la asignación de horario (204)", async () => {
