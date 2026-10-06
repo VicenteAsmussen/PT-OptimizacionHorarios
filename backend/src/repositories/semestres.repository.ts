@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { db } from "../config/db.js";
-import { semestres, type Semestre, type NuevoSemestre } from "../db/schema/recursos.schema.js";
+import { semestres, type Semestre, type NuevoSemestre } from "../db/schema/semestres.schema.js";
 
 export const semestresRepository = {
   async findAll(): Promise<Semestre[]> {

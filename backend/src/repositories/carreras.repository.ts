@@ -2,11 +2,11 @@ import { eq, inArray } from "drizzle-orm";
 import { db } from "../config/db.js";
 import {
   carreras,
-  carreraDepartamento,
-  departamentos,
   type Carrera,
   type NuevaCarrera,
-} from "../db/schema/departamentos.schema.js";
+} from "../db/schema/carreras.schema.js";
+import { carreraDepartamento } from "../db/schema/carrera-departamento.schema.js";
+import { departamentos } from "../db/schema/departamentos.schema.js";
 
 export const carrerasRepository = {
   async findAll() {

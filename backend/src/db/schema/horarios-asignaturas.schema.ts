@@ -1,8 +1,10 @@
 import { pgTable, serial, integer, uniqueIndex, unique } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
-import { ofertasAsignaturas } from "./planificacion.schema.js";
-import { salas, bloquesHorarios, tiposHora, semestres } from "./recursos.schema.js";
-
+import { ofertasAsignaturas } from "./ofertas-asignaturas.schema.js";
+import { salas } from "./salas.schema.js";
+import { bloquesHorarios } from "./bloques-horarios.schema.js";
+import { tiposHora } from "./tipos-hora.schema.js";
+import { semestres } from "./semestres.schema.js";
 import { semestresHorarios } from "./semestres-horarios.schema.js";
 
 export const horariosAsignaturas = pgTable(

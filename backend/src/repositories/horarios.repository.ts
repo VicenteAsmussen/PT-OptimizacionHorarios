@@ -4,11 +4,14 @@ import {
   horariosAsignaturas,
   type HorarioAsignatura,
   type NuevoHorarioAsignatura,
-} from "../db/schema/horarios.schema.js";
-import { ofertasAsignaturas } from "../db/schema/planificacion.schema.js";
+} from "../db/schema/horarios-asignaturas.schema.js";
+import { ofertasAsignaturas } from "../db/schema/ofertas-asignaturas.schema.js";
 import { asignaturas } from "../db/schema/asignaturas.schema.js";
 import { profesores } from "../db/schema/profesores.schema.js";
-import { salas, bloquesHorarios, tiposHora, semestres } from "../db/schema/recursos.schema.js";
+import { salas } from "../db/schema/salas.schema.js";
+import { bloquesHorarios } from "../db/schema/bloques-horarios.schema.js";
+import { tiposHora } from "../db/schema/tipos-hora.schema.js";
+import { semestres } from "../db/schema/semestres.schema.js";
 import { semestresHorarios } from "../db/schema/semestres-horarios.schema.js";
 
 // Publication belongs to the entry, not to either nested semester response.

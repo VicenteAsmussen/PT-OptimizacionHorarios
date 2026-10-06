@@ -2,13 +2,13 @@ import { eq, inArray } from "drizzle-orm";
 import { db } from "../config/db.js";
 import {
   asignaturas,
-  asignaturaTipoHora,
-  carreraAsignatura,
   type Asignatura,
   type NuevaAsignatura,
 } from "../db/schema/asignaturas.schema.js";
-import { tiposHora } from "../db/schema/recursos.schema.js";
-import { carreras } from "../db/schema/departamentos.schema.js";
+import { asignaturaTipoHora } from "../db/schema/asignatura-tipo-hora.schema.js";
+import { carreraAsignatura } from "../db/schema/carrera-asignatura.schema.js";
+import { tiposHora } from "../db/schema/tipos-hora.schema.js";
+import { carreras } from "../db/schema/carreras.schema.js";
 
 export interface TipoHoraItem {
   tipoHoraId: number;

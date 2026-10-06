@@ -1,7 +1,7 @@
 import { pgTable, integer, boolean, foreignKey } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
-import { semestres } from "./recursos.schema.js";
-import { horariosAsignaturas } from "./horarios.schema.js";
+import { semestres } from "./semestres.schema.js";
+import { horariosAsignaturas } from "./horarios-asignaturas.schema.js";
 
 // One publication relation per entry; the composite FK enforces semester ownership.
 export const semestresHorarios = pgTable("semestres_horarios", {

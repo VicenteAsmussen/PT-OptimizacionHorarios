@@ -2,7 +2,8 @@ import { pgTable, serial, text, integer } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { usuarios } from "./usuarios.schema.js";
 import { departamentos } from "./departamentos.schema.js";
-import { ofertasAsignaturas, disponibilidadProfesores } from "./planificacion.schema.js";
+import { ofertasAsignaturas } from "./ofertas-asignaturas.schema.js";
+import { disponibilidadProfesores } from "./disponibilidad-profesores.schema.js";
 
 export const profesores = pgTable("profesores", {
   id: serial("id").primaryKey(),

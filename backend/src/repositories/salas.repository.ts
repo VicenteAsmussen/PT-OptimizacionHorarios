@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { db } from "../config/db.js";
-import { salas, type Sala, type NuevaSala } from "../db/schema/recursos.schema.js";
+import { salas, type Sala, type NuevaSala } from "../db/schema/salas.schema.js";
 
 export const salasRepository = {
   async findAll(): Promise<Sala[]> {

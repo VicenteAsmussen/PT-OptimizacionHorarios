@@ -4,10 +4,10 @@ import {
   ofertasAsignaturas,
   type OfertaAsignatura,
   type NuevaOfertaAsignatura,
-} from "../db/schema/planificacion.schema.js";
+} from "../db/schema/ofertas-asignaturas.schema.js";
 import { asignaturas } from "../db/schema/asignaturas.schema.js";
 import { profesores } from "../db/schema/profesores.schema.js";
-import { semestres } from "../db/schema/recursos.schema.js";
+import { semestres } from "../db/schema/semestres.schema.js";
 
 export const ofertasRepository = {
   async findAll(filter?: { semestreId?: number; profesorId?: number; asignaturaCodigo?: string }) {

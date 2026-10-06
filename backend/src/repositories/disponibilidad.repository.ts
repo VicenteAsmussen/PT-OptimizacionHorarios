@@ -4,10 +4,11 @@ import {
   disponibilidadProfesores,
   type DisponibilidadProfesor,
   type NuevaDisponibilidadProfesor,
-} from "../db/schema/planificacion.schema.js";
+} from "../db/schema/disponibilidad-profesores.schema.js";
 import { profesores } from "../db/schema/profesores.schema.js";
-import { semestres, bloquesHorarios } from "../db/schema/recursos.schema.js";
-import { horariosAsignaturas } from "../db/schema/horarios.schema.js";
+import { semestres } from "../db/schema/semestres.schema.js";
+import { bloquesHorarios } from "../db/schema/bloques-horarios.schema.js";
+import { horariosAsignaturas } from "../db/schema/horarios-asignaturas.schema.js";
 
 export const disponibilidadRepository = {
   async findAll(filter?: { profesorId?: number; semestreId?: number }) {

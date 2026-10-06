@@ -2,11 +2,11 @@ import { eq } from "drizzle-orm";
 import { db } from "../config/db.js";
 import {
   usuarios,
-  secretarias,
   type Usuario,
   type NuevoUsuario,
 } from "../db/schema/usuarios.schema.js";
-import { carreras } from "../db/schema/departamentos.schema.js";
+import { secretarias } from "../db/schema/secretarias.schema.js";
+import { carreras } from "../db/schema/carreras.schema.js";
 
 export const usuariosRepository = {
   async findAll() {
