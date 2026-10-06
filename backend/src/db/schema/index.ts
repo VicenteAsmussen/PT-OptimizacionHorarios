@@ -5,3 +5,4 @@ export * from "./profesores.schema.js";
 export * from "./recursos.schema.js";
 export * from "./planificacion.schema.js";
 export * from "./horarios.schema.js";
+export * from "./semestres-horarios.schema.js";

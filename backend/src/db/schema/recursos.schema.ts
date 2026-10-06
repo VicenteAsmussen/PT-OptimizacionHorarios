@@ -3,13 +3,13 @@ import { relations } from "drizzle-orm";
 import { ofertasAsignaturas, disponibilidadProfesores } from "./planificacion.schema.js";
 import { horariosAsignaturas } from "./horarios.schema.js";
 import { asignaturaTipoHora } from "./asignaturas.schema.js";
+import { semestresHorarios } from "./semestres-horarios.schema.js";
 
 export const semestres = pgTable("semestres", {
   id: serial("id").primaryKey(),
   codigo: varchar("codigo", { length: 20 }).notNull().unique(), // e.g. "2026-1"
   anio: integer("anio").notNull(),
   actual: boolean("actual").notNull().default(false),
-  horarioPublicado: boolean("horario_publicado").notNull().default(false),
 });
 
 export const bloquesHorarios = pgTable("bloques_horarios", {
@@ -32,6 +32,7 @@ export const salas = pgTable("salas", {
 });
 
 export const semestresRelations = relations(semestres, ({ many }) => ({
+  publicaciones: many(semestresHorarios),
   ofertas: many(ofertasAsignaturas),
   disponibilidades: many(disponibilidadProfesores),
   horarios: many(horariosAsignaturas),

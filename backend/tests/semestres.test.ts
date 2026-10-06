@@ -1,8 +1,10 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import request from "supertest";
-import { app } from "../src/app.js";
+// Opt in only with an explicitly isolated, disposable database.
+const runDatabaseTests = process.env.RUN_ISOLATED_DATABASE_TESTS === "true";
+const app = runDatabaseTests ? (await import("../src/app.js")).app : undefined!;
 
-describe("Módulo Semestres (/api/semestres)", () => {
+describe.skipIf(!runDatabaseTests)("Módulo Semestres (/api/semestres)", () => {
   let secretariaCookie: string[];
   let profesorCookie: string[];
   let semestreId1: number;
@@ -70,7 +72,7 @@ describe("Módulo Semestres (/api/semestres)", () => {
     expect(res.status).toBe(403);
   });
 
-  it("Debe crear un semestre sin campo 'nombre' y con horarioPublicado=false por defecto (201)", async () => {
+  it("Debe crear un semestre sin publicación en su respuesta (201)", async () => {
     const nuevoCodigo = `2099-${Date.now().toString().slice(-3)}`;
     const res = await request(app)
       .post("/api/semestres")
@@ -83,18 +85,18 @@ describe("Módulo Semestres (/api/semestres)", () => {
     expect(res.status).toBe(201);
     expect(res.body.status).toBe("success");
     expect(res.body.data.codigo).toBe(nuevoCodigo);
-    expect(res.body.data.horarioPublicado).toBe(false);
+    expect(res.body.data).not.toHaveProperty("horarioPublicado");
 
     const nuevoId = res.body.data.id;
 
-    // Secretaría publica el horario del semestre
     const patchRes = await request(app)
       .patch(`/api/semestres/${nuevoId}`)
       .set("Cookie", secretariaCookie)
-      .send({ horarioPublicado: true });
+      .send({ anio: 2098 });
 
     expect(patchRes.status).toBe(200);
-    expect(patchRes.body.data.horarioPublicado).toBe(true);
+    expect(patchRes.body.data.anio).toBe(2098);
+    expect(patchRes.body.data).not.toHaveProperty("horarioPublicado");
 
     // Limpiar semestre de prueba
     await request(app)

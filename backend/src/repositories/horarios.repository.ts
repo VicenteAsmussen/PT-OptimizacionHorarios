@@ -1,4 +1,4 @@
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, sql } from "drizzle-orm";
 import { db } from "../config/db.js";
 import {
   horariosAsignaturas,
@@ -9,6 +9,14 @@ import { ofertasAsignaturas } from "../db/schema/planificacion.schema.js";
 import { asignaturas } from "../db/schema/asignaturas.schema.js";
 import { profesores } from "../db/schema/profesores.schema.js";
 import { salas, bloquesHorarios, tiposHora, semestres } from "../db/schema/recursos.schema.js";
+import { semestresHorarios } from "../db/schema/semestres-horarios.schema.js";
+
+// Publication belongs to the entry, not to either nested semester response.
+const publicationProjection = (table: { id: typeof horariosAsignaturas.id }) => ({
+  horarioPublicado: sql<boolean>`coalesce((select sh.horario_publicado from semestres_horarios sh where sh.horario_asignatura_id = ${table.id}), false)`.as("horario_publicado"),
+});
+type Entrada = HorarioAsignatura & { horarioPublicado: boolean };
+type NuevaEntrada = NuevoHorarioAsignatura & { horarioPublicado?: boolean };
 
 export const horariosRepository = {
   async findAll(filter?: {
@@ -62,6 +70,7 @@ export const horariosRepository = {
     const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
 
     return await db.query.horariosAsignaturas.findMany({
+      extras: publicationProjection,
       where: whereClause,
       with: {
         oferta: {
@@ -85,6 +94,7 @@ export const horariosRepository = {
 
   async findById(id: number) {
     return await db.query.horariosAsignaturas.findFirst({
+      extras: publicationProjection,
       where: eq(horariosAsignaturas.id, id),
       with: {
         oferta: {
@@ -194,21 +204,39 @@ export const horariosRepository = {
     return !!sem;
   },
 
-  async create(data: NuevoHorarioAsignatura): Promise<HorarioAsignatura> {
-    const [created] = await db.insert(horariosAsignaturas).values(data).returning();
-    return created;
+  async create(data: NuevaEntrada): Promise<Entrada> {
+    return await db.transaction(async (tx) => {
+      const { horarioPublicado = false, ...entryData } = data;
+      const [created] = await tx.insert(horariosAsignaturas).values(entryData).returning();
+      await tx.insert(semestresHorarios).values({
+        semestreId: created.semestreId, horarioAsignaturaId: created.id, horarioPublicado,
+      });
+      return { ...created, horarioPublicado };
+    });
   },
 
   async update(
     id: number,
-    data: Partial<Omit<NuevoHorarioAsignatura, "id">>
-  ): Promise<HorarioAsignatura | undefined> {
-    const [updated] = await db
-      .update(horariosAsignaturas)
-      .set(data)
-      .where(eq(horariosAsignaturas.id, id))
-      .returning();
-    return updated;
+    data: Partial<Omit<NuevaEntrada, "id">>
+  ): Promise<Entrada | undefined> {
+    return await db.transaction(async (tx) => {
+      const { horarioPublicado, ...entryData } = data;
+      // Entry updates acquire the owner lock; publication-only writes explicitly lock it.
+      // ON UPDATE CASCADE moves the relation's semester before its publication is written.
+      const [updated] = Object.keys(entryData).length
+        ? await tx.update(horariosAsignaturas).set(entryData)
+          .where(eq(horariosAsignaturas.id, id)).returning()
+        : await tx.select().from(horariosAsignaturas)
+          .where(eq(horariosAsignaturas.id, id)).for("update");
+      if (!updated) return undefined;
+      const [publication] = horarioPublicado !== undefined
+        ? await tx.update(semestresHorarios).set({ horarioPublicado })
+          .where(eq(semestresHorarios.horarioAsignaturaId, id)).returning()
+        : await tx.select().from(semestresHorarios)
+          .where(eq(semestresHorarios.horarioAsignaturaId, id));
+      if (!publication) throw new Error("La entrada no tiene una relación de publicación");
+      return { ...updated, horarioPublicado: publication.horarioPublicado };
+    });
   },
 
   async delete(id: number): Promise<boolean> {

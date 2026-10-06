@@ -1,7 +1,9 @@
-import { pgTable, serial, integer, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, uniqueIndex, unique } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { ofertasAsignaturas } from "./planificacion.schema.js";
 import { salas, bloquesHorarios, tiposHora, semestres } from "./recursos.schema.js";
+
+import { semestresHorarios } from "./semestres-horarios.schema.js";
 
 export const horariosAsignaturas = pgTable(
   "horarios_asignaturas",
@@ -23,6 +25,7 @@ export const horariosAsignaturas = pgTable(
       .references(() => semestres.id, { onDelete: "cascade" }),
   },
   (table) => [
+    unique("uq_horarios_asignaturas_id_semestre").on(table.id, table.semestreId),
     uniqueIndex("uq_horarios_semestre_bloque_sala").on(
       table.semestreId,
       table.bloqueId,
@@ -32,6 +35,7 @@ export const horariosAsignaturas = pgTable(
 );
 
 export const horariosAsignaturasRelations = relations(horariosAsignaturas, ({ one }) => ({
+  publicacion: one(semestresHorarios),
   oferta: one(ofertasAsignaturas, {
     fields: [horariosAsignaturas.ofertaId],
     references: [ofertasAsignaturas.id],

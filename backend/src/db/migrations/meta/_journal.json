@@ -43,6 +43,13 @@
       "when": 1790727980453,
       "tag": "0005_silent_emma_frost",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1791321830335,
+      "tag": "0006_youthful_tigra",
+      "breakpoints": true
     }
   ]
 }

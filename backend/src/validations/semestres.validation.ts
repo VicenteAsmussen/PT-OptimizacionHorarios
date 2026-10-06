@@ -12,7 +12,6 @@ export const createSemestreValidation = z.object({
     .min(2000, "El año no puede ser menor a 2000")
     .max(2100, "El año no puede ser mayor a 2100"),
   actual: z.boolean().optional(),
-  horarioPublicado: z.boolean().optional(),
 });
 
 export const updateSemestreValidation = z.object({
@@ -29,7 +28,6 @@ export const updateSemestreValidation = z.object({
     .max(2100, "El año no puede ser mayor a 2100")
     .optional(),
   actual: z.boolean().optional(),
-  horarioPublicado: z.boolean().optional(),
 });
 
 export const semestreIdParamValidation = z.object({

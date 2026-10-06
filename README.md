@@ -78,7 +78,9 @@ backend/src/
 ## ⏳ Tareas Pendientes y Estado del Proyecto
 
 - [x] **Control de Bloqueo de Disponibilidad Docente**: Regla de negocio implementada en `disponibilidad.service.ts` para congelar automáticamente la edición/sincronización de disponibilidad docente una vez generadas propuestas de horarios para el semestre.
-- [x] **Diferenciación de Horario Propuesta vs Oficial**: Columna `horario_publicado` en `semestres` y campo `sala_id` opcional/nullable en `horarios_asignaturas` para soportar horarios borrador antes de la asignación de infraestructura física.
+- [x] **Publicación por Entrada de Horario**: `semestres_horarios` relaciona directamente `semestre_id` y `horario_asignatura_id`, con un único registro por entrada y `horario_publicado=false` por defecto. No existe una tabla agregada `horarios` ni un `horario_id` adicional en las entradas. La clave foránea compuesta garantiza que el semestre coincida con el de la entrada; las actualizaciones y eliminaciones de esta última se propagan por cascada. `sala_id` sigue siendo opcional/nullable, independientemente de la publicación.
+  - **API existente**: `horarioPublicado` se lee y escribe en `/api/horarios-asignaturas`, no en la API de semestres ni en sus respuestas anidadas. Se conserva `semestreId`. Crear o actualizar una entrada gestiona su publicación en la misma transacción. No hay nuevos endpoints, versiones ni requisitos para publicar; crear un semestre vacío no genera entradas ficticias.
+  - **Migración**: `0006_youthful_tigra.sql` copia el booleano original del semestre a cada entrada antes de retirar la columna antigua. No cambia IDs existentes ni salas. Si existe un semestre publicado sin entradas, aborta con una excepción antes de cambiar el esquema: ese estado no puede preservarse en una relación por entrada y requiere resolución explícita. Los semestres vacíos no publicados no generan relaciones. Aplicarla requiere respaldo y validación previa en PostgreSQL aislado y descartable; esta migración aún no se ha ejecutado.
 - [ ] **Gestión de Archivos Excel (Flujo de Solicitud y Asignación de Salas)**:
   - **Exportación de Solicitud de Salas (Excel)**: Generar planilla con la propuesta de horarios del modelo (asignaturas, secciones, bloques, cupos y tipos de aula) para tramitar la reserva de infraestructura con el departamento externo de salas de la universidad.
   - **Importación y Vinculación de Salas (Excel)**: Leer la planilla de respuesta de salas y actualizar masivamente `horarios_asignaturas` vinculando cada bloque con su `sala_id`.
@@ -114,3 +116,13 @@ backend/src/
    pnpm run db:seed       # Poblar catálogos base (bloques UBB, salas, etc.)
    pnpm run db:studio     # Abrir visor web Drizzle Studio
    ```
+
+### Verificación segura de publicación
+
+```bash
+cd backend
+pnpm exec vitest run tests/semestres.test.ts tests/horarios.test.ts tests/semestres-horarios.test.ts
+pnpm exec tsc --noEmit
+```
+
+Los checks de esquema, migración y SQL son independientes de la base configurada. Las dos suites de integración requieren `RUN_ISOLATED_DATABASE_TESTS=true`: habilitarlo únicamente con una base aislada y descartable, migrada y preparada para esas pruebas. La suite completa no tiene esa protección; no ejecutarla contra una base compartida. Los checks sin base no demuestran la ejecución de cascadas, restricciones ni rollback en PostgreSQL.

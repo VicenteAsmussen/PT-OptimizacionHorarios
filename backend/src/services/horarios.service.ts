@@ -102,7 +102,7 @@ export const horariosService = {
     const existing = await this.getHorarioById(id);
 
     const targetOfertaId = dto.ofertaId ?? existing.ofertaId;
-    const targetSalaId = dto.salaId ?? existing.salaId;
+    const targetSalaId = dto.salaId !== undefined ? dto.salaId : existing.salaId;
     const targetBloqueId = dto.bloqueId ?? existing.bloqueId;
     const targetTipoHoraId = dto.tipoHoraId ?? existing.tipoHoraId;
     const targetSemestreId = dto.semestreId ?? existing.semestreId;
