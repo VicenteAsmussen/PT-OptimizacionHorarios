@@ -22,6 +22,51 @@ type Entrada = HorarioAsignatura & { horarioPublicado: boolean };
 type NuevaEntrada = NuevoHorarioAsignatura & { horarioPublicado?: boolean };
 
 export const horariosRepository = {
+  async findParaImportarSalas(semestreId: number) {
+    const entradas = await db.query.horariosAsignaturas.findMany({
+      where: eq(horariosAsignaturas.semestreId, semestreId),
+      with: { oferta: { with: { asignatura: true, profesor: true } }, bloque: true, tipoHora: true },
+    });
+    const salasExistentes = await db.select({ id: salas.id, nombre: salas.nombre }).from(salas);
+    return { entradas, salas: salasExistentes };
+  },
+
+  async actualizarSalasEnTransaccion(semestreId: number, cambios: { id: number; salaId: number | null }[]) {
+    await db.transaction(async (tx) => {
+      for (const cambio of cambios) {
+        const actualizadas = await tx.update(horariosAsignaturas).set({ salaId: cambio.salaId })
+          .where(and(eq(horariosAsignaturas.id, cambio.id), eq(horariosAsignaturas.semestreId, semestreId))).returning({ id: horariosAsignaturas.id });
+        if (actualizadas.length !== 1) throw new Error("El horario cambió durante la importación; vuelva a exportar e importar.");
+      }
+    });
+  },
+
+  async findSemestreById(semestreId: number) {
+    const [semestre] = await db
+      .select({ codigo: semestres.codigo })
+      .from(semestres)
+      .where(eq(semestres.id, semestreId))
+      .limit(1);
+    return semestre;
+  },
+
+  async findParaExportarSalas(semestreId: number) {
+    return await db.query.horariosAsignaturas.findMany({
+      where: eq(horariosAsignaturas.semestreId, semestreId),
+      with: {
+        oferta: {
+          with: {
+            asignatura: { with: { tiposHora: { with: { tipoHora: true } } } },
+            profesor: true,
+          },
+        },
+        bloque: true,
+        tipoHora: true,
+        sala: true,
+      },
+    });
+  },
+
   async findAll(filter?: {
     semestreId?: number;
     ofertaId?: number;

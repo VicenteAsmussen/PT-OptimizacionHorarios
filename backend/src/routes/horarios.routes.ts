@@ -1,4 +1,5 @@
 import { Router } from "express";
+import multer from "multer";
 import { horariosController } from "../controllers/horarios.controller.js";
 import { validateRequest } from "../middlewares/validation.middleware.js";
 import { authenticate } from "../middlewares/auth.middleware.js";
@@ -10,6 +11,7 @@ import {
   ofertaParamValidation,
   horarioQueryValidation,
   miHorarioQueryValidation,
+  excelSalasQueryValidation,
 } from "../validations/horarios.validation.js";
 
 const router = Router();
@@ -31,6 +33,30 @@ router.get(
   authorizeRoles("admin", "secretaria", "profesor"),
   validateRequest({ query: horarioQueryValidation }),
   horariosController.getAll
+);
+
+// Descarga administrativa: antes de las rutas con parámetros.
+router.get(
+  "/excel/salas",
+  authorizeRoles("admin", "secretaria"),
+  validateRequest({ query: excelSalasQueryValidation }),
+  horariosController.exportarExcelSalas
+);
+
+const subirExcelSalas = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 1 } }).single("archivo");
+router.post(
+  "/excel/salas/importar",
+  authorizeRoles("admin", "secretaria"),
+  (req, res, next) => {
+    subirExcelSalas(req, res, (error) => {
+      if (error) {
+        res.status(400).json({ status: "error", errores: [{ fila: 1, columna: "archivo", mensaje: "Adjunte un único archivo en el campo archivo (máximo 10 MB)." }] });
+        return;
+      }
+      next();
+    });
+  },
+  horariosController.importarExcelSalas
 );
 
 router.get(

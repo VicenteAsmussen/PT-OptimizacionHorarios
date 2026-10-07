@@ -105,6 +105,14 @@ export const horarioQueryValidation = z.object({
     .optional(),
 });
 
+export const excelSalasQueryValidation = z.object({
+  semestreId: z.coerce.number({ message: "Indique el ID del semestre a exportar" })
+    .int("El ID del semestre debe ser un número entero")
+    .positive("El ID del semestre debe ser mayor a 0"),
+});
+
+export type ExcelSalasQueryDTO = z.infer<typeof excelSalasQueryValidation>;
+
 export const miHorarioQueryValidation = z.object({
   semestreId: z.coerce
     .number()
