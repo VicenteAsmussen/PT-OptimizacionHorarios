@@ -117,16 +117,17 @@ async function seed() {
     { horaInicio: "19:20", horaTermino: "20:00" }, // Bloque 16
   ];
 
-  const bloquesData = dias.flatMap((dia) =>
-    modulos.map((m) => ({
+  const datosBloques = dias.flatMap((dia) =>
+    modulos.map((modulo, indice) => ({
       dia,
-      horaInicio: m.horaInicio,
-      horaTermino: m.horaTermino,
+      numeroBloque: indice + 1,
+      horaInicio: modulo.horaInicio,
+      horaTermino: modulo.horaTermino,
     }))
   );
 
-  const insertedBloques = await db.insert(schema.bloquesHorarios).values(bloquesData).returning();
-  console.log(`✓ Insertados ${insertedBloques.length} bloques horarios (${modulos.length} módulos por 5 días)`);
+  const bloquesInsertados = await db.insert(schema.bloquesHorarios).values(datosBloques).returning();
+  console.log(`✓ Insertados ${bloquesInsertados.length} bloques horarios (${modulos.length} módulos por ${dias.length} días)`);
 
   // 7. Salas (Tipo: "Sala" o "Laboratorio")
   const insertedSalas = await db

@@ -1,0 +1,253 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.asignatura_tipo_hora": {
+      "name": "asignatura_tipo_hora", "schema": "",
+      "columns": {
+        "asignatura_codigo": { "name": "asignatura_codigo", "type": "varchar(20)", "primaryKey": false, "notNull": true },
+        "tipo_hora_id": { "name": "tipo_hora_id", "type": "integer", "primaryKey": false, "notNull": true },
+        "horas": { "name": "horas", "type": "integer", "primaryKey": false, "notNull": true, "default": 0 }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "asignatura_tipo_hora_asignatura_codigo_asignaturas_codigo_fk": { "name": "asignatura_tipo_hora_asignatura_codigo_asignaturas_codigo_fk", "tableFrom": "asignatura_tipo_hora", "tableTo": "asignaturas", "columnsFrom": ["asignatura_codigo"], "columnsTo": ["codigo"], "onDelete": "cascade", "onUpdate": "no action" },
+        "asignatura_tipo_hora_tipo_hora_id_tipos_hora_id_fk": { "name": "asignatura_tipo_hora_tipo_hora_id_tipos_hora_id_fk", "tableFrom": "asignatura_tipo_hora", "tableTo": "tipos_hora", "columnsFrom": ["tipo_hora_id"], "columnsTo": ["id"], "onDelete": "cascade", "onUpdate": "no action" }
+      },
+      "compositePrimaryKeys": { "asignatura_tipo_hora_asignatura_codigo_tipo_hora_id_pk": { "name": "asignatura_tipo_hora_asignatura_codigo_tipo_hora_id_pk", "columns": ["asignatura_codigo", "tipo_hora_id"] } },
+      "uniqueConstraints": {}, "policies": {}, "checkConstraints": {}, "isRLSEnabled": false
+    },
+    "public.asignaturas": {
+      "name": "asignaturas", "schema": "",
+      "columns": {
+        "codigo": { "name": "codigo", "type": "varchar(20)", "primaryKey": true, "notNull": true },
+        "nombre": { "name": "nombre", "type": "text", "primaryKey": false, "notNull": true },
+        "semestre_malla": { "name": "semestre_malla", "type": "integer", "primaryKey": false, "notNull": true },
+        "es_critica": { "name": "es_critica", "type": "boolean", "primaryKey": false, "notNull": true, "default": false }
+      },
+      "indexes": {}, "foreignKeys": {}, "compositePrimaryKeys": {}, "uniqueConstraints": {}, "policies": {}, "checkConstraints": {}, "isRLSEnabled": false
+    },
+    "public.bloques_horarios": {
+      "name": "bloques_horarios", "schema": "",
+      "columns": {
+        "id": { "name": "id", "type": "serial", "primaryKey": true, "notNull": true },
+        "dia": { "name": "dia", "type": "varchar(15)", "primaryKey": false, "notNull": true },
+        "numero_bloque": { "name": "numero_bloque", "type": "integer", "primaryKey": false, "notNull": true },
+        "hora_inicio": { "name": "hora_inicio", "type": "varchar(10)", "primaryKey": false, "notNull": true },
+        "hora_termino": { "name": "hora_termino", "type": "varchar(10)", "primaryKey": false, "notNull": true }
+      },
+      "indexes": {}, "foreignKeys": {}, "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "uq_bloques_horarios_dia_numero": { "name": "uq_bloques_horarios_dia_numero", "nullsNotDistinct": false, "columns": ["dia", "numero_bloque"] },
+        "uq_bloques_horarios_dia_rango": { "name": "uq_bloques_horarios_dia_rango", "nullsNotDistinct": false, "columns": ["dia", "hora_inicio", "hora_termino"] }
+      },
+      "policies": {}, "checkConstraints": {}, "isRLSEnabled": false
+    },
+    "public.carrera_asignatura": {
+      "name": "carrera_asignatura", "schema": "",
+      "columns": {
+        "carrera_id": { "name": "carrera_id", "type": "integer", "primaryKey": false, "notNull": true },
+        "asignatura_codigo": { "name": "asignatura_codigo", "type": "varchar(20)", "primaryKey": false, "notNull": true }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "carrera_asignatura_carrera_id_carreras_id_fk": { "name": "carrera_asignatura_carrera_id_carreras_id_fk", "tableFrom": "carrera_asignatura", "tableTo": "carreras", "columnsFrom": ["carrera_id"], "columnsTo": ["id"], "onDelete": "cascade", "onUpdate": "no action" },
+        "carrera_asignatura_asignatura_codigo_asignaturas_codigo_fk": { "name": "carrera_asignatura_asignatura_codigo_asignaturas_codigo_fk", "tableFrom": "carrera_asignatura", "tableTo": "asignaturas", "columnsFrom": ["asignatura_codigo"], "columnsTo": ["codigo"], "onDelete": "cascade", "onUpdate": "no action" }
+      },
+      "compositePrimaryKeys": { "carrera_asignatura_carrera_id_asignatura_codigo_pk": { "name": "carrera_asignatura_carrera_id_asignatura_codigo_pk", "columns": ["carrera_id", "asignatura_codigo"] } },
+      "uniqueConstraints": {}, "policies": {}, "checkConstraints": {}, "isRLSEnabled": false
+    },
+    "public.carrera_departamento": {
+      "name": "carrera_departamento", "schema": "",
+      "columns": {
+        "carrera_id": { "name": "carrera_id", "type": "integer", "primaryKey": false, "notNull": true },
+        "departamento_id": { "name": "departamento_id", "type": "integer", "primaryKey": false, "notNull": true }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "carrera_departamento_carrera_id_carreras_id_fk": { "name": "carrera_departamento_carrera_id_carreras_id_fk", "tableFrom": "carrera_departamento", "tableTo": "carreras", "columnsFrom": ["carrera_id"], "columnsTo": ["id"], "onDelete": "cascade", "onUpdate": "no action" },
+        "carrera_departamento_departamento_id_departamentos_id_fk": { "name": "carrera_departamento_departamento_id_departamentos_id_fk", "tableFrom": "carrera_departamento", "tableTo": "departamentos", "columnsFrom": ["departamento_id"], "columnsTo": ["id"], "onDelete": "cascade", "onUpdate": "no action" }
+      },
+      "compositePrimaryKeys": { "carrera_departamento_carrera_id_departamento_id_pk": { "name": "carrera_departamento_carrera_id_departamento_id_pk", "columns": ["carrera_id", "departamento_id"] } },
+      "uniqueConstraints": {}, "policies": {}, "checkConstraints": {}, "isRLSEnabled": false
+    },
+    "public.carreras": {
+      "name": "carreras", "schema": "",
+      "columns": {
+        "id": { "name": "id", "type": "serial", "primaryKey": true, "notNull": true },
+        "nombre": { "name": "nombre", "type": "text", "primaryKey": false, "notNull": true }
+      },
+      "indexes": {}, "foreignKeys": {}, "compositePrimaryKeys": {}, "uniqueConstraints": {}, "policies": {}, "checkConstraints": {}, "isRLSEnabled": false
+    },
+    "public.departamentos": {
+      "name": "departamentos", "schema": "",
+      "columns": {
+        "id": { "name": "id", "type": "serial", "primaryKey": true, "notNull": true },
+        "nombre": { "name": "nombre", "type": "text", "primaryKey": false, "notNull": true }
+      },
+      "indexes": {}, "foreignKeys": {}, "compositePrimaryKeys": {}, "uniqueConstraints": {}, "policies": {}, "checkConstraints": {}, "isRLSEnabled": false
+    },
+    "public.disponibilidad_profesores": {
+      "name": "disponibilidad_profesores", "schema": "",
+      "columns": {
+        "id": { "name": "id", "type": "serial", "primaryKey": true, "notNull": true },
+        "profesor_id": { "name": "profesor_id", "type": "integer", "primaryKey": false, "notNull": true },
+        "semestre_id": { "name": "semestre_id", "type": "integer", "primaryKey": false, "notNull": true },
+        "bloque_id": { "name": "bloque_id", "type": "integer", "primaryKey": false, "notNull": true }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "disponibilidad_profesores_profesor_id_profesores_id_fk": { "name": "disponibilidad_profesores_profesor_id_profesores_id_fk", "tableFrom": "disponibilidad_profesores", "tableTo": "profesores", "columnsFrom": ["profesor_id"], "columnsTo": ["id"], "onDelete": "cascade", "onUpdate": "no action" },
+        "disponibilidad_profesores_semestre_id_semestres_id_fk": { "name": "disponibilidad_profesores_semestre_id_semestres_id_fk", "tableFrom": "disponibilidad_profesores", "tableTo": "semestres", "columnsFrom": ["semestre_id"], "columnsTo": ["id"], "onDelete": "cascade", "onUpdate": "no action" },
+        "disponibilidad_profesores_bloque_id_bloques_horarios_id_fk": { "name": "disponibilidad_profesores_bloque_id_bloques_horarios_id_fk", "tableFrom": "disponibilidad_profesores", "tableTo": "bloques_horarios", "columnsFrom": ["bloque_id"], "columnsTo": ["id"], "onDelete": "cascade", "onUpdate": "no action" }
+      },
+      "compositePrimaryKeys": {}, "uniqueConstraints": {}, "policies": {}, "checkConstraints": {}, "isRLSEnabled": false
+    },
+    "public.horarios_asignaturas": {
+      "name": "horarios_asignaturas", "schema": "",
+      "columns": {
+        "id": { "name": "id", "type": "serial", "primaryKey": true, "notNull": true },
+        "oferta_id": { "name": "oferta_id", "type": "integer", "primaryKey": false, "notNull": true },
+        "sala_id": { "name": "sala_id", "type": "integer", "primaryKey": false, "notNull": false },
+        "bloque_id": { "name": "bloque_id", "type": "integer", "primaryKey": false, "notNull": true },
+        "tipo_hora_id": { "name": "tipo_hora_id", "type": "integer", "primaryKey": false, "notNull": true },
+        "semestre_id": { "name": "semestre_id", "type": "integer", "primaryKey": false, "notNull": true }
+      },
+      "indexes": {
+        "uq_horarios_semestre_bloque_sala": {
+          "name": "uq_horarios_semestre_bloque_sala",
+          "columns": [
+            { "expression": "semestre_id", "isExpression": false, "asc": true, "nulls": "last" },
+            { "expression": "bloque_id", "isExpression": false, "asc": true, "nulls": "last" },
+            { "expression": "sala_id", "isExpression": false, "asc": true, "nulls": "last" }
+          ],
+          "isUnique": true, "concurrently": false, "method": "btree", "with": {}
+        }
+      },
+      "foreignKeys": {
+        "horarios_asignaturas_oferta_id_ofertas_asignaturas_id_fk": { "name": "horarios_asignaturas_oferta_id_ofertas_asignaturas_id_fk", "tableFrom": "horarios_asignaturas", "tableTo": "ofertas_asignaturas", "columnsFrom": ["oferta_id"], "columnsTo": ["id"], "onDelete": "cascade", "onUpdate": "no action" },
+        "horarios_asignaturas_sala_id_salas_id_fk": { "name": "horarios_asignaturas_sala_id_salas_id_fk", "tableFrom": "horarios_asignaturas", "tableTo": "salas", "columnsFrom": ["sala_id"], "columnsTo": ["id"], "onDelete": "restrict", "onUpdate": "no action" },
+        "horarios_asignaturas_bloque_id_bloques_horarios_id_fk": { "name": "horarios_asignaturas_bloque_id_bloques_horarios_id_fk", "tableFrom": "horarios_asignaturas", "tableTo": "bloques_horarios", "columnsFrom": ["bloque_id"], "columnsTo": ["id"], "onDelete": "restrict", "onUpdate": "no action" },
+        "horarios_asignaturas_tipo_hora_id_tipos_hora_id_fk": { "name": "horarios_asignaturas_tipo_hora_id_tipos_hora_id_fk", "tableFrom": "horarios_asignaturas", "tableTo": "tipos_hora", "columnsFrom": ["tipo_hora_id"], "columnsTo": ["id"], "onDelete": "restrict", "onUpdate": "no action" },
+        "horarios_asignaturas_semestre_id_semestres_id_fk": { "name": "horarios_asignaturas_semestre_id_semestres_id_fk", "tableFrom": "horarios_asignaturas", "tableTo": "semestres", "columnsFrom": ["semestre_id"], "columnsTo": ["id"], "onDelete": "cascade", "onUpdate": "no action" }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": { "uq_horarios_asignaturas_id_semestre": { "name": "uq_horarios_asignaturas_id_semestre", "nullsNotDistinct": false, "columns": ["id", "semestre_id"] } },
+      "policies": {}, "checkConstraints": {}, "isRLSEnabled": false
+    },
+    "public.ofertas_asignaturas": {
+      "name": "ofertas_asignaturas", "schema": "",
+      "columns": {
+        "id": { "name": "id", "type": "serial", "primaryKey": true, "notNull": true },
+        "asignatura_codigo": { "name": "asignatura_codigo", "type": "varchar(20)", "primaryKey": false, "notNull": true },
+        "profesor_id": { "name": "profesor_id", "type": "integer", "primaryKey": false, "notNull": true },
+        "semestre_id": { "name": "semestre_id", "type": "integer", "primaryKey": false, "notNull": true },
+        "seccion": { "name": "seccion", "type": "integer", "primaryKey": false, "notNull": true, "default": 1 },
+        "cupos": { "name": "cupos", "type": "integer", "primaryKey": false, "notNull": true, "default": 0 }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "ofertas_asignaturas_asignatura_codigo_asignaturas_codigo_fk": { "name": "ofertas_asignaturas_asignatura_codigo_asignaturas_codigo_fk", "tableFrom": "ofertas_asignaturas", "tableTo": "asignaturas", "columnsFrom": ["asignatura_codigo"], "columnsTo": ["codigo"], "onDelete": "restrict", "onUpdate": "no action" },
+        "ofertas_asignaturas_profesor_id_profesores_id_fk": { "name": "ofertas_asignaturas_profesor_id_profesores_id_fk", "tableFrom": "ofertas_asignaturas", "tableTo": "profesores", "columnsFrom": ["profesor_id"], "columnsTo": ["id"], "onDelete": "restrict", "onUpdate": "no action" },
+        "ofertas_asignaturas_semestre_id_semestres_id_fk": { "name": "ofertas_asignaturas_semestre_id_semestres_id_fk", "tableFrom": "ofertas_asignaturas", "tableTo": "semestres", "columnsFrom": ["semestre_id"], "columnsTo": ["id"], "onDelete": "cascade", "onUpdate": "no action" }
+      },
+      "compositePrimaryKeys": {}, "uniqueConstraints": {}, "policies": {}, "checkConstraints": {}, "isRLSEnabled": false
+    },
+    "public.profesores": {
+      "name": "profesores", "schema": "",
+      "columns": {
+        "id": { "name": "id", "type": "serial", "primaryKey": true, "notNull": true },
+        "usuario_id": { "name": "usuario_id", "type": "integer", "primaryKey": false, "notNull": false },
+        "departamento_id": { "name": "departamento_id", "type": "integer", "primaryKey": false, "notNull": true },
+        "nombre": { "name": "nombre", "type": "text", "primaryKey": false, "notNull": true },
+        "tipo": { "name": "tipo", "type": "text", "primaryKey": false, "notNull": true }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "profesores_usuario_id_usuarios_id_fk": { "name": "profesores_usuario_id_usuarios_id_fk", "tableFrom": "profesores", "tableTo": "usuarios", "columnsFrom": ["usuario_id"], "columnsTo": ["id"], "onDelete": "set null", "onUpdate": "no action" },
+        "profesores_departamento_id_departamentos_id_fk": { "name": "profesores_departamento_id_departamentos_id_fk", "tableFrom": "profesores", "tableTo": "departamentos", "columnsFrom": ["departamento_id"], "columnsTo": ["id"], "onDelete": "restrict", "onUpdate": "no action" }
+      },
+      "compositePrimaryKeys": {}, "uniqueConstraints": {}, "policies": {}, "checkConstraints": {}, "isRLSEnabled": false
+    },
+    "public.salas": {
+      "name": "salas", "schema": "",
+      "columns": {
+        "id": { "name": "id", "type": "serial", "primaryKey": true, "notNull": true },
+        "nombre": { "name": "nombre", "type": "text", "primaryKey": false, "notNull": true },
+        "capacidad": { "name": "capacidad", "type": "integer", "primaryKey": false, "notNull": true },
+        "tipo": { "name": "tipo", "type": "text", "primaryKey": false, "notNull": true }
+      },
+      "indexes": {}, "foreignKeys": {}, "compositePrimaryKeys": {}, "uniqueConstraints": {}, "policies": {}, "checkConstraints": {}, "isRLSEnabled": false
+    },
+    "public.secretarias": {
+      "name": "secretarias", "schema": "",
+      "columns": {
+        "id": { "name": "id", "type": "serial", "primaryKey": true, "notNull": true },
+        "usuario_id": { "name": "usuario_id", "type": "integer", "primaryKey": false, "notNull": true },
+        "carrera_id": { "name": "carrera_id", "type": "integer", "primaryKey": false, "notNull": true }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "secretarias_usuario_id_usuarios_id_fk": { "name": "secretarias_usuario_id_usuarios_id_fk", "tableFrom": "secretarias", "tableTo": "usuarios", "columnsFrom": ["usuario_id"], "columnsTo": ["id"], "onDelete": "cascade", "onUpdate": "no action" },
+        "secretarias_carrera_id_carreras_id_fk": { "name": "secretarias_carrera_id_carreras_id_fk", "tableFrom": "secretarias", "tableTo": "carreras", "columnsFrom": ["carrera_id"], "columnsTo": ["id"], "onDelete": "restrict", "onUpdate": "no action" }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": { "secretarias_usuario_id_unique": { "name": "secretarias_usuario_id_unique", "nullsNotDistinct": false, "columns": ["usuario_id"] } },
+      "policies": {}, "checkConstraints": {}, "isRLSEnabled": false
+    },
+    "public.semestres": {
+      "name": "semestres", "schema": "",
+      "columns": {
+        "id": { "name": "id", "type": "serial", "primaryKey": true, "notNull": true },
+        "codigo": { "name": "codigo", "type": "varchar(20)", "primaryKey": false, "notNull": true },
+        "anio": { "name": "anio", "type": "integer", "primaryKey": false, "notNull": true },
+        "actual": { "name": "actual", "type": "boolean", "primaryKey": false, "notNull": true, "default": false }
+      },
+      "indexes": {}, "foreignKeys": {}, "compositePrimaryKeys": {},
+      "uniqueConstraints": { "semestres_codigo_unique": { "name": "semestres_codigo_unique", "nullsNotDistinct": false, "columns": ["codigo"] } },
+      "policies": {}, "checkConstraints": {}, "isRLSEnabled": false
+    },
+    "public.semestres_horarios": {
+      "name": "semestres_horarios", "schema": "",
+      "columns": {
+        "semestre_id": { "name": "semestre_id", "type": "integer", "primaryKey": false, "notNull": true },
+        "horario_asignatura_id": { "name": "horario_asignatura_id", "type": "integer", "primaryKey": true, "notNull": true },
+        "horario_publicado": { "name": "horario_publicado", "type": "boolean", "primaryKey": false, "notNull": true, "default": false }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "semestres_horarios_semestre_id_semestres_id_fk": { "name": "semestres_horarios_semestre_id_semestres_id_fk", "tableFrom": "semestres_horarios", "tableTo": "semestres", "columnsFrom": ["semestre_id"], "columnsTo": ["id"], "onDelete": "cascade", "onUpdate": "no action" },
+        "fk_semestres_horarios_entrada_semestre": { "name": "fk_semestres_horarios_entrada_semestre", "tableFrom": "semestres_horarios", "tableTo": "horarios_asignaturas", "columnsFrom": ["horario_asignatura_id", "semestre_id"], "columnsTo": ["id", "semestre_id"], "onDelete": "cascade", "onUpdate": "cascade" }
+      },
+      "compositePrimaryKeys": {}, "uniqueConstraints": {}, "policies": {}, "checkConstraints": {}, "isRLSEnabled": false
+    },
+    "public.tipos_hora": {
+      "name": "tipos_hora", "schema": "",
+      "columns": {
+        "id": { "name": "id", "type": "serial", "primaryKey": true, "notNull": true },
+        "tipo": { "name": "tipo", "type": "varchar(50)", "primaryKey": false, "notNull": true }
+      },
+      "indexes": {}, "foreignKeys": {}, "compositePrimaryKeys": {}, "uniqueConstraints": {}, "policies": {}, "checkConstraints": {}, "isRLSEnabled": false
+    },
+    "public.usuarios": {
+      "name": "usuarios", "schema": "",
+      "columns": {
+        "id": { "name": "id", "type": "serial", "primaryKey": true, "notNull": true },
+        "nombre": { "name": "nombre", "type": "text", "primaryKey": false, "notNull": true },
+        "correo": { "name": "correo", "type": "text", "primaryKey": false, "notNull": true },
+        "clave": { "name": "clave", "type": "text", "primaryKey": false, "notNull": true },
+        "rol": { "name": "rol", "type": "rol_usuario", "typeSchema": "public", "primaryKey": false, "notNull": true, "default": "'secretaria'" },
+        "creado_en": { "name": "creado_en", "type": "timestamp with time zone", "primaryKey": false, "notNull": true, "default": "now()" },
+        "actualizado_en": { "name": "actualizado_en", "type": "timestamp with time zone", "primaryKey": false, "notNull": true, "default": "now()" }
+      },
+      "indexes": {}, "foreignKeys": {}, "compositePrimaryKeys": {},
+      "uniqueConstraints": { "usuarios_correo_unique": { "name": "usuarios_correo_unique", "nullsNotDistinct": false, "columns": ["correo"] } },
+      "policies": {}, "checkConstraints": {}, "isRLSEnabled": false
+    }
+  },
+  "enums": { "public.rol_usuario": { "name": "rol_usuario", "schema": "public", "values": ["secretaria", "profesor", "admin"] } },
+  "schemas": {}, "sequences": {}, "roles": {}, "policies": {}, "views": {},
+  "_meta": { "schemas": {}, "tables": {}, "columns": {} },
+  "id": "d94b6e22-1c37-4a90-b831-295d07a62488",
+  "prevId": "c0d17bf5-a3de-4517-b418-ed99cc367866"
+}
