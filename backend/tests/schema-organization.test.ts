@@ -90,9 +90,11 @@ describe("Flat schema organization (offline)", () => {
     ]))).toEqual(graph);
   });
 
-  it("produces zero SQL migration statements against the existing 0006 snapshot", async () => {
+  it("produces zero SQL migration statements against the latest snapshot", async () => {
     const schema = await import("../src/db/schema/index.js");
-    const previous = JSON.parse(readFileSync(new URL("../src/db/migrations/meta/0006_snapshot.json", import.meta.url), "utf8"));
+    const journal = JSON.parse(readFileSync(new URL("../src/db/migrations/meta/_journal.json", import.meta.url), "utf8"));
+    const latest = journal.entries.at(-1);
+    const previous = JSON.parse(readFileSync(new URL(`../src/db/migrations/meta/${String(latest.idx).padStart(4, "0")}_snapshot.json`, import.meta.url), "utf8"));
     const current = generateDrizzleJson(schema, previous.id);
     expect(Object.keys(current.tables)).toHaveLength(17);
     expect(await generateMigration(previous, current)).toEqual([]);

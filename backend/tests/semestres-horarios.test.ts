@@ -140,8 +140,9 @@ describe("Direct entry publication contract (offline)", () => {
   it("guards unrepresentable true semesters before destructive SQL and backfills every entry", () => {
     const dir = new URL("../src/db/migrations/", import.meta.url);
     const journal = JSON.parse(readFileSync(new URL("meta/_journal.json", dir), "utf8"));
-    expect(journal.entries.at(-1).idx).toBe(6);
-    const sql = readFileSync(new URL(`${journal.entries.at(-1).tag}.sql`, dir), "utf8");
+    const migration = journal.entries.find((entry: { idx: number }) => entry.idx === 6);
+    expect(migration).toBeDefined();
+    const sql = readFileSync(new URL(`${migration.tag}.sql`, dir), "utf8");
     expect(sql).toContain("RAISE EXCEPTION");
     expect(sql).toContain("NOT EXISTS");
     expect(sql).toMatch(/s\."horario_publicado"\s*=\s*true/i);
