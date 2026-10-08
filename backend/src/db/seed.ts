@@ -66,13 +66,21 @@ async function seed() {
     .returning();
   console.log(`✓ Insertadas ${insertedCarreras.length} carreras`);
 
-  // 4. Relación Carrera - Departamento (Los 3 departamentos prestan servicios a las 2 carreras)
+  // 4. Relación Carrera - Departamento
+  // La relación indica que el departamento presta servicios a la carrera.
+  // esGestionado indica si la carrera/secretaría también lo gestiona operativamente.
+  const departamentosGestionados = new Set([
+    "Sistemas de Información",
+    "Economía y Finanzas",
+    "Administración y Auditoría",
+  ]);
   const relacionesCarreraDepto = [];
   for (const carrera of insertedCarreras) {
     for (const depto of insertedDepartamentos) {
       relacionesCarreraDepto.push({
         carreraId: carrera.id,
         departamentoId: depto.id,
+        esGestionado: departamentosGestionados.has(depto.nombre),
       });
     }
   }

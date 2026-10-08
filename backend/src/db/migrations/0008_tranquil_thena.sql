@@ -1,0 +1,1 @@
+ALTER TABLE "carrera_departamento" ADD COLUMN "es_gestionado" boolean DEFAULT false NOT NULL;

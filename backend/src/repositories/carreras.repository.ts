@@ -8,6 +8,11 @@ import {
 import { carreraDepartamento } from "../db/schema/carrera-departamento.schema.js";
 import { departamentos } from "../db/schema/departamentos.schema.js";
 
+type RelacionDepartamentoInput = {
+  departamentoId: number;
+  esGestionado: boolean;
+};
+
 export const carrerasRepository = {
   async findAll() {
     return await db.query.carreras.findMany({
@@ -62,15 +67,16 @@ export const carrerasRepository = {
     return results.map((r) => r.id);
   },
 
-  async create(data: NuevaCarrera, departamentosIds: number[] = []): Promise<Carrera> {
+  async create(data: NuevaCarrera, departamentos: RelacionDepartamentoInput[] = []): Promise<Carrera> {
     return await db.transaction(async (tx) => {
       const [created] = await tx.insert(carreras).values(data).returning();
 
-      if (departamentosIds.length > 0) {
+      if (departamentos.length > 0) {
         await tx.insert(carreraDepartamento).values(
-          departamentosIds.map((departamentoId) => ({
+          departamentos.map((departamento) => ({
             carreraId: created.id,
-            departamentoId,
+            departamentoId: departamento.departamentoId,
+            esGestionado: departamento.esGestionado,
           }))
         );
       }
@@ -82,23 +88,24 @@ export const carrerasRepository = {
   async update(
     id: number,
     data: Partial<Omit<NuevaCarrera, "id">>,
-    departamentosIds?: number[]
+    departamentos?: RelacionDepartamentoInput[]
   ) {
     return await db.transaction(async (tx) => {
       if (Object.keys(data).length > 0) {
         await tx.update(carreras).set(data).where(eq(carreras.id, id));
       }
 
-      if (departamentosIds !== undefined) {
+      if (departamentos !== undefined) {
         await tx
           .delete(carreraDepartamento)
           .where(eq(carreraDepartamento.carreraId, id));
 
-        if (departamentosIds.length > 0) {
+        if (departamentos.length > 0) {
           await tx.insert(carreraDepartamento).values(
-            departamentosIds.map((departamentoId) => ({
+            departamentos.map((departamento) => ({
               carreraId: id,
-              departamentoId,
+              departamentoId: departamento.departamentoId,
+              esGestionado: departamento.esGestionado,
             }))
           );
         }
