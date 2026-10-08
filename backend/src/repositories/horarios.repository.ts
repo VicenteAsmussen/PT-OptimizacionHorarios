@@ -13,6 +13,21 @@ import { bloquesHorarios } from "../db/schema/bloques-horarios.schema.js";
 import { tiposHora } from "../db/schema/tipos-hora.schema.js";
 import { semestres } from "../db/schema/semestres.schema.js";
 import { semestresHorarios } from "../db/schema/semestres-horarios.schema.js";
+import { secretarias } from "../db/schema/secretarias.schema.js";
+import { carreraAsignatura } from "../db/schema/carrera-asignatura.schema.js";
+import { carreraDepartamento } from "../db/schema/carrera-departamento.schema.js";
+
+// Ambas condiciones deben cumplirse para la misma carrera, sin multiplicar filas.
+function condicionAlcanceExcel(carreraId?: number) {
+  if (carreraId === undefined) return undefined;
+  return inArray(horariosAsignaturas.ofertaId, db.select({ id: ofertasAsignaturas.id })
+    .from(ofertasAsignaturas)
+    .innerJoin(profesores, eq(profesores.id, ofertasAsignaturas.profesorId))
+    .innerJoin(carreraAsignatura, eq(carreraAsignatura.asignaturaCodigo, ofertasAsignaturas.asignaturaCodigo))
+    .innerJoin(carreraDepartamento, eq(carreraDepartamento.departamentoId, profesores.departamentoId))
+    .where(and(eq(carreraAsignatura.carreraId, carreraId), eq(carreraDepartamento.carreraId, carreraId),
+      eq(carreraDepartamento.esGestionado, true))));
+}
 
 // Publication belongs to the entry, not to either nested semester response.
 const publicationProjection = (table: { id: typeof horariosAsignaturas.id }) => ({
@@ -22,20 +37,31 @@ type Entrada = HorarioAsignatura & { horarioPublicado: boolean };
 type NuevaEntrada = NuevoHorarioAsignatura & { horarioPublicado?: boolean };
 
 export const horariosRepository = {
-  async findParaImportarSalas(semestreId: number) {
+  async findCarreraSecretariaByUsuarioId(usuarioId: number) {
+    const [perfil] = await db.select({ carreraId: secretarias.carreraId }).from(secretarias)
+      .where(eq(secretarias.usuarioId, usuarioId)).limit(1);
+    return perfil;
+  },
+
+  async findParaImportarSalas(semestreId: number, carreraId?: number) {
     const entradas = await db.query.horariosAsignaturas.findMany({
-      where: eq(horariosAsignaturas.semestreId, semestreId),
+      where: and(eq(horariosAsignaturas.semestreId, semestreId), condicionAlcanceExcel(carreraId)),
       with: { oferta: { with: { asignatura: true, profesor: true } }, bloque: true, tipoHora: true },
     });
     const salasExistentes = await db.select({ id: salas.id, nombre: salas.nombre }).from(salas);
-    return { entradas, salas: salasExistentes };
+    // La ocupación de salas sigue siendo global; estas filas no se usan para identificar sesiones editables.
+    const entradasParaConflictos = carreraId === undefined ? entradas : await db.query.horariosAsignaturas.findMany({
+      where: eq(horariosAsignaturas.semestreId, semestreId),
+      with: { oferta: { with: { asignatura: true, profesor: true } }, bloque: true, tipoHora: true },
+    });
+    return { entradas, entradasParaConflictos, salas: salasExistentes };
   },
 
-  async actualizarSalasEnTransaccion(semestreId: number, cambios: { id: number; salaId: number | null }[]) {
+  async actualizarSalasEnTransaccion(semestreId: number, cambios: { id: number; salaId: number | null }[], carreraId?: number) {
     await db.transaction(async (tx) => {
       for (const cambio of cambios) {
         const actualizadas = await tx.update(horariosAsignaturas).set({ salaId: cambio.salaId })
-          .where(and(eq(horariosAsignaturas.id, cambio.id), eq(horariosAsignaturas.semestreId, semestreId))).returning({ id: horariosAsignaturas.id });
+          .where(and(eq(horariosAsignaturas.id, cambio.id), eq(horariosAsignaturas.semestreId, semestreId), condicionAlcanceExcel(carreraId))).returning({ id: horariosAsignaturas.id });
         if (actualizadas.length !== 1) throw new Error("El horario cambió durante la importación; vuelva a exportar e importar.");
       }
     });
@@ -50,9 +76,9 @@ export const horariosRepository = {
     return semestre;
   },
 
-  async findParaExportarSalas(semestreId: number) {
+  async findParaExportarSalas(semestreId: number, carreraId?: number) {
     return await db.query.horariosAsignaturas.findMany({
-      where: eq(horariosAsignaturas.semestreId, semestreId),
+      where: and(eq(horariosAsignaturas.semestreId, semestreId), condicionAlcanceExcel(carreraId)),
       with: {
         oferta: {
           with: {

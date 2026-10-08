@@ -14,7 +14,7 @@ export const horariosController = {
       return;
     }
     try {
-      const resultado = await horariosService.importarExcelSalas(consulta.data.semestreId, req.file.buffer);
+      const resultado = await horariosService.importarExcelSalas(consulta.data.semestreId, req.file.buffer, { id: req.user!.id, rol: req.user!.rol });
       if (resultado.errores.length) res.status(400).json({ status: "error", errores: resultado.errores });
       else res.status(200).json({ status: "success", data: resultado });
     } catch (error) { next(error); }
@@ -23,7 +23,7 @@ export const horariosController = {
   async exportarExcelSalas(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { semestreId } = req.query as unknown as ExcelSalasQueryDTO;
-      const { buffer, nombreArchivo } = await horariosService.exportarExcelSalas(semestreId);
+      const { buffer, nombreArchivo } = await horariosService.exportarExcelSalas(semestreId, { id: req.user!.id, rol: req.user!.rol });
       res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
       res.setHeader("Content-Disposition", `attachment; filename="${nombreArchivo}"`);
       res.status(200).send(buffer);

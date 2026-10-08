@@ -13,8 +13,19 @@ function normalizarTipoHora(tipo: string): string {
   return tipo.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
 }
 
+type UsuarioExcelSalas = { id: number; rol: string };
+
+async function resolverCarreraExcel(usuario: UsuarioExcelSalas): Promise<number | undefined> {
+  if (usuario.rol === "admin") return undefined;
+  if (usuario.rol !== "secretaria") throw new ForbiddenError("El usuario no tiene acceso al Excel de salas");
+  const perfil = await horariosRepository.findCarreraSecretariaByUsuarioId(usuario.id);
+  if (!perfil?.carreraId) throw new ForbiddenError("El usuario autenticado no tiene un perfil de secretaria con carrera asociada");
+  return perfil.carreraId;
+}
+
 export const horariosService = {
-  async importarExcelSalas(semestreId: number, archivo: Buffer) {
+  async importarExcelSalas(semestreId: number, archivo: Buffer, usuario: UsuarioExcelSalas) {
+    const carreraId = await resolverCarreraExcel(usuario);
     const errores: { fila: number; columna: string; mensaje: string }[] = [];
     const error = (fila: number, columna: string, mensaje: string) => errores.push({ fila, columna, mensaje });
     const rechazado = () => ({ actualizadas: 0, pendientes: 0, errores });
@@ -32,7 +43,9 @@ export const horariosService = {
     });
     if (hoja.columnCount > encabezadosExcelSalas.length) error(1, "archivo", "Hay columnas adicionales. Use únicamente las columnas del archivo exportado.");
     if (errores.length) return rechazado();
-    const { entradas, salas } = await horariosRepository.findParaImportarSalas(semestreId);
+    const { entradas, salas, entradasParaConflictos = entradas } = carreraId === undefined
+      ? await horariosRepository.findParaImportarSalas(semestreId)
+      : await horariosRepository.findParaImportarSalas(semestreId, carreraId);
     type Entrada = typeof entradas[number];
     const grupos = new Map<string, Entrada[]>();
     for (const entrada of entradas) {
@@ -98,7 +111,7 @@ export const horariosService = {
     });
     // Evaluar el estado final permite liberar o intercambiar salas en el mismo lote.
     const ocupaciones = new Map<string, Entrada[]>();
-    for (const entrada of entradas) {
+    for (const entrada of entradasParaConflictos) {
       const salaId = propuestas.has(entrada.id) ? propuestas.get(entrada.id)!.salaId : entrada.salaId;
       if (salaId === null) continue;
       const clave = `${entrada.bloqueId}:${salaId}`;
@@ -112,15 +125,21 @@ export const horariosService = {
       }
     }
     if (errores.length) return rechazado();
-    if (propuestas.size) await horariosRepository.actualizarSalasEnTransaccion(semestreId,
-      [...propuestas.values()].map(({ id, salaId }) => ({ id, salaId })));
+    if (propuestas.size) {
+      const cambios = [...propuestas.values()].map(({ id, salaId }) => ({ id, salaId }));
+      if (carreraId === undefined) await horariosRepository.actualizarSalasEnTransaccion(semestreId, cambios);
+      else await horariosRepository.actualizarSalasEnTransaccion(semestreId, cambios, carreraId);
+    }
     return { actualizadas, pendientes, errores };
   },
 
-  async exportarExcelSalas(semestreId: number): Promise<{ buffer: Buffer; nombreArchivo: string }> {
+  async exportarExcelSalas(semestreId: number, usuario: UsuarioExcelSalas): Promise<{ buffer: Buffer; nombreArchivo: string }> {
+    const carreraId = await resolverCarreraExcel(usuario);
     const semestre = await horariosRepository.findSemestreById(semestreId);
     if (!semestre) throw new NotFoundError(`Semestre con ID ${semestreId} no encontrado`);
-    const entradas = await horariosRepository.findParaExportarSalas(semestreId);
+    const entradas = carreraId === undefined
+      ? await horariosRepository.findParaExportarSalas(semestreId)
+      : await horariosRepository.findParaExportarSalas(semestreId, carreraId);
     const grupos = new Map<string, { entrada: typeof entradas[number]; bloques: BloqueExcelSala[] }>();
     for (const entrada of entradas) {
       const tipo = normalizarTipoHora(entrada.tipoHora.tipo);

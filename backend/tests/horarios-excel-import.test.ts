@@ -4,10 +4,16 @@ import express, { type Request, type Response, type NextFunction } from "express
 import request from "supertest";
 import { horariosRouter } from "../src/routes/horarios.routes.js";
 import { horariosRepository } from "../src/repositories/horarios.repository.js";
-import { horariosService } from "../src/services/horarios.service.js";
+import { horariosService as servicioHorarios } from "../src/services/horarios.service.js";
+
+// Los casos de formato existentes usan el alcance global de un administrador.
+const horariosService = {
+  importarExcelSalas: (semestreId: number, archivo: Buffer, usuario = { id: 1, rol: "admin" }) =>
+    servicioHorarios.importarExcelSalas(semestreId, archivo, usuario),
+};
 import { encabezadosExcelSalas } from "../src/utils/excel-salas.js";
 vi.mock("../src/repositories/horarios.repository.js", () => ({ horariosRepository: {
-  findParaImportarSalas: vi.fn(), actualizarSalasEnTransaccion: vi.fn(),
+  findParaImportarSalas: vi.fn(), actualizarSalasEnTransaccion: vi.fn(), findCarreraSecretariaByUsuarioId: vi.fn(),
 } }));
 vi.mock("../src/middlewares/auth.middleware.js", () => ({ authenticate: (req: Request, res: Response, next: NextFunction) => {
   const rol = req.header("x-rol-prueba");
@@ -31,9 +37,37 @@ async function archivo(filas: (string | number)[][] = [fila()], encabezados: rea
 }
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(horariosRepository.findCarreraSecretariaByUsuarioId).mockResolvedValue({ carreraId: 3 });
   vi.mocked(horariosRepository.findParaImportarSalas).mockResolvedValue({ entradas: [entrada()], salas: [{ id: 4, nombre: "101-AA" }] } as never);
 });
 describe("Importación Excel todo-o-nada", () => {
+  it("usa la carrera autenticada e ignora filtros enviados para importar", async () => {
+    const respuesta = await request(aplicacion).post("/horarios/excel/salas/importar?semestreId=9&carreraId=99&departamentoId=99")
+      .set("x-rol-prueba", "secretaria").attach("archivo", await archivo(), "salas.xlsx");
+    expect(respuesta.status).toBe(200);
+    expect(horariosRepository.findCarreraSecretariaByUsuarioId).toHaveBeenCalledWith(1);
+    expect(horariosRepository.findParaImportarSalas).toHaveBeenCalledWith(9, 3);
+    expect(horariosRepository.actualizarSalasEnTransaccion).toHaveBeenCalledWith(9, [{ id: 1, salaId: 4 }], 3);
+  });
+  it("rechaza secretaria sin perfil antes de consultar o modificar horarios", async () => {
+    vi.mocked(horariosRepository.findCarreraSecretariaByUsuarioId).mockResolvedValue(undefined);
+    const respuesta = await request(aplicacion).post("/horarios/excel/salas/importar?semestreId=9")
+      .set("x-rol-prueba", "secretaria").attach("archivo", await archivo(), "salas.xlsx");
+    expect(respuesta.status).toBe(403);
+    expect(horariosRepository.findParaImportarSalas).not.toHaveBeenCalled();
+    expect(horariosRepository.actualizarSalasEnTransaccion).not.toHaveBeenCalled();
+  });
+  it("no acepta filas ausentes del alcance y conserva conflictos fuera del alcance", async () => {
+    vi.mocked(horariosRepository.findParaImportarSalas).mockResolvedValue({ entradas: [], salas: [{ id: 4, nombre: "101-AA" }] } as never);
+    const usuario = { id: 1, rol: "secretaria" };
+    expect((await horariosService.importarExcelSalas(9, await archivo(), usuario)).errores.length).toBeGreaterThan(0);
+    const externa = entrada(2, "INF200", 4);
+    vi.mocked(horariosRepository.findParaImportarSalas).mockResolvedValue({ entradas: [entrada()], entradasParaConflictos: [entrada(), externa], salas: [{ id: 4, nombre: "101-AA" }] } as never);
+    expect((await horariosService.importarExcelSalas(9, await archivo(), usuario)).errores).toEqual(expect.arrayContaining([
+      expect.objectContaining({ columna: "Sala 1", mensaje: expect.stringMatching(/conflicto/i) }),
+    ]));
+    expect(horariosRepository.actualizarSalasEnTransaccion).not.toHaveBeenCalled();
+  });
   it("normaliza sala y aplica un único lote", async () => {
     expect(await horariosService.importarExcelSalas(9, await archivo())).toEqual({ actualizadas: 1, pendientes: 0, errores: [] });
     expect(horariosRepository.actualizarSalasEnTransaccion).toHaveBeenCalledExactlyOnceWith(9, [{ id: 1, salaId: 4 }]);
@@ -117,6 +151,11 @@ describe("Importación Excel todo-o-nada", () => {
   it.each(["admin", "secretaria"])("upload HTTP para %s", async (rol) => {
     const respuesta = await request(aplicacion).post("/horarios/excel/salas/importar?semestreId=9").set("x-rol-prueba", rol).attach("archivo", await archivo(), "salas.xlsx");
     expect(respuesta.status).toBe(200); expect(respuesta.body.data.actualizadas).toBe(1);
+    if (rol === "admin") {
+      expect(horariosRepository.findCarreraSecretariaByUsuarioId).not.toHaveBeenCalled();
+      expect(horariosRepository.findParaImportarSalas).toHaveBeenCalledWith(9);
+      expect(horariosRepository.actualizarSalasEnTransaccion).toHaveBeenCalledWith(9, [{ id: 1, salaId: 4 }]);
+    }
   });
   it("HTTP devuelve detalles para query, archivo ausente, upload incorrecto y formato inválido", async () => {
     for (const consulta of ["", "?semestreId=0", "?semestreId=9"]) {

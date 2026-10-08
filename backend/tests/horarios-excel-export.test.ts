@@ -4,13 +4,19 @@ import express, { type Request, type Response, type NextFunction } from "express
 import request from "supertest";
 import { horariosRouter } from "../src/routes/horarios.routes.js";
 import { horariosRepository } from "../src/repositories/horarios.repository.js";
-import { horariosService } from "../src/services/horarios.service.js";
+import { horariosService as servicioHorarios } from "../src/services/horarios.service.js";
+
+// Los casos de formato existentes usan el alcance global de un administrador.
+const horariosService = {
+  exportarExcelSalas: (semestreId: number, usuario = { id: 1, rol: "admin" }) =>
+    servicioHorarios.exportarExcelSalas(semestreId, usuario),
+};
 import { excelSalasQueryValidation } from "../src/validations/horarios.validation.js";
 import { encabezadosExcelSalas } from "../src/utils/excel-salas.js";
-import { BadRequestError, NotFoundError } from "../src/utils/errors.js";
+import { BadRequestError, NotFoundError, ForbiddenError } from "../src/utils/errors.js";
 
 vi.mock("../src/repositories/horarios.repository.js", () => ({
-  horariosRepository: { findParaExportarSalas: vi.fn(), findSemestreById: vi.fn() },
+  horariosRepository: { findParaExportarSalas: vi.fn(), findSemestreById: vi.fn(), findCarreraSecretariaByUsuarioId: vi.fn() },
 }));
 
 vi.mock("../src/middlewares/auth.middleware.js", () => ({
@@ -52,9 +58,24 @@ async function leerLibro() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(horariosRepository.findCarreraSecretariaByUsuarioId).mockResolvedValue({ carreraId: 3 });
   vi.mocked(horariosRepository.findSemestreById).mockResolvedValue({ codigo: "2026-1" });
 });
 describe("Exportación Excel de asignación de salas", () => {
+  it("deriva el alcance de secretaria del usuario y no de filtros HTTP", async () => {
+    vi.mocked(horariosRepository.findParaExportarSalas).mockResolvedValue([entrada()]);
+    const respuesta = await request(aplicacion).get("/api/horarios-asignaturas/excel/salas?semestreId=9&carreraId=99&departamentoId=99")
+      .set("x-rol-prueba", "secretaria");
+    expect(respuesta.status).toBe(200);
+    expect(horariosRepository.findCarreraSecretariaByUsuarioId).toHaveBeenCalledWith(1);
+    expect(horariosRepository.findParaExportarSalas).toHaveBeenCalledWith(9, 3);
+  });
+
+  it("rechaza secretaria sin carrera asociada", async () => {
+    vi.mocked(horariosRepository.findCarreraSecretariaByUsuarioId).mockResolvedValue(undefined);
+    await expect(horariosService.exportarExcelSalas(9, { id: 1, rol: "secretaria" })).rejects.toBeInstanceOf(ForbiddenError);
+    expect(horariosRepository.findParaExportarSalas).not.toHaveBeenCalled();
+  });
   it("genera una hoja visible, encabezados y datos de malla, con todas las salas vacías", async () => {
     vi.mocked(horariosRepository.findParaExportarSalas).mockResolvedValue([entrada()]);
     const libro = await leerLibro();
@@ -152,6 +173,10 @@ describe("Exportación Excel de asignación de salas", () => {
         respuestaBinaria.on("error", terminar);
       });
     expect(respuesta.status).toBe(200);
+    if (rol === "admin") {
+      expect(horariosRepository.findCarreraSecretariaByUsuarioId).not.toHaveBeenCalled();
+      expect(horariosRepository.findParaExportarSalas).toHaveBeenCalledWith(9);
+    }
     expect(respuesta.headers["content-type"]).toBe("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     expect(respuesta.headers["content-disposition"]).toBe('attachment; filename="Resumen Malla (2026-1).xlsx"');
     expect(Buffer.isBuffer(respuesta.body)).toBe(true);
