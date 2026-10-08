@@ -1,4 +1,4 @@
-import { pgTable, integer, primaryKey } from "drizzle-orm/pg-core";
+import { boolean, integer, pgTable, primaryKey } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { carreras } from "./carreras.schema.js";
 import { departamentos } from "./departamentos.schema.js";
@@ -12,6 +12,7 @@ export const carreraDepartamento = pgTable(
     departamentoId: integer("departamento_id")
       .notNull()
       .references(() => departamentos.id, { onDelete: "cascade" }),
+    esGestionado: boolean("es_gestionado").notNull().default(false),
   },
   (table) => [
     primaryKey({ columns: [table.carreraId, table.departamentoId] }),

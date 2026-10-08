@@ -2,6 +2,37 @@ import { carrerasRepository } from "../repositories/carreras.repository.js";
 import { type CreateCarreraDTO, type UpdateCarreraDTO } from "../validations/carreras.validation.js";
 import { NotFoundError, ConflictError, BadRequestError } from "../utils/errors.js";
 
+function validarIdsUnicos(ids: number[], mensaje: string) {
+  if (new Set(ids).size !== ids.length) {
+    throw new BadRequestError(mensaje);
+  }
+}
+
+async function validarDepartamentosExistentes(ids: number[]) {
+  const idsUnicos = [...new Set(ids)];
+  const existingIds = await carrerasRepository.findExistingDepartamentosIds(idsUnicos);
+  const missingIds = idsUnicos.filter((id) => !existingIds.includes(id));
+  if (missingIds.length > 0) {
+    throw new BadRequestError(
+      `Los siguientes departamentos no existen: [${missingIds.join(", ")}]`
+    );
+  }
+}
+
+function construirRelacionesDepartamento(departamentosIds: number[], departamentosGestionadosIds: number[]) {
+  const gestionados = new Set(departamentosGestionadosIds);
+  const noRelacionados = departamentosGestionadosIds.filter((id) => !departamentosIds.includes(id));
+  if (noRelacionados.length > 0) {
+    throw new BadRequestError(
+      `Los departamentos gestionados deben estar asociados a la carrera: [${noRelacionados.join(", ")}]`
+    );
+  }
+  return departamentosIds.map((departamentoId) => ({
+    departamentoId,
+    esGestionado: gestionados.has(departamentoId),
+  }));
+}
+
 export const carrerasService = {
   async getAllCarreras() {
     return await carrerasRepository.findAll();
@@ -21,32 +52,21 @@ export const carrerasService = {
       throw new ConflictError(`Ya existe una carrera con el nombre '${dto.nombre}'`);
     }
 
-    if (dto.departamentosIds && dto.departamentosIds.length > 0) {
-      const ids = dto.departamentosIds;
-      const uniqueIds = new Set(ids);
-      if (uniqueIds.size !== ids.length) {
-        throw new BadRequestError("No se pueden duplicar departamentos en una misma carrera");
-      }
-
-      const existingIds = await carrerasRepository.findExistingDepartamentosIds(ids);
-      const missingIds = ids.filter((id) => !existingIds.includes(id));
-      if (missingIds.length > 0) {
-        throw new BadRequestError(
-          `Los siguientes departamentos no existen: [${missingIds.join(", ")}]`
-        );
-      }
-    }
+    validarIdsUnicos(dto.departamentosIds, "No se pueden duplicar departamentos en una misma carrera");
+    validarIdsUnicos(dto.departamentosGestionadosIds, "No se pueden duplicar departamentos gestionados en una misma carrera");
+    await validarDepartamentosExistentes([...dto.departamentosIds, ...dto.departamentosGestionadosIds]);
+    const departamentos = construirRelacionesDepartamento(dto.departamentosIds, dto.departamentosGestionadosIds);
 
     const created = await carrerasRepository.create(
       { nombre: dto.nombre },
-      dto.departamentosIds
+      departamentos
     );
 
     return await this.getCarreraById(created.id);
   },
 
   async updateCarrera(id: number, dto: UpdateCarreraDTO) {
-    await this.getCarreraById(id);
+    const carreraActual = await this.getCarreraById(id);
 
     if (dto.nombre) {
       const existing = await carrerasRepository.findByNombre(dto.nombre);
@@ -55,24 +75,21 @@ export const carrerasService = {
       }
     }
 
-    if (dto.departamentosIds && dto.departamentosIds.length > 0) {
-      const ids = dto.departamentosIds;
-      const uniqueIds = new Set(ids);
-      if (uniqueIds.size !== ids.length) {
-        throw new BadRequestError("No se pueden duplicar departamentos en una misma carrera");
-      }
-
-      const existingIds = await carrerasRepository.findExistingDepartamentosIds(ids);
-      const missingIds = ids.filter((id) => !existingIds.includes(id));
-      if (missingIds.length > 0) {
-        throw new BadRequestError(
-          `Los siguientes departamentos no existen: [${missingIds.join(", ")}]`
-        );
-      }
+    const debeActualizarDepartamentos = dto.departamentosIds !== undefined || dto.departamentosGestionadosIds !== undefined;
+    let departamentos;
+    if (debeActualizarDepartamentos) {
+      const departamentosIds = dto.departamentosIds ?? carreraActual.carreraDepartamentos.map((relacion) => relacion.departamentoId);
+      const departamentosGestionadosIds = dto.departamentosGestionadosIds ?? carreraActual.carreraDepartamentos
+        .filter((relacion) => relacion.esGestionado && departamentosIds.includes(relacion.departamentoId))
+        .map((relacion) => relacion.departamentoId);
+      validarIdsUnicos(departamentosIds, "No se pueden duplicar departamentos en una misma carrera");
+      validarIdsUnicos(departamentosGestionadosIds, "No se pueden duplicar departamentos gestionados en una misma carrera");
+      await validarDepartamentosExistentes([...departamentosIds, ...departamentosGestionadosIds]);
+      departamentos = construirRelacionesDepartamento(departamentosIds, departamentosGestionadosIds);
     }
 
-    const { departamentosIds, ...datosBase } = dto;
-    await carrerasRepository.update(id, datosBase, departamentosIds);
+    const { departamentosIds, departamentosGestionadosIds, ...datosBase } = dto;
+    await carrerasRepository.update(id, datosBase, departamentos);
 
     return await this.getCarreraById(id);
   },

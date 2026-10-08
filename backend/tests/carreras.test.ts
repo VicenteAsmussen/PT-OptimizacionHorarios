@@ -32,6 +32,63 @@ describe("Módulo Carreras (/api/carreras)", () => {
     expect(res.body.status).toBe("error");
   });
 
+  it("Debe crear y actualizar relaciones carrera-departamento con marca gestionada", async () => {
+    const departamentos = await request(app).get("/api/departamentos").set("Cookie", secretariaCookie);
+    expect(departamentos.status).toBe(200);
+    expect(departamentos.body.data.length).toBeGreaterThanOrEqual(2);
+    const [primerDepartamento, segundoDepartamento] = departamentos.body.data;
+    const nombre = `Carrera departamentos ${randomUUID()}`;
+    const creacion = await request(app).post("/api/carreras")
+      .set("Cookie", secretariaCookie)
+      .send({
+        nombre,
+        departamentosIds: [primerDepartamento.id, segundoDepartamento.id],
+        departamentosGestionadosIds: [primerDepartamento.id],
+      });
+    expect(creacion.status).toBe(201);
+    const id: number = creacion.body.data.id;
+    let eliminada = false;
+    try {
+      const relaciones = creacion.body.data.carreraDepartamentos;
+      expect(relaciones).toEqual(expect.arrayContaining([
+        expect.objectContaining({ departamentoId: primerDepartamento.id, esGestionado: true }),
+        expect.objectContaining({ departamentoId: segundoDepartamento.id, esGestionado: false }),
+      ]));
+
+      const actualizacion = await request(app).put(`/api/carreras/${id}`)
+        .set("Cookie", secretariaCookie)
+        .send({ departamentosGestionadosIds: [segundoDepartamento.id] });
+      expect(actualizacion.status).toBe(200);
+      expect(actualizacion.body.data.carreraDepartamentos).toEqual(expect.arrayContaining([
+        expect.objectContaining({ departamentoId: primerDepartamento.id, esGestionado: false }),
+        expect.objectContaining({ departamentoId: segundoDepartamento.id, esGestionado: true }),
+      ]));
+
+      const gestionadoSinRelacion = await request(app).put(`/api/carreras/${id}`)
+        .set("Cookie", secretariaCookie)
+        .send({ departamentosIds: [primerDepartamento.id], departamentosGestionadosIds: [segundoDepartamento.id] });
+      expect(gestionadoSinRelacion.status).toBe(400);
+      expect(gestionadoSinRelacion.body.status).toBe("error");
+
+      const remocionDepartamentoGestionado = await request(app).put(`/api/carreras/${id}`)
+        .set("Cookie", secretariaCookie)
+        .send({ departamentosIds: [primerDepartamento.id] });
+      expect(remocionDepartamentoGestionado.status).toBe(200);
+      expect(remocionDepartamentoGestionado.body.data.carreraDepartamentos).toEqual([
+        expect.objectContaining({ departamentoId: primerDepartamento.id, esGestionado: false }),
+      ]);
+
+      const eliminacion = await request(app).delete(`/api/carreras/${id}`).set("Cookie", secretariaCookie);
+      eliminada = eliminacion.status === 204;
+      expect(eliminacion.status).toBe(204);
+    } finally {
+      if (!eliminada) {
+        const limpieza = await request(app).delete(`/api/carreras/${id}`).set("Cookie", secretariaCookie);
+        expect(limpieza.status).toBe(204);
+      }
+    }
+  });
+
   it("Debe crear, consultar, actualizar y eliminar una carrera, rechazando duplicados (201/200/409/204/404)", async () => {
     const nombre = `Carrera prueba ${randomUUID()}`;
     const creacion = await request(app).post("/api/carreras")
