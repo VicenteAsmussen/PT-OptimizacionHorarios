@@ -1,3 +1,4 @@
+import type { AlcanceCarrera } from "../utils/alcance-carrera.js";
 import { eq, and, inArray } from "drizzle-orm";
 import { db } from "../config/db.js";
 import {
@@ -11,8 +12,9 @@ import { bloquesHorarios } from "../db/schema/bloques-horarios.schema.js";
 import { horariosAsignaturas } from "../db/schema/horarios-asignaturas.schema.js";
 
 export const disponibilidadRepository = {
-  async findAll(filter?: { profesorId?: number; semestreId?: number }) {
+  async findAll(filter?: { profesorId?: number; semestreId?: number }, alcance?: AlcanceCarrera) {
     const conditions = [];
+    if (alcance) conditions.push(inArray(disponibilidadProfesores.profesorId, alcance.profesoresIds));
     if (filter?.profesorId) {
       conditions.push(eq(disponibilidadProfesores.profesorId, filter.profesorId));
     }

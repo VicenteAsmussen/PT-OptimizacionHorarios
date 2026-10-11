@@ -1,3 +1,4 @@
+import { exigirEnAlcance, type AlcanceCarrera } from "../utils/alcance-carrera.js";
 import { ofertasRepository } from "../repositories/ofertas.repository.js";
 import {
   type CreateOfertaDTO,
@@ -7,19 +8,21 @@ import {
 import { NotFoundError, ConflictError, BadRequestError } from "../utils/errors.js";
 
 export const ofertasService = {
-  async getAllOfertas(filter?: OfertaQueryDTO) {
-    return await ofertasRepository.findAll(filter);
+  async getAllOfertas(filter?: OfertaQueryDTO, alcance?: AlcanceCarrera) {
+    return await ofertasRepository.findAll(filter, alcance);
   },
 
-  async getOfertaById(id: number) {
+  async getOfertaById(id: number, alcance?: AlcanceCarrera) {
     const oferta = await ofertasRepository.findById(id);
-    if (!oferta) {
+    if (!oferta || (alcance && !alcance.asignaturasCodigos.includes(oferta.asignaturaCodigo))) {
       throw new NotFoundError(`Oferta de asignatura con ID ${id} no encontrada`);
     }
     return oferta;
   },
 
-  async createOferta(dto: CreateOfertaDTO) {
+  async createOferta(dto: CreateOfertaDTO, alcance?: AlcanceCarrera) {
+    exigirEnAlcance(alcance?.asignaturasCodigos, dto.asignaturaCodigo);
+    exigirEnAlcance(alcance?.profesoresIds, dto.profesorId);
     const asigExists = await ofertasRepository.checkAsignaturaExists(dto.asignaturaCodigo);
     if (!asigExists) {
       throw new BadRequestError(`La asignatura con código '${dto.asignaturaCodigo}' no existe`);
@@ -52,8 +55,10 @@ export const ofertasService = {
     return await this.getOfertaById(created.id);
   },
 
-  async updateOferta(id: number, dto: UpdateOfertaDTO) {
-    const existing = await this.getOfertaById(id);
+  async updateOferta(id: number, dto: UpdateOfertaDTO, alcance?: AlcanceCarrera) {
+    const existing = await this.getOfertaById(id, alcance);
+    exigirEnAlcance(alcance?.asignaturasCodigos, dto.asignaturaCodigo ?? existing.asignaturaCodigo);
+    exigirEnAlcance(alcance?.profesoresIds, dto.profesorId ?? existing.profesorId);
 
     if (dto.asignaturaCodigo) {
       const asigExists = await ofertasRepository.checkAsignaturaExists(dto.asignaturaCodigo);
@@ -102,8 +107,8 @@ export const ofertasService = {
     return await this.getOfertaById(id);
   },
 
-  async deleteOferta(id: number) {
-    await this.getOfertaById(id);
+  async deleteOferta(id: number, alcance?: AlcanceCarrera) {
+    await this.getOfertaById(id, alcance);
     await ofertasRepository.delete(id);
   },
 };

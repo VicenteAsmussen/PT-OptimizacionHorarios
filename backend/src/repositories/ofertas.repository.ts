@@ -1,4 +1,5 @@
-import { eq, and } from "drizzle-orm";
+import type { AlcanceCarrera } from "../utils/alcance-carrera.js";
+import { eq, and, inArray } from "drizzle-orm";
 import { db } from "../config/db.js";
 import {
   ofertasAsignaturas,
@@ -10,8 +11,9 @@ import { profesores } from "../db/schema/profesores.schema.js";
 import { semestres } from "../db/schema/semestres.schema.js";
 
 export const ofertasRepository = {
-  async findAll(filter?: { semestreId?: number; profesorId?: number; asignaturaCodigo?: string }) {
+  async findAll(filter?: { semestreId?: number; profesorId?: number; asignaturaCodigo?: string }, alcance?: AlcanceCarrera) {
     const conditions = [];
+    if (alcance) conditions.push(inArray(ofertasAsignaturas.asignaturaCodigo, alcance.asignaturasCodigos));
     if (filter?.semestreId) {
       conditions.push(eq(ofertasAsignaturas.semestreId, filter.semestreId));
     }

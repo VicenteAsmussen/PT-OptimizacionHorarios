@@ -23,12 +23,14 @@ router.get(
 
 router.post(
   "/",
+  authorizeRoles("admin"),
   validateRequest({ body: createDepartamentoValidation }),
   departamentosController.create
 );
 
 router.put(
   "/:id",
+  authorizeRoles("admin"),
   validateRequest({
     params: departamentoIdParamValidation,
     body: updateDepartamentoValidation,
@@ -38,6 +40,7 @@ router.put(
 
 router.delete(
   "/:id",
+  authorizeRoles("admin"),
   validateRequest({ params: departamentoIdParamValidation }),
   departamentosController.delete
 );

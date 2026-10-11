@@ -1,3 +1,4 @@
+import type { AlcanceCarrera } from "../utils/alcance-carrera.js";
 import { eq, inArray } from "drizzle-orm";
 import { db } from "../config/db.js";
 import {
@@ -16,8 +17,9 @@ export interface TipoHoraItem {
 }
 
 export const asignaturasRepository = {
-  async findAll() {
+  async findAll(alcance?: AlcanceCarrera) {
     return await db.query.asignaturas.findMany({
+      where: alcance ? inArray(asignaturas.codigo, alcance.asignaturasCodigos) : undefined,
       with: {
         tiposHora: {
           with: {

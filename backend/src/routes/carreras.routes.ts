@@ -23,12 +23,14 @@ router.get(
 
 router.post(
   "/",
+  authorizeRoles("admin"),
   validateRequest({ body: createCarreraValidation }),
   carrerasController.create
 );
 
 router.put(
   "/:id",
+  authorizeRoles("admin"),
   validateRequest({
     params: carreraIdParamValidation,
     body: updateCarreraValidation,
@@ -38,6 +40,7 @@ router.put(
 
 router.delete(
   "/:id",
+  authorizeRoles("admin"),
   validateRequest({ params: carreraIdParamValidation }),
   carrerasController.delete
 );
