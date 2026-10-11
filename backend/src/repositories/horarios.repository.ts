@@ -5,6 +5,8 @@ import {
   type HorarioAsignatura,
   type NuevoHorarioAsignatura,
 } from "../db/schema/horarios-asignaturas.schema.js";
+import { departamentos } from "../db/schema/departamentos.schema.js";
+import { ConflictError } from "../utils/errors.js";
 import { ofertasAsignaturas } from "../db/schema/ofertas-asignaturas.schema.js";
 import { asignaturas } from "../db/schema/asignaturas.schema.js";
 import { profesores } from "../db/schema/profesores.schema.js";
@@ -37,6 +39,42 @@ type Entrada = HorarioAsignatura & { horarioPublicado: boolean };
 type NuevaEntrada = NuevoHorarioAsignatura & { horarioPublicado?: boolean };
 
 export const horariosRepository = {
+  async findContextoExternos(semestreId: number, departamentoId: number, carreraId?: number) {
+    const departamento = await db.query.departamentos.findFirst({ where: eq(departamentos.id, departamentoId) });
+    const relacion = carreraId === undefined ? undefined : await db.query.carreraDepartamento.findFirst({
+      where: and(eq(carreraDepartamento.carreraId, carreraId), eq(carreraDepartamento.departamentoId, departamentoId), eq(carreraDepartamento.esGestionado, false)),
+    });
+    return {
+      departamentoValido: !!departamento && (carreraId === undefined || !!relacion),
+      asignaturas: await db.select().from(asignaturas).where(carreraId === undefined ? undefined :
+        inArray(asignaturas.codigo, db.select({ codigo: carreraAsignatura.asignaturaCodigo }).from(carreraAsignatura).where(eq(carreraAsignatura.carreraId, carreraId)))),
+      profesores: await db.select().from(profesores).where(eq(profesores.departamentoId, departamentoId)),
+      tipos: await db.select().from(tiposHora),
+      bloques: await db.select().from(bloquesHorarios),
+      ofertas: await db.select().from(ofertasAsignaturas).where(eq(ofertasAsignaturas.semestreId, semestreId)),
+      ocupaciones: await db.select({ profesorId: ofertasAsignaturas.profesorId, bloqueId: horariosAsignaturas.bloqueId }).from(horariosAsignaturas)
+        .innerJoin(ofertasAsignaturas, eq(ofertasAsignaturas.id, horariosAsignaturas.ofertaId)).where(eq(horariosAsignaturas.semestreId, semestreId)),
+    };
+  },
+
+  async crearExternosEnTransaccion(semestreId: number, filas: { asignaturaCodigo: string; profesorId: number; seccion: number; cupos: number; sesiones: { bloqueId: number; tipoHoraId: number }[] }[]) {
+    await db.transaction(async (tx) => {
+      // No hay restricción UNIQUE para la clave de oferta en el esquema actual.
+      // El bloqueo de tabla serializa también inserciones desde otros endpoints.
+      await tx.execute(sql`LOCK TABLE ofertas_asignaturas IN SHARE ROW EXCLUSIVE MODE`);
+      for (const fila of filas) {
+        const existente = await tx.query.ofertasAsignaturas.findFirst({ where: and(eq(ofertasAsignaturas.semestreId, semestreId), eq(ofertasAsignaturas.asignaturaCodigo, fila.asignaturaCodigo), eq(ofertasAsignaturas.seccion, fila.seccion)) });
+        if (existente) throw new ConflictError("La oferta ya existe; no se importó ninguna fila.");
+        const { sesiones, ...oferta } = fila;
+        const [creada] = await tx.insert(ofertasAsignaturas).values({ ...oferta, semestreId }).returning();
+        for (const sesion of sesiones) {
+          const [horario] = await tx.insert(horariosAsignaturas).values({ ...sesion, ofertaId: creada.id, semestreId, salaId: null }).returning();
+          await tx.insert(semestresHorarios).values({ semestreId, horarioAsignaturaId: horario.id, horarioPublicado: false });
+        }
+      }
+    });
+  },
+
   async findCarreraSecretariaByUsuarioId(usuarioId: number) {
     const [perfil] = await db.select({ carreraId: secretarias.carreraId }).from(secretarias)
       .where(eq(secretarias.usuarioId, usuarioId)).limit(1);

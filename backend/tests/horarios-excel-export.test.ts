@@ -38,7 +38,7 @@ type EntradaExportacion = Awaited<ReturnType<typeof horariosRepository.findParaE
 function entrada(dia = "Lunes", numeroBloque = 1, horaInicio = "08:10", horaTermino = "08:50", tipo = "Teórica"): EntradaExportacion {
   return {
     oferta: {
-      seccion: 2, profesorId: 7, profesor: { nombre: "Ana Pérez" },
+      seccion: 2, cupos: 40, profesorId: 7, profesor: { nombre: "Ana Pérez" },
       asignatura: { codigo: "INF100", nombre: "Programación", semestreMalla: 3,
         tiposHora: [{ horas: 4, tipoHora: { tipo: "Teórica" } }, { horas: 2, tipoHora: { tipo: "Práctica" } }, { horas: 1, tipoHora: { tipo: "Laboratorio" } }] },
     },
@@ -87,15 +87,15 @@ describe("Exportación Excel de asignación de salas", () => {
     expect(hoja.state).toBe("visible");
     expect(hoja.getRow(1).values).toEqual([undefined, ...encabezadosExcelSalas]);
     expect(hoja.getRow(1).hidden).toBe(false);
-    expect(hoja.getRow(2).values.slice(1, 9)).toEqual(["INF100", 3, 2, "Programación", 4, 2, 1, "Ana Pérez"]);
-    for (const columna of [11, 14, 17, 20, 23]) expect(hoja.getRow(2).getCell(columna).value ?? "").toBe("");
+    expect(hoja.getRow(2).values.slice(1, 7)).toEqual(["INF100", "Programación", 2, 40, "Ana Pérez", "Teórica"]);
+    for (const columna of [9, 13, 17, 21, 25]) expect(hoja.getRow(2).getCell(columna).value ?? "").toBe("");
   });
 
   it.each(["Laboratorio", "LABORATÓRIO", "laboratory", " LABORATORY "])("excluye %s", async (tipo) => {
     vi.mocked(horariosRepository.findParaExportarSalas).mockResolvedValue([entrada(), entrada("Martes", 1, "08:10", "08:50", tipo)]);
     const hoja = (await leerLibro()).worksheets[0]!;
     expect(hoja.rowCount).toBe(2);
-    expect(hoja.getRow(2).getCell(12).value ?? "").toBe("");
+    expect(hoja.getRow(2).getCell(11).value ?? "").toBe("");
   });
 
   it("agrupa adyacencia y pausa institucional de diez minutos, ordenando bloques", async () => {
@@ -105,9 +105,9 @@ describe("Exportación Excel de asignación de salas", () => {
     ]);
     const hoja = (await leerLibro()).worksheets[0]!;
     expect(hoja.rowCount).toBe(2);
-    expect(hoja.getRow(2).getCell(9).value).toBe("Lunes");
-    expect(hoja.getRow(2).getCell(10).value).toBe("08:10-10:20");
-    expect(hoja.getRow(2).getCell(12).value).toBe("Martes");
+    expect(hoja.getRow(2).getCell(7).value).toBe("Lunes");
+    expect(hoja.getRow(2).getCell(8).value).toBe("08:10-10:20");
+    expect(hoja.getRow(2).getCell(11).value).toBe("Martes");
   });
 
   it("separa profesores, secciones y tipos de hora", async () => {

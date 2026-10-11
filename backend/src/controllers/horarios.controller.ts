@@ -1,8 +1,25 @@
 import type { Request, Response, NextFunction } from "express";
 import { horariosService } from "../services/horarios.service.js";
-import { excelSalasQueryValidation, type HorarioQueryDTO, type MiHorarioQueryDTO, type ExcelSalasQueryDTO } from "../validations/horarios.validation.js";
+import { excelExternosQueryValidation, excelSalasQueryValidation, type HorarioQueryDTO, type MiHorarioQueryDTO, type ExcelSalasQueryDTO } from "../validations/horarios.validation.js";
 
 export const horariosController = {
+  async importarExcelExternos(req: Request, res: Response, next: NextFunction): Promise<void> {
+    const consulta = excelExternosQueryValidation.safeParse(req.query);
+    if (!consulta.success) {
+      res.status(400).json({ status: "error", errores: consulta.error.issues.map((problema) => ({ fila: 1, columna: String(problema.path[0]), mensaje: problema.message })) });
+      return;
+    }
+    if (!req.file || !req.file.originalname.toLowerCase().endsWith(".xlsx")) {
+      res.status(400).json({ status: "error", errores: [{ fila: 1, columna: "archivo", mensaje: "Adjunte un archivo .xlsx en el campo archivo." }] });
+      return;
+    }
+    try {
+      const resultado = await horariosService.importarExcelExternos(consulta.data.semestreId, consulta.data.departamentoId, req.file.buffer, { id: req.user!.id, rol: req.user!.rol });
+      if (resultado.errores.length) res.status(400).json({ status: "error", errores: resultado.errores });
+      else res.status(201).json({ status: "success", data: resultado });
+    } catch (error) { next(error); }
+  },
+
   async importarExcelSalas(req: Request, res: Response, next: NextFunction): Promise<void> {
     const consulta = excelSalasQueryValidation.safeParse(req.query);
     if (!consulta.success) {

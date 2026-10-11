@@ -5,8 +5,9 @@ import { departamentos } from "../db/schema/departamentos.schema.js";
 import { usuarios } from "../db/schema/usuarios.schema.js";
 
 export const profesoresRepository = {
-  async findAll() {
+  async findAll(departamentoId?: number) {
     return await db.query.profesores.findMany({
+      where: departamentoId === undefined ? undefined : eq(profesores.departamentoId, departamentoId),
       with: {
         departamento: true,
         usuario: true,

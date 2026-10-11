@@ -36,7 +36,7 @@ flowchart TD
 
 1. **Gestión Académica**: La secretaría/coordinación habilita la oferta de asignaturas del semestre y asigna la carga correspondiente a cada docente dentro del alcance de su carrera.
 2. **Disponibilidad Docente**: Los profesores ingresan sus bloques de disponibilidad horaria mientras el semestre está en fase de recepción.
-3. **Horarios Externos Pre-modelo** *(pendiente)*: Para ramos de la carrera dictados por departamentos no gestionados directamente por la secretaría, se contempla un flujo Excel previo donde se reciban horarios externos ya definidos. Las salas no son relevantes para este flujo.
+3. **Horarios Externos Pre-modelo**: La importación Excel crea ofertas y horarios de departamentos externos antes del modelo. Las salas del archivo se ignoran; los horarios quedan sin sala y sin publicar.
 4. **Optimización Automática (Propuesta sin Sala)**: El sistema ejecuta el modelo matemático/solver que asigna bloques horarios minimizando choques de asignaturas y preferencias docentes. Los bloques se registran con `sala_id = null`. Al existir horarios generados para el semestre, la disponibilidad docente queda **bloqueada automáticamente**.
 5. **Solicitud de Infraestructura (Exportación Excel)**: Se exporta la propuesta de horarios a formato Excel detallando necesidades de cupos, bloques y tipos de sala para enviarlo a la unidad universitaria encargada de la administración central de aulas.
 6. **Carga de Salas Aprobadas (Importación Excel)**: Tras la respuesta de la unidad de salas, se importa la planilla para asociar cada bloque de clase con su `sala_id` definitiva.
@@ -106,7 +106,7 @@ Este diseño permite separar tres necesidades:
 
 1. vistas y edición de secretaría limitadas a su carrera;
 2. exportación Excel de salas para ramos gestionados;
-3. futuro Excel pre-modelo para horarios de ramos externos.
+3. importación Excel pre-modelo para horarios de ramos externos.
 
 ---
 
@@ -152,7 +152,18 @@ Los usuarios y contraseñas iniciales son parte del contexto del prototipo y no 
 
 - [ ] **Filtro transversal por secretaría/carrera**: limitar vistas y acciones de secretaría a ramos de su carrera mediante `secretarias.usuario_id → carrera_id` y `carrera_asignatura`.
 - [ ] **Mejorar exportación Excel de salas por alcance**: exportar solo ramos de la carrera cuyo profesor pertenezca a un departamento marcado como `es_gestionado=true` para esa carrera.
-- [ ] **Excel pre-modelo de horarios externos**: recibir horarios de ramos de la carrera dictados por departamentos relacionados pero no gestionados (`es_gestionado=false`).
+### Excel estandarizado y pre-modelo externo
+
+Ambos formatos usan `Código Asig.`, `Nombre Asignatura`, `Sección`, `Cupos`, `Profesor`, seguidos por cinco grupos `Tipo Hora N`, `Día N`, `Horario N`, `Sala N`. El formato anterior con `Sem` y horas agregadas ya no se acepta. Los horarios usan `HH:MM-HH:MM` y deben coincidir exactamente con bloques institucionales (incluida su pausa entre pares).
+
+- **Salas**: `GET /api/horarios-asignaturas/excel/salas?semestreId=...` exporta sesiones existentes con salas vacías; `POST /api/horarios-asignaturas/excel/salas/importar?semestreId=...` actualiza sus salas, sin crear ofertas. Tipo Hora desambigua las sesiones. Se mantiene la exclusión de laboratorios de este flujo.
+- **Externos, solo importación**: `POST /api/horarios-asignaturas/excel/externos/importar?semestreId=...&departamentoId=...`, multipart `archivo` (`.xlsx`, máximo 10 MB). No se guarda ni exporta el archivo. `Sala N` puede estar vacía o contener texto: se ignora siempre y se persiste `sala_id=null`, con publicación inicial desactivada.
+- Secretaría requiere carrera vinculada a su usuario, asignaturas de esa carrera y departamento relacionado con `es_gestionado=false`. Admin no necesita perfil de secretaría: requiere semestre, departamento, asignatura y profesor existentes.
+- Profesor se resuelve por nombre sin distinción de mayúsculas, acentos ni espacios repetidos, dentro del departamento indicado. Nombres ausentes o ambiguos son errores; nunca se crean profesores automáticamente.
+- Tipos aceptan aliases `teorica/teórica/teo/t`, `practica/práctica/pract/pra/p` y `laboratorio/laboratory/lab/l`, resueltos contra el catálogo existente.
+- Se rechazan ofertas existentes por semestre + código + sección, duplicados, sesiones inválidas y choques de profesor. Errores de validación devuelven HTTP 400 con `errores: [{fila, columna, mensaje}]` y no escriben nada. Las ofertas, horarios y relaciones de publicación se crean en una sola transacción; éxito externo devuelve HTTP 201 con contadores.
+- `GET /api/profesores?departamentoId=...` permite filtrar profesores. Secretaría conserva lectura, creación y edición; solo admin puede eliminar.
+
 - [ ] **Integración del solver/modelo de optimización**: generar propuestas horarias desde el backend.
 - [ ] **Frontend React**: construir la interfaz de secretaría y docentes sobre la API existente.
 

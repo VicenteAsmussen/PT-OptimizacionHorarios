@@ -59,6 +59,21 @@ router.post(
   horariosController.importarExcelSalas
 );
 
+router.post(
+  "/excel/externos/importar",
+  authorizeRoles("admin", "secretaria"),
+  (req, res, next) => {
+    subirExcelSalas(req, res, (error) => {
+      if (error) {
+        res.status(400).json({ status: "error", errores: [{ fila: 1, columna: "archivo", mensaje: "Adjunte un único archivo en el campo archivo (máximo 10 MB)." }] });
+        return;
+      }
+      next();
+    });
+  },
+  horariosController.importarExcelExternos
+);
+
 router.get(
   "/:id",
   authorizeRoles("admin", "secretaria", "profesor"),

@@ -29,7 +29,7 @@ function entrada(id = 1, codigo = "INF100", salaId: number | null = null) {
       asignatura: { codigo, nombre: "Programación", semestreMalla: 3 } },
     bloque: { dia: "Lunes", numeroBloque: 1, horaInicio: "08:10", horaTermino: "08:50" }, tipoHora: { tipo: "Teórica" } };
 }
-const fila = () => ["INF100", 3, 2, "Programación", 4, 0, 0, "Ana Pérez", "Lunes", "08:10-08:50", "101AA"];
+const fila = () => ["INF100", "Programación", 2, 40, "Ana Pérez", "Teórica", "Lunes", "08:10-08:50", "101AA"];
 async function archivo(filas: (string | number)[][] = [fila()], encabezados: readonly string[] = encabezadosExcelSalas) {
   const libro = new ExcelJS.Workbook(); const hoja = libro.addWorksheet("Asignación Salas");
   hoja.addRow([...encabezados]); filas.forEach((datos) => hoja.addRow(datos));
@@ -73,12 +73,12 @@ describe("Importación Excel todo-o-nada", () => {
     expect(horariosRepository.actualizarSalasEnTransaccion).toHaveBeenCalledExactlyOnceWith(9, [{ id: 1, salaId: 4 }]);
   });
   it("sala vacía borra la asignación y cuenta la sesión pendiente", async () => {
-    const datos = fila(); datos[10] = "";
+    const datos = fila(); datos[8] = "";
     vi.mocked(horariosRepository.findParaImportarSalas).mockResolvedValue({ entradas: [entrada(1, "INF100", 4)], salas: [{ id: 4, nombre: "101-AA" }] } as never);
     expect(await horariosService.importarExcelSalas(9, await archivo([datos]))).toEqual({ actualizadas: 0, pendientes: 1, errores: [] });
     expect(horariosRepository.actualizarSalasEnTransaccion).toHaveBeenCalledWith(9, [{ id: 1, salaId: null }]);
   });
-  it.each([[8, "Funday", "Día 1"], [9, "25:00-26:00", "Horario 1"], [3, "Otra", "Nombre Asignatura"], [7, "Otro", "Profesor"], [10, "999", "Sala 1"], [0, "XYZ", "Código Asig."]])("reporta error accionable en columna %s sin actualizar", async (indice, valor, columna) => {
+  it.each([[6, "Funday", "Día 1"], [7, "25:00-26:00", "Horario 1"], [1, "Otra", "Nombre Asignatura"], [4, "Otro", "Profesor"], [8, "999", "Sala 1"], [5, "desconocido", "Horario 1"], [0, "XYZ", "Código Asig."]])("reporta error accionable en columna %s sin actualizar", async (indice, valor, columna) => {
     const datos = fila(); datos[Number(indice)] = valor;
     const resultado = await horariosService.importarExcelSalas(9, await archivo([datos]));
     expect(resultado.errores).toEqual(expect.arrayContaining([expect.objectContaining({ fila: 2, columna, mensaje: expect.any(String) })]));
@@ -91,7 +91,7 @@ describe("Importación Excel todo-o-nada", () => {
     expect(horariosRepository.actualizarSalasEnTransaccion).not.toHaveBeenCalled();
   });
   it("colecciona errores y no aplica siquiera filas válidas", async () => {
-    const datos = fila(); datos[8] = "Inválido"; datos[9] = "Inválido";
+    const datos = fila(); datos[6] = "Inválido"; datos[7] = "Inválido";
     const resultado = await horariosService.importarExcelSalas(9, await archivo([fila(), datos]));
     expect(resultado.errores.length).toBeGreaterThanOrEqual(2);
     expect(horariosRepository.actualizarSalasEnTransaccion).not.toHaveBeenCalled();
@@ -118,21 +118,21 @@ describe("Importación Excel todo-o-nada", () => {
     const segundo = entrada(2); segundo.ofertaId = 1; segundo.bloqueId = 11;
     segundo.bloque = { dia: "Lunes", numeroBloque: 2, horaInicio: "08:50", horaTermino: "09:30" };
     vi.mocked(horariosRepository.findParaImportarSalas).mockResolvedValue({ entradas: [entrada(), segundo], salas: [{ id: 4, nombre: "101-AA" }] } as never);
-    const datos = fila().slice(0, 8); datos.push(...Array(12).fill(""), "Lunes", "08:10-09:30", "101-AA");
+    const datos = fila().slice(0, 5); datos.push(...Array(16).fill(""), "Teórica", "Lunes", "08:10-09:30", "101-AA");
     expect((await horariosService.importarExcelSalas(9, await archivo([datos]))).actualizadas).toBe(1);
     expect(horariosRepository.actualizarSalasEnTransaccion).toHaveBeenCalledWith(9, [{ id: 1, salaId: 4 }, { id: 2, salaId: 4 }]);
   });
   it("permite intercambio de salas al validar el estado final", async () => {
     vi.mocked(horariosRepository.findParaImportarSalas).mockResolvedValue({ entradas: [entrada(1, "INF100", 5), entrada(2, "INF200", 4)], salas: [{ id: 4, nombre: "101-AA" }, { id: 5, nombre: "102-AA" }] } as never);
-    const otra = fila(); otra[0] = "INF200"; otra[10] = "102AA";
+    const otra = fila(); otra[0] = "INF200"; otra[8] = "102AA";
     expect((await horariosService.importarExcelSalas(9, await archivo([fila(), otra]))).errores).toEqual([]);
     expect(horariosRepository.actualizarSalasEnTransaccion).toHaveBeenCalledWith(9, [{ id: 1, salaId: 4 }, { id: 2, salaId: 5 }]);
   });
   it("sala sin día/horario es error; nombre/profesor vacíos son opcionales", async () => {
-    const incompleta = fila(); incompleta[8] = ""; incompleta[9] = "";
+    const incompleta = fila(); incompleta[6] = ""; incompleta[7] = "";
     expect((await horariosService.importarExcelSalas(9, await archivo([incompleta]))).errores).toHaveLength(2);
     expect(horariosRepository.actualizarSalasEnTransaccion).not.toHaveBeenCalled();
-    const opcionales = fila(); opcionales[3] = ""; opcionales[7] = "";
+    const opcionales = fila(); opcionales[1] = ""; opcionales[4] = "";
     expect((await horariosService.importarExcelSalas(9, await archivo([opcionales]))).errores).toEqual([]);
   });
   it("rechaza claves visibles ambiguas sin usar el profesor para desambiguar", async () => {
@@ -142,7 +142,7 @@ describe("Importación Excel todo-o-nada", () => {
     expect(horariosRepository.actualizarSalasEnTransaccion).not.toHaveBeenCalled();
   });
   it("HTTP conserva los errores de negocio", async () => {
-    const datos = fila(); datos[10] = "inexistente";
+    const datos = fila(); datos[8] = "inexistente";
     const respuesta = await request(aplicacion).post("/horarios/excel/salas/importar?semestreId=9").set("x-rol-prueba", "secretaria").attach("archivo", await archivo([datos]), "salas.xlsx");
     expect(respuesta.status).toBe(400);
     expect(respuesta.body.errores[0]).toMatchObject({ fila: 2, columna: "Sala 1" });

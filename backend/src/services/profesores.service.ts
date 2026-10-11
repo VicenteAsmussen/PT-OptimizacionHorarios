@@ -3,8 +3,8 @@ import { type CreateProfesorDTO, type UpdateProfesorDTO } from "../validations/p
 import { NotFoundError, ConflictError, BadRequestError } from "../utils/errors.js";
 
 export const profesoresService = {
-  async getAllProfesores() {
-    return await profesoresRepository.findAll();
+  async getAllProfesores(departamentoId?: number) {
+    return await profesoresRepository.findAll(departamentoId);
   },
 
   async getProfesorById(id: number) {

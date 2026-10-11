@@ -9,9 +9,8 @@ import {
 } from "../validations/horarios.validation.js";
 import { NotFoundError, ConflictError, BadRequestError, ForbiddenError } from "../utils/errors.js";
 
-function normalizarTipoHora(tipo: string): string {
-  return tipo.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
-}
+import { normalizarTipoHoraExcel as normalizarTipoHora } from "../utils/excel-comun.js";
+import { importarHorariosExternos } from "../utils/excel-horarios-externos.js";
 
 type UsuarioExcelSalas = { id: number; rol: string };
 
@@ -24,6 +23,10 @@ async function resolverCarreraExcel(usuario: UsuarioExcelSalas): Promise<number 
 }
 
 export const horariosService = {
+  async importarExcelExternos(semestreId: number, departamentoId: number, archivo: Buffer, usuario: UsuarioExcelSalas) {
+    const carreraId = await resolverCarreraExcel(usuario);
+    return importarHorariosExternos(semestreId, departamentoId, archivo, carreraId);
+  },
   async importarExcelSalas(semestreId: number, archivo: Buffer, usuario: UsuarioExcelSalas) {
     const carreraId = await resolverCarreraExcel(usuario);
     const errores: { fila: number; columna: string; mensaje: string }[] = [];
@@ -74,32 +77,34 @@ export const horariosService = {
       if (numeroFila === 1) return;
       const texto = (columna: number) => normalizarTextoCelda(fila.getCell(columna).value);
       if (!Array.from({ length: encabezadosExcelSalas.length }, (_, indice) => texto(indice + 1)).some(Boolean)) return;
-      const codigo = texto(1); const sem = texto(2); const seccion = texto(3);
-      for (const [valor, columna] of [[codigo, "Código Asig."], [sem, "Sem"], [seccion, "Sección"]]) {
+      const codigo = texto(1); const seccion = texto(3);
+      for (const [valor, columna] of [[codigo, "Código Asig."], [seccion, "Sección"]]) {
         if (!valor) error(numeroFila, columna!, "Este campo es obligatorio para identificar la sesión.");
       }
       const candidatas = sesiones.filter((sesion) => {
         const oferta = sesion.entradas[0]!.oferta;
-        return oferta.asignatura.codigo === codigo && String(oferta.asignatura.semestreMalla) === sem && String(oferta.seccion) === seccion;
+        return oferta.asignatura.codigo === codigo && String(oferta.seccion) === seccion;
       });
-      if (codigo && sem && seccion && !candidatas.length) error(numeroFila, "Código Asig.", "No existe esta asignatura/Sem/sección en el semestre indicado. Revise la clave visible.");
+      if (codigo && seccion && !candidatas.length) error(numeroFila, "Código Asig.", "No existe esta asignatura/sección en el semestre indicado. Revise la clave visible.");
       for (let numero = 1; numero <= maximoSesionesExcelSalas; numero++) {
-        const inicio = 9 + (numero - 1) * 3;
+        const inicio = 7 + (numero - 1) * 4;
+        const tipoTexto = texto(inicio - 1);
         const diaTexto = texto(inicio); const horarioTexto = texto(inicio + 1); const salaTexto = texto(inicio + 2);
-        if (!diaTexto && !horarioTexto && !salaTexto) continue;
+        if (!tipoTexto && !diaTexto && !horarioTexto && !salaTexto) continue;
+        if (!tipoTexto) error(numeroFila, `Tipo Hora ${numero}`, "Indique el tipo de hora de la sesión.");
         const dia = normalizarDia(diaTexto); const horario = analizarHorario(horarioTexto);
         if (!dia.exito) error(numeroFila, `Día ${numero}`, dia.error);
         if (!horario.exito) error(numeroFila, `Horario ${numero}`, horario.error);
         const salasCoincidentes = salas.filter((sala) => normalizarCodigoSala(sala.nombre) === normalizarCodigoSala(salaTexto));
         if (salaTexto && salasCoincidentes.length !== 1) error(numeroFila, `Sala ${numero}`, `La sala «${salaTexto}» no existe o su nombre es ambiguo. Revise el listado de salas.`);
         if (!dia.exito || !horario.exito) continue;
-        const coincidencias = candidatas.filter((sesion) => sesion.dia === dia.valor && sesion.horario === formatearHorario(horario.valor));
+        const coincidencias = candidatas.filter((sesion) => normalizarTipoHora(sesion.entradas[0]!.tipoHora.tipo) === normalizarTipoHora(tipoTexto) && sesion.dia === dia.valor && sesion.horario === formatearHorario(horario.valor));
         if (coincidencias.length !== 1) {
           error(numeroFila, `Horario ${numero}`, "No se encuentra una sesión única para esta clave visible, día y horario. Vuelva a exportar el semestre."); continue;
         }
         const sesion = coincidencias[0]!; const oferta = sesion.entradas[0]!.oferta;
-        if (texto(4) && texto(4) !== normalizarTextoCelda(oferta.asignatura.nombre)) error(numeroFila, "Nombre Asignatura", `El nombre esperado es «${oferta.asignatura.nombre}».`);
-        if (texto(8) && texto(8) !== normalizarTextoCelda(oferta.profesor.nombre)) error(numeroFila, "Profesor", `El profesor esperado es «${oferta.profesor.nombre}».`);
+        if (texto(2) && texto(2) !== normalizarTextoCelda(oferta.asignatura.nombre)) error(numeroFila, "Nombre Asignatura", `El nombre esperado es «${oferta.asignatura.nombre}».`);
+        if (texto(5) && texto(5) !== normalizarTextoCelda(oferta.profesor.nombre)) error(numeroFila, "Profesor", `El profesor esperado es «${oferta.profesor.nombre}».`);
         if (sesion.entradas.some((entrada) => propuestas.has(entrada.id))) {
           error(numeroFila, `Horario ${numero}`, "La sesión está repetida en el archivo. Inclúyala solo una vez."); continue;
         }
@@ -171,18 +176,13 @@ export const horariosService = {
       if (resultado.valor.length > maximoSesionesExcelSalas) {
         throw new BadRequestError(`${referencia}: tiene ${resultado.valor.length} sesiones; el máximo es ${maximoSesionesExcelSalas}. Revise la distribución de bloques antes de exportar.`);
       }
-      const horasPorTipo = (tipo: string) => asignatura.tiposHora
-        .filter((asignacion) => normalizarTipoHora(asignacion.tipoHora.tipo) === tipo)
-        .reduce((total, asignacion) => total + asignacion.horas, 0);
       const celdas: (string | number)[] = [
-        asignatura.codigo, asignatura.semestreMalla, oferta.seccion, asignatura.nombre,
-        horasPorTipo("teorica"), horasPorTipo("practica"), horasPorTipo("laboratorio") + horasPorTipo("laboratory"),
-        oferta.profesor.nombre,
+        asignatura.codigo, asignatura.nombre, oferta.seccion, oferta.cupos, oferta.profesor.nombre,
       ];
       for (let numeroSesion = 0; numeroSesion < maximoSesionesExcelSalas; numeroSesion++) {
         const sesion = resultado.valor[numeroSesion];
         // Nunca exportar la sala asignada: este archivo se completa externamente.
-        celdas.push(sesion?.dia ?? "", sesion ? formatearHorario(sesion) : "", "");
+        celdas.push(sesion ? tipoHora.tipo : "", sesion?.dia ?? "", sesion ? formatearHorario(sesion) : "", "");
       }
       hoja.addRow(celdas);
     }

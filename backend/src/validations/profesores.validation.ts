@@ -1,5 +1,9 @@
 import { z } from "zod";
 
+export const profesorQueryValidation = z.object({
+  departamentoId: z.coerce.number().int().positive().optional(),
+});
+
 export const createProfesorValidation = z.object({
   nombre: z
     .string({ message: "El nombre del profesor es obligatorio" })

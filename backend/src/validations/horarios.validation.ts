@@ -111,6 +111,10 @@ export const excelSalasQueryValidation = z.object({
     .positive("El ID del semestre debe ser mayor a 0"),
 });
 
+export const excelExternosQueryValidation = excelSalasQueryValidation.extend({
+  departamentoId: z.coerce.number().int().positive(),
+});
+
 export type ExcelSalasQueryDTO = z.infer<typeof excelSalasQueryValidation>;
 
 export const miHorarioQueryValidation = z.object({

@@ -7,13 +7,14 @@ import {
   createProfesorValidation,
   updateProfesorValidation,
   profesorIdParamValidation,
+  profesorQueryValidation,
 } from "../validations/profesores.validation.js";
 
 const router = Router();
 
 router.use(authenticate, authorizeRoles("admin", "secretaria"));
 
-router.get("/", profesoresController.getAll);
+router.get("/", validateRequest({ query: profesorQueryValidation }), profesoresController.getAll);
 
 router.get(
   "/:id",
@@ -38,6 +39,7 @@ router.put(
 
 router.delete(
   "/:id",
+  authorizeRoles("admin"),
   validateRequest({ params: profesorIdParamValidation }),
   profesoresController.delete
 );

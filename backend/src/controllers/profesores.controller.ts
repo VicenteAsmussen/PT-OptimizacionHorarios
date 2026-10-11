@@ -2,9 +2,9 @@ import type { Request, Response, NextFunction } from "express";
 import { profesoresService } from "../services/profesores.service.js";
 
 export const profesoresController = {
-  async getAll(_req: Request, res: Response, next: NextFunction): Promise<void> {
+  async getAll(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const data = await profesoresService.getAllProfesores();
+      const data = await profesoresService.getAllProfesores(req.query.departamentoId === undefined ? undefined : Number(req.query.departamentoId));
       res.status(200).json({
         status: "success",
         data,

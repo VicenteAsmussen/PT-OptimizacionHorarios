@@ -1,17 +1,16 @@
 import type { CellValue } from "exceljs";
 
 export const encabezadosBaseExcelSalas = [
-  "Código Asig.", "Sem", "Sección", "Nombre Asignatura", "Hrs. Teóricas",
-  "Hrs. Prácticas", "Hrs. Laborat", "Profesor",
+  "Código Asig.", "Nombre Asignatura", "Sección", "Cupos", "Profesor",
 ] as const;
 export const maximoSesionesExcelSalas = 5;
 export type NumeroSesionExcelSala = 1 | 2 | 3 | 4 | 5;
-export type EncabezadoSesionExcelSala = `${"Día" | "Horario" | "Sala"} ${NumeroSesionExcelSala}`;
+export type EncabezadoSesionExcelSala = `${"Tipo Hora" | "Día" | "Horario" | "Sala"} ${NumeroSesionExcelSala}`;
 export type EncabezadoExcelSala = typeof encabezadosBaseExcelSalas[number] | EncabezadoSesionExcelSala;
 export const encabezadosExcelSalas: readonly EncabezadoExcelSala[] = [
   ...encabezadosBaseExcelSalas,
   ...([1, 2, 3, 4, 5] as const).flatMap((numero): EncabezadoSesionExcelSala[] =>
-    [`Día ${numero}`, `Horario ${numero}`, `Sala ${numero}`]),
+    [`Tipo Hora ${numero}`, `Día ${numero}`, `Horario ${numero}`, `Sala ${numero}`]),
 ];
 
 export const diasExcelSalas = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"] as const;
@@ -31,14 +30,11 @@ export interface SesionExcelSala extends HorarioExcelSala {
 }
 export interface FilaExcelSala {
   codigoAsignatura: string;
-  sem: string;
+  cupos: number;
   seccion: string;
   nombreAsignatura: string;
-  horasTeoricas: number;
-  horasPracticas: number;
-  horasLaboratorio: number;
   profesor: string;
-  sesiones: (HorarioExcelSala & { dia: DiaExcelSala; codigoSala: string })[];
+  sesiones: (HorarioExcelSala & { tipoHora: string; dia: DiaExcelSala; codigoSala: string })[];
 }
 
 /** Usa el resultado almacenado de una fórmula; nunca evalúa fórmulas del archivo. */
