@@ -77,6 +77,18 @@ button {
   border-bottom: 1px solid #ddd;
 }
 
+.session-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.session-controls p {
+  flex-basis: 100%;
+  margin: 0;
+}
+
 .main-content,
 .standalone-page {
   padding: 1.5rem;

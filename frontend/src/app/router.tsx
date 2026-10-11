@@ -2,17 +2,25 @@ import { createBrowserRouter, Link, Navigate } from "react-router-dom";
 import AppLayout from "../components/layout/AppLayout";
 import LoginPage from "../features/auth/pages/LoginPage";
 import DashboardPage from "../features/dashboard/pages/DashboardPage";
+import { GuestOnly, RequireAuth } from "./AuthGuards";
 
 export const router = createBrowserRouter([
   { path: "/", element: <Navigate to="/login" replace /> },
-  { path: "/login", element: <LoginPage /> },
+  {
+    element: <GuestOnly />,
+    children: [{ path: "/login", element: <LoginPage /> }],
+  },
   {
     path: "/app",
-    element: <AppLayout />,
-    children: [
-      { index: true, element: <Navigate to="dashboard" replace /> },
-      { path: "dashboard", element: <DashboardPage /> },
-    ],
+    element: <RequireAuth />,
+    children: [{
+      element: <AppLayout />,
+      children: [
+        { index: true, element: <Navigate to="dashboard" replace /> },
+        { path: "dashboard", element: <DashboardPage /> },
+        { path: "*", element: <p>Página no encontrada</p> },
+      ],
+    }],
   },
   {
     path: "*",
