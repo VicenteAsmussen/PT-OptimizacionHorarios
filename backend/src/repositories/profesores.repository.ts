@@ -1,30 +1,33 @@
-import { eq } from "drizzle-orm";
+import type { AlcanceCarrera } from "../utils/alcance-carrera.js";
+import { eq, and, inArray } from "drizzle-orm";
 import { db } from "../config/db.js";
 import { profesores, type Profesor, type NuevoProfesor } from "../db/schema/profesores.schema.js";
 import { departamentos } from "../db/schema/departamentos.schema.js";
 import { usuarios } from "../db/schema/usuarios.schema.js";
+import { ofertasAsignaturas } from "../db/schema/ofertas-asignaturas.schema.js";
 
 export const profesoresRepository = {
-  async findAll(departamentoId?: number) {
+  async findAll(departamentoId?: number, alcance?: AlcanceCarrera) {
     return await db.query.profesores.findMany({
-      where: departamentoId === undefined ? undefined : eq(profesores.departamentoId, departamentoId),
+      where: and(departamentoId === undefined ? undefined : eq(profesores.departamentoId, departamentoId),
+        alcance ? inArray(profesores.departamentoId, alcance.departamentosIds) : undefined),
       with: {
         departamento: true,
         usuario: true,
         disponibilidades: true,
-        ofertas: true,
+        ofertas: alcance ? { where: inArray(ofertasAsignaturas.asignaturaCodigo, alcance.asignaturasCodigos) } : true,
       },
     });
   },
 
-  async findById(id: number) {
+  async findById(id: number, alcance?: AlcanceCarrera) {
     return await db.query.profesores.findFirst({
       where: eq(profesores.id, id),
       with: {
         departamento: true,
         usuario: true,
         disponibilidades: true,
-        ofertas: true,
+        ofertas: alcance ? { where: inArray(ofertasAsignaturas.asignaturaCodigo, alcance.asignaturasCodigos) } : true,
       },
     });
   },

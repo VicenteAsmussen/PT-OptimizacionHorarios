@@ -1,4 +1,5 @@
 import ExcelJS from "exceljs";
+import { exigirEnAlcance, type AlcanceCarrera } from "../utils/alcance-carrera.js";
 import { analizarHorario, normalizarDia, normalizarCodigoSala, normalizarTextoCelda, agruparBloquesEnSesiones, encabezadosExcelSalas, formatearHorario, maximoSesionesExcelSalas, type BloqueExcelSala } from "../utils/excel-salas.js";
 import { horariosRepository } from "../repositories/horarios.repository.js";
 import {
@@ -192,19 +193,20 @@ export const horariosService = {
     };
   },
 
-  async getAllHorarios(filter?: HorarioQueryDTO) {
-    return await horariosRepository.findAll(filter);
+  async getAllHorarios(filter?: HorarioQueryDTO, alcance?: AlcanceCarrera) {
+    return await horariosRepository.findAll(filter, alcance);
   },
 
-  async getHorarioById(id: number) {
+  async getHorarioById(id: number, alcance?: AlcanceCarrera) {
     const horario = await horariosRepository.findById(id);
-    if (!horario) {
+    if (!horario || (alcance && !alcance.ofertasIds.includes(horario.ofertaId))) {
       throw new NotFoundError(`Horario con ID ${id} no encontrado`);
     }
     return horario;
   },
 
-  async createHorario(dto: CreateHorarioDTO) {
+  async createHorario(dto: CreateHorarioDTO, alcance?: AlcanceCarrera) {
+    exigirEnAlcance(alcance?.ofertasIds, dto.ofertaId);
     const oferta = await horariosRepository.findOfertaWithDetails(dto.ofertaId);
     if (!oferta) {
       throw new BadRequestError(`La oferta de asignatura con ID ${dto.ofertaId} no existe`);
@@ -282,10 +284,11 @@ export const horariosService = {
     return await this.getHorarioById(created.id);
   },
 
-  async updateHorario(id: number, dto: UpdateHorarioDTO) {
-    const existing = await this.getHorarioById(id);
+  async updateHorario(id: number, dto: UpdateHorarioDTO, alcance?: AlcanceCarrera) {
+    const existing = await this.getHorarioById(id, alcance);
 
     const targetOfertaId = dto.ofertaId ?? existing.ofertaId;
+    exigirEnAlcance(alcance?.ofertasIds, targetOfertaId);
     const targetSalaId = dto.salaId !== undefined ? dto.salaId : existing.salaId;
     const targetBloqueId = dto.bloqueId ?? existing.bloqueId;
     const targetTipoHoraId = dto.tipoHoraId ?? existing.tipoHoraId;
@@ -375,12 +378,13 @@ export const horariosService = {
     return await this.getHorarioById(id);
   },
 
-  async deleteHorario(id: number) {
-    await this.getHorarioById(id);
+  async deleteHorario(id: number, alcance?: AlcanceCarrera) {
+    await this.getHorarioById(id, alcance);
     await horariosRepository.delete(id);
   },
 
-  async deleteHorariosByOferta(ofertaId: number) {
+  async deleteHorariosByOferta(ofertaId: number, alcance?: AlcanceCarrera) {
+    exigirEnAlcance(alcance?.ofertasIds, ofertaId);
     const oferta = await horariosRepository.findOfertaWithDetails(ofertaId);
     if (!oferta) {
       throw new NotFoundError(`Oferta de asignatura con ID ${ofertaId} no encontrada`);

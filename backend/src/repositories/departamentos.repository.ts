@@ -1,10 +1,12 @@
-import { eq } from "drizzle-orm";
+import type { AlcanceCarrera } from "../utils/alcance-carrera.js";
+import { eq, inArray } from "drizzle-orm";
 import { db } from "../config/db.js";
 import { departamentos, type Departamento, type NuevoDepartamento } from "../db/schema/departamentos.schema.js";
 
 export const departamentosRepository = {
-  async findAll() {
+  async findAll(alcance?: AlcanceCarrera) {
     return await db.query.departamentos.findMany({
+      where: alcance ? inArray(departamentos.id, alcance.departamentosIds) : undefined,
       with: {
         carreraDepartamentos: {
           with: {

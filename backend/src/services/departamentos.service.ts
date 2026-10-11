@@ -1,15 +1,16 @@
+import type { AlcanceCarrera } from "../utils/alcance-carrera.js";
 import { departamentosRepository } from "../repositories/departamentos.repository.js";
 import { type CreateDepartamentoDTO, type UpdateDepartamentoDTO } from "../validations/departamentos.validation.js";
 import { NotFoundError, ConflictError } from "../utils/errors.js";
 
 export const departamentosService = {
-  async getAllDepartamentos() {
-    return await departamentosRepository.findAll();
+  async getAllDepartamentos(alcance?: AlcanceCarrera) {
+    return await departamentosRepository.findAll(alcance);
   },
 
-  async getDepartamentoById(id: number) {
+  async getDepartamentoById(id: number, alcance?: AlcanceCarrera) {
     const departamento = await departamentosRepository.findById(id);
-    if (!departamento) {
+    if (!departamento || (alcance && !alcance.departamentosIds.includes(id))) {
       throw new NotFoundError(`Departamento con ID ${id} no encontrado`);
     }
     return departamento;

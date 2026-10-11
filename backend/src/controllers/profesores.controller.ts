@@ -1,10 +1,11 @@
 import type { Request, Response, NextFunction } from "express";
+import { resolverAlcanceCarrera } from "../utils/alcance-carrera.js";
 import { profesoresService } from "../services/profesores.service.js";
 
 export const profesoresController = {
   async getAll(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const data = await profesoresService.getAllProfesores(req.query.departamentoId === undefined ? undefined : Number(req.query.departamentoId));
+      const data = await profesoresService.getAllProfesores(req.query.departamentoId === undefined ? undefined : Number(req.query.departamentoId), await resolverAlcanceCarrera(req.user));
       res.status(200).json({
         status: "success",
         data,
@@ -17,7 +18,7 @@ export const profesoresController = {
   async getById(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = Number(req.params.id);
-      const data = await profesoresService.getProfesorById(id);
+      const data = await profesoresService.getProfesorById(id, await resolverAlcanceCarrera(req.user));
       res.status(200).json({
         status: "success",
         data,
@@ -29,7 +30,7 @@ export const profesoresController = {
 
   async create(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const data = await profesoresService.createProfesor(req.body);
+      const data = await profesoresService.createProfesor(req.body, await resolverAlcanceCarrera(req.user));
       res.status(201).json({
         status: "success",
         data,
@@ -42,7 +43,7 @@ export const profesoresController = {
   async update(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = Number(req.params.id);
-      const data = await profesoresService.updateProfesor(id, req.body);
+      const data = await profesoresService.updateProfesor(id, req.body, await resolverAlcanceCarrera(req.user));
       res.status(200).json({
         status: "success",
         data,

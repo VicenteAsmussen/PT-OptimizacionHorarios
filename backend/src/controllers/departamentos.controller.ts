@@ -1,10 +1,11 @@
 import type { Request, Response, NextFunction } from "express";
+import { resolverAlcanceCarrera } from "../utils/alcance-carrera.js";
 import { departamentosService } from "../services/departamentos.service.js";
 
 export const departamentosController = {
-  async getAll(_req: Request, res: Response, next: NextFunction): Promise<void> {
+  async getAll(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const data = await departamentosService.getAllDepartamentos();
+      const data = await departamentosService.getAllDepartamentos(await resolverAlcanceCarrera(req.user));
       res.status(200).json({
         status: "success",
         data,
@@ -17,7 +18,7 @@ export const departamentosController = {
   async getById(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = Number(req.params.id);
-      const data = await departamentosService.getDepartamentoById(id);
+      const data = await departamentosService.getDepartamentoById(id, await resolverAlcanceCarrera(req.user));
       res.status(200).json({
         status: "success",
         data,

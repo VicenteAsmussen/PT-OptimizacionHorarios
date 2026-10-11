@@ -1,10 +1,11 @@
 import type { Request, Response, NextFunction } from "express";
+import { resolverAlcanceCarrera } from "../utils/alcance-carrera.js";
 import { carrerasService } from "../services/carreras.service.js";
 
 export const carrerasController = {
-  async getAll(_req: Request, res: Response, next: NextFunction): Promise<void> {
+  async getAll(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const data = await carrerasService.getAllCarreras();
+      const data = await carrerasService.getAllCarreras(await resolverAlcanceCarrera(req.user));
       res.status(200).json({
         status: "success",
         data,
@@ -17,7 +18,7 @@ export const carrerasController = {
   async getById(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = Number(req.params.id);
-      const data = await carrerasService.getCarreraById(id);
+      const data = await carrerasService.getCarreraById(id, await resolverAlcanceCarrera(req.user));
       res.status(200).json({
         status: "success",
         data,

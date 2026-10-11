@@ -1,3 +1,4 @@
+import { exigirEnAlcance, type AlcanceCarrera } from "../utils/alcance-carrera.js";
 import { disponibilidadRepository } from "../repositories/disponibilidad.repository.js";
 import {
   type CreateDisponibilidadDTO,
@@ -7,19 +8,20 @@ import {
 import { NotFoundError, ConflictError, BadRequestError, ForbiddenError } from "../utils/errors.js";
 
 export const disponibilidadService = {
-  async getDisponibilidad(query?: DisponibilidadQueryDTO) {
-    return await disponibilidadRepository.findAll(query);
+  async getDisponibilidad(query?: DisponibilidadQueryDTO, alcance?: AlcanceCarrera) {
+    return await disponibilidadRepository.findAll(query, alcance);
   },
 
-  async getById(id: number) {
+  async getById(id: number, alcance?: AlcanceCarrera) {
     const record = await disponibilidadRepository.findById(id);
-    if (!record) {
+    if (!record || (alcance && !alcance.profesoresIds.includes(record.profesorId))) {
       throw new NotFoundError(`Registro de disponibilidad con ID ${id} no encontrado`);
     }
     return record;
   },
 
-  async createSingle(dto: CreateDisponibilidadDTO) {
+  async createSingle(dto: CreateDisponibilidadDTO, alcance?: AlcanceCarrera) {
+    exigirEnAlcance(alcance?.profesoresIds, dto.profesorId);
     const profExists = await disponibilidadRepository.checkProfesorExists(dto.profesorId);
     if (!profExists) {
       throw new BadRequestError(`El profesor con ID ${dto.profesorId} no existe`);
@@ -55,7 +57,8 @@ export const disponibilidadService = {
     return await this.getById(created.id);
   },
 
-  async syncGrid(dto: SyncDisponibilidadDTO) {
+  async syncGrid(dto: SyncDisponibilidadDTO, alcance?: AlcanceCarrera) {
+    exigirEnAlcance(alcance?.profesoresIds, dto.profesorId);
     const profExists = await disponibilidadRepository.checkProfesorExists(dto.profesorId);
     if (!profExists) {
       throw new BadRequestError(`El profesor con ID ${dto.profesorId} no existe`);
@@ -90,8 +93,8 @@ export const disponibilidadService = {
     );
   },
 
-  async deleteSingle(id: number) {
-    const record = await this.getById(id);
+  async deleteSingle(id: number, alcance?: AlcanceCarrera) {
+    const record = await this.getById(id, alcance);
     const horariosExist = await disponibilidadRepository.checkHorariosExistForSemestre(record.semestreId);
     if (horariosExist) {
       throw new ForbiddenError(
@@ -101,7 +104,8 @@ export const disponibilidadService = {
     await disponibilidadRepository.delete(id);
   },
 
-  async clearGrid(profesorId: number, semestreId: number) {
+  async clearGrid(profesorId: number, semestreId: number, alcance?: AlcanceCarrera) {
+    exigirEnAlcance(alcance?.profesoresIds, profesorId);
     const profExists = await disponibilidadRepository.checkProfesorExists(profesorId);
     if (!profExists) {
       throw new BadRequestError(`El profesor con ID ${profesorId} no existe`);

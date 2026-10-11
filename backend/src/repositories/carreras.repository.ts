@@ -7,6 +7,11 @@ import {
 } from "../db/schema/carreras.schema.js";
 import { carreraDepartamento } from "../db/schema/carrera-departamento.schema.js";
 import { departamentos } from "../db/schema/departamentos.schema.js";
+import { secretarias } from "../db/schema/secretarias.schema.js";
+import { carreraAsignatura } from "../db/schema/carrera-asignatura.schema.js";
+import { profesores } from "../db/schema/profesores.schema.js";
+import { ofertasAsignaturas } from "../db/schema/ofertas-asignaturas.schema.js";
+import type { AlcanceCarrera } from "../utils/alcance-carrera.js";
 
 type RelacionDepartamentoInput = {
   departamentoId: number;
@@ -14,8 +19,29 @@ type RelacionDepartamentoInput = {
 };
 
 export const carrerasRepository = {
-  async findAll() {
+  async findAlcanceByUsuarioId(usuarioId: number): Promise<AlcanceCarrera | undefined> {
+    const [perfil] = await db.select({ carreraId: secretarias.carreraId }).from(secretarias)
+      .where(eq(secretarias.usuarioId, usuarioId)).limit(1);
+    if (!perfil) return undefined;
+    const { carreraId } = perfil;
+    const asignaciones = await db.select({ codigo: carreraAsignatura.asignaturaCodigo }).from(carreraAsignatura)
+      .where(eq(carreraAsignatura.carreraId, carreraId));
+    // No filtrar esGestionado: tanto departamentos propios como externos están en alcance.
+    const relaciones = await db.select({ id: carreraDepartamento.departamentoId }).from(carreraDepartamento)
+      .where(eq(carreraDepartamento.carreraId, carreraId));
+    const asignaturasCodigos = asignaciones.map((asignacion) => asignacion.codigo);
+    const departamentosIds = relaciones.map((relacion) => relacion.id);
+    const docentes = departamentosIds.length ? await db.select({ id: profesores.id }).from(profesores)
+      .where(inArray(profesores.departamentoId, departamentosIds)) : [];
+    const ofertas = asignaturasCodigos.length ? await db.select({ id: ofertasAsignaturas.id }).from(ofertasAsignaturas)
+      .where(inArray(ofertasAsignaturas.asignaturaCodigo, asignaturasCodigos)) : [];
+    return { carreraId, asignaturasCodigos, departamentosIds,
+      profesoresIds: docentes.map((docente) => docente.id), ofertasIds: ofertas.map((oferta) => oferta.id) };
+  },
+
+  async findAll(alcance?: AlcanceCarrera) {
     return await db.query.carreras.findMany({
+      where: alcance ? eq(carreras.id, alcance.carreraId) : undefined,
       with: {
         carreraDepartamentos: {
           with: {

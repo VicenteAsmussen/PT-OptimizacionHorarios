@@ -1,3 +1,4 @@
+import type { AlcanceCarrera } from "../utils/alcance-carrera.js";
 import { eq, and, inArray, sql } from "drizzle-orm";
 import { db } from "../config/db.js";
 import {
@@ -138,8 +139,9 @@ export const horariosRepository = {
     bloqueId?: number;
     semestreMalla?: number;
     profesorId?: number;
-  }) {
+  }, alcance?: AlcanceCarrera) {
     const conditions = [];
+    if (alcance) conditions.push(inArray(horariosAsignaturas.ofertaId, alcance.ofertasIds));
     if (filter?.semestreId) {
       conditions.push(eq(horariosAsignaturas.semestreId, filter.semestreId));
     }

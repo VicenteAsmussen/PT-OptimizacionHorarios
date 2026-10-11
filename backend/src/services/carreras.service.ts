@@ -1,3 +1,4 @@
+import type { AlcanceCarrera } from "../utils/alcance-carrera.js";
 import { carrerasRepository } from "../repositories/carreras.repository.js";
 import { type CreateCarreraDTO, type UpdateCarreraDTO } from "../validations/carreras.validation.js";
 import { NotFoundError, ConflictError, BadRequestError } from "../utils/errors.js";
@@ -34,13 +35,13 @@ function construirRelacionesDepartamento(departamentosIds: number[], departament
 }
 
 export const carrerasService = {
-  async getAllCarreras() {
-    return await carrerasRepository.findAll();
+  async getAllCarreras(alcance?: AlcanceCarrera) {
+    return await carrerasRepository.findAll(alcance);
   },
 
-  async getCarreraById(id: number) {
+  async getCarreraById(id: number, alcance?: AlcanceCarrera) {
     const carrera = await carrerasRepository.findById(id);
-    if (!carrera) {
+    if (!carrera || (alcance && alcance.carreraId !== id)) {
       throw new NotFoundError(`Carrera con ID ${id} no encontrada`);
     }
     return carrera;

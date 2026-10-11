@@ -31,31 +31,31 @@ router.get(
   disponibilidadController.getById
 );
 
-// Registrar, sincronizar y eliminar disponibilidad: restringido a docente y admin
+// Secretaria puede mutar únicamente profesores de departamentos vinculados a su carrera.
 router.post(
   "/",
-  authorizeRoles("admin", "profesor"),
+  authorizeRoles("admin", "secretaria", "profesor"),
   validateRequest({ body: createDisponibilidadValidation }),
   disponibilidadController.create
 );
 
 router.post(
   "/sincronizar",
-  authorizeRoles("admin", "profesor"),
+  authorizeRoles("admin", "secretaria", "profesor"),
   validateRequest({ body: syncDisponibilidadValidation }),
   disponibilidadController.sync
 );
 
 router.delete(
   "/:id",
-  authorizeRoles("admin", "profesor"),
+  authorizeRoles("admin", "secretaria", "profesor"),
   validateRequest({ params: disponibilidadIdParamValidation }),
   disponibilidadController.delete
 );
 
 router.delete(
   "/profesor/:profesorId/semestre/:semestreId",
-  authorizeRoles("admin", "profesor"),
+  authorizeRoles("admin", "secretaria", "profesor"),
   validateRequest({ params: profesorSemestreParamValidation }),
   disponibilidadController.clear
 );

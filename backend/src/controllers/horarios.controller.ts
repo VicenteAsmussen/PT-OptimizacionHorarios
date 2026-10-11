@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
+import { resolverAlcanceCarrera } from "../utils/alcance-carrera.js";
 import { horariosService } from "../services/horarios.service.js";
 import { excelExternosQueryValidation, excelSalasQueryValidation, type HorarioQueryDTO, type MiHorarioQueryDTO, type ExcelSalasQueryDTO } from "../validations/horarios.validation.js";
 
@@ -51,7 +52,7 @@ export const horariosController = {
 
   async getAll(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const data = await horariosService.getAllHorarios(req.query as unknown as HorarioQueryDTO);
+      const data = await horariosService.getAllHorarios(req.query as unknown as HorarioQueryDTO, await resolverAlcanceCarrera(req.user));
       res.status(200).json({
         status: "success",
         data,
@@ -79,7 +80,7 @@ export const horariosController = {
   async getById(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = Number(req.params.id);
-      const data = await horariosService.getHorarioById(id);
+      const data = await horariosService.getHorarioById(id, await resolverAlcanceCarrera(req.user));
       res.status(200).json({
         status: "success",
         data,
@@ -91,7 +92,7 @@ export const horariosController = {
 
   async create(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const data = await horariosService.createHorario(req.body);
+      const data = await horariosService.createHorario(req.body, await resolverAlcanceCarrera(req.user));
       res.status(201).json({
         status: "success",
         data,
@@ -104,7 +105,7 @@ export const horariosController = {
   async update(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = Number(req.params.id);
-      const data = await horariosService.updateHorario(id, req.body);
+      const data = await horariosService.updateHorario(id, req.body, await resolverAlcanceCarrera(req.user));
       res.status(200).json({
         status: "success",
         data,
@@ -117,7 +118,7 @@ export const horariosController = {
   async delete(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = Number(req.params.id);
-      await horariosService.deleteHorario(id);
+      await horariosService.deleteHorario(id, await resolverAlcanceCarrera(req.user));
       res.status(204).send();
     } catch (error) {
       next(error);
@@ -127,7 +128,7 @@ export const horariosController = {
   async deleteByOferta(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const ofertaId = Number(req.params.ofertaId);
-      const count = await horariosService.deleteHorariosByOferta(ofertaId);
+      const count = await horariosService.deleteHorariosByOferta(ofertaId, await resolverAlcanceCarrera(req.user));
       res.status(200).json({
         status: "success",
         message: `Se eliminaron ${count} asignaciones de horario para la oferta ${ofertaId}`,

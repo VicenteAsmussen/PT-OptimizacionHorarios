@@ -1,3 +1,4 @@
+import type { AlcanceCarrera } from "../utils/alcance-carrera.js";
 import { asignaturasRepository } from "../repositories/asignaturas.repository.js";
 import {
   type CreateAsignaturaDTO,
@@ -10,19 +11,22 @@ import {
 } from "../utils/errors.js";
 
 export const asignaturasService = {
-  async getAllAsignaturas() {
-    return await asignaturasRepository.findAll();
+  async getAllAsignaturas(alcance?: AlcanceCarrera) {
+    return await asignaturasRepository.findAll(alcance);
   },
 
-  async getAsignaturaByCodigo(codigo: string) {
+  async getAsignaturaByCodigo(codigo: string, alcance?: AlcanceCarrera) {
     const asignatura = await asignaturasRepository.findByCodigo(codigo);
-    if (!asignatura) {
+    if (!asignatura || (alcance && !alcance.asignaturasCodigos.includes(codigo))) {
       throw new NotFoundError(`Asignatura con código '${codigo}' no encontrada`);
     }
     return asignatura;
   },
 
-  async createAsignatura(dto: CreateAsignaturaDTO) {
+  async createAsignatura(dto: CreateAsignaturaDTO, alcance?: AlcanceCarrera) {
+    if (alcance && (!dto.carrerasIds || dto.carrerasIds.length !== 1 || dto.carrerasIds[0] !== alcance.carreraId)) {
+      throw new BadRequestError("La asignatura debe quedar asociada únicamente a la carrera de la secretaria");
+    }
     const existing = await asignaturasRepository.findByCodigo(dto.codigo);
     if (existing) {
       throw new ConflictError(
@@ -73,11 +77,15 @@ export const asignaturasService = {
       dto.carrerasIds
     );
 
+    // La asignación recién creada aún no está en la instantánea del alcance.
     return await this.getAsignaturaByCodigo(dto.codigo);
   },
 
-  async updateAsignatura(codigo: string, dto: UpdateAsignaturaDTO) {
-    await this.getAsignaturaByCodigo(codigo);
+  async updateAsignatura(codigo: string, dto: UpdateAsignaturaDTO, alcance?: AlcanceCarrera) {
+    await this.getAsignaturaByCodigo(codigo, alcance);
+    if (alcance && dto.carrerasIds !== undefined && (dto.carrerasIds.length !== 1 || dto.carrerasIds[0] !== alcance.carreraId)) {
+      throw new BadRequestError("La asignatura debe quedar asociada únicamente a la carrera de la secretaria");
+    }
 
     if (dto.tiposHora && dto.tiposHora.length > 0) {
       const ids = dto.tiposHora.map((t) => t.tipoHoraId);
@@ -118,8 +126,8 @@ export const asignaturasService = {
     return await this.getAsignaturaByCodigo(codigo);
   },
 
-  async deleteAsignatura(codigo: string) {
-    await this.getAsignaturaByCodigo(codigo);
+  async deleteAsignatura(codigo: string, alcance?: AlcanceCarrera) {
+    await this.getAsignaturaByCodigo(codigo, alcance);
     await asignaturasRepository.delete(codigo);
   },
 };
