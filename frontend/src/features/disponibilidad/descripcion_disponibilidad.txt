@@ -1,0 +1,1 @@
+Funcionalidad para registrar, consultar y gestionar la disponibilidad horaria de profesores.

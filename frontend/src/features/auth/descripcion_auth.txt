@@ -1,0 +1,1 @@
+Funcionalidad de autenticación, incluyendo login, sesión, usuario actual y acceso a la API de auth.

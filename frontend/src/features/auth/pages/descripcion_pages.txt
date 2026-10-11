@@ -1,0 +1,1 @@
+Páginas propias del módulo de autenticación, como la pantalla de inicio de sesión.

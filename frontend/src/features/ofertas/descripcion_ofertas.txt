@@ -1,0 +1,1 @@
+Funcionalidad relacionada con ofertas de asignaturas, secciones, cupos y carga docente.

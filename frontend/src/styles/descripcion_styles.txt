@@ -1,0 +1,1 @@
+Archivos globales de estilos, variables de diseño y utilidades CSS del frontend.

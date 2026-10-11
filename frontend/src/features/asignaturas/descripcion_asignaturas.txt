@@ -1,0 +1,1 @@
+Funcionalidad relacionada con asignaturas, sus datos académicos y gestión desde la interfaz.

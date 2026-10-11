@@ -1,0 +1,1 @@
+Módulos funcionales organizados por dominio del sistema, cada uno con sus páginas, componentes y acceso a datos.

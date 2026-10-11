@@ -1,0 +1,1 @@
+Funcionalidad del panel inicial, resumen del sistema y accesos principales según el rol del usuario.

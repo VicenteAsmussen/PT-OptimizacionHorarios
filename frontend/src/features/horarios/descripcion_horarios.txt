@@ -1,0 +1,1 @@
+Funcionalidad relacionada con generación, revisión, importación, exportación y publicación de horarios.

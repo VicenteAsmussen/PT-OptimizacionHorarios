@@ -1,0 +1,1 @@
+Componentes básicos de interfaz reutilizables, como botones, inputs, tablas, tarjetas, badges y modales.

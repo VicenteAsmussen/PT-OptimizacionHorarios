@@ -1,8 +1,6 @@
+import { RouterProvider } from "react-router-dom";
+import { router } from "./app/router";
+
 export default function App() {
-  return (
-    <div style={{ fontFamily: "sans-serif", padding: "2rem", textAlign: "center" }}>
-      <h1>Sistema de Optimización de Horarios Académicos</h1>
-      <p>Frontend inicializado correctamente.</p>
-    </div>
-  );
+  return <RouterProvider router={router} />;
 }

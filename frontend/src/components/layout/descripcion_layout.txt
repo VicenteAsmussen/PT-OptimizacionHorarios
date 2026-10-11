@@ -1,0 +1,1 @@
+Componentes de estructura visual, como sidebar, topbar, layout principal y encabezados de página.

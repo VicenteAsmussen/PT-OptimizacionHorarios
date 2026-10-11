@@ -1,0 +1,1 @@
+Funcionalidad relacionada con departamentos académicos y su relación con carreras.

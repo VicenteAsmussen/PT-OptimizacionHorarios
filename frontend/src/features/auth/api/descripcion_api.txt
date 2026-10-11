@@ -1,0 +1,1 @@
+Funciones de comunicación con los endpoints de autenticación del backend.

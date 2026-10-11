@@ -1,0 +1,1 @@
+Composición general de la aplicación, providers globales y configuración de rutas.

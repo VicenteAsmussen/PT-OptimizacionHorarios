@@ -1,0 +1,1 @@
+Componentes para estados de carga, errores, mensajes vacíos, alertas y retroalimentación al usuario.

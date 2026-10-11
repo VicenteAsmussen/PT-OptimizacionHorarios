@@ -1,0 +1,1 @@
+Recursos estáticos del frontend, como imágenes, íconos y archivos visuales compartidos.

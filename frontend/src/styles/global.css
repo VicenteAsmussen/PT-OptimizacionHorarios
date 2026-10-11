@@ -1,0 +1,135 @@
+/* Neutral scaffold styles; not a final visual design. */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  line-height: 1.5;
+  color: #222;
+  background: #fafafa;
+}
+
+a {
+  color: inherit;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+input {
+  width: 100%;
+  min-width: 0;
+  padding: 0.5rem;
+  border: 1px solid #aaa;
+  border-radius: 0.25rem;
+}
+
+button {
+  padding: 0.5rem 1rem;
+}
+
+:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+}
+
+.app-layout {
+  display: grid;
+  grid-template-columns: 15rem minmax(0, 1fr);
+  min-height: 100vh;
+}
+
+.sidebar {
+  padding: 1.5rem;
+  border-right: 1px solid #ddd;
+  background: #f3f3f3;
+}
+
+.sidebar-title {
+  margin-top: 0;
+  font-weight: 600;
+}
+
+.sidebar nav a {
+  display: block;
+  padding: 0.5rem;
+}
+
+.sidebar nav a[aria-current="page"] {
+  background: #e6e6e6;
+  font-weight: 600;
+}
+
+.app-body {
+  min-width: 0;
+}
+
+.topbar {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.5rem;
+  border-bottom: 1px solid #ddd;
+}
+
+.main-content,
+.standalone-page {
+  padding: 1.5rem;
+}
+
+.summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: 1rem;
+}
+
+.summary-card,
+.login-panel {
+  padding: 1.5rem;
+  border: 1px solid #ddd;
+  border-radius: 0.25rem;
+  background: #fff;
+}
+
+.summary-card h2 {
+  margin-top: 0;
+  font-size: 1.125rem;
+}
+
+.login-page {
+  display: grid;
+  place-items: center;
+  min-height: 100vh;
+  padding: 1rem;
+}
+
+.login-panel {
+  width: 100%;
+  max-width: 26rem;
+}
+
+.login-panel h1 {
+  margin-top: 0;
+}
+
+.login-panel form {
+  display: grid;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+}
+
+@media (max-width: 48rem) {
+  .app-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    border-right: 0;
+    border-bottom: 1px solid #ddd;
+  }
+}
