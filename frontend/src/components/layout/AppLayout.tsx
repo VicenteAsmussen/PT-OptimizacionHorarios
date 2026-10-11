@@ -1,6 +1,25 @@
+import { useState } from "react";
 import { NavLink, Outlet } from "react-router-dom";
+import { useAuth } from "../../hooks/useAuth";
 
 export default function AppLayout() {
+  const { usuario, logout } = useAuth();
+  const [cerrando, setCerrando] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function cerrarSesion() {
+    if (cerrando) return;
+    setCerrando(true);
+    setError(null);
+    try {
+      await logout();
+    } catch {
+      setError("No se pudo cerrar la sesión. Inténtalo nuevamente.");
+    } finally {
+      setCerrando(false);
+    }
+  }
+
   return (
     <div className="app-layout">
       <aside className="sidebar">
@@ -12,7 +31,13 @@ export default function AppLayout() {
       <div className="app-body">
         <header className="topbar">
           <span>Sistema de Optimización de Horarios Académicos</span>
-          <span>Prototipo</span>
+          <div className="session-controls">
+            {usuario && <span>{usuario.nombre} · {usuario.rol}</span>}
+            <button type="button" onClick={cerrarSesion} disabled={cerrando}>
+              {cerrando ? "Cerrando sesión…" : "Cerrar sesión"}
+            </button>
+            {error && <p role="alert">{error}</p>}
+          </div>
         </header>
         <main className="main-content">
           <Outlet />
