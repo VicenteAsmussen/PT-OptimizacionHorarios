@@ -1,0 +1,77 @@
+.boton {
+  --boton-fondo: var(--color-azul-fondo);
+  --boton-hover: var(--color-azul-hover);
+  --boton-texto: var(--color-azul-texto);
+  --boton-borde: var(--color-azul-borde);
+
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2.75rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--boton-borde);
+  border-radius: 0.25rem;
+  background: var(--boton-fondo);
+  color: var(--boton-texto);
+  font-weight: 600;
+  text-align: center;
+  cursor: pointer;
+  transition: background-color 150ms ease;
+}
+
+.boton--crear {
+  --boton-fondo: var(--color-crear-fondo);
+  --boton-hover: var(--color-crear-hover);
+  --boton-texto: var(--color-crear-texto);
+  --boton-borde: var(--color-crear-borde);
+}
+
+.boton--editar {
+  --boton-fondo: var(--color-editar-fondo);
+  --boton-hover: var(--color-editar-hover);
+  --boton-texto: var(--color-editar-texto);
+  --boton-borde: var(--color-editar-borde);
+}
+
+.boton--eliminar {
+  --boton-fondo: var(--color-eliminar-fondo);
+  --boton-hover: var(--color-eliminar-hover);
+  --boton-texto: var(--color-eliminar-texto);
+  --boton-borde: var(--color-eliminar-borde);
+}
+
+.boton--azul {
+  --boton-fondo: var(--color-azul-fondo);
+  --boton-hover: var(--color-azul-hover);
+  --boton-texto: var(--color-azul-texto);
+  --boton-borde: var(--color-azul-borde);
+}
+
+.boton--gris {
+  --boton-fondo: var(--color-gris-fondo);
+  --boton-hover: var(--color-gris-hover);
+  --boton-texto: var(--color-gris-texto);
+  --boton-borde: var(--color-gris-borde);
+}
+
+/* Hover changes only the background, never the text or border. */
+@media (hover: hover) {
+  .boton:not(:disabled):hover {
+    background: var(--boton-hover);
+  }
+}
+
+.boton:disabled {
+  border-style: dashed;
+  border-color: var(--color-gris-borde);
+  background: var(--color-gris-fondo);
+  color: var(--color-gris-texto);
+  cursor: not-allowed;
+  transition: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .boton {
+    transition: none;
+  }
+}
