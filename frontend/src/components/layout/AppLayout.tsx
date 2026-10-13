@@ -22,6 +22,16 @@ export default function AppLayout() {
 
   return (
     <div className="app-layout">
+      <header className="topbar">
+        <span>Sistema de Optimización de Horarios Académicos</span>
+        <div className="session-controls">
+          {usuario && <span>{usuario.nombre} · {usuario.rol}</span>}
+          <button className="boton boton--gris" type="button" onClick={cerrarSesion} disabled={cerrando}>
+            {cerrando ? "Cerrando sesión…" : "Cerrar sesión"}
+          </button>
+          {error && <p role="alert">{error}</p>}
+        </div>
+      </header>
       <aside className="sidebar">
         <p className="sidebar-title">Horarios académicos</p>
         <nav aria-label="Navegación principal">
@@ -29,16 +39,6 @@ export default function AppLayout() {
         </nav>
       </aside>
       <div className="app-body">
-        <header className="topbar">
-          <span>Sistema de Optimización de Horarios Académicos</span>
-          <div className="session-controls">
-            {usuario && <span>{usuario.nombre} · {usuario.rol}</span>}
-            <button type="button" onClick={cerrarSesion} disabled={cerrando}>
-              {cerrando ? "Cerrando sesión…" : "Cerrar sesión"}
-            </button>
-            {error && <p role="alert">{error}</p>}
-          </div>
-        </header>
         <main className="main-content">
           <Outlet />
         </main>

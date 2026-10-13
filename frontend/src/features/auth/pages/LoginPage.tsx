@@ -36,7 +36,7 @@ export default function LoginPage() {
           <label htmlFor="clave">Contraseña</label>
           <input id="clave" name="clave" type="password" autoComplete="current-password" required
             value={clave} onChange={(evento) => setClave(evento.target.value)} disabled={enviando} />
-          <button type="submit" disabled={enviando}>{enviando ? "Ingresando…" : "Ingresar"}</button>
+          <button className="boton boton--azul" type="submit" disabled={enviando}>{enviando ? "Ingresando…" : "Ingresar"}</button>
         </form>
       </section>
     </main>
