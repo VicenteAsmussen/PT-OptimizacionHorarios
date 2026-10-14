@@ -128,29 +128,205 @@ h2 {
 .topbar {
   grid-area: topbar;
   min-width: 0;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr) minmax(0, 1fr);
+  align-items: center;
   gap: 1rem;
-  padding: 1rem 1.5rem;
+  padding: 0.125rem 1.5rem;
   border-bottom: 1px solid var(--color-primario);
   background: var(--color-primario);
   color: var(--color-blanco);
   --color-foco: var(--color-blanco);
 }
 
-.session-controls {
-  min-width: 0;
-  max-width: 100%;
+.topbar-institucion {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
   gap: 0.75rem;
+  min-width: 0;
 }
 
-.session-controls p {
-  flex-basis: 100%;
+.topbar-logo {
+  width: calc(2.5rem * 6 / 7);
+  height: 2.5rem;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+.topbar-nombre-institucion {
+  font-weight: var(--peso-subtitulo);
+  line-height: 1.25;
+}
+
+.topbar-titulo {
   margin: 0;
+  text-align: center;
+  text-wrap: balance;
+  font-weight: var(--peso-subtitulo);
+  line-height: 1.3;
+}
+
+.session-controls {
+  position: relative;
+  min-width: 0;
+  max-width: 100%;
+  justify-self: end;
+}
+
+.boton-usuario,
+.topbar-icono {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.625rem;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding: 0.625rem;
+  border: 0;
+  border-radius: 0.375rem;
+  color: var(--color-blanco);
+  cursor: pointer;
+}
+
+.boton-usuario {
+  max-width: 100%;
+  padding: 0.25rem 0.625rem;
+  background: var(--color-usuario-fondo);
+  color: var(--color-blanco);
+}
+
+.boton-usuario:hover {
+  background: var(--color-usuario-hover);
+}
+
+.boton-usuario:focus-visible {
+  outline-color: var(--color-blanco);
+  outline-offset: -3px;
+}
+
+.topbar-retrato {
+  width: 1.5rem;
+  height: 1.5rem;
+  flex-shrink: 0;
+  filter: brightness(0) invert(1);
+}
+
+.topbar-texto-usuario {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  text-align: left;
+  line-height: 1.125rem;
+}
+
+.topbar-saludo-usuario {
+  font-size: 0.75rem;
+}
+
+.topbar-nombre-usuario {
+  font-size: 0.8125rem;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topbar-icono {
+  background: transparent;
+  flex-shrink: 0;
+}
+
+.topbar-icono:hover {
+  background: var(--color-sidebar-hover);
+}
+
+.topbar-icono svg {
+  width: 1.5rem;
+  height: 1.5rem;
+  flex-shrink: 0;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+.boton-navegacion {
+  display: none;
+}
+
+.usuario-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 0.5rem);
+  z-index: 10;
+  width: min(7.5rem, calc(100vw - 2rem));
+  padding: 0.25rem;
+  border: 1px solid var(--color-borde);
+  border-radius: 0.375rem;
+  background: var(--color-superficie);
+  color: var(--color-texto);
+  box-shadow: 0 6px 20px rgb(0 0 0 / 20%);
+  --color-foco: var(--color-primario);
+}
+
+.usuario-salir {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.25rem;
+  border: 0;
+  border-radius: 0.25rem;
+  background: var(--color-gris-fondo);
+  color: var(--color-gris-texto);
+  font-size: var(--tamano-secundario);
+  cursor: pointer;
+}
+
+.usuario-salir:hover:not(:disabled) {
+  background: var(--color-gris-hover);
+}
+
+.usuario-salir:disabled {
+  cursor: wait;
+}
+
+.usuario-salir img {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+}
+
+.usuario-panel .usuario-error {
+  margin: 0.75rem 0 0;
+}
+
+.sidebar--movil:not([open]) {
+  display: none;
+}
+
+.sidebar--movil {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: min(20rem, 85vw);
+  max-width: none;
+  height: 100%;
+  max-height: none;
+  margin: 0;
+  border: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.sidebar--movil::backdrop {
+  background: rgb(0 0 0 / 50%);
+}
+
+.cerrar-navegacion {
+  display: flex;
+  margin: 0 0 1rem auto;
 }
 
 .main-content,
@@ -484,7 +660,7 @@ h2 {
 }
 
 .summary-card p,
-.session-controls > span {
+.usuario-panel p {
   font-size: var(--tamano-secundario);
   font-weight: var(--peso-secundario);
 }
@@ -513,15 +689,30 @@ h2 {
 @media (max-width: 48rem) {
   .app-layout {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: auto auto minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
     grid-template-areas:
       "topbar"
-      "sidebar"
       "contenido";
   }
 
-  .sidebar {
-    border-right: 0;
-    border-bottom: 1px solid var(--color-sidebar);
+  .topbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.5rem;
+    padding: 0.125rem 1rem;
+  }
+
+  .boton-navegacion {
+    display: inline-flex;
+  }
+
+  .topbar-nombre-institucion,
+  .topbar-titulo,
+  .topbar-texto-usuario {
+    display: none;
+  }
+
+  .topbar-logo {
+    width: calc(2.5rem * 6 / 7);
+    height: 2.5rem;
   }
 }
