@@ -146,6 +146,14 @@ h2 {
   min-width: 0;
 }
 
+.topbar-enlace-institucion {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  min-width: 0;
+  text-decoration: none;
+}
+
 .topbar-logo {
   width: calc(2.5rem * 6 / 7);
   height: 2.5rem;

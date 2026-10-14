@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { NavLink, Outlet } from "react-router-dom";
+import { Link, NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import logoUBB from "../../assets/logos/LogoUBB.png";
 import iconoSalida from "../../assets/iconos/salida.svg";
@@ -120,8 +120,10 @@ export default function AppLayout() {
           >
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16" /></svg>
           </button>
-          <img className="topbar-logo" src={logoUBB} alt="Universidad del Bío-Bío" />
-          <span className="topbar-nombre-institucion" aria-hidden="true">Universidad del Bío-Bío</span>
+          <Link className="topbar-enlace-institucion" to="/app/dashboard" aria-label="Universidad del Bío-Bío: ir al inicio">
+            <img className="topbar-logo" src={logoUBB} alt="" />
+            <span className="topbar-nombre-institucion" aria-hidden="true">Universidad del Bío-Bío</span>
+          </Link>
         </div>
         <p className="topbar-titulo">Sistema de Optimización de Horarios Académicos</p>
         <div className="session-controls" ref={controlesUsuario}>
