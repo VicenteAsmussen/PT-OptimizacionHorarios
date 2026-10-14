@@ -1,10 +1,20 @@
+@font-face {
+  font-family: "Roboto";
+  src: url("../assets/fuentes/roboto-variable.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
 * {
   box-sizing: border-box;
 }
 
 body {
   margin: 0;
-  font-family: system-ui, sans-serif;
+  font-family: var(--fuente-principal);
+  font-size: var(--tamano-cuerpo);
+  font-weight: var(--peso-cuerpo);
   line-height: 1.5;
   color: var(--color-texto);
   background: var(--color-fondo);
@@ -15,8 +25,15 @@ a {
 }
 
 button,
-input {
+input,
+textarea,
+select {
   font: inherit;
+}
+
+label {
+  font-size: var(--tamano-etiqueta);
+  font-weight: var(--peso-etiqueta);
 }
 
 input {
@@ -46,6 +63,16 @@ h2 {
   color: var(--color-primario);
 }
 
+h1 {
+  font-size: var(--tamano-titulo-pagina);
+  font-weight: var(--peso-titulo-pagina);
+}
+
+h2 {
+  font-size: var(--tamano-titulo-seccion);
+  font-weight: var(--peso-titulo-seccion);
+}
+
 .app-layout {
   display: grid;
   grid-template-columns: 15rem minmax(0, 1fr);
@@ -69,7 +96,8 @@ h2 {
 
 .sidebar-title {
   margin-top: 0;
-  font-weight: 600;
+  font-size: var(--tamano-subtitulo);
+  font-weight: var(--peso-subtitulo);
 }
 
 .sidebar nav a {
@@ -77,6 +105,8 @@ h2 {
   padding: 0.5rem;
   border-radius: 0.25rem;
   text-decoration: none;
+  font-size: var(--tamano-navegacion);
+  font-weight: var(--peso-navegacion);
 }
 
 .sidebar nav a:hover {
@@ -87,7 +117,7 @@ h2 {
 .sidebar nav a[aria-current="page"] {
   background: var(--color-sidebar-activo);
   color: var(--color-texto-inverso);
-  font-weight: 600;
+  font-weight: var(--peso-navegacion);
 }
 
 .app-body {
@@ -134,8 +164,7 @@ h2 {
   gap: 1rem;
 }
 
-.summary-card,
-.login-panel {
+.summary-card {
   padding: 1.5rem;
   border: 1px solid var(--color-borde);
   border-radius: 0.25rem;
@@ -144,33 +173,326 @@ h2 {
 
 .summary-card h2 {
   margin-top: 0;
-  font-size: 1.125rem;
+  font-size: var(--tamano-titulo-seccion);
+  font-weight: var(--peso-titulo-seccion);
 }
 
 .login-page {
+  position: relative;
+  isolation: isolate;
   display: grid;
   place-items: center;
   min-height: 100vh;
-  padding: 1rem;
+  min-height: 100svh;
+  /* El espacio inferior eleva el conjunto sin recortar el flujo en pantallas bajas. */
+  padding: 2rem 1.25rem clamp(4rem, 12svh, 7rem);
+  background: var(--color-login-fondo);
 }
 
-.login-panel {
-  width: 100%;
-  max-width: 26rem;
-}
-
-.login-panel h1 {
-  margin-top: 0;
-}
-
-.login-panel form {
+.login-page .login-contenido {
+  position: relative;
+  z-index: 1;
   display: grid;
-  gap: 0.75rem;
-  margin-bottom: 1rem;
+  justify-items: center;
+  gap: 1rem;
+  width: 100%;
+  max-width: var(--ancho-login-panel);
+  min-width: 0;
+}
+
+.login-page .login-logo {
+  display: block;
+  width: min(100%, var(--ancho-login-logo));
+  height: auto;
+}
+
+.login-page .login-panel {
+  width: 100%;
+  min-width: 0;
+  padding: clamp(1.125rem, 4vw, 1.5rem);
+  border: 1px solid var(--color-borde);
+  border-radius: 0.75rem;
+  background: var(--color-superficie);
+  box-shadow: var(--sombra-login-panel);
+  overflow-wrap: anywhere;
+}
+
+.login-page .login-panel h1 {
+  margin: 0;
+  font-size: var(--tamano-titulo-login);
+  line-height: 1.3;
+  font-weight: var(--peso-titulo-login);
+  text-align: center;
+  text-wrap: balance;
+}
+
+.login-page .login-subtitulo {
+  margin: 0.375rem 0 1rem;
+  text-align: center;
+  color: var(--color-gris-texto);
+  font-size: var(--tamano-subtitulo);
+  font-weight: var(--peso-subtitulo);
+}
+
+.login-page .login-panel form {
+  display: grid;
+  gap: 0.625rem;
+}
+
+.login-page .login-campo {
+  position: relative;
+  min-width: 0;
+}
+
+.login-page .login-etiqueta-oculta {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.login-page .login-campo input {
+  min-height: var(--alto-login-control);
+  padding: 0.5rem 2.5rem 0.5rem 0.875rem;
+  border-radius: 0.375rem;
+  font-size: var(--tamano-cuerpo);
+  font-weight: var(--peso-cuerpo);
+}
+
+.login-page .login-campo input::placeholder {
+  color: var(--color-gris-texto);
+  opacity: 1;
+}
+
+.login-page .login-icono-campo {
+  position: absolute;
+  top: 50%;
+  right: 0.875rem;
+  width: 1rem;
+  height: 1rem;
+  transform: translateY(-50%);
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.login-page .login-boton {
+  gap: 0.5rem;
+  min-height: var(--alto-login-control);
+  margin-top: 0.25rem;
+  border-radius: 0.375rem;
+  font-size: var(--tamano-boton-login);
+  font-weight: var(--peso-boton);
+}
+
+.login-page .login-icono-boton {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  opacity: 0.65;
+  pointer-events: none;
+}
+
+.login-page .login-decoraciones {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.login-page .login-figura {
+  position: absolute;
+  width: 2.5rem;
+  height: 2.5rem;
+  color: var(--color-login-decoracion);
+}
+
+.login-page .login-figura--circulo {
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.login-page .login-figura--cuadrado {
+  border: 2px solid currentColor;
+  transform: rotate(25deg);
+}
+
+.login-page .login-figura--triangulo {
+  background: currentColor;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+
+.login-page .login-figura--triangulo::after {
+  content: "";
+  position: absolute;
+  inset: 4px 3px 2px;
+  background: var(--color-login-fondo);
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+
+.login-page .login-figura--uno {
+  top: 8%;
+  left: 5%;
+  width: 3.5rem;
+  height: 3.5rem;
+}
+
+.login-page .login-figura--dos {
+  top: 12%;
+  right: 7%;
+  transform: rotate(15deg);
+}
+
+.login-page .login-figura--tres {
+  top: 45%;
+  left: 3%;
+}
+
+.login-page .login-figura--cuatro {
+  top: 48%;
+  right: 4%;
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.login-page .login-figura--cinco {
+  bottom: 9%;
+  left: 8%;
+  transform: rotate(-20deg);
+}
+
+.login-page .login-figura--seis {
+  bottom: 8%;
+  right: 6%;
+  width: 3rem;
+  height: 3rem;
+}
+
+.login-page .login-figura--siete {
+  top: 4%;
+  right: 25%;
+  width: 1rem;
+  height: 1rem;
+}
+
+.login-page .login-figura--ocho {
+  top: 27%;
+  left: 9%;
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.login-page .login-figura--nueve {
+  top: 30%;
+  right: 3%;
+  width: 1.75rem;
+  height: 1.75rem;
+  transform: rotate(-15deg);
+}
+
+.login-page .login-figura--diez {
+  bottom: 30%;
+  left: 6%;
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.login-page .login-figura--once {
+  bottom: 28%;
+  right: 10%;
+  width: 1.75rem;
+  height: 1.75rem;
+}
+
+/* Las figuras interiores quedan fuera del ancho de la tarjeta, incluso al crecer en altura. */
+.login-page .login-figura--doce {
+  top: 39%;
+  right: calc(50% + var(--ancho-login-panel) / 2 + 2rem);
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.login-page .login-figura--trece {
+  top: 44%;
+  left: calc(50% + var(--ancho-login-panel) / 2 + 2.5rem);
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.login-page .login-figura--catorce {
+  top: 57%;
+  right: calc(50% + var(--ancho-login-panel) / 2 + 3rem);
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+.login-page .login-figura--quince {
+  top: 62%;
+  left: calc(50% + var(--ancho-login-panel) / 2 + 2rem);
+  width: 1rem;
+  height: 1rem;
+}
+
+.login-page .login-figura--dieciseis {
+  top: 72%;
+  right: calc(50% + var(--ancho-login-panel) / 2 + 1.75rem);
+  width: 1.25rem;
+  height: 1.25rem;
+}
+
+@media (max-width: 40rem) {
+  .login-page {
+    padding: 2.5rem 1rem 4rem;
+  }
+
+  .login-page .login-figura--uno,
+  .login-page .login-figura--dos {
+    top: 0.75rem;
+  }
+
+  .login-page .login-figura--seis {
+    bottom: 0.75rem;
+  }
+
+  .login-page .login-figura--uno,
+  .login-page .login-figura--dos,
+  .login-page .login-figura--seis {
+    width: 1.25rem;
+    height: 1.25rem;
+  }
+
+  .login-page .login-figura--tres,
+  .login-page .login-figura--cuatro,
+  .login-page .login-figura--cinco,
+  .login-page .login-figura--siete,
+  .login-page .login-figura--ocho,
+  .login-page .login-figura--nueve,
+  .login-page .login-figura--diez,
+  .login-page .login-figura--once,
+  .login-page .login-figura--doce,
+  .login-page .login-figura--trece,
+  .login-page .login-figura--catorce,
+  .login-page .login-figura--quince,
+  .login-page .login-figura--dieciseis {
+    display: none;
+  }
+}
+
+.summary-card p,
+.session-controls > span {
+  font-size: var(--tamano-secundario);
+  font-weight: var(--peso-secundario);
 }
 
 [role="status"],
 [role="alert"] {
+  font-size: var(--tamano-secundario);
+  font-weight: var(--peso-secundario);
   padding: 0.75rem 1rem;
   border: 1px solid;
   border-radius: 0.25rem;

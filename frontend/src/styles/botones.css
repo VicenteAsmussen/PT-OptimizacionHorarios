@@ -13,7 +13,8 @@
   border-radius: 0.25rem;
   background: var(--boton-fondo);
   color: var(--boton-texto);
-  font-weight: 600;
+  font-size: var(--tamano-boton);
+  font-weight: var(--peso-boton);
   text-align: center;
   cursor: pointer;
   transition: background-color 150ms ease;
