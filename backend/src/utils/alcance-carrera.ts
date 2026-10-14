@@ -4,6 +4,7 @@ export interface AlcanceCarrera {
   carreraId: number;
   asignaturasCodigos: string[];
   departamentosIds: number[];
+  departamentosGestionadosIds: number[];
   profesoresIds: number[];
   ofertasIds: number[];
 }

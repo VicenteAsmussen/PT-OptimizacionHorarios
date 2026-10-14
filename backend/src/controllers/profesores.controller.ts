@@ -30,7 +30,7 @@ export const profesoresController = {
 
   async create(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const data = await profesoresService.createProfesor(req.body, await resolverAlcanceCarrera(req.user));
+      const data = await profesoresService.createProfesor(req.body, await resolverAlcanceCarrera(req.user), req.user);
       res.status(201).json({
         status: "success",
         data,
@@ -43,7 +43,7 @@ export const profesoresController = {
   async update(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = Number(req.params.id);
-      const data = await profesoresService.updateProfesor(id, req.body, await resolverAlcanceCarrera(req.user));
+      const data = await profesoresService.updateProfesor(id, req.body, await resolverAlcanceCarrera(req.user), req.user);
       res.status(200).json({
         status: "success",
         data,
@@ -53,10 +53,46 @@ export const profesoresController = {
     }
   },
 
+  async createUsuario(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const id = Number(req.params.id);
+      const data = await profesoresService.createUsuarioProfesor(id, req.body, await resolverAlcanceCarrera(req.user), req.user);
+      res.status(201).json({
+        status: "success",
+        data,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async updateUsuario(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const id = Number(req.params.id);
+      const data = await profesoresService.updateUsuarioProfesor(id, req.body, await resolverAlcanceCarrera(req.user), req.user);
+      res.status(200).json({
+        status: "success",
+        data,
+      });
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  async deleteUsuario(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const id = Number(req.params.id);
+      await profesoresService.deleteUsuarioProfesor(id, await resolverAlcanceCarrera(req.user), req.user);
+      res.status(204).send();
+    } catch (error) {
+      next(error);
+    }
+  },
+
   async delete(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = Number(req.params.id);
-      await profesoresService.deleteProfesor(id);
+      await profesoresService.deleteProfesor(id, await resolverAlcanceCarrera(req.user), req.user);
       res.status(204).send();
     } catch (error) {
       next(error);

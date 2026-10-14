@@ -26,16 +26,23 @@ export const carrerasRepository = {
     const { carreraId } = perfil;
     const asignaciones = await db.select({ codigo: carreraAsignatura.asignaturaCodigo }).from(carreraAsignatura)
       .where(eq(carreraAsignatura.carreraId, carreraId));
-    // No filtrar esGestionado: tanto departamentos propios como externos están en alcance.
-    const relaciones = await db.select({ id: carreraDepartamento.departamentoId }).from(carreraDepartamento)
+    // No filtrar esGestionado para el alcance: tanto departamentos propios como externos están relacionados con la carrera.
+    // La gestión operativa se expone aparte para permisos de acceso/disponibilidad.
+    const relaciones = await db.select({
+      id: carreraDepartamento.departamentoId,
+      esGestionado: carreraDepartamento.esGestionado,
+    }).from(carreraDepartamento)
       .where(eq(carreraDepartamento.carreraId, carreraId));
     const asignaturasCodigos = asignaciones.map((asignacion) => asignacion.codigo);
     const departamentosIds = relaciones.map((relacion) => relacion.id);
+    const departamentosGestionadosIds = relaciones
+      .filter((relacion) => relacion.esGestionado)
+      .map((relacion) => relacion.id);
     const docentes = departamentosIds.length ? await db.select({ id: profesores.id }).from(profesores)
       .where(inArray(profesores.departamentoId, departamentosIds)) : [];
     const ofertas = asignaturasCodigos.length ? await db.select({ id: ofertasAsignaturas.id }).from(ofertasAsignaturas)
       .where(inArray(ofertasAsignaturas.asignaturaCodigo, asignaturasCodigos)) : [];
-    return { carreraId, asignaturasCodigos, departamentosIds,
+    return { carreraId, asignaturasCodigos, departamentosIds, departamentosGestionadosIds,
       profesoresIds: docentes.map((docente) => docente.id), ofertasIds: ofertas.map((oferta) => oferta.id) };
   },
 

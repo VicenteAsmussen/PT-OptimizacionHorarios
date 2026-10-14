@@ -93,8 +93,12 @@ La relación `carrera_departamento` indica que un departamento presta servicios 
 | Concepto | Significado |
 | :--- | :--- |
 | Fila en `carrera_departamento` | El departamento presta servicios a la carrera. |
-| `es_gestionado = true` | La secretaría/carrera gestiona operativamente ramos de ese departamento. |
-| `es_gestionado = false` | El departamento presta servicios, pero sus horarios deben coordinarse como externos. |
+| `es_gestionado = true` | La secretaría/carrera gestiona operativamente ramos, profesores, disponibilidad y accesos de ese departamento. |
+| `es_gestionado = false` | El departamento presta servicios, pero sus horarios deben coordinarse como externos y sus accesos no son administrados por la secretaría de la carrera. |
+
+En reglas de dominio, **alcance** significa todos los departamentos relacionados con la carrera, mientras que **gestión** significa solo los departamentos con `es_gestionado=true`. Para profesores, los tipos válidos son `planta` y `part time`: secretaría puede crear profesores `part time` dentro de todo su alcance, incluidos departamentos externos cuando los necesita para horarios de la carrera, pero solo puede crear/editar/quitar acceso al sistema para profesores `part time` de departamentos gestionados. Si falta un profesor `planta`, debe ingresarlo previamente un administrador. Un profesor `part time` gestionado o externo solo se elimina si nunca participó en horarios; si ya tiene historial horario, se conserva el registro académico y solo se quita el acceso eliminando su usuario asociado. El nombre de `usuarios` se considera derivado y debe mantenerse sincronizado con el nombre de la entidad `profesores` o `secretarias`; los formularios de acceso solicitan correo y contraseña inicial, no nombre.
+
+Diseño pendiente de frontend para `/app/profesores`: tarjeta superior con título, descripción, buscador, filtros por departamento, tipo y `Acceso al sistema`, además del botón `Crear profesor` arriba a la derecha. La tabla debe mostrar `Nombre`, `Departamento`, `Tipo`, `Acceso al sistema` y separar acciones de profesor (`Ver`, `Editar`, `Eliminar profesor`) de acciones de acceso (`Crear acceso`, `Editar acceso`, `Quitar acceso`). No se agrega columna `Gestión`, porque se infiere por el departamento.
 
 Departamentos gestionados inicialmente para el prototipo:
 
@@ -162,7 +166,7 @@ Ambos formatos usan `Código Asig.`, `Nombre Asignatura`, `Sección`, `Cupos`, `
 - Profesor se resuelve por nombre sin distinción de mayúsculas, acentos ni espacios repetidos, dentro del departamento indicado. Nombres ausentes o ambiguos son errores; nunca se crean profesores automáticamente.
 - Tipos aceptan aliases `teorica/teórica/teo/t`, `practica/práctica/pract/pra/p` y `laboratorio/laboratory/lab/l`, resueltos contra el catálogo existente.
 - Se rechazan ofertas existentes por semestre + código + sección, duplicados, sesiones inválidas y choques de profesor. Errores de validación devuelven HTTP 400 con `errores: [{fila, columna, mensaje}]` y no escriben nada. Las ofertas, horarios y relaciones de publicación se crean en una sola transacción; éxito externo devuelve HTTP 201 con contadores.
-- `GET /api/profesores?departamentoId=...` permite filtrar profesores. Secretaría conserva lectura, creación y edición; solo admin puede eliminar.
+- `GET /api/profesores?departamentoId=...` permite filtrar profesores. Secretaría conserva lectura y creación de profesores `part time` dentro de su alcance; solo gestiona acceso en departamentos con `es_gestionado=true`. La eliminación de profesores `part time` se bloquea si ya participaron en horarios.
 
 - [ ] **Integración del solver/modelo de optimización**: generar propuestas horarias desde el backend.
 - [ ] **Frontend React**: construir la interfaz de secretaría y docentes sobre la API existente.
