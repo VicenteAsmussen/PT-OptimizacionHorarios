@@ -33,7 +33,7 @@ describe("Módulo Profesores (/api/profesores)", () => {
     expect(departamentos.body.data.length).toBeGreaterThan(0);
     const departamentoId: number = departamentos.body.data[0].id;
     const nombre = `Profesor prueba ${randomUUID()}`;
-    const datos = { nombre, departamentoId, tipo: "Jornada completa" };
+    const datos = { nombre, departamentoId, tipo: "part time" };
     const creacion = await request(app).post("/api/profesores").set("Cookie", adminCookie).send(datos);
     expect(creacion.status).toBe(201);
     const id: number = creacion.body.data.id;
@@ -48,7 +48,7 @@ describe("Módulo Profesores (/api/profesores)", () => {
       expect(consulta.body.status).toBe("success");
       expect(consulta.body.data).toMatchObject({ id, ...datos });
 
-      const cambios = { nombre: `${nombre} actualizado`, tipo: "Media jornada" };
+      const cambios = { nombre: `${nombre} actualizado`, tipo: "planta" };
       const actualizacion = await request(app).put(`/api/profesores/${id}`)
         .set("Cookie", adminCookie).send(cambios);
       expect(actualizacion.status).toBe(200);

@@ -8,6 +8,8 @@ import {
   updateProfesorValidation,
   profesorIdParamValidation,
   profesorQueryValidation,
+  accesoProfesorValidation,
+  updateAccesoProfesorValidation,
 } from "../validations/profesores.validation.js";
 
 const router = Router();
@@ -16,16 +18,16 @@ router.use(authenticate, authorizeRoles("admin", "secretaria"));
 
 router.get("/", validateRequest({ query: profesorQueryValidation }), profesoresController.getAll);
 
-router.get(
-  "/:id",
-  validateRequest({ params: profesorIdParamValidation }),
-  profesoresController.getById
-);
-
 router.post(
   "/",
   validateRequest({ body: createProfesorValidation }),
   profesoresController.create
+);
+
+router.get(
+  "/:id",
+  validateRequest({ params: profesorIdParamValidation }),
+  profesoresController.getById
 );
 
 router.put(
@@ -37,9 +39,32 @@ router.put(
   profesoresController.update
 );
 
+router.post(
+  "/:id/usuario",
+  validateRequest({
+    params: profesorIdParamValidation,
+    body: accesoProfesorValidation,
+  }),
+  profesoresController.createUsuario
+);
+
+router.put(
+  "/:id/usuario",
+  validateRequest({
+    params: profesorIdParamValidation,
+    body: updateAccesoProfesorValidation,
+  }),
+  profesoresController.updateUsuario
+);
+
+router.delete(
+  "/:id/usuario",
+  validateRequest({ params: profesorIdParamValidation }),
+  profesoresController.deleteUsuario
+);
+
 router.delete(
   "/:id",
-  authorizeRoles("admin"),
   validateRequest({ params: profesorIdParamValidation }),
   profesoresController.delete
 );
