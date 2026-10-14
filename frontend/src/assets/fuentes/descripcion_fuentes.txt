@@ -1,0 +1,10 @@
+Roboto variable vertical, alojada localmente para la tipografía compartida del frontend.
+Origen oficial: https://github.com/google/fonts/tree/1c627bfa375fc51cf86fabeca4f6e08a95f0aa5c/ofl/roboto
+Fuente: https://raw.githubusercontent.com/google/fonts/1c627bfa375fc51cf86fabeca4f6e08a95f0aa5c/ofl/roboto/Roboto%5Bwdth,wght%5D.ttf
+Archivo local: roboto-variable.ttf, sin conversión ni modificaciones.
+Licencia: SIL Open Font License 1.1, incluida en OFL.txt desde el mismo origen y revisión.
+Ejes verificados: peso (wght) 100–900, predeterminado 400; ancho (wdth) 75–100, predeterminado 100.
+La interfaz usa pesos 400, 500, 600 y 700 con ancho normal; no usa versiones condensadas ni cursivas.
+Verificación: archivo TrueType real, ángulo cursivo 0 y glifos españoles áéíóúüñÁÉÍÓÚÜÑ¿¡ presentes.
+SHA-256 de la fuente: d7598e12c5dbef095ff8272cfc55da0250bd07fbdecbac8a530b9b277872a134
+SHA-256 de OFL.txt: 061402327a96aadb0bfb694a960ed289ecd38d383e396243831ab81feb109c41

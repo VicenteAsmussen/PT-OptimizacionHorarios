@@ -1,4 +1,25 @@
 :root {
+  --fuente-principal: "Roboto", system-ui, sans-serif;
+  --tamano-titulo-pagina: 1.5rem;
+  --peso-titulo-pagina: 700;
+  --tamano-titulo-seccion: 1.25rem;
+  --peso-titulo-seccion: 600;
+  --tamano-subtitulo: 1rem;
+  --peso-subtitulo: 500;
+  --tamano-cuerpo: 1rem;
+  --peso-cuerpo: 400;
+  --tamano-navegacion: 1rem;
+  --peso-navegacion: 500;
+  --tamano-boton: 1rem;
+  --peso-boton: 500;
+  --tamano-etiqueta: 0.875rem;
+  --peso-etiqueta: 500;
+  --tamano-secundario: 0.875rem;
+  --peso-secundario: 400;
+  --tamano-titulo-login: var(--tamano-titulo-seccion);
+  --peso-titulo-login: var(--peso-titulo-pagina);
+  --tamano-boton-login: 0.9375rem;
+
   --color-primario: #2D6BA0;
   --color-sidebar: #262F36;
   --color-sidebar-hover: #33414D;
@@ -33,6 +54,12 @@
   --color-borde: #CBD5E1;
   --color-borde-campo: var(--color-gris-borde);
   --color-foco: var(--color-primario);
+  --color-login-fondo: #DFE7EF;
+  --color-login-decoracion: #C5D9EB;
+  --ancho-login-panel: 22.5rem;
+  --ancho-login-logo: 11.875rem;
+  --alto-login-control: 2.75rem;
+  --sombra-login-panel: 0 8px 24px rgb(35 85 127 / 10%);
   --color-estado-fondo: var(--color-azul-fondo);
   --color-estado-texto: var(--color-azul-texto);
   --color-alerta-fondo: var(--color-eliminar-fondo);
