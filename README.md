@@ -131,6 +131,17 @@ El seed:
 - asegura datos necesarios creando o actualizando registros;
 - carga catálogos académicos, bloques horarios, salas y usuarios iniciales del prototipo.
 
+Profesores de prueba en **Sistemas de Información**, departamento gestionado por la carrera de la secretaría inicial:
+
+| Nombre | Correo | Tipo |
+| :--- | :--- | :--- |
+| Profesor Docente | `profesor@ubiobio.cl` | `planta` |
+| Profesor Part Time | `profesor.parttime@ubiobio.cl` | `part time` |
+
+Al repetir el seed, el profesor existente se reclasifica como `planta` conservando sus IDs y vínculos; el segundo perfil se asegura sin duplicarlo. Las contraseñas iniciales solo se asignan al crear usuarios: no se restablecen las existentes. Se mantienen las cuentas iniciales de administración y secretaría.
+
+**Antes de ejecutar `pnpm run db:seed` desde `backend`, confirma que el destino sea la base de desarrollo prevista.** El comando escribe datos y también asegura los demás catálogos y bloques del prototipo; no es una carga exclusiva de profesores.
+
 Los usuarios y contraseñas iniciales son parte del contexto del prototipo y no representan una política de seguridad productiva institucional.
 
 ---

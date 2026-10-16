@@ -2,9 +2,9 @@ import { eq } from "drizzle-orm";
 import * as esquema from "../schema/index.js";
 import { hashPassword } from "../../utils/password.js";
 import type { BaseDatosSeed, CatalogosAcademicosSeed } from "./contexto.js";
-import { claveInicial, datosUsuarios, tipoProfesorInicial } from "./data/usuarios.js";
+import { claveInicial, datosUsuarios, datosProfesores, departamentoProfesoresIniciales } from "./data/usuarios.js";
 
-async function asegurarUsuario(baseDatos: BaseDatosSeed, usuario: typeof datosUsuarios[number], clave: string) {
+async function asegurarUsuario(baseDatos: BaseDatosSeed, usuario: typeof datosUsuarios[number]) {
   const [existente] = await baseDatos.select().from(esquema.usuarios).where(eq(esquema.usuarios.correo, usuario.correo)).limit(1);
   if (existente) {
     const [actualizado] = await baseDatos
@@ -14,14 +14,14 @@ async function asegurarUsuario(baseDatos: BaseDatosSeed, usuario: typeof datosUs
       .returning();
     return actualizado;
   }
+  const clave = await hashPassword(claveInicial);
   const [insertado] = await baseDatos.insert(esquema.usuarios).values({ ...usuario, clave }).returning();
   return insertado;
 }
 
 export async function sembrarUsuarios(baseDatos: BaseDatosSeed, catalogos: CatalogosAcademicosSeed) {
-  const claveInicialHash = await hashPassword(claveInicial);
   const usuariosAsegurados = [];
-  for (const usuario of datosUsuarios) usuariosAsegurados.push(await asegurarUsuario(baseDatos, usuario, claveInicialHash));
+  for (const usuario of datosUsuarios) usuariosAsegurados.push(await asegurarUsuario(baseDatos, usuario));
   console.log(`✓ Asegurados ${usuariosAsegurados.length} usuarios base`);
 
   const usuarioSecretaria = usuariosAsegurados.find((usuario) => usuario.rol === "secretaria");
@@ -36,8 +36,10 @@ export async function sembrarUsuarios(baseDatos: BaseDatosSeed, catalogos: Catal
     console.log("✓ Asegurado perfil de secretaria asociado a la carrera");
   }
 
-  const usuarioProfesor = usuariosAsegurados.find((usuario) => usuario.rol === "profesor");
-  if (usuarioProfesor && catalogos.departamentos.length > 0) {
+  const departamento = catalogos.departamentos.find((departamento) => departamento.nombre === departamentoProfesoresIniciales);
+  for (const datosProfesor of datosProfesores) {
+    const usuarioProfesor = usuariosAsegurados.find((usuario) => usuario.correo === datosProfesor.correo);
+    if (!usuarioProfesor || !departamento) continue;
     const [profesorExistente] = await baseDatos
       .select()
       .from(esquema.profesores)
@@ -49,15 +51,15 @@ export async function sembrarUsuarios(baseDatos: BaseDatosSeed, catalogos: Catal
         .update(esquema.profesores)
         .set({
           nombre: usuarioProfesor.nombre,
-          departamentoId: catalogos.departamentos[0].id,
-          tipo: tipoProfesorInicial,
+          departamentoId: departamento.id,
+          tipo: datosProfesor.tipo,
         })
         .where(eq(esquema.profesores.id, profesorExistente.id));
     } else {
       await baseDatos.insert(esquema.profesores).values({
         nombre: usuarioProfesor.nombre,
-        departamentoId: catalogos.departamentos[0].id,
-        tipo: tipoProfesorInicial,
+        departamentoId: departamento.id,
+        tipo: datosProfesor.tipo,
         usuarioId: usuarioProfesor.id,
       });
     }
