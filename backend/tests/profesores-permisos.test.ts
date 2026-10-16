@@ -8,7 +8,7 @@ import { carrerasRepository } from "../src/repositories/carreras.repository.js";
 vi.mock("../src/repositories/carreras.repository.js", () => ({ carrerasRepository: { findAlcanceByUsuarioId: vi.fn() } }));
 vi.mock("../src/repositories/usuarios.repository.js", () => ({ usuariosRepository: { findByCorreo: vi.fn() } }));
 vi.mock("../src/repositories/profesores.repository.js", () => ({ profesoresRepository: {
-  findAll: vi.fn(), findById: vi.fn(), findByUsuarioId: vi.fn(), checkDepartamentoExists: vi.fn(),
+  findAll: vi.fn(), findById: vi.fn(), findByRut: vi.fn(), findByUsuarioId: vi.fn(), checkDepartamentoExists: vi.fn(),
   checkUsuarioExists: vi.fn(), create: vi.fn(), delete: vi.fn(), hasHorarios: vi.fn(), deleteWithDependencias: vi.fn(),
 } }));
 vi.mock("../src/middlewares/auth.middleware.js", () => ({ authenticate: (req: Request, _res: Response, next: NextFunction) => {
@@ -36,6 +36,7 @@ beforeEach(() => {
   vi.mocked(carrerasRepository.findAlcanceByUsuarioId).mockResolvedValue(alcance);
   vi.mocked(profesoresRepository.findAll).mockResolvedValue([]);
   vi.mocked(profesoresRepository.findById).mockResolvedValue({ id: 7, departamentoId: 4, tipo: "part time", usuarioId: null } as never);
+  vi.mocked(profesoresRepository.findByRut).mockResolvedValue(undefined);
   vi.mocked(profesoresRepository.findByUsuarioId).mockResolvedValue(undefined as never);
   vi.mocked(profesoresRepository.checkDepartamentoExists).mockResolvedValue(true);
   vi.mocked(profesoresRepository.checkUsuarioExists).mockResolvedValue(true);
@@ -73,13 +74,13 @@ it("rechaza filtro inválido", async () => {
 });
 
 it("secretaria crea profesor part time en departamento externo dentro de alcance", async () => {
-  const respuesta = await request(aplicacion).post("/profesores").send({ nombre: "Profesor externo", departamentoId: 5, tipo: "part time" });
+  const respuesta = await request(aplicacion).post("/profesores").send({ nombre: "Profesor externo", rut: "12345678-5", departamentoId: 5, tipo: "part time" });
   expect(respuesta.status).toBe(201);
-  expect(profesoresRepository.create).toHaveBeenCalledWith({ nombre: "Profesor externo", departamentoId: 5, tipo: "part time" });
+  expect(profesoresRepository.create).toHaveBeenCalledWith({ nombre: "Profesor externo", rut: "12345678-5", departamentoId: 5, tipo: "part time" });
 });
 
 it("secretaria no puede crear profesor planta", async () => {
-  const respuesta = await request(aplicacion).post("/profesores").send({ nombre: "Profesor planta", departamentoId: 4, tipo: "planta" });
+  const respuesta = await request(aplicacion).post("/profesores").send({ nombre: "Profesor planta", rut: "12345678-5", departamentoId: 4, tipo: "planta" });
   expect(respuesta.status).toBe(403);
   expect(profesoresRepository.create).not.toHaveBeenCalled();
 });

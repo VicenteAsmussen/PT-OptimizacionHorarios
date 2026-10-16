@@ -22,6 +22,7 @@ import { asignaturasRepository } from "../src/repositories/asignaturas.repositor
 import { profesoresRepository } from "../src/repositories/profesores.repository.js";
 import { ofertasRepository } from "../src/repositories/ofertas.repository.js";
 import { horariosRepository } from "../src/repositories/horarios.repository.js";
+vi.mock("../src/repositories/usuarios.repository.js", () => ({ usuariosRepository: { findByCorreo: vi.fn() } }));
 vi.mock("../src/repositories/carreras.repository.js", () => ({ carrerasRepository: { findAlcanceByUsuarioId: vi.fn(), findAll: vi.fn(), findById: vi.fn() } }));
 vi.mock("../src/repositories/asignaturas.repository.js", () => ({ asignaturasRepository: { findAll: vi.fn(), findByCodigo: vi.fn(), update: vi.fn(), create: vi.fn() } }));
 vi.mock("../src/repositories/profesores.repository.js", () => ({ profesoresRepository: { findAll: vi.fn(), findById: vi.fn(), update: vi.fn(), create: vi.fn() } }));
@@ -88,7 +89,7 @@ it("no actualiza ni crea una asignatura exclusivamente ajena", async () => {
   expect(asignaturasRepository.create).not.toHaveBeenCalled();
 });
 it("no crea profesor, oferta ni horario fuera del alcance", async () => {
-  await expect(profesoresService.createProfesor({ departamentoId: 5 } as never, alcance)).rejects.toMatchObject({ statusCode: 403 });
+  await expect(profesoresService.createProfesor({ departamentoId: 5, rut: "12345678-5" } as never, alcance)).rejects.toMatchObject({ statusCode: 403 });
   await expect(ofertasService.createOferta({ asignaturaCodigo: "LOCAL", profesorId: 8 } as never, alcance)).rejects.toMatchObject({ statusCode: 403 });
   await expect(horariosService.createHorario({ ofertaId: 10 } as never, alcance)).rejects.toMatchObject({ statusCode: 403 });
   expect(profesoresRepository.create).not.toHaveBeenCalled();

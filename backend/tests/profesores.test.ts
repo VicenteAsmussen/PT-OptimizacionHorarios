@@ -22,7 +22,7 @@ describe("Módulo Profesores (/api/profesores)", () => {
 
   it("Debe rechazar la creación sin departamento ni tipo de jornada (400)", async () => {
     const res = await request(app).post("/api/profesores").set("Cookie", adminCookie)
-      .send({ nombre: `Profesor inválido ${randomUUID()}` });
+      .send({ nombre: `Profesor inválido ${randomUUID()}`, rut: "12345678-5" });
     expect(res.status).toBe(400);
     expect(res.body.status).toBe("error");
   });
@@ -33,7 +33,7 @@ describe("Módulo Profesores (/api/profesores)", () => {
     expect(departamentos.body.data.length).toBeGreaterThan(0);
     const departamentoId: number = departamentos.body.data[0].id;
     const nombre = `Profesor prueba ${randomUUID()}`;
-    const datos = { nombre, departamentoId, tipo: "part time" };
+    const datos = { nombre, rut: "12345678-5", departamentoId, tipo: "part time" };
     const creacion = await request(app).post("/api/profesores").set("Cookie", adminCookie).send(datos);
     expect(creacion.status).toBe(201);
     const id: number = creacion.body.data.id;

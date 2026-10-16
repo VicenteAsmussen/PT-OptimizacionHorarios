@@ -5,6 +5,7 @@ import * as esquema from "../src/db/schema/index.js";
 import type { BaseDatosSeed, CatalogosAcademicosSeed } from "../src/db/seeds/contexto.js";
 import { sembrarUsuarios } from "../src/db/seeds/usuarios.js";
 import { hashPassword } from "../src/utils/password.js";
+import { normalizarRut } from "../src/utils/rut.js";
 
 vi.mock("../src/utils/password.js", () => ({ hashPassword: vi.fn(async () => "hash-simulado") }));
 
@@ -68,12 +69,14 @@ const catalogos = {
 
 function comprobarProfesores(usuarios: Fila[], profesores: Fila[]) {
   expect(profesores).toHaveLength(2);
-  for (const [correo, tipo] of [["profesor@ubiobio.cl", "planta"], ["profesor.parttime@ubiobio.cl", "part time"]]) {
+  expect(new Set(profesores.map((fila) => fila.rut)).size).toBe(2);
+  for (const [correo, tipo, rut] of [["profesor@ubiobio.cl", "planta", "90000000-6"], ["profesor.parttime@ubiobio.cl", "part time", "90000001-4"]]) {
     const usuario = usuarios.find((fila) => fila.correo === correo);
     expect(usuario).toMatchObject({ rol: "profesor" });
     expect(profesores.find((fila) => fila.usuarioId === usuario?.id)).toMatchObject({
-      nombre: usuario?.nombre, departamentoId: 5, tipo,
+      nombre: usuario?.nombre, departamentoId: 5, tipo, rut,
     });
+    expect(normalizarRut(rut)).toBe(rut);
   }
 }
 

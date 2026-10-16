@@ -5,6 +5,39 @@ import { type AccesoProfesorDTO, type CreateProfesorDTO, type UpdateAccesoProfes
 import { NotFoundError, ConflictError, BadRequestError, ForbiddenError } from "../utils/errors.js";
 import { hashPassword } from "../utils/password.js";
 import type { TokenPayload } from "../utils/jwt.js";
+import { normalizarRut } from "../utils/rut.js";
+
+function exigirRut(valor: unknown): string {
+  const rut = normalizarRut(valor);
+  if (rut === null) throw new BadRequestError("El RUT del profesor no es válido");
+  return rut;
+}
+
+async function exigirRutDisponible(rut: string, id?: number) {
+  const existente = await profesoresRepository.findByRut(rut);
+  if (existente && existente.id !== id) {
+    throw new ConflictError("Ya existe un profesor con ese RUT");
+  }
+}
+
+// Drizzle puede envolver el error PostgreSQL en cause; no mapear otras restricciones.
+async function conConflictoRut<T>(operacion: () => Promise<T>): Promise<T> {
+  try {
+    return await operacion();
+  } catch (error) {
+    let causa: unknown = error;
+    const visitadas = new Set<unknown>();
+    while (causa && typeof causa === "object" && !visitadas.has(causa)) {
+      visitadas.add(causa);
+      const detalle = causa as { code?: string; constraint_name?: string; constraint?: string; cause?: unknown };
+      if (detalle.code === "23505" && (detalle.constraint_name ?? detalle.constraint) === "profesores_rut_unique") {
+        throw new ConflictError("Ya existe un profesor con ese RUT");
+      }
+      causa = detalle.cause;
+    }
+    throw error;
+  }
+}
 
 function esSecretaria(usuario?: Pick<TokenPayload, "rol">) {
   return usuario?.rol === "secretaria";
@@ -43,6 +76,9 @@ export const profesoresService = {
       exigirProfesorPartTimeGestionado(alcance, datosProfesor.departamentoId, datosProfesor.tipo);
     }
 
+    datosProfesor.rut = exigirRut(datosProfesor.rut);
+    await exigirRutDisponible(datosProfesor.rut);
+
     const deptoExists = await profesoresRepository.checkDepartamentoExists(datosProfesor.departamentoId);
     if (!deptoExists) {
       throw new BadRequestError(`El departamento con ID ${datosProfesor.departamentoId} no existe`);
@@ -65,16 +101,17 @@ export const profesoresService = {
       if (existing) {
         throw new ConflictError(`Ya existe un usuario con el correo '${acceso.correo}'`);
       }
-      const created = await profesoresRepository.createWithUsuario(datosProfesor, {
+      const clave = await hashPassword(acceso.clave);
+      const created = await conConflictoRut(() => profesoresRepository.createWithUsuario(datosProfesor, {
         nombre: datosProfesor.nombre,
         correo: acceso.correo,
-        clave: await hashPassword(acceso.clave),
+        clave,
         rol: "profesor",
-      });
+      }));
       return await this.getProfesorById(created.id, alcance);
     }
 
-    const created = await profesoresRepository.create(datosProfesor);
+    const created = await conConflictoRut(() => profesoresRepository.create(datosProfesor));
     return await this.getProfesorById(created.id, alcance);
   },
 
@@ -86,6 +123,12 @@ export const profesoresService = {
 
     if (esSecretaria(usuario) && tipoDestino !== "part time") {
       throw new ForbiddenError("La secretaria no puede administrar profesores planta");
+    }
+
+    if (dto.rut !== undefined) {
+      const rut = exigirRut(dto.rut);
+      dto = { ...dto, rut };
+      await exigirRutDisponible(rut, id);
     }
 
     if (dto.departamentoId) {
@@ -110,7 +153,7 @@ export const profesoresService = {
       }
     }
 
-    await profesoresRepository.updateWithSyncedUsuarioName(id, dto, dto.usuarioId ?? profesor.usuarioId);
+    await conConflictoRut(() => profesoresRepository.updateWithSyncedUsuarioName(id, dto, dto.usuarioId ?? profesor.usuarioId));
     return await this.getProfesorById(id, alcance);
   },
 

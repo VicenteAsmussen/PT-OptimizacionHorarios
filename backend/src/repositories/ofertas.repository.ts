@@ -7,7 +7,7 @@ import {
   type NuevaOfertaAsignatura,
 } from "../db/schema/ofertas-asignaturas.schema.js";
 import { asignaturas } from "../db/schema/asignaturas.schema.js";
-import { profesores } from "../db/schema/profesores.schema.js";
+import { profesores, columnasProfesorSinRut } from "../db/schema/profesores.schema.js";
 import { semestres } from "../db/schema/semestres.schema.js";
 
 export const ofertasRepository = {
@@ -39,6 +39,7 @@ export const ofertasRepository = {
           },
         },
         profesor: {
+          columns: columnasProfesorSinRut,
           with: {
             departamento: true,
           },
@@ -69,6 +70,7 @@ export const ofertasRepository = {
           },
         },
         profesor: {
+          columns: columnasProfesorSinRut,
           with: {
             departamento: true,
           },

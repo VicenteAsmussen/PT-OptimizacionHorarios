@@ -7,6 +7,7 @@ import {
 } from "../db/schema/usuarios.schema.js";
 import { secretarias } from "../db/schema/secretarias.schema.js";
 import { carreras } from "../db/schema/carreras.schema.js";
+import { columnasProfesorSinRut } from "../db/schema/profesores.schema.js";
 
 export const usuariosRepository = {
   async findAll() {
@@ -17,7 +18,7 @@ export const usuariosRepository = {
             carrera: true,
           },
         },
-        profesor: true,
+        profesor: { columns: columnasProfesorSinRut },
       },
     });
   },
@@ -31,7 +32,7 @@ export const usuariosRepository = {
             carrera: true,
           },
         },
-        profesor: true,
+        profesor: { columns: columnasProfesorSinRut },
       },
     });
   },
@@ -45,7 +46,7 @@ export const usuariosRepository = {
             carrera: true,
           },
         },
-        profesor: true,
+        profesor: { columns: columnasProfesorSinRut },
       },
     });
   },
@@ -115,7 +116,7 @@ export const usuariosRepository = {
               carrera: true,
             },
           },
-          profesor: true,
+          profesor: { columns: columnasProfesorSinRut },
         },
       });
     });
