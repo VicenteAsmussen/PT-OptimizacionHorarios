@@ -16,6 +16,16 @@ export const datosUsuarios = [
     correo: "profesor@ubiobio.cl",
     rol: "profesor" as const,
   },
+  {
+    nombre: "Profesor Part Time",
+    correo: "profesor.parttime@ubiobio.cl",
+    rol: "profesor" as const,
+  },
 ];
 
-export const tipoProfesorInicial = "Jornada Completa";
+export const departamentoProfesoresIniciales = "Sistemas de Información";
+
+export const datosProfesores = [
+  { correo: "profesor@ubiobio.cl", tipo: "planta" },
+  { correo: "profesor.parttime@ubiobio.cl", tipo: "part time" },
+] as const;

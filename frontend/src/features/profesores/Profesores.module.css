@@ -1,0 +1,86 @@
+.pagina {
+  min-width: 0;
+  padding: 1.5rem;
+  border: 1px solid var(--color-borde);
+  border-radius: 0.5rem;
+  background: var(--color-superficie);
+  color: var(--color-texto);
+}
+.cabecera { display: flex; align-items: flex-start; justify-content: space-between; gap: 1.5rem; }
+.cabecera h1 { margin-top: 0; font-size: var(--tamano-titulo-pagina); font-weight: var(--peso-titulo-pagina); }
+.cabecera p { margin-bottom: 1.5rem; }
+.cabecera > button { flex-shrink: 0; }
+.filtros {
+  display: grid;
+  grid-template-columns: minmax(12rem, 1.4fr) minmax(12rem, 1.4fr) minmax(8rem, 1fr) minmax(9rem, 1fr);
+  gap: 1rem;
+  padding: 1rem;
+  border-radius: 0.375rem;
+  background: var(--color-azul-fondo);
+}
+.filtros label, .campos > label { display: grid; gap: 0.375rem; font-size: var(--tamano-etiqueta); font-weight: var(--peso-etiqueta); }
+.filtros input, .filtros select, .campos > input, .campos > select {
+  width: 100%; min-width: 0; min-height: 2.75rem; padding: 0.5rem;
+  border: 1px solid var(--color-borde-campo); border-radius: 0.25rem;
+  color: var(--color-texto); background: var(--color-superficie); font: inherit;
+}
+.pagina :focus-visible, .dialogo :focus-visible { outline: 3px solid var(--color-foco); outline-offset: 3px; }
+.tablaContenedor { max-width: 100%; overflow-x: auto; border: 1px solid var(--color-borde); border-radius: 0.375rem; }
+.tabla { width: 100%; min-width: 64rem; border-collapse: collapse; text-align: left; }
+.tabla th, .tabla td { padding: 0.625rem 0.875rem; border-bottom: 1px solid var(--color-borde); vertical-align: middle; overflow-wrap: anywhere; }
+.tabla thead { background: var(--color-azul-fondo); color: var(--color-azul-texto); }
+.tabla tbody th { min-width: 10rem; font-weight: var(--peso-subtitulo); }
+.nombreProfesor {
+  display: block; width: 10rem; max-width: 10rem;
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+}
+.tabla td:nth-child(2) { min-width: 10rem; }
+.tabla td:nth-child(3) { white-space: nowrap; }
+.tabla tr:last-child > * { border-bottom: 0; }
+.acciones { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.tabla .acciones { min-width: 10rem; }
+.tabla .acciones button { min-height: 2.25rem; padding: 0.25rem 0.5rem; font-size: var(--tamano-secundario); }
+@media (any-pointer: coarse) {
+  .tabla .acciones button { min-height: 2.75rem; }
+}
+.botonConIcono { gap: 5px; white-space: nowrap; }
+.icono {
+  width: 16px; height: 16px; flex-shrink: 0; background-color: currentColor;
+  mask-size: contain; mask-position: center; mask-repeat: no-repeat;
+  -webkit-mask-size: contain; -webkit-mask-position: center; -webkit-mask-repeat: no-repeat;
+}
+.insignia, .tipoProfesor {
+  display: inline-block; padding: 0.25rem 0.5rem; border: 1px solid var(--color-borde); border-radius: 0.25rem;
+  background: var(--color-gris-fondo); color: var(--color-gris-texto);
+  font-size: var(--tamano-secundario); font-weight: var(--peso-etiqueta); white-space: nowrap;
+}
+.tipoPlanta { background: var(--color-azul-fondo); color: var(--color-azul-texto); }
+.conAcceso { background: var(--color-crear-fondo); color: var(--color-crear-texto); }
+.estado, .error { padding: 1rem; border-radius: 0.375rem; overflow-wrap: anywhere; }
+.estado { background: var(--color-estado-fondo); color: var(--color-estado-texto); }
+.error { background: var(--color-alerta-fondo); color: var(--color-alerta-texto); }
+.dialogo {
+  width: min(34rem, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem); overflow-y: auto;
+  padding: 1.5rem; border: 1px solid var(--color-borde); border-radius: 0.5rem;
+  background: var(--color-superficie); color: var(--color-texto); font-family: var(--fuente-principal);
+}
+.dialogo::backdrop { background: rgb(31 41 48 / 55%); }
+.dialogo h2 { margin-top: 0; font-size: var(--tamano-titulo-seccion); }
+.dialogo .acciones { justify-content: flex-end; margin-top: 1.5rem; }
+.campos { display: grid; gap: 0.75rem; border: 0; margin: 0; padding: 0; min-width: 0; }
+.campos p { margin: 0.25rem 0; }
+.campos .casilla { display: flex; align-items: center; gap: 0.5rem; min-height: 2.75rem; }
+.casilla input { width: 1.25rem; height: 1.25rem; }
+.ayuda { font-size: var(--tamano-secundario); }
+.campos dl { margin: 0; overflow-wrap: anywhere; }
+.campos dt { font-weight: var(--peso-titulo-seccion); }
+.campos dd { margin: 0.25rem 0 1rem; }
+.soloLectores { position: absolute; width: 1px; height: 1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+@media (max-width: 75rem) { .filtros { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 40rem) {
+  .pagina { padding: 1rem; }
+  .cabecera { flex-direction: column; gap: 0; margin-bottom: 1rem; }
+  .cabecera > button { width: 100%; }
+  .filtros { grid-template-columns: minmax(0, 1fr); }
+  .dialogo { padding: 1rem; }
+}

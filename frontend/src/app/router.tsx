@@ -2,6 +2,7 @@ import { createBrowserRouter, Link, Navigate } from "react-router-dom";
 import AppLayout from "../components/layout/AppLayout";
 import LoginPage from "../features/auth/pages/LoginPage";
 import DashboardPage from "../features/dashboard/pages/DashboardPage";
+import ProfesoresPage, { RequireGestionProfesores } from "../features/profesores/ProfesoresPage";
 import { GuestOnly, RequireAuth } from "./AuthGuards";
 
 export const router = createBrowserRouter([
@@ -18,6 +19,9 @@ export const router = createBrowserRouter([
       children: [
         { index: true, element: <Navigate to="dashboard" replace /> },
         { path: "dashboard", element: <DashboardPage /> },
+        { element: <RequireGestionProfesores />, children: [
+          { path: "profesores", element: <ProfesoresPage /> },
+        ] },
         { path: "*", element: <p>Página no encontrada</p> },
       ],
     }],
