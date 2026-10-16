@@ -25,6 +25,39 @@ test("datos seguros y filtros combinables sin mutar respuestas", async () => {
   assert.deepEqual(filtrarProfesores([profesor], { tipo: "planta" }), []);
 });
 
+test("profesores se ordenan A–Z en español sin distinguir mayúsculas ni acentos", async () => {
+  const { filtrarProfesores } = await import("./datos.ts");
+  const nombres = ["Zulema", "álvaro", "ana", "ÁLVARO", "Beatriz", "alvaro", "Ñora", "Nora"];
+  const profesores = Object.freeze(nombres.map((nombre, id) => Object.freeze({ id, nombre })));
+  const resultado = filtrarProfesores(profesores);
+  assert.deepEqual(resultado.map((profesor) => profesor.id), [1, 3, 5, 2, 4, 7, 6, 0]);
+  assert.notEqual(resultado, profesores);
+  assert.deepEqual(profesores.map((profesor) => profesor.nombre), nombres);
+  assert.deepEqual(resultado.map((profesor) => profesor.nombre), [
+    "álvaro", "ÁLVARO", "alvaro", "ana", "Beatriz", "Nora", "Ñora", "Zulema",
+  ]);
+  for (const profesor of resultado) assert.equal(profesor, profesores[profesor.id]);
+});
+
+test("el orden se aplica tras combinar filtros sin cambiar la búsqueda por acentos", async () => {
+  const { filtrarProfesores } = await import("./datos.ts");
+  const base = { departamentoId: 1, tipo: "part time", usuarioId: 7 };
+  const profesores = [
+    { ...base, id: 1, nombre: "Zara" },
+    { ...base, id: 2, nombre: "Ana" },
+    { ...base, id: 3, nombre: "Aarón", departamentoId: 2 },
+    { ...base, id: 4, nombre: "Abel", tipo: "planta" },
+    { ...base, id: 5, nombre: "Adela", usuarioId: null },
+    { ...base, id: 6, nombre: "Ágata" },
+  ];
+  const filtros = { busqueda: " A ", departamentoId: 1, tipo: "part time", acceso: "con acceso" };
+  assert.deepEqual(filtrarProfesores(profesores, filtros).map((profesor) => profesor.id), [6, 2, 1]);
+  assert.deepEqual(filtrarProfesores(profesores, { busqueda: "agata" }), []);
+  assert.deepEqual(filtrarProfesores(profesores, { busqueda: "ÁGATA" }), [profesores[5]]);
+  assert.deepEqual(filtrarProfesores([]), []);
+  assert.deepEqual(filtrarProfesores([profesores[0]]), [profesores[0]]);
+});
+
 test("edición de acceso admite correo o contraseña sin reenviar valores sin cambios", async () => {
   const { prepararCambiosAcceso } = await import("./formularios.ts");
   assert.deepEqual(prepararCambiosAcceso(" nueva@example.cl ", "", "anterior@example.cl"), { correo: "nueva@example.cl" });

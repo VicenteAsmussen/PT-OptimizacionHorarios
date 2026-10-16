@@ -47,5 +47,6 @@ export function filtrarProfesores(
     && (filtros.departamentoId === undefined || profesor.departamentoId === filtros.departamentoId)
     && (filtros.tipo === undefined || profesor.tipo === filtros.tipo)
     && (filtros.acceso === undefined
-      || (profesor.usuarioId !== null) === (filtros.acceso === "con acceso")));
+      || (profesor.usuarioId !== null) === (filtros.acceso === "con acceso")))
+    .sort((primero, segundo) => primero.nombre.localeCompare(segundo.nombre, "es", { sensitivity: "base" }));
 }
