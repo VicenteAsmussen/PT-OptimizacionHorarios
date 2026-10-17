@@ -1,5 +1,7 @@
 import { useState } from "react";
 import DialogoProfesor from "./DialogoProfesor";
+import { prepararNuevoAcceso } from "./formularios";
+import { errorClaveAcceso } from "./limites";
 import { puedeAdministrarAcceso, puedeAdministrarProfesor } from "./permisos";
 import { profesoresApi } from "./profesores.api";
 import { prepararDatosProfesor } from "./rut";
@@ -25,6 +27,7 @@ export default function FormularioProfesor({ profesor, departamentos, rol, alcan
   const [crearAcceso, setCrearAcceso] = useState(false);
   const [correo, setCorreo] = useState("");
   const [clave, setClave] = useState("");
+  const errorClave = errorClaveAcceso(clave);
   const destino = { departamentoId, tipo };
   const permiteAcceso = puedeAdministrarAcceso(rol, destino, alcance);
 
@@ -46,13 +49,13 @@ export default function FormularioProfesor({ profesor, departamentos, rol, alcan
     }
     if (profesor) return profesoresApi.editar(profesor.id, datos);
     return profesoresApi.crear({ ...datos, ...(crearAcceso && permiteAcceso
-      ? { acceso: { correo: correo.trim(), clave } } : {}) });
+      ? { acceso: prepararNuevoAcceso(correo, clave) } : {}) });
   }
 
   return <DialogoProfesor titulo={profesor ? "Editar profesor" : "Agregar profesor"}
     guardar={guardar} alCerrar={alCerrar} alCompletar={alCompletar}>
     <label htmlFor="profesor-nombre">Nombre</label>
-    <input id="profesor-nombre" required placeholder="Ej.: Ana Pérez" value={nombre} onChange={(evento) => setNombre(evento.target.value)} autoFocus />
+    <input id="profesor-nombre" required maxLength={100} placeholder="Ej.: Ana Pérez" value={nombre} onChange={(evento) => setNombre(evento.target.value)} autoFocus />
     <label htmlFor="profesor-rut">RUT</label>
     <input id="profesor-rut" type="text" required autoComplete="off" placeholder="Ej.: 12.345.678-5" aria-describedby="ayuda-profesor-rut"
       maxLength={12} pattern="(?:[0-9]{1,8}|[0-9]{1,3}[.][0-9]{3}|[0-9]{1,2}[.][0-9]{3}[.][0-9]{3})-[0-9Kk]"
@@ -77,9 +80,16 @@ export default function FormularioProfesor({ profesor, departamentos, rol, alcan
         onChange={(evento) => { setCrearAcceso(evento.target.checked); setCorreo(""); setClave(""); }} />Crear acceso al sistema</label>
       {crearAcceso && <>
         <label htmlFor="profesor-correo">Correo electrónico</label>
-        <input id="profesor-correo" type="email" autoComplete="off" required value={correo} onChange={(evento) => setCorreo(evento.target.value)} />
+        <input id="profesor-correo" type="email" autoComplete="off" maxLength={254} required value={correo} onChange={(evento) => setCorreo(evento.target.value)} />
         <label htmlFor="profesor-clave">Contraseña inicial</label>
-        <input id="profesor-clave" type="password" autoComplete="new-password" required value={clave} onChange={(evento) => setClave(evento.target.value)} />
+        <input id="profesor-clave" type="password" autoComplete="new-password" required maxLength={72}
+          aria-describedby="ayuda-profesor-clave error-profesor-clave" aria-invalid={!!errorClave}
+          value={clave} onChange={(evento) => {
+            setClave(evento.target.value);
+            evento.target.setCustomValidity(errorClaveAcceso(evento.target.value));
+          }} />
+        <p id="ayuda-profesor-clave" className={estilos.ayuda}>Máximo 72 bytes UTF-8; algunos caracteres, como acentos y emojis, ocupan más de un byte.</p>
+        <p id="error-profesor-clave" role={errorClave ? "alert" : undefined} className={estilos.error}>{errorClave}</p>
       </>}
     </>}
   </DialogoProfesor>;

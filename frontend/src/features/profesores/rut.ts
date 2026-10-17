@@ -35,6 +35,7 @@ export function formatearRut(valor: string | null | undefined): string {
 // Proyección explícita compartida por creación y edición; no reenvía otros campos.
 export function prepararDatosProfesor(datos: DatosProfesor): DatosProfesor {
   if (!datos.nombre.trim()) throw new Error("Ingresa el nombre del profesor.");
+  if (datos.nombre.trim().length > 100) throw new Error("El nombre no puede exceder los 100 caracteres.");
   const entrada = datos.rut.trim();
   const mensajeRut = "Ingresa un RUT válido con guion obligatorio y máximo 12 caracteres, por ejemplo 12.345.678-5.";
   if (entrada.length > 12 || !entrada.includes("-")) throw new Error(mensajeRut);

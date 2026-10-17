@@ -1,0 +1,27 @@
+.contenedor {
+  font-family: var(--fuente-principal);
+}
+
+.contenedor:global([data-sonner-toaster]) .aviso:global([data-styled="true"]) {
+  background: var(--color-blanco);
+  color: var(--color-texto);
+  border: 1px solid var(--color-usuario-fondo);
+  border-inline-start: 5px solid var(--color-primario);
+  box-shadow: var(--sombra-login-panel);
+  font-size: var(--tamano-etiqueta);
+}
+
+.contenedor .icono {
+  color: var(--color-primario);
+}
+
+.contenedor .cerrar {
+  background: var(--color-azul-fondo);
+  color: var(--color-azul-texto);
+  border-color: var(--color-usuario-fondo);
+}
+
+.contenedor .cerrar:focus-visible {
+  outline: 2px solid var(--color-foco);
+  outline-offset: 3px;
+}

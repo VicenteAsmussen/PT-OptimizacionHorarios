@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { etiquetaTipoProfesor } from "./datos";
 import DialogoProfesor from "./DialogoProfesor";
-import { prepararCambiosAcceso } from "./formularios";
+import { prepararCambiosAcceso, prepararNuevoAcceso } from "./formularios";
+import { errorClaveAcceso } from "./limites";
 import { puedeAdministrarAcceso, puedeAdministrarProfesor } from "./permisos";
 import { profesoresApi } from "./profesores.api";
 import { formatearRut } from "./rut";
@@ -20,6 +21,7 @@ interface Props {
 export default function AccionesProfesor({ accion, profesor, rol, alcance, alCerrar, alCompletar }: Props) {
   const [correo, setCorreo] = useState(accion === "editarAcceso" ? profesor.usuario?.correo ?? "" : "");
   const [clave, setClave] = useState("");
+  const errorClave = errorClaveAcceso(clave);
   const titulos = { ver: "Ver profesor", eliminar: "Eliminar profesor", crearAcceso: "Crear acceso al sistema",
     editarAcceso: "Editar acceso al sistema", eliminarAcceso: "Retirar acceso al sistema" };
   const esFormulario = accion === "crearAcceso" || accion === "editarAcceso";
@@ -30,7 +32,7 @@ export default function AccionesProfesor({ accion, profesor, rol, alcance, alCer
       return profesoresApi.eliminar(profesor.id);
     }
     if (!puedeAdministrarAcceso(rol, profesor, alcance)) throw new Error("No tienes permiso para gestionar este acceso.");
-    if (accion === "crearAcceso") return profesoresApi.crearAcceso(profesor.id, { correo: correo.trim(), clave });
+    if (accion === "crearAcceso") return profesoresApi.crearAcceso(profesor.id, prepararNuevoAcceso(correo, clave));
     if (accion === "editarAcceso") {
       const cambios = prepararCambiosAcceso(correo, clave, profesor.usuario?.correo ?? "");
       if (!cambios) throw new Error("Modifica el correo o ingresa una nueva contraseña.");
@@ -45,11 +47,17 @@ export default function AccionesProfesor({ accion, profesor, rol, alcance, alCer
     {esFormulario ? <>
       <p>Profesor: <strong>{profesor.nombre}</strong></p>
       <label htmlFor="acceso-correo">Correo electrónico</label>
-      <input id="acceso-correo" type="email" autoComplete="off" required={accion === "crearAcceso"}
+      <input id="acceso-correo" type="email" autoComplete="off" maxLength={254} required={accion === "crearAcceso"}
         value={correo} onChange={(evento) => setCorreo(evento.target.value)} autoFocus />
       <label htmlFor="acceso-clave">{accion === "crearAcceso" ? "Contraseña inicial" : "Nueva contraseña (opcional)"}</label>
-      <input id="acceso-clave" type="password" autoComplete="new-password" required={accion === "crearAcceso"}
-        value={clave} onChange={(evento) => setClave(evento.target.value)} />
+      <input id="acceso-clave" type="password" autoComplete="new-password" required={accion === "crearAcceso"} maxLength={72}
+        aria-describedby="ayuda-acceso-clave error-acceso-clave" aria-invalid={!!errorClave}
+        value={clave} onChange={(evento) => {
+          setClave(evento.target.value);
+          evento.target.setCustomValidity(errorClaveAcceso(evento.target.value));
+        }} />
+      <p id="ayuda-acceso-clave">Máximo 72 bytes UTF-8; algunos caracteres, como acentos y emojis, ocupan más de un byte.</p>
+      <p id="error-acceso-clave" role={errorClave ? "alert" : undefined}>{errorClave}</p>
       {accion === "editarAcceso" && <p>Deja la contraseña vacía para conservarla. Puedes cambiar solo el correo o solo la contraseña.</p>}
     </> : accion === "ver" ? <dl>
       <dt>Nombre</dt><dd>{profesor.nombre}</dd>

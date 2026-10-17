@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Navigate, Outlet } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { ApiError } from "../../lib/api";
+import { notificaciones } from "../../lib/notificaciones";
+import { crearNotificacionesProfesores } from "./notificaciones";
 import { filtrarProfesores } from "./datos";
 import { derivarAlcanceProfesores, puedeAdministrarProfesor, puedeGestionarProfesores } from "./permisos";
 import { profesoresApi } from "./profesores.api";
@@ -30,11 +32,14 @@ export default function ProfesoresPage() {
   const [datos, setDatos] = useState<Datos | null>(null);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
-  const [aviso, setAviso] = useState("");
+  const [guardadoSinActualizar, setGuardadoSinActualizar] = useState(false);
   const [filtros, setFiltros] = useState<FiltrosProfesores>({});
   const [seleccion, setSeleccion] = useState<Seleccion | null>(null);
   const solicitud = useRef(0);
   const titulo = useRef<HTMLHeadingElement>(null);
+  const avisos = useRef(crearNotificacionesProfesores(notificaciones));
+  // El diálogo conserva esta versión: una carga nueva o desmontaje invalida su respuesta.
+  const versionDialogo = solicitud.current;
 
   const cargar = useCallback(async () => {
     const numero = ++solicitud.current;
@@ -46,8 +51,13 @@ export default function ProfesoresPage() {
       const [profesores, departamentos, carreras] = await Promise.all([
         profesoresApi.listar(), profesoresApi.listarDepartamentos(), profesoresApi.listarCarreras(),
       ]);
-      if (numero === solicitud.current) setDatos({ profesores, departamentos, alcance: derivarAlcanceProfesores(carreras) });
+      if (numero === solicitud.current) {
+        setDatos({ profesores, departamentos, alcance: derivarAlcanceProfesores(carreras) });
+        setGuardadoSinActualizar(false);
+      }
+      avisos.current.resultado(true, () => numero === solicitud.current);
     } catch (fallo) {
+      avisos.current.resultado(false, () => numero === solicitud.current);
       if (numero === solicitud.current) setError(fallo instanceof ApiError ? fallo.message
         : "No se pudieron cargar los profesores. Revisa tu conexión e inténtalo nuevamente.");
     } finally {
@@ -56,13 +66,20 @@ export default function ProfesoresPage() {
   }, []);
 
   useEffect(() => {
+    setSeleccion(null);
+    setGuardadoSinActualizar(false);
     void cargar();
-    return () => { solicitud.current++; };
+    return () => {
+      solicitud.current++;
+      avisos.current.limpiar();
+    };
   }, [cargar, usuario?.id]);
 
   function completar() {
+    if (versionDialogo !== solicitud.current) return;
     setSeleccion(null);
-    setAviso("Operación completada.");
+    setGuardadoSinActualizar(true);
+    avisos.current.guardado(() => versionDialogo === solicitud.current);
     void cargar();
     // El disparador puede desaparecer (eliminación/filtros); ofrecer un destino estable.
     titulo.current?.focus();
@@ -96,10 +113,9 @@ export default function ProfesoresPage() {
         <option value="">Todos los accesos</option><option value="con acceso">Con acceso</option><option value="sin acceso">Sin acceso</option>
       </select></label>
     </div>
-    {aviso && <p role="status" className={estilos.estado}>{aviso}{cargando ? " Actualizando la lista desde el servidor…" : !error ? " Lista actualizada." : ""}</p>}
     {cargando && <p role="status" className={estilos.estado}>Cargando profesores y permisos…</p>}
     {error && <div role="alert" className={estilos.error}><p>{error}</p>
-      {aviso && <p>La operación ya se completó. Reintentar solo vuelve a consultar la lista.</p>}
+      {guardadoSinActualizar && <p>Los cambios ya se guardaron. Reintentar solo vuelve a consultar la lista.</p>}
       <button type="button" className="boton" onClick={() => void cargar()}>Reintentar carga</button></div>}
     {datos && <>
       <p role="status">{visibles.length} de {datos.profesores.length} profesores</p>

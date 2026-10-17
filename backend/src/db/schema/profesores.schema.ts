@@ -1,4 +1,4 @@
-import { pgTable, serial, text, integer } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, varchar, integer } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { usuarios } from "./usuarios.schema.js";
 import { departamentos } from "./departamentos.schema.js";
@@ -12,7 +12,7 @@ export const profesores = pgTable("profesores", {
     .notNull()
     .references(() => departamentos.id, { onDelete: "restrict" }),
   rut: text("rut").notNull().unique("profesores_rut_unique"),
-  nombre: text("nombre").notNull(),
+  nombre: varchar("nombre", { length: 100 }).notNull(),
   tipo: text("tipo").notNull(), // e.g. "Jornada Completa", "Media Jornada", "Part-Time"
 });
 

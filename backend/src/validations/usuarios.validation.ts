@@ -8,11 +8,12 @@ export const createUsuarioValidation = z
       .string({ message: "El nombre es obligatorio" })
       .trim()
       .min(1, "El nombre no puede estar vacío")
-      .max(150, "El nombre no puede exceder los 150 caracteres"),
+      .max(100, "El nombre no puede exceder los 100 caracteres"),
     correo: z
       .string({ message: "El correo electrónico es obligatorio" })
       .trim()
-      .email("El formato del correo electrónico no es válido"),
+      .email("El formato del correo electrónico no es válido")
+      .max(254, "El correo no puede exceder los 254 caracteres"),
     clave: z
       .string({ message: "La contraseña es obligatoria" })
       .min(6, "La contraseña debe tener al menos 6 caracteres"),
@@ -43,12 +44,13 @@ export const updateUsuarioValidation = z.object({
     .string()
     .trim()
     .min(1, "El nombre no puede estar vacío")
-    .max(150, "El nombre no puede exceder los 150 caracteres")
+    .max(100, "El nombre no puede exceder los 100 caracteres")
     .optional(),
   correo: z
     .string()
     .trim()
     .email("El formato del correo electrónico no es válido")
+    .max(254, "El correo no puede exceder los 254 caracteres")
     .optional(),
   clave: z
     .string()

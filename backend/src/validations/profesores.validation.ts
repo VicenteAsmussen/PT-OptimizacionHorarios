@@ -25,7 +25,8 @@ export const accesoProfesorValidation = z.object({
   correo: z
     .string({ message: "El correo electrónico es obligatorio" })
     .trim()
-    .email("El formato del correo electrónico no es válido"),
+    .email("El formato del correo electrónico no es válido")
+    .max(254, "El correo no puede exceder los 254 caracteres"),
   clave: z
     .string({ message: "La contraseña inicial es obligatoria" })
     .min(6, "La contraseña inicial debe tener al menos 6 caracteres"),
@@ -42,7 +43,7 @@ export const createProfesorValidation = z.object({
     .string({ message: "El nombre del profesor es obligatorio" })
     .trim()
     .min(1, "El nombre del profesor no puede estar vacío")
-    .max(150, "El nombre no puede exceder los 150 caracteres"),
+    .max(100, "El nombre no puede exceder los 100 caracteres"),
   departamentoId: z
     .number({ message: "El ID del departamento es obligatorio" })
     .int("El ID del departamento debe ser un número entero")
@@ -65,7 +66,7 @@ export const updateProfesorValidation = z.object({
     .string()
     .trim()
     .min(1, "El nombre del profesor no puede estar vacío")
-    .max(150, "El nombre no puede exceder los 150 caracteres")
+    .max(100, "El nombre no puede exceder los 100 caracteres")
     .optional(),
   departamentoId: z
     .number()
