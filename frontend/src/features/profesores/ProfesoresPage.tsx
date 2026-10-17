@@ -80,7 +80,7 @@ export default function ProfesoresPage() {
         onClick={() => setSeleccion({ accion: "crear" })}><IconoProfesor tipo="agregar" />Agregar profesor</button>
     </header>
     <div className={estilos.filtros}>
-      <label>Buscar por nombre<input type="search" value={filtros.busqueda ?? ""} placeholder="Nombre del profesor"
+      <label>Buscar por nombre o RUT<input type="search" value={filtros.busqueda ?? ""} placeholder="Buscar por nombre o RUT"
         onChange={(evento) => setFiltros({ ...filtros, busqueda: evento.target.value })} /></label>
       <label>Departamento<select value={filtros.departamentoId ?? ""} onChange={(evento) => setFiltros({ ...filtros,
         departamentoId: evento.target.value ? Number(evento.target.value) : undefined })}>
