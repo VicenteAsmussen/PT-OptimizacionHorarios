@@ -1,4 +1,4 @@
-import { pgTable, serial, text, timestamp, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, varchar, timestamp, pgEnum } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { profesores } from "./profesores.schema.js";
 import { secretarias } from "./secretarias.schema.js";
@@ -7,8 +7,8 @@ export const rolUsuarioEnum = pgEnum("rol_usuario", ["secretaria", "profesor", "
 
 export const usuarios = pgTable("usuarios", {
   id: serial("id").primaryKey(),
-  nombre: text("nombre").notNull(),
-  correo: text("correo").notNull().unique(),
+  nombre: varchar("nombre", { length: 100 }).notNull(),
+  correo: varchar("correo", { length: 254 }).notNull().unique(),
   clave: text("clave").notNull(),
   rol: rolUsuarioEnum("rol").notNull().default("secretaria"),
   creadoEn: timestamp("creado_en", { withTimezone: true }).defaultNow().notNull(),
