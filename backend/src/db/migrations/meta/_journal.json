@@ -64,6 +64,13 @@
       "when": 1791426202497,
       "tag": "0008_tranquil_thena",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792183443264,
+      "tag": "0009_marvelous_beast",
+      "breakpoints": true
     }
   ]
 }

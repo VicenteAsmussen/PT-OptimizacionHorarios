@@ -4,6 +4,7 @@ import DialogoProfesor from "./DialogoProfesor";
 import { prepararCambiosAcceso } from "./formularios";
 import { puedeAdministrarAcceso, puedeAdministrarProfesor } from "./permisos";
 import { profesoresApi } from "./profesores.api";
+import { formatearRut } from "./rut";
 import type { AlcanceProfesores, Profesor } from "./types";
 
 export type AccionProfesor = "ver" | "editar" | "eliminar" | "crearAcceso" | "editarAcceso" | "eliminarAcceso";
@@ -52,6 +53,7 @@ export default function AccionesProfesor({ accion, profesor, rol, alcance, alCer
       {accion === "editarAcceso" && <p>Deja la contraseña vacía para conservarla. Puedes cambiar solo el correo o solo la contraseña.</p>}
     </> : accion === "ver" ? <dl>
       <dt>Nombre</dt><dd>{profesor.nombre}</dd>
+      <dt>RUT</dt><dd>{formatearRut(profesor.rut)}</dd>
       <dt>Departamento</dt><dd>{profesor.departamento.nombre}</dd>
       <dt>Tipo</dt><dd>{etiquetaTipoProfesor(profesor.tipo)}</dd>
       <dt>Acceso al sistema</dt><dd>{profesor.usuarioId === null ? "Sin acceso" : "Con acceso"}</dd>

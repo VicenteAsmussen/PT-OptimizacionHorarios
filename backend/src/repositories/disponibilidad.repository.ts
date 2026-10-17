@@ -6,7 +6,7 @@ import {
   type DisponibilidadProfesor,
   type NuevaDisponibilidadProfesor,
 } from "../db/schema/disponibilidad-profesores.schema.js";
-import { profesores } from "../db/schema/profesores.schema.js";
+import { profesores, columnasProfesorSinRut } from "../db/schema/profesores.schema.js";
 import { semestres } from "../db/schema/semestres.schema.js";
 import { bloquesHorarios } from "../db/schema/bloques-horarios.schema.js";
 import { horariosAsignaturas } from "../db/schema/horarios-asignaturas.schema.js";
@@ -27,7 +27,7 @@ export const disponibilidadRepository = {
     return await db.query.disponibilidadProfesores.findMany({
       where: whereClause,
       with: {
-        profesor: true,
+        profesor: { columns: columnasProfesorSinRut },
         semestre: true,
         bloque: true,
       },
@@ -38,7 +38,7 @@ export const disponibilidadRepository = {
     return await db.query.disponibilidadProfesores.findFirst({
       where: eq(disponibilidadProfesores.id, id),
       with: {
-        profesor: true,
+        profesor: { columns: columnasProfesorSinRut },
         semestre: true,
         bloque: true,
       },
@@ -53,7 +53,7 @@ export const disponibilidadRepository = {
         eq(disponibilidadProfesores.bloqueId, bloqueId)
       ),
       with: {
-        profesor: true,
+        profesor: { columns: columnasProfesorSinRut },
         semestre: true,
         bloque: true,
       },
@@ -147,7 +147,7 @@ export const disponibilidadRepository = {
           eq(disponibilidadProfesores.semestreId, semestreId)
         ),
         with: {
-          profesor: true,
+          profesor: { columns: columnasProfesorSinRut },
           semestre: true,
           bloque: true,
         },

@@ -10,7 +10,7 @@ import { departamentos } from "../db/schema/departamentos.schema.js";
 import { ConflictError } from "../utils/errors.js";
 import { ofertasAsignaturas } from "../db/schema/ofertas-asignaturas.schema.js";
 import { asignaturas } from "../db/schema/asignaturas.schema.js";
-import { profesores } from "../db/schema/profesores.schema.js";
+import { profesores, columnasProfesorSinRut } from "../db/schema/profesores.schema.js";
 import { salas } from "../db/schema/salas.schema.js";
 import { bloquesHorarios } from "../db/schema/bloques-horarios.schema.js";
 import { tiposHora } from "../db/schema/tipos-hora.schema.js";
@@ -85,13 +85,13 @@ export const horariosRepository = {
   async findParaImportarSalas(semestreId: number, carreraId?: number) {
     const entradas = await db.query.horariosAsignaturas.findMany({
       where: and(eq(horariosAsignaturas.semestreId, semestreId), condicionAlcanceExcel(carreraId)),
-      with: { oferta: { with: { asignatura: true, profesor: true } }, bloque: true, tipoHora: true },
+      with: { oferta: { with: { asignatura: true, profesor: { columns: columnasProfesorSinRut } } }, bloque: true, tipoHora: true },
     });
     const salasExistentes = await db.select({ id: salas.id, nombre: salas.nombre }).from(salas);
     // La ocupación de salas sigue siendo global; estas filas no se usan para identificar sesiones editables.
     const entradasParaConflictos = carreraId === undefined ? entradas : await db.query.horariosAsignaturas.findMany({
       where: eq(horariosAsignaturas.semestreId, semestreId),
-      with: { oferta: { with: { asignatura: true, profesor: true } }, bloque: true, tipoHora: true },
+      with: { oferta: { with: { asignatura: true, profesor: { columns: columnasProfesorSinRut } } }, bloque: true, tipoHora: true },
     });
     return { entradas, entradasParaConflictos, salas: salasExistentes };
   },
@@ -122,7 +122,7 @@ export const horariosRepository = {
         oferta: {
           with: {
             asignatura: { with: { tiposHora: { with: { tipoHora: true } } } },
-            profesor: true,
+            profesor: { columns: columnasProfesorSinRut },
           },
         },
         bloque: true,
@@ -191,6 +191,7 @@ export const horariosRepository = {
           with: {
             asignatura: true,
             profesor: {
+              columns: columnasProfesorSinRut,
               with: {
                 departamento: true,
               },
@@ -215,6 +216,7 @@ export const horariosRepository = {
           with: {
             asignatura: true,
             profesor: {
+              columns: columnasProfesorSinRut,
               with: {
                 departamento: true,
               },
@@ -276,7 +278,7 @@ export const horariosRepository = {
       where: eq(ofertasAsignaturas.id, ofertaId),
       with: {
         asignatura: true,
-        profesor: true,
+        profesor: { columns: columnasProfesorSinRut },
         semestre: true,
       },
     });

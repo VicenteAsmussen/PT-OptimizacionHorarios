@@ -34,6 +34,12 @@ export const profesoresRepository = {
     });
   },
 
+  async findByRut(rut: string) {
+    return await db.query.profesores.findFirst({
+      where: eq(profesores.rut, rut),
+    });
+  },
+
   async findByUsuarioId(usuarioId: number) {
     return await db.query.profesores.findFirst({
       where: eq(profesores.usuarioId, usuarioId),

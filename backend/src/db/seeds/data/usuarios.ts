@@ -25,7 +25,8 @@ export const datosUsuarios = [
 
 export const departamentoProfesoresIniciales = "Sistemas de Información";
 
+// RUT sintéticos válidos, exclusivos de estos perfiles de demostración; no son un backfill.
 export const datosProfesores = [
-  { correo: "profesor@ubiobio.cl", tipo: "planta" },
-  { correo: "profesor.parttime@ubiobio.cl", tipo: "part time" },
+  { correo: "profesor@ubiobio.cl", tipo: "planta", rut: "90000000-6" },
+  { correo: "profesor.parttime@ubiobio.cl", tipo: "part time", rut: "90000001-4" },
 ] as const;

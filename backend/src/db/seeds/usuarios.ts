@@ -53,6 +53,7 @@ export async function sembrarUsuarios(baseDatos: BaseDatosSeed, catalogos: Catal
           nombre: usuarioProfesor.nombre,
           departamentoId: departamento.id,
           tipo: datosProfesor.tipo,
+          rut: datosProfesor.rut,
         })
         .where(eq(esquema.profesores.id, profesorExistente.id));
     } else {
@@ -60,6 +61,7 @@ export async function sembrarUsuarios(baseDatos: BaseDatosSeed, catalogos: Catal
         nombre: usuarioProfesor.nombre,
         departamentoId: departamento.id,
         tipo: datosProfesor.tipo,
+        rut: datosProfesor.rut,
         usuarioId: usuarioProfesor.id,
       });
     }

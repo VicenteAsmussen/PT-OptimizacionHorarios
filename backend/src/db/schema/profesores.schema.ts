@@ -11,6 +11,7 @@ export const profesores = pgTable("profesores", {
   departamentoId: integer("departamento_id")
     .notNull()
     .references(() => departamentos.id, { onDelete: "restrict" }),
+  rut: text("rut").notNull().unique("profesores_rut_unique"),
   nombre: text("nombre").notNull(),
   tipo: text("tipo").notNull(), // e.g. "Jornada Completa", "Media Jornada", "Part-Time"
 });
@@ -27,6 +28,11 @@ export const profesoresRelations = relations(profesores, ({ one, many }) => ({
   ofertas: many(ofertasAsignaturas),
   disponibilidades: many(disponibilidadProfesores),
 }));
+
+// Proyección de relaciones existentes: agregar RUT al CRUD no amplía sus respuestas.
+export const columnasProfesorSinRut = {
+  id: true, usuarioId: true, departamentoId: true, nombre: true, tipo: true,
+} as const;
 
 export type Profesor = typeof profesores.$inferSelect;
 export type NuevoProfesor = typeof profesores.$inferInsert;

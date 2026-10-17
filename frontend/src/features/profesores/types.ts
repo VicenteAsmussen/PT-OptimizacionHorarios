@@ -17,6 +17,7 @@ export interface CarreraProfesor {
 // Modelo de lectura deliberadamente reducido: nunca contiene claves ni hashes.
 export interface Profesor {
   id: number;
+  rut: string;
   nombre: string;
   departamentoId: number;
   tipo: string;
@@ -35,6 +36,7 @@ export type CambiosAccesoProfesor =
   | { correo?: string; clave: string };
 
 export interface DatosProfesor {
+  rut: string;
   nombre: string;
   departamentoId: number;
   tipo: TipoProfesor;

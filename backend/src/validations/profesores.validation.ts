@@ -1,4 +1,15 @@
 import { z } from "zod";
+import { normalizarRut } from "../utils/rut.js";
+
+const rutValidation = z.string({ message: "El RUT del profesor es obligatorio" })
+  .transform((valor, contexto) => {
+    const rut = normalizarRut(valor);
+    if (rut === null) {
+      contexto.addIssue({ code: "custom", message: "El RUT del profesor no es válido" });
+      return z.NEVER;
+    }
+    return rut;
+  });
 
 export const tiposProfesor = ["planta", "part time"] as const;
 
@@ -26,6 +37,7 @@ export const updateAccesoProfesorValidation = accesoProfesorValidation.partial()
 );
 
 export const createProfesorValidation = z.object({
+  rut: rutValidation,
   nombre: z
     .string({ message: "El nombre del profesor es obligatorio" })
     .trim()
@@ -48,6 +60,7 @@ export const createProfesorValidation = z.object({
 });
 
 export const updateProfesorValidation = z.object({
+  rut: rutValidation.optional(),
   nombre: z
     .string()
     .trim()

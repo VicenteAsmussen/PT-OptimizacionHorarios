@@ -24,6 +24,7 @@ export function seleccionarCarrera(carrera: CarreraProfesor): CarreraProfesor {
 export function seleccionarProfesor(profesor: Profesor): Profesor {
   return {
     id: profesor.id,
+    rut: profesor.rut,
     nombre: profesor.nombre,
     departamentoId: profesor.departamentoId,
     tipo: profesor.tipo,
@@ -42,10 +43,16 @@ export function filtrarProfesores(
   profesores: readonly Profesor[], filtros: FiltrosProfesores = {},
 ): Profesor[] {
   const busqueda = filtros.busqueda?.trim().toLocaleLowerCase("es") ?? "";
+  // La búsqueda parcial no valida DV; solo retira separadores de una entrada RUT segura.
+  const rutBuscado = /^[\dKk.-]+$/.test(busqueda) ? busqueda.replace(/[.-]/g, "").toUpperCase() : "";
+  const buscarRut = rutBuscado.length > 0 && /^\d*K?$/.test(rutBuscado);
   return profesores.filter((profesor) =>
-    profesor.nombre.toLocaleLowerCase("es").includes(busqueda)
+    (profesor.nombre.toLocaleLowerCase("es").includes(busqueda)
+      || (buscarRut && typeof profesor.rut === "string"
+        && profesor.rut.replace(/[.-]/g, "").toUpperCase().includes(rutBuscado)))
     && (filtros.departamentoId === undefined || profesor.departamentoId === filtros.departamentoId)
     && (filtros.tipo === undefined || profesor.tipo === filtros.tipo)
     && (filtros.acceso === undefined
-      || (profesor.usuarioId !== null) === (filtros.acceso === "con acceso")));
+      || (profesor.usuarioId !== null) === (filtros.acceso === "con acceso")))
+    .sort((primero, segundo) => primero.nombre.localeCompare(segundo.nombre, "es", { sensitivity: "base" }));
 }
