@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { puedeGestionarProfesores } from "../../features/profesores/permisos";
+import { puedeGestionarAsignaturas } from "../../features/asignaturas/datos";
 import logoUBB from "../../assets/logos/LogoUBB.png";
 import iconoSalida from "../../assets/iconos/salida.svg";
 import iconoRetrato from "../../assets/iconos/retrato.svg";
@@ -98,6 +99,11 @@ export default function AppLayout() {
         <NavLink to="/app/dashboard" end onClick={() => setNavegacionAbierta(false)}>
           Panel principal
         </NavLink>
+        {puedeGestionarAsignaturas(usuario?.rol) && (
+          <NavLink to="/app/asignaturas" onClick={() => setNavegacionAbierta(false)}>
+            Asignaturas
+          </NavLink>
+        )}
         {puedeGestionarProfesores(usuario?.rol) && (
           <NavLink to="/app/profesores" onClick={() => setNavegacionAbierta(false)}>
             Profesores

@@ -3,6 +3,17 @@ import { resolverAlcanceCarrera } from "../utils/alcance-carrera.js";
 import { profesoresService } from "../services/profesores.service.js";
 
 export const profesoresController = {
+  async getSeleccion(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      // Validar el perfil de secretaria sin restringir la selección por departamento.
+      await resolverAlcanceCarrera(req.user);
+      const data = await profesoresService.getSeleccionProfesores();
+      res.status(200).json({ status: "success", data });
+    } catch (error) {
+      next(error);
+    }
+  },
+
   async getAll(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const data = await profesoresService.getAllProfesores(req.query.departamentoId === undefined ? undefined : Number(req.query.departamentoId), await resolverAlcanceCarrera(req.user));

@@ -180,8 +180,8 @@ describe("Direct entry publication contract (offline)", () => {
     expect(academico).toContain("await asegurarSemestre(baseDatos, semestre)");
     expect(academico).toContain("insert(esquema.semestres).values(semestre)");
     expect(datosSemestres).toEqual([
-      { codigo: "2026-1", anio: 2026, actual: true },
-      { codigo: "2026-2", anio: 2026, actual: false },
+      { codigo: "2026-1", anio: 2026, actual: false },
+      { codigo: "2026-2", anio: 2026, actual: true },
     ]);
     for (const semestre of datosSemestres) {
       expect(createSemestreValidation.parse(semestre)).not.toHaveProperty("horarioPublicado");

@@ -30,6 +30,6 @@ export const datosAsignaturas = [
 ];
 
 export const datosSemestres = [
-  { codigo: "2026-1", anio: 2026, actual: true },
-  { codigo: "2026-2", anio: 2026, actual: false },
+  { codigo: "2026-1", anio: 2026, actual: false },
+  { codigo: "2026-2", anio: 2026, actual: true },
 ];
