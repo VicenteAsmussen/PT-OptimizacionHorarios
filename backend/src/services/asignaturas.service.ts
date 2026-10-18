@@ -1,4 +1,5 @@
 import type { AlcanceCarrera } from "../utils/alcance-carrera.js";
+import { departamentosRepository } from "../repositories/departamentos.repository.js";
 import { asignaturasRepository } from "../repositories/asignaturas.repository.js";
 import {
   type CreateAsignaturaDTO,
@@ -11,8 +12,8 @@ import {
 } from "../utils/errors.js";
 
 export const asignaturasService = {
-  async getAllAsignaturas(alcance?: AlcanceCarrera) {
-    return await asignaturasRepository.findAll(alcance);
+  async getAllAsignaturas(alcance?: AlcanceCarrera, departamentoId?: number) {
+    return await asignaturasRepository.findAll(alcance, departamentoId);
   },
 
   async getAsignaturaByCodigo(codigo: string, alcance?: AlcanceCarrera) {
@@ -26,6 +27,9 @@ export const asignaturasService = {
   async createAsignatura(dto: CreateAsignaturaDTO, alcance?: AlcanceCarrera) {
     if (alcance && (!dto.carrerasIds || dto.carrerasIds.length !== 1 || dto.carrerasIds[0] !== alcance.carreraId)) {
       throw new BadRequestError("La asignatura debe quedar asociada únicamente a la carrera de la secretaria");
+    }
+    if (!await departamentosRepository.findById(dto.departamentoId)) {
+      throw new BadRequestError("El departamento indicado no existe");
     }
     const existing = await asignaturasRepository.findByCodigo(dto.codigo);
     if (existing) {
@@ -68,6 +72,7 @@ export const asignaturasService = {
 
     await asignaturasRepository.create(
       {
+        departamentoId: dto.departamentoId,
         codigo: dto.codigo,
         nombre: dto.nombre,
         semestreMalla: dto.semestreMalla,
@@ -119,6 +124,9 @@ export const asignaturasService = {
       }
     }
 
+    if (dto.departamentoId !== undefined && !await departamentosRepository.findById(dto.departamentoId)) {
+      throw new BadRequestError("El departamento indicado no existe");
+    }
     const { tiposHora, carrerasIds, ...datosBase } = dto;
 
     await asignaturasRepository.update(codigo, datosBase, tiposHora, carrerasIds);

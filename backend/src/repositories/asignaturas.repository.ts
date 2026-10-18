@@ -1,5 +1,5 @@
 import type { AlcanceCarrera } from "../utils/alcance-carrera.js";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { db } from "../config/db.js";
 import {
   asignaturas,
@@ -17,10 +17,14 @@ export interface TipoHoraItem {
 }
 
 export const asignaturasRepository = {
-  async findAll(alcance?: AlcanceCarrera) {
+  async findAll(alcance?: AlcanceCarrera, departamentoId?: number) {
     return await db.query.asignaturas.findMany({
-      where: alcance ? inArray(asignaturas.codigo, alcance.asignaturasCodigos) : undefined,
+      where: and(
+        alcance ? inArray(asignaturas.codigo, alcance.asignaturasCodigos) : undefined,
+        departamentoId !== undefined ? eq(asignaturas.departamentoId, departamentoId) : undefined,
+      ),
       with: {
+        departamento: true,
         tiposHora: {
           with: {
             tipoHora: true,
@@ -39,6 +43,7 @@ export const asignaturasRepository = {
     return await db.query.asignaturas.findFirst({
       where: eq(asignaturas.codigo, codigo),
       with: {
+        departamento: true,
         tiposHora: {
           with: {
             tipoHora: true,
@@ -150,6 +155,7 @@ export const asignaturasRepository = {
       return await tx.query.asignaturas.findFirst({
         where: eq(asignaturas.codigo, codigo),
         with: {
+          departamento: true,
           tiposHora: {
             with: {
               tipoHora: true,

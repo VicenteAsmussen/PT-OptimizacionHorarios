@@ -5,6 +5,7 @@ import { db } from "../src/config/db.js";
 
 describe("Módulo Ofertas de Asignaturas (/api/ofertas-asignaturas)", () => {
   let secretariaCookie: string[];
+  let adminCookie: string[];
   const asignaturaCodigo = `OF${Date.now()}`.slice(0, 15);
   let profesorId: number;
   let semestreId: number;
@@ -16,7 +17,12 @@ describe("Módulo Ofertas de Asignaturas (/api/ofertas-asignaturas)", () => {
     const secRes = await request(app)
       .post("/api/auth/login")
       .send({ correo: "secretaria@ubiobio.cl", clave: "123456" });
+    expect(secRes.status).toBe(200);
     secretariaCookie = secRes.headers["set-cookie"];
+    const adminRes = await request(app).post("/api/auth/login")
+      .send({ correo: "admin@ubiobio.cl", clave: "123456" });
+    expect(adminRes.status).toBe(200);
+    adminCookie = adminRes.headers["set-cookie"];
 
     // 2. Obtener un profesor y semestre reales
     const prof = await db.query.profesores.findFirst();
@@ -26,14 +32,17 @@ describe("Módulo Ofertas de Asignaturas (/api/ofertas-asignaturas)", () => {
     semestreId = sem!.id;
 
     // 3. Crear asignatura de apoyo
-    await request(app)
+    const creacion = await request(app)
       .post("/api/asignaturas")
       .set("Cookie", secretariaCookie)
       .send({
         codigo: asignaturaCodigo,
         nombre: "Base de Datos I",
         semestreMalla: 4,
+        departamentoId: prof!.departamentoId,
+        carrerasIds: [(await db.query.carreras.findFirst())!.id],
       });
+    expect(creacion.status).toBe(201);
   });
 
   afterAll(async () => {
@@ -98,10 +107,10 @@ describe("Módulo Ofertas de Asignaturas (/api/ofertas-asignaturas)", () => {
     ofertaId2 = res.body.data.id;
   });
 
-  it("Debe fallar al crear oferta con profesor inexistente (400)", async () => {
+  it("Admin valida profesor inexistente (400)", async () => {
     const res = await request(app)
       .post("/api/ofertas-asignaturas")
-      .set("Cookie", secretariaCookie)
+      .set("Cookie", adminCookie)
       .send({
         asignaturaCodigo,
         profesorId: 99999,
@@ -111,6 +120,23 @@ describe("Módulo Ofertas de Asignaturas (/api/ofertas-asignaturas)", () => {
 
     expect(res.status).toBe(400);
     expect(res.body.status).toBe("error");
+  });
+
+  it("Secretaria no puede asignar profesor fuera de alcance (403), sin crear oferta", async () => {
+    const antes = await request(app)
+      .get(`/api/ofertas-asignaturas?semestreId=${semestreId}&asignaturaCodigo=${asignaturaCodigo}`)
+      .set("Cookie", adminCookie);
+    expect(antes.status).toBe(200);
+    const res = await request(app).post("/api/ofertas-asignaturas")
+      .set("Cookie", secretariaCookie)
+      .send({ asignaturaCodigo, profesorId: 99999, semestreId, seccion: 3 });
+    expect(res.status).toBe(403);
+    expect(res.body.status).toBe("error");
+    const despues = await request(app)
+      .get(`/api/ofertas-asignaturas?semestreId=${semestreId}&asignaturaCodigo=${asignaturaCodigo}`)
+      .set("Cookie", adminCookie);
+    expect(despues.status).toBe(200);
+    expect(despues.body.data).toEqual(antes.body.data);
   });
 
   it("Debe filtrar ofertas por semestreId y asignaturaCodigo (200)", async () => {

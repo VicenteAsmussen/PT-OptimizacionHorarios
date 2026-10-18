@@ -4,6 +4,7 @@ import { validateRequest } from "../middlewares/validation.middleware.js";
 import { authenticate } from "../middlewares/auth.middleware.js";
 import { authorizeRoles } from "../middlewares/roles.middleware.js";
 import {
+  asignaturasQueryValidation,
   createAsignaturaValidation,
   updateAsignaturaValidation,
   asignaturaCodigoParamValidation,
@@ -13,7 +14,7 @@ const router = Router();
 
 router.use(authenticate, authorizeRoles("admin", "secretaria"));
 
-router.get("/", asignaturasController.getAll);
+router.get("/", validateRequest({ query: asignaturasQueryValidation }), asignaturasController.getAll);
 
 router.get(
   "/:codigo",

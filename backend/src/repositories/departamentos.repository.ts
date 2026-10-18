@@ -3,7 +3,13 @@ import { eq, inArray } from "drizzle-orm";
 import { db } from "../config/db.js";
 import { departamentos, type Departamento, type NuevoDepartamento } from "../db/schema/departamentos.schema.js";
 
+import { asignaturas } from "../db/schema/asignaturas.schema.js";
+
 export const departamentosRepository = {
+  async hasAsignaturas(id: number): Promise<boolean> {
+    const [asignatura] = await db.select({ codigo: asignaturas.codigo }).from(asignaturas).where(eq(asignaturas.departamentoId, id)).limit(1);
+    return !!asignatura;
+  },
   async findAll(alcance?: AlcanceCarrera) {
     return await db.query.departamentos.findMany({
       where: alcance ? inArray(departamentos.id, alcance.departamentosIds) : undefined,

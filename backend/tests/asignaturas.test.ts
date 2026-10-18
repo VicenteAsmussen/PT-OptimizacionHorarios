@@ -1,13 +1,16 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import request from "supertest";
-import { app } from "../src/app.js";
-import { db } from "../src/config/db.js";
+// Solo habilitar contra una base explícitamente aislada y descartable.
+const ejecutarIntegracion = process.env.RUN_ISOLATED_DATABASE_TESTS === "true";
+const app = ejecutarIntegracion ? (await import("../src/app.js")).app : undefined!;
+const db = ejecutarIntegracion ? (await import("../src/config/db.js")).db : undefined!;
 
-describe("Módulo Asignaturas (/api/asignaturas)", () => {
+describe.skipIf(!ejecutarIntegracion)("Módulo Asignaturas (/api/asignaturas)", () => {
   let secretariaCookie: string[];
   const codigoAsignatura = `ASIG${Date.now()}`.slice(0, 15);
   let tipoHoraId: number;
   let carreraId: number;
+  let departamentoId: number;
 
   beforeAll(async () => {
     // 1. Iniciar sesión como secretaria
@@ -22,6 +25,7 @@ describe("Módulo Asignaturas (/api/asignaturas)", () => {
 
     const car = await db.query.carreras.findFirst();
     carreraId = car!.id;
+    departamentoId = (await db.query.departamentos.findFirst())!.id;
   });
 
   it("Debe crear una asignatura completa con tipos de hora y carreras (201)", async () => {
@@ -31,6 +35,7 @@ describe("Módulo Asignaturas (/api/asignaturas)", () => {
       .send({
         codigo: codigoAsignatura,
         nombre: "Algoritmos y Complejidad",
+        departamentoId,
         semestreMalla: 4,
         esCritica: true,
         tiposHora: [{ tipoHoraId, horas: 4 }],
@@ -40,6 +45,7 @@ describe("Módulo Asignaturas (/api/asignaturas)", () => {
     expect(res.status).toBe(201);
     expect(res.body.status).toBe("success");
     expect(res.body.data.codigo).toBe(codigoAsignatura);
+    expect(res.body.data.departamento).toMatchObject({ id: departamentoId });
     expect(res.body.data.tiposHora).toHaveLength(1);
     expect(res.body.data.carreraAsignaturas).toHaveLength(1);
   });
@@ -51,6 +57,8 @@ describe("Módulo Asignaturas (/api/asignaturas)", () => {
       .send({
         codigo: codigoAsignatura,
         nombre: "Nombre Duplicado",
+        departamentoId,
+        carrerasIds: [carreraId],
         semestreMalla: 2,
       });
 
@@ -65,6 +73,7 @@ describe("Módulo Asignaturas (/api/asignaturas)", () => {
       .send({
         codigo: `FAIL${Date.now()}`.slice(0, 15),
         nombre: "Malla Inválida",
+        departamentoId,
         semestreMalla: 20, // Inválido: max 14
       });
 
@@ -79,6 +88,8 @@ describe("Módulo Asignaturas (/api/asignaturas)", () => {
       .send({
         codigo: `FAIL${Date.now()}`.slice(0, 15),
         nombre: "TipoHora Inválido",
+        departamentoId,
+        carrerasIds: [carreraId],
         semestreMalla: 1,
         tiposHora: [{ tipoHoraId: 99999, horas: 2 }],
       });

@@ -9,11 +9,10 @@ const bloque = (numeroBloque: number, horaInicio: string, horaTermino: string, d
   ({ dia, numeroBloque, horaInicio, horaTermino });
 
 describe("contrato Excel de salas", () => {
-  it("expone las 23 columnas visibles en su orden", () => {
+  it("expone las 25 columnas visibles en su orden", () => {
     expect(encabezadosExcelSalas).toEqual([
-      "Código Asig.", "Sem", "Sección", "Nombre Asignatura", "Hrs. Teóricas",
-      "Hrs. Prácticas", "Hrs. Laborat", "Profesor",
-      ...Array.from({ length: 5 }, (_, indice) => [`Día ${indice + 1}`, `Horario ${indice + 1}`, `Sala ${indice + 1}`]).flat(),
+      "Código Asig.", "Nombre Asignatura", "Sección", "Cupos", "Profesor",
+      ...Array.from({ length: 5 }, (_, indice) => [`Tipo Hora ${indice + 1}`, `Día ${indice + 1}`, `Horario ${indice + 1}`, `Sala ${indice + 1}`]).flat(),
     ]);
   });
 

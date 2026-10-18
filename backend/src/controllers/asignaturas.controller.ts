@@ -5,7 +5,7 @@ import { asignaturasService } from "../services/asignaturas.service.js";
 export const asignaturasController = {
   async getAll(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const data = await asignaturasService.getAllAsignaturas(await resolverAlcanceCarrera(req.user));
+      const data = await asignaturasService.getAllAsignaturas(await resolverAlcanceCarrera(req.user), req.query.departamentoId === undefined ? undefined : Number(req.query.departamentoId));
       res.status(200).json({
         status: "success",
         data,

@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { getTableConfig } from "drizzle-orm/pg-core";
 import { readFileSync } from "node:fs";
 import * as schema from "../src/db/schema/index.js";
+import { datosSemestres } from "../src/db/seeds/data/academico.js";
 import { createHorarioValidation, updateHorarioValidation } from "../src/validations/horarios.validation.js";
 import { createSemestreValidation, updateSemestreValidation } from "../src/validations/semestres.validation.js";
 
@@ -170,11 +171,26 @@ describe("Direct entry publication contract (offline)", () => {
   });
 
   it("keeps seed semesters ordinary and creates no aggregate", () => {
-    const source = readFileSync(new URL("../src/db/seed.ts", import.meta.url), "utf8");
-    expect(source).not.toMatch(/canonical|canónico|schema\.horarios\b/);
-    // This catalog-only seed has no direct entry inserts requiring publication relations.
-    expect(source).not.toMatch(/\.insert\(schema\.horariosAsignaturas\)/);
-    expect(source).toContain('{ codigo: "2026-1", anio: 2026, actual: true }');
+    const leer = (ruta: string) => readFileSync(new URL(ruta, import.meta.url), "utf8");
+    const entrada = leer("../src/db/seed.ts");
+    const academico = leer("../src/db/seeds/academico.ts");
+    expect(entrada).toContain("await sembrarAcademico(baseDatos)");
+    expect(academico).toContain('from "./data/academico.js"');
+    expect(academico).toContain("for (const semestre of datosSemestres)");
+    expect(academico).toContain("await asegurarSemestre(baseDatos, semestre)");
+    expect(academico).toContain("insert(esquema.semestres).values(semestre)");
+    expect(datosSemestres).toEqual([
+      { codigo: "2026-1", anio: 2026, actual: true },
+      { codigo: "2026-2", anio: 2026, actual: false },
+    ]);
+    for (const semestre of datosSemestres) {
+      expect(createSemestreValidation.parse(semestre)).not.toHaveProperty("horarioPublicado");
+    }
+    // Follow all executable seed helpers, not only the orchestration entrypoint.
+    for (const fuente of [entrada, academico, leer("../src/db/seeds/horarios.ts"), leer("../src/db/seeds/usuarios.ts")]) {
+      expect(fuente).not.toMatch(/canonical|canónico|(?:schema|esquema)\.horarios\b/);
+      expect(fuente).not.toMatch(/\.insert\((?:schema|esquema)\.(?:horariosAsignaturas|semestresHorarios)\)/);
+    }
   });
 });
 

@@ -11,7 +11,14 @@ export const tipoHoraAsignaturaInputValidation = z.object({
     .nonnegative("La cantidad de horas no puede ser negativa"),
 });
 
+const departamentoIdValidation = z.number({ message: "El departamento es obligatorio y debe ser numérico" }).int().positive();
+
+export const asignaturasQueryValidation = z.object({
+  departamentoId: z.string().regex(/^[1-9]\d*$/, "El departamento debe ser un entero positivo").transform(Number).pipe(z.number().int().positive()).optional(),
+});
+
 export const createAsignaturaValidation = z.object({
+  departamentoId: departamentoIdValidation,
   codigo: z
     .string({ message: "El código de la asignatura es obligatorio" })
     .trim()
@@ -32,6 +39,7 @@ export const createAsignaturaValidation = z.object({
 });
 
 export const updateAsignaturaValidation = z.object({
+  departamentoId: departamentoIdValidation.optional(),
   nombre: z
     .string()
     .trim()

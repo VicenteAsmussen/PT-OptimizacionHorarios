@@ -1,9 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { beforeAll, describe, expect, it } from "vitest";
 import request from "supertest";
-import { app } from "../src/app.js";
+// Solo habilitar contra una base explícitamente aislada y descartable.
+const ejecutarIntegracion = process.env.RUN_ISOLATED_DATABASE_TESTS === "true";
+const app = ejecutarIntegracion ? (await import("../src/app.js")).app : undefined!;
 
-describe("Módulo Departamentos (/api/departamentos)", () => {
+describe.skipIf(!ejecutarIntegracion)("Módulo Departamentos (/api/departamentos)", () => {
   let adminCookie: string[];
 
   beforeAll(async () => {
