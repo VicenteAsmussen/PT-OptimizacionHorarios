@@ -28,7 +28,7 @@ vi.mock("../src/repositories/asignaturas.repository.js", () => ({ asignaturasRep
 vi.mock("../src/repositories/profesores.repository.js", () => ({ profesoresRepository: { findAll: vi.fn(), findById: vi.fn(), update: vi.fn(), create: vi.fn() } }));
 vi.mock("../src/repositories/ofertas.repository.js", () => ({ ofertasRepository: { findAll: vi.fn(), findById: vi.fn(), update: vi.fn(), create: vi.fn() } }));
 vi.mock("../src/repositories/horarios.repository.js", () => ({ horariosRepository: { findAll: vi.fn(), findById: vi.fn(), update: vi.fn(), create: vi.fn(), deleteByOferta: vi.fn() } }));
-vi.mock("../src/repositories/departamentos.repository.js", () => ({ departamentosRepository: { findAll: vi.fn(), findById: vi.fn() } }));
+vi.mock("../src/repositories/departamentos.repository.js", () => ({ departamentosRepository: { findAll: vi.fn(), findById: vi.fn(), hasAsignaturas: vi.fn(), delete: vi.fn() } }));
 vi.mock("../src/repositories/disponibilidad.repository.js", () => ({ disponibilidadRepository: { findAll: vi.fn(), findById: vi.fn(), create: vi.fn(), syncDisponibilidad: vi.fn(), delete: vi.fn(), deleteByProfesorAndSemestre: vi.fn(), checkProfesorExists: vi.fn(), checkSemestreExists: vi.fn(), checkHorariosExistForSemestre: vi.fn() } }));
 vi.mock("../src/middlewares/auth.middleware.js", () => ({ authenticate: (req: Request, _res: Response, next: NextFunction) => {
   req.user = { id: 42, rol: req.header("x-rol") ?? "secretaria" } as Request["user"];
@@ -52,10 +52,52 @@ beforeEach(() => {
   vi.mocked(ofertasRepository.findById).mockResolvedValue({ id: 10, asignaturaCodigo: "OTRA" } as never);
   vi.mocked(horariosRepository.findById).mockResolvedValue({ id: 20, ofertaId: 10 } as never);
 });
+describe("departamento de asignaturas", () => {
+  it.each(["0", "-1", "1.5", "abc", "", "1&departamentoId=2"])("rechaza filtro inválido %s", async (valor) => {
+    expect((await request(aplicacion).get(`/asignaturas?departamentoId=${valor}`)).status).toBe(400);
+    expect(asignaturasRepository.findAll).not.toHaveBeenCalled();
+  });
+  it("propaga filtro sin reemplazar el alcance de carrera", async () => {
+    expect((await request(aplicacion).get("/asignaturas?departamentoId=5")).status).toBe(200);
+    expect(asignaturasRepository.findAll).toHaveBeenCalledWith(alcance, 5);
+  });
+  it("rechaza departamento inexistente al crear y actualizar", async () => {
+    vi.mocked(asignaturasRepository.findByCodigo).mockResolvedValueOnce(undefined);
+    vi.mocked(departamentosRepository.findById).mockResolvedValue(undefined);
+    await expect(asignaturasService.createAsignatura({ codigo: "NUEVA", nombre: "Nueva", semestreMalla: 1, departamentoId: 99, esCritica: false, tiposHora: [], carrerasIds: [] })).rejects.toMatchObject({ statusCode: 400 });
+    vi.mocked(asignaturasRepository.findByCodigo).mockReset().mockResolvedValue({ codigo: "OTRA" } as never);
+    await expect(asignaturasService.updateAsignatura("OTRA", { departamentoId: 99 })).rejects.toMatchObject({ statusCode: 400 });
+    expect(asignaturasRepository.create).not.toHaveBeenCalled();
+    expect(asignaturasRepository.update).not.toHaveBeenCalled();
+  });
+  it("persiste departamento válido sin limitarlo por los departamentos de la carrera", async () => {
+    vi.mocked(asignaturasRepository.findByCodigo).mockResolvedValueOnce(undefined);
+    vi.mocked(departamentosRepository.findById).mockResolvedValue({ id: 5 } as never);
+    await asignaturasService.createAsignatura({ codigo: "NUEVA", nombre: "Nueva", semestreMalla: 1, departamentoId: 5, esCritica: false, tiposHora: [], carrerasIds: [] });
+    expect(asignaturasRepository.create).toHaveBeenCalledWith(expect.objectContaining({ departamentoId: 5 }), [], []);
+    vi.mocked(asignaturasRepository.findByCodigo).mockResolvedValue({ codigo: "LOCAL" } as never);
+    await asignaturasService.updateAsignatura("LOCAL", { departamentoId: 5 }, alcance);
+    expect(asignaturasRepository.update).toHaveBeenCalledWith("LOCAL", { departamentoId: 5 }, undefined, undefined);
+  });
+  it("traduce conflicto concurrente de la FK y permite borrar sin asignaturas", async () => {
+    vi.mocked(departamentosRepository.findById).mockResolvedValue({ id: 5 } as never);
+    vi.mocked(departamentosRepository.hasAsignaturas).mockResolvedValue(false);
+    vi.mocked(departamentosRepository.delete).mockRejectedValueOnce({ cause: { code: "23503", constraint_name: "asignaturas_departamento_id_departamentos_id_fk" } });
+    await expect(departamentosService.deleteDepartamento(5)).rejects.toMatchObject({ statusCode: 409 });
+    vi.mocked(departamentosRepository.delete).mockResolvedValueOnce(true);
+    await expect(departamentosService.deleteDepartamento(5)).resolves.toBeUndefined();
+  });
+  it("impide eliminar un departamento con asignaturas", async () => {
+    vi.mocked(departamentosRepository.findById).mockResolvedValue({ id: 5 } as never);
+    vi.mocked(departamentosRepository.hasAsignaturas).mockResolvedValue(true);
+    await expect(departamentosService.deleteDepartamento(5)).rejects.toMatchObject({ statusCode: 409 });
+    expect(departamentosRepository.delete).not.toHaveBeenCalled();
+  });
+});
 describe("aislamiento de lecturas", () => {
   it("asignaturas solo consulta el alcance y oculta detalle ajeno", async () => {
     await asignaturasService.getAllAsignaturas(alcance);
-    expect(asignaturasRepository.findAll).toHaveBeenCalledWith(alcance);
+    expect(asignaturasRepository.findAll).toHaveBeenCalledWith(alcance, undefined);
     await expect(asignaturasService.getAsignaturaByCodigo("OTRA", alcance)).rejects.toMatchObject({ statusCode: 404 });
   });
   it("profesores filtra y rechaza departamento ajeno", async () => {
@@ -101,7 +143,7 @@ it("propaga identidad autenticada en HTTP de asignaturas, ofertas y horarios", a
     expect((await request(aplicacion).get(`${ruta}?carreraId=2`)).status).toBe(200);
   }
   expect(carrerasRepository.findAlcanceByUsuarioId).toHaveBeenCalledWith(42);
-  expect(asignaturasRepository.findAll).toHaveBeenCalledWith(alcance);
+  expect(asignaturasRepository.findAll).toHaveBeenCalledWith(alcance, undefined);
   expect(ofertasRepository.findAll).toHaveBeenCalledWith({}, alcance);
   expect(horariosRepository.findAll).toHaveBeenCalledWith({}, alcance);
   for (const ruta of ["/asignaturas/OTRA", "/ofertas/10", "/horarios/20"]) {

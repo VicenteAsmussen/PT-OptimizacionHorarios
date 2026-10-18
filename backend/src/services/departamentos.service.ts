@@ -40,6 +40,18 @@ export const departamentosService = {
 
   async deleteDepartamento(id: number) {
     await this.getDepartamentoById(id);
-    await departamentosRepository.delete(id);
+    const mensaje = "No se puede eliminar el departamento porque tiene asignaturas asociadas";
+    if (await departamentosRepository.hasAsignaturas(id)) throw new ConflictError(mensaje);
+    try {
+      await departamentosRepository.delete(id);
+    } catch (error) {
+      // La FK también protege frente a asignaciones concurrentes con el borrado.
+      const causa = (error as { cause?: unknown }).cause ?? error;
+      if ((causa as { code?: string }).code === "23503" &&
+          (causa as { constraint_name?: string }).constraint_name === "asignaturas_departamento_id_departamentos_id_fk") {
+        throw new ConflictError(mensaje);
+      }
+      throw error;
+    }
   },
 };

@@ -25,9 +25,9 @@ function condicionAlcanceExcel(carreraId?: number) {
   if (carreraId === undefined) return undefined;
   return inArray(horariosAsignaturas.ofertaId, db.select({ id: ofertasAsignaturas.id })
     .from(ofertasAsignaturas)
-    .innerJoin(profesores, eq(profesores.id, ofertasAsignaturas.profesorId))
+    .innerJoin(asignaturas, eq(asignaturas.codigo, ofertasAsignaturas.asignaturaCodigo))
     .innerJoin(carreraAsignatura, eq(carreraAsignatura.asignaturaCodigo, ofertasAsignaturas.asignaturaCodigo))
-    .innerJoin(carreraDepartamento, eq(carreraDepartamento.departamentoId, profesores.departamentoId))
+    .innerJoin(carreraDepartamento, eq(carreraDepartamento.departamentoId, asignaturas.departamentoId))
     .where(and(eq(carreraAsignatura.carreraId, carreraId), eq(carreraDepartamento.carreraId, carreraId),
       eq(carreraDepartamento.esGestionado, true))));
 }
@@ -47,8 +47,11 @@ export const horariosRepository = {
     });
     return {
       departamentoValido: !!departamento && (carreraId === undefined || !!relacion),
-      asignaturas: await db.select().from(asignaturas).where(carreraId === undefined ? undefined :
-        inArray(asignaturas.codigo, db.select({ codigo: carreraAsignatura.asignaturaCodigo }).from(carreraAsignatura).where(eq(carreraAsignatura.carreraId, carreraId)))),
+      asignaturas: await db.select().from(asignaturas).where(and(
+        eq(asignaturas.departamentoId, departamentoId),
+        carreraId === undefined ? undefined : inArray(asignaturas.codigo,
+          db.select({ codigo: carreraAsignatura.asignaturaCodigo }).from(carreraAsignatura).where(eq(carreraAsignatura.carreraId, carreraId))),
+      )),
       profesores: await db.select().from(profesores).where(eq(profesores.departamentoId, departamentoId)),
       tipos: await db.select().from(tiposHora),
       bloques: await db.select().from(bloquesHorarios),

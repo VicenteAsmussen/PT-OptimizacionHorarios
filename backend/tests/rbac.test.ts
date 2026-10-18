@@ -1,6 +1,11 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import request from "supertest";
 import { app } from "../src/app.js";
+import { randomUUID } from "node:crypto";
+import { eq, and } from "drizzle-orm";
+import { db } from "../src/config/db.js";
+import { departamentos, profesores, semestres, disponibilidadProfesores } from "../src/db/schema/index.js";
+import { carrerasRepository } from "../src/repositories/carreras.repository.js";
 
 describe("Control de Acceso y Roles (RBAC)", () => {
   let adminCookie: string[];
@@ -12,16 +17,19 @@ describe("Control de Acceso y Roles (RBAC)", () => {
     const adminRes = await request(app)
       .post("/api/auth/login")
       .send({ correo: "admin@ubiobio.cl", clave: "123456" });
+    expect(adminRes.status).toBe(200);
     adminCookie = adminRes.headers["set-cookie"];
 
     const secRes = await request(app)
       .post("/api/auth/login")
       .send({ correo: "secretaria@ubiobio.cl", clave: "123456" });
+    expect(secRes.status).toBe(200);
     secretariaCookie = secRes.headers["set-cookie"];
 
     const profRes = await request(app)
       .post("/api/auth/login")
       .send({ correo: "profesor@ubiobio.cl", clave: "123456" });
+    expect(profRes.status).toBe(200);
     profesorCookie = profRes.headers["set-cookie"];
   });
 
@@ -92,32 +100,69 @@ describe("Control de Acceso y Roles (RBAC)", () => {
       expect(res.body.status).toBe("success");
     });
 
-    it("Secretaria NO puede registrar/modificar disponibilidad de profesores (403 Forbidden)", async () => {
-      const res = await request(app)
-        .post("/api/disponibilidad-profesores/sincronizar")
-        .set("Cookie", secretariaCookie)
-        .send({
-          profesorId: 1,
-          semestreId: 1,
-          bloquesIds: [1, 2],
-        });
-
-      expect(res.status).toBe(403);
+    it("Secretaria sincroniza profesor gestionado pero no profesor ajeno, sin efectos fuera de alcance", async () => {
+      const secretaria = await db.query.usuarios.findFirst({ where: (tabla, { eq }) => eq(tabla.correo, "secretaria@ubiobio.cl") });
+      const docente = await db.query.usuarios.findFirst({ where: (tabla, { eq }) => eq(tabla.correo, "profesor@ubiobio.cl") });
+      expect(secretaria).toBeDefined();
+      expect(docente).toBeDefined();
+      const profesor = await db.query.profesores.findFirst({ where: eq(profesores.usuarioId, docente!.id) });
+      expect(profesor).toBeDefined();
+      const alcance = await carrerasRepository.findAlcanceByUsuarioId(secretaria!.id);
+      expect(alcance?.departamentosGestionadosIds).toContain(profesor!.departamentoId);
+      expect(alcance?.profesoresIds).toContain(profesor!.id);
+      const bloques = await db.query.bloquesHorarios.findMany({ limit: 2 });
+      expect(bloques).toHaveLength(2);
+      const [semestre] = await db.insert(semestres).values({ codigo: `RB${randomUUID().slice(0, 6)}`, anio: 2026 }).returning();
+      let departamentoId: number | undefined;
+      let profesorAjenoId: number | undefined;
+      try {
+        const [departamento] = await db.insert(departamentos).values({ nombre: `RBAC ${randomUUID()}` }).returning();
+        departamentoId = departamento.id;
+        const [ajeno] = await db.insert(profesores).values({ departamentoId, nombre: "Docente ajeno RBAC", rut: "11111111-1", tipo: "part time" }).returning();
+        profesorAjenoId = ajeno.id;
+        expect(alcance?.departamentosIds).not.toContain(departamentoId);
+        expect(alcance?.profesoresIds).not.toContain(ajeno.id);
+        await db.insert(disponibilidadProfesores).values({ profesorId: ajeno.id, semestreId: semestre.id, bloqueId: bloques[0].id });
+        const leerAjena = () => db.select().from(disponibilidadProfesores).where(and(
+          eq(disponibilidadProfesores.profesorId, ajeno.id), eq(disponibilidadProfesores.semestreId, semestre.id)));
+        const antes = await leerAjena();
+        const permitida = await request(app).post("/api/disponibilidad-profesores/sincronizar")
+          .set("Cookie", secretariaCookie).send({ profesorId: profesor!.id, semestreId: semestre.id, bloquesIds: bloques.map((bloque) => bloque.id) });
+        expect(permitida.status).toBe(200);
+        const guardada = await db.select().from(disponibilidadProfesores).where(and(
+          eq(disponibilidadProfesores.profesorId, profesor!.id), eq(disponibilidadProfesores.semestreId, semestre.id)));
+        expect(guardada.map((fila) => fila.bloqueId).sort((a, b) => a - b))
+          .toEqual(bloques.map((bloque) => bloque.id).sort((a, b) => a - b));
+        const prohibida = await request(app).post("/api/disponibilidad-profesores/sincronizar")
+          .set("Cookie", secretariaCookie).send({ profesorId: ajeno.id, semestreId: semestre.id, bloquesIds: [bloques[1].id] });
+        expect(prohibida.status).toBe(403);
+        expect(await leerAjena()).toEqual(antes);
+      } finally {
+        // Dedicated semester: cascading cleanup never touches seeded availability.
+        await db.delete(semestres).where(eq(semestres.id, semestre.id));
+        if (profesorAjenoId !== undefined) await db.delete(profesores).where(eq(profesores.id, profesorAjenoId));
+        if (departamentoId !== undefined) await db.delete(departamentos).where(eq(departamentos.id, departamentoId));
+      }
     });
 
-    it("Profesor puede sincronizar su disponibilidad docente (200 o validación)", async () => {
-      const res = await request(app)
-        .post("/api/disponibilidad-profesores/sincronizar")
-        .set("Cookie", profesorCookie)
-        .send({
-          profesorId: 1,
-          semestreId: 1,
-          bloquesIds: [1, 2],
-        });
-
-      // Debe ser 200 (si los IDs existen) o 400 si no existen en BD, pero NUNCA 403 Forbidden
-      expect(res.status).not.toBe(403);
-      expect([200, 400]).toContain(res.status);
+    it("Profesor sincroniza su disponibilidad en un semestre propio de la prueba (200)", async () => {
+      const usuario = await db.query.usuarios.findFirst({ where: (tabla, { eq }) => eq(tabla.correo, "profesor@ubiobio.cl") });
+      expect(usuario).toBeDefined();
+      const profesor = await db.query.profesores.findFirst({ where: eq(profesores.usuarioId, usuario!.id) });
+      expect(profesor).toBeDefined();
+      const bloque = await db.query.bloquesHorarios.findFirst();
+      expect(bloque).toBeDefined();
+      const [semestre] = await db.insert(semestres).values({ codigo: `RB${randomUUID().slice(0, 6)}`, anio: 2026 }).returning();
+      try {
+        const res = await request(app).post("/api/disponibilidad-profesores/sincronizar")
+          .set("Cookie", profesorCookie).send({ profesorId: profesor!.id, semestreId: semestre.id, bloquesIds: [bloque!.id] });
+        expect(res.status).toBe(200);
+        const guardada = await db.select().from(disponibilidadProfesores).where(and(
+          eq(disponibilidadProfesores.profesorId, profesor!.id), eq(disponibilidadProfesores.semestreId, semestre.id)));
+        expect(guardada.map((fila) => fila.bloqueId)).toEqual([bloque!.id]);
+      } finally {
+        await db.delete(semestres).where(eq(semestres.id, semestre.id));
+      }
     });
   });
 });

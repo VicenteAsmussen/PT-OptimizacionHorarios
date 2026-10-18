@@ -56,6 +56,8 @@ describe.skipIf(!runDatabaseTests)("Gestión de Horarios y Detección de Choques
         codigo: asignaturaCodigo,
         nombre: "Estructuras de Datos Test",
         semestreMalla: 3,
+        departamentoId: prof!.departamentoId,
+        carrerasIds: [(await db.query.carreras.findFirst())!.id],
         esCritica: false,
       });
 

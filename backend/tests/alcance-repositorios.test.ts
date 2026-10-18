@@ -71,7 +71,8 @@ it("filtra también las ofertas anidadas del profesor", async () => {
 });
 it("resuelve relaciones de la carrera autenticada sin filtrar esGestionado", async () => {
   const condiciones: SQL[] = [];
-  const resultados = [[{ carreraId: 1 }], [{ codigo: "LOCAL" }], [{ id: 4 }], [{ id: 7 }], [{ id: 9 }]];
+  const resultados = [[{ carreraId: 1 }], [{ codigo: "LOCAL" }],
+    [{ id: 4, esGestionado: true }, { id: 5, esGestionado: false }], [{ id: 7 }], [{ id: 9 }]];
   vi.mocked(db.select).mockImplementation(() => {
     const filas = resultados.shift();
     return { from: () => ({ where: (condicion: SQL) => {
@@ -79,8 +80,10 @@ it("resuelve relaciones de la carrera autenticada sin filtrar esGestionado", asy
       return condiciones.length === 1 ? { limit: async () => filas } : Promise.resolve(filas);
     } }) } as never;
   });
-  expect(await carrerasRepository.findAlcanceByUsuarioId(42)).toEqual(alcance);
-  expect(condiciones.map((condicion) => dialecto.sqlToQuery(condicion).params)).toEqual([[42], [1], [1], [4], ["LOCAL"]]);
+  expect(await carrerasRepository.findAlcanceByUsuarioId(42)).toEqual({
+    ...alcance, departamentosIds: [4, 5], departamentosGestionadosIds: [4],
+  });
+  expect(condiciones.map((condicion) => dialecto.sqlToQuery(condicion).params)).toEqual([[42], [1], [1], [4, 5], ["LOCAL"]]);
   expect(dialecto.sqlToQuery(condiciones[2]!).sql).not.toContain("es_gestionado");
 });
 it("sin perfil no genera un alcance global", async () => {

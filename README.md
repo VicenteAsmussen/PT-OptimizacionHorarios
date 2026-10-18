@@ -114,6 +114,19 @@ Este diseño permite separar tres necesidades:
 
 ---
 
+### Departamento docente de cada asignatura
+
+Cada asignatura requiere un único `departamentoId` existente; un departamento imparte muchas asignaturas. La pertenencia a carreras mediante `carrera_asignatura` permanece independiente: el departamento no concede acceso a asignaturas de otras carreras.
+
+- `POST /api/asignaturas`: agregar `departamentoId` (entero positivo obligatorio) junto a `codigo`, `nombre`, `semestreMalla` y las relaciones opcionales existentes.
+- `PUT /api/asignaturas/:codigo`: permite reemplazar `departamentoId`, pero no quitarlo ni asignar uno inexistente (400).
+- Listado, detalle, creación y actualización incluyen `departamentoId` y el objeto `departamento`. `GET /api/asignaturas?departamentoId=1` combina el filtro opcional con el alcance de carrera de secretaría; el filtro inválido devuelve 400.
+- Eliminar un departamento con asignaturas devuelve 409; PostgreSQL también lo impide mediante FK `RESTRICT`.
+
+**Migración `0011_flaky_ghost_rider.sql`:** agrega una columna obligatoria sin valor predeterminado ni backfill. Requiere la tabla de asignaturas vacía o una preparación manual explícita y autorizada de los datos históricos antes de imponer `NOT NULL` y la FK. No deduce departamentos desde profesores ni carreras. Con asignaturas existentes, la migración generada falla: no basta ejecutar el seed antes o después para resolverlo. Planificar esa transición por separado, con respaldo y verificación en una base aislada; no borrar ni resetear datos para aplicar esta instrucción.
+
+En una base nueva, local y descartable, aplicar el historial con `pnpm run db:migrate` desde `backend` y después `pnpm run db:seed`. El seed asegura tres asignaturas de ejemplo (`INF100`, `ECO100`, `ADM100`) con departamentos y carreras explícitos en `seeds/data/academico.ts`; al repetirlo no duplica relaciones ni sobrescribe asignaturas existentes. No es una herramienta de backfill histórico.
+
 ## 🌱 Seed del Proyecto
 
 El proyecto mantiene un **seed único real**, no separado entre `base` y `dev`, porque el despliegue corresponde a un prototipo de tesis con datos controlados.
@@ -166,7 +179,7 @@ Los usuarios y contraseñas iniciales son parte del contexto del prototipo y no 
 ### Pendiente
 
 - [ ] **Filtro transversal por secretaría/carrera**: limitar vistas y acciones de secretaría a ramos de su carrera mediante `secretarias.usuario_id → carrera_id` y `carrera_asignatura`.
-- [ ] **Mejorar exportación Excel de salas por alcance**: exportar solo ramos de la carrera cuyo profesor pertenezca a un departamento marcado como `es_gestionado=true` para esa carrera.
+- [x] **Alcance Excel de salas**: exportación, importación y actualización de secretaría incluyen solo asignaturas de su carrera cuyo departamento esté marcado con `es_gestionado=true` para esa misma carrera. El departamento del profesor no determina este alcance; admin no tiene restricción de carrera. Los conflictos de salas se validan globalmente en el semestre.
 ### Excel estandarizado y pre-modelo externo
 
 Los formatos son independientes: **salas conserva sus 25 columnas**, con `Código Asig.`, `Nombre Asignatura`, `Sección`, `Cupos`, `Profesor`, seguidos por cinco grupos `Tipo Hora N`, `Día N`, `Horario N`, `Sala N` (N de 1 a 5). **Externos exige 26 columnas**, agregando `RUT Profesor` inmediatamente antes de `Profesor`, sin combinar RUT y nombre en una celda. Encabezados exactos y en este orden:
@@ -179,7 +192,7 @@ Externos rechaza el formato antiguo sin RUT; el formato con `Sem` y horas agrega
 
 - **Salas**: `GET /api/horarios-asignaturas/excel/salas?semestreId=...` exporta sesiones existentes con salas vacías; `POST /api/horarios-asignaturas/excel/salas/importar?semestreId=...` actualiza sus salas, sin crear ofertas. Tipo Hora desambigua las sesiones. Se mantiene la exclusión de laboratorios de este flujo.
 - **Externos, solo importación**: `POST /api/horarios-asignaturas/excel/externos/importar?semestreId=...&departamentoId=...`, multipart `archivo` (`.xlsx`, máximo 10 MB). No se guarda ni exporta el archivo. `Sala N` puede estar vacía o contener texto: se ignora siempre y se persiste `sala_id=null`, con publicación inicial desactivada.
-- Secretaría requiere carrera vinculada a su usuario, asignaturas de esa carrera y departamento relacionado con `es_gestionado=false`. Admin no necesita perfil de secretaría: requiere semestre, departamento, asignatura y profesor existentes.
+- En externos, tanto para admin como para secretaría, la asignatura debe pertenecer al `departamentoId` solicitado. Secretaría requiere además carrera vinculada a su usuario, asignaturas de esa carrera y departamento relacionado con `es_gestionado=false` para esa misma carrera. Admin no necesita perfil de secretaría ni restringe por carrera o por `es_gestionado`, pero mantiene el filtro de departamento de la asignatura y la validación del profesor en ese departamento.
 - En externos, **RUT Profesor es la única identidad autoritativa** dentro del departamento indicado. Se valida el dígito verificador módulo 11 y se aceptan formas convencionales como `12.345.678-5`, `12345678-5` y `123456785` (DV `K` o `k`); se normalizan sin puntos, con guion y DV mayúscula. RUT ausente, inválido, desconocido, ambiguo/duplicado en el contexto o fuera del departamento autorizado produce error por fila en `RUT Profesor` y rechaza todo el archivo sin escrituras. Nunca se busca por nombre como alternativa ni se crean profesores automáticamente.
 - El encabezado exacto `Profesor` sigue siendo obligatorio, pero su contenido es solo informativo: puede estar vacío, contener solo espacios o un nombre coincidente o diferente, sin errores ni advertencias. No se usa para identificar al profesor ni actualizar su nombre registrado. La respuesta exitosa externa conserva `data.advertencias: []` por compatibilidad, además de los contadores y `errores`; los rechazos HTTP 400 conservan su contrato `errores`.
 - Tipos aceptan aliases `teorica/teórica/teo/t`, `practica/práctica/pract/pra/p` y `laboratorio/laboratory/lab/l`, resueltos contra el catálogo existente.
@@ -230,5 +243,7 @@ pnpm exec tsc --noEmit
 pnpm exec vitest run tests/schema-organization.test.ts
 pnpm exec vitest run tests/semestres.test.ts tests/horarios.test.ts tests/semestres-horarios.test.ts
 ```
+
+`pnpm exec vitest run tests/departamento-asignaturas.test.ts tests/alcance-secretaria.test.ts` verifica el contrato de asignaturas sin base de datos. Las suites `asignaturas.test.ts` y `departamentos.test.ts` requieren `RUN_ISOLATED_DATABASE_TESTS=true` y una base aislada, migrada y sembrada; sin esa habilitación se omiten por seguridad.
 
 Los checks de esquema, migración y SQL son independientes de la base configurada. Las suites de integración que ejercitan comportamiento real de PostgreSQL requieren una base local disponible y aislada. No ejecutar la suite completa contra una base compartida o con datos importantes.

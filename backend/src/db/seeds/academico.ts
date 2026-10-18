@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import * as esquema from "../schema/index.js";
 import type { BaseDatosSeed, CatalogosAcademicosSeed } from "./contexto.js";
 import {
+  datosAsignaturas,
   datosTiposHora,
   datosDepartamentos,
   datosCarreras,
@@ -74,6 +75,18 @@ export async function sembrarAcademico(baseDatos: BaseDatosSeed): Promise<Catalo
       });
   }
   console.log(`✓ Aseguradas ${relacionesCarreraDepartamento.length} relaciones entre carreras y departamentos`);
+
+  for (const { departamento, carreras, ...asignatura } of datosAsignaturas) {
+    const departamentoAsignado = departamentosAsegurados.find((dato) => dato.nombre === departamento);
+    if (!departamentoAsignado) throw new Error(`Departamento del seed no encontrado: ${departamento}`);
+    await baseDatos.insert(esquema.asignaturas).values({ ...asignatura, departamentoId: departamentoAsignado.id }).onConflictDoNothing();
+    for (const nombreCarrera of carreras) {
+      const carrera = carrerasAseguradas.find((dato) => dato.nombre === nombreCarrera);
+      if (!carrera) throw new Error(`Carrera del seed no encontrada: ${nombreCarrera}`);
+      await baseDatos.insert(esquema.carreraAsignatura).values({ carreraId: carrera.id, asignaturaCodigo: asignatura.codigo }).onConflictDoNothing();
+    }
+  }
+  console.log(`✓ Aseguradas ${datosAsignaturas.length} asignaturas con departamento explícito`);
 
   const semestresAsegurados: (typeof esquema.semestres.$inferSelect)[] = [];
   for (const semestre of datosSemestres) semestresAsegurados.push(await asegurarSemestre(baseDatos, semestre));
