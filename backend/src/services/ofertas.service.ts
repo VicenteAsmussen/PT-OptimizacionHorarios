@@ -32,11 +32,11 @@ export const ofertasService = {
     const conflicto = await ofertasRepository.findByUniqueConstraint(codigo, planificacionSemestreId, seccion);
     if (conflicto && conflicto.id !== id) throw new ConflictError("Ya existe esta sección en la planificación");
     if (planificacionSemestreId !== existente.planificacionSemestreId && existente.horarios.length) throw new ConflictError("No se puede trasladar una oferta con horarios asociados");
-    await ofertasRepository.update(id, datos);
+    await ofertasRepository.update(id, datos, existente.planificacionSemestreId);
     return this.getOfertaById(id, alcance);
   },
   async deleteOferta(id: number, alcance?: AlcanceCarrera) {
-    await this.getOfertaById(id, alcance);
-    await ofertasRepository.delete(id);
+    const existente = await this.getOfertaById(id, alcance);
+    await ofertasRepository.delete(id, existente.planificacionSemestreId);
   },
 };

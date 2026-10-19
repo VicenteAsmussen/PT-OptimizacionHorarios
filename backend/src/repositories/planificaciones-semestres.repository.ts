@@ -6,6 +6,7 @@ import { profesores } from "../db/schema/profesores.schema.js";
 import { carreraDepartamento } from "../db/schema/carrera-departamento.schema.js";
 import { carreraAsignatura } from "../db/schema/carrera-asignatura.schema.js";
 import type { AlcanceCarrera } from "../utils/alcance-carrera.js";
+import { ConflictError, NotFoundError } from "../utils/errors.js";
 
 export const planificacionesSemestresRepository = {
   async findAll(carreraId?: number, profesorUsuarioId?: number) {
@@ -46,6 +47,10 @@ export const planificacionesSemestresRepository = {
   async update(id: number, carreraId: number, datos: Partial<Pick<NuevaPlanificacionSemestre, "codigo" | "actual">>) {
     return db.transaction(async tx => {
       await tx.select({ id: carreras.id }).from(carreras).where(eq(carreras.id, carreraId)).for("update");
+      const [planificacion] = await tx.select().from(planificacionesSemestres)
+        .where(and(eq(planificacionesSemestres.id, id), eq(planificacionesSemestres.carreraId, carreraId))).for("update");
+      if (!planificacion || planificacion.carreraId !== carreraId) throw new NotFoundError("Planificación no encontrada");
+      if (planificacion.estadoPlanificacion !== "preparacion") throw new ConflictError("Solo se puede modificar una planificación en preparación");
       if (datos.actual) await tx.update(planificacionesSemestres).set({ actual: false }).where(eq(planificacionesSemestres.carreraId, carreraId));
       const [actualizada] = await tx.update(planificacionesSemestres).set(datos).where(and(eq(planificacionesSemestres.id, id), eq(planificacionesSemestres.carreraId, carreraId))).returning();
       return actualizada;

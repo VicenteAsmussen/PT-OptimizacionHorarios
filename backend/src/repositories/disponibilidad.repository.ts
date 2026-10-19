@@ -6,6 +6,8 @@ import { profesores, columnasProfesorSinRut } from "../db/schema/profesores.sche
 import { bloquesHorarios } from "../db/schema/bloques-horarios.schema.js";
 import { horariosAsignaturas } from "../db/schema/horarios-asignaturas.schema.js";
 import { planificacionesSemestresRepository } from "./planificaciones-semestres.repository.js";
+import { conPlanificacionesEditables } from "./planificacion-escritura.js";
+import { NotFoundError } from "../utils/errors.js";
 
 const relacionesDisponibilidad = { profesor: { columns: columnasProfesorSinRut }, planificacionSemestre: true as const, bloque: true as const };
 export const disponibilidadRepository = {
@@ -38,11 +40,13 @@ export const disponibilidadRepository = {
     return (await db.select({ id: bloquesHorarios.id }).from(bloquesHorarios).where(inArray(bloquesHorarios.id, ids))).map(fila => fila.id);
   },
   async create(datos: NuevaDisponibilidadProfesor) {
-    const [creada] = await db.insert(disponibilidadProfesores).values(datos).returning();
-    return creada;
+    return conPlanificacionesEditables(async () => [datos.planificacionSemestreId], async tx => {
+      const [creada] = await tx.insert(disponibilidadProfesores).values(datos).returning();
+      return creada;
+    });
   },
   async syncDisponibilidad(profesorId: number, planificacionSemestreId: number, bloquesIds: number[]) {
-    return db.transaction(async tx => {
+    return conPlanificacionesEditables(async () => [planificacionSemestreId], async tx => {
       const condicion = and(eq(disponibilidadProfesores.profesorId, profesorId), eq(disponibilidadProfesores.planificacionSemestreId, planificacionSemestreId));
       await tx.delete(disponibilidadProfesores).where(condicion);
       if (bloquesIds.length) await tx.insert(disponibilidadProfesores).values(bloquesIds.map(bloqueId => ({ profesorId, planificacionSemestreId, bloqueId })));
@@ -50,9 +54,14 @@ export const disponibilidadRepository = {
     });
   },
   async delete(id: number) {
-    return !!(await db.delete(disponibilidadProfesores).where(eq(disponibilidadProfesores.id, id)).returning()).length;
+    return conPlanificacionesEditables(async tx => {
+      const registro = await tx.query.disponibilidadProfesores.findFirst({ where: eq(disponibilidadProfesores.id, id) });
+      if (!registro) throw new NotFoundError("Disponibilidad no encontrada");
+      return [registro.planificacionSemestreId];
+    }, async tx => !!(await tx.delete(disponibilidadProfesores).where(eq(disponibilidadProfesores.id, id)).returning()).length);
   },
   async deleteByProfesorAndPlanificacion(profesorId: number, planificacionSemestreId: number) {
-    return (await db.delete(disponibilidadProfesores).where(and(eq(disponibilidadProfesores.profesorId, profesorId), eq(disponibilidadProfesores.planificacionSemestreId, planificacionSemestreId))).returning()).length;
+    return conPlanificacionesEditables(async () => [planificacionSemestreId], async tx =>
+      (await tx.delete(disponibilidadProfesores).where(and(eq(disponibilidadProfesores.profesorId, profesorId), eq(disponibilidadProfesores.planificacionSemestreId, planificacionSemestreId))).returning()).length);
   },
 };

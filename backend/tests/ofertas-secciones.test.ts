@@ -64,6 +64,12 @@ describe("Secciones de ofertas (sin base de datos)", () => {
   });
 });
 
+function simularGuardiaBorrado() {
+  const filaOferta = [9, "INF100", 7, 3, 1, 0];
+  const planificacion = [3, 1, "2027-1", true, "preparacion"];
+  respuestas.push([filaOferta], [planificacion], [[1]], [planificacion], [filaOferta]);
+}
+
 function simularOferta() {
   vi.spyOn(ofertasRepository, "findById").mockResolvedValue(oferta as any);
   vi.spyOn(ofertasRepository, "checkAsignaturaExists").mockResolvedValue(true);
@@ -95,7 +101,7 @@ describe("Reglas del servicio de ofertas", () => {
     vi.mocked(ofertasRepository.findByUniqueConstraint).mockClear();
     await ofertasService.updateOferta(9, { cupos: 10 }, alcance);
     expect(ofertasRepository.findByUniqueConstraint).toHaveBeenCalledWith("INF100", 3, 1);
-    expect(actualizar).toHaveBeenCalledWith(9, { cupos: 10 });
+    expect(actualizar).toHaveBeenCalledWith(9, { cupos: 10 }, 3);
   });
 
   it("permite cualquier profesor existente fuera de los departamentos de la carrera", async () => {
@@ -106,7 +112,7 @@ describe("Reglas del servicio de ofertas", () => {
     await ofertasService.updateOferta(9, { profesorId: 99 }, alcance);
     expect(ofertasRepository.checkProfesorExists).toHaveBeenCalledWith(99);
     expect(crear).toHaveBeenCalledWith({ ...datos, profesorId: 99 });
-    expect(actualizar).toHaveBeenCalledWith(9, { profesorId: 99 });
+    expect(actualizar).toHaveBeenCalledWith(9, { profesorId: 99 }, 3);
   });
 
   it("conserva rechazo de asignaturas fuera del alcance sin escribir", async () => {
@@ -149,8 +155,8 @@ describe("Reglas del servicio de ofertas", () => {
     await expect(ofertasService.getOfertaById(9, alcance)).resolves.toEqual(externa);
     await ofertasService.updateOferta(9, { cupos: 10 }, alcance);
     await ofertasService.deleteOferta(9, alcance);
-    expect(actualizar).toHaveBeenCalledWith(9, { cupos: 10 });
-    expect(eliminar).toHaveBeenCalledWith(9);
+    expect(actualizar).toHaveBeenCalledWith(9, { cupos: 10 }, 3);
+    expect(eliminar).toHaveBeenCalledWith(9, 3);
 
     actualizar.mockClear();
     eliminar.mockClear();
@@ -164,6 +170,7 @@ describe("Reglas del servicio de ofertas", () => {
 
   it("propaga conflicto de borrado como error de dominio 409", async () => {
     simularOferta();
+    simularGuardiaBorrado();
     respuestas.push([[9]], [[20]]);
     await expect(ofertasService.deleteOferta(9, alcance)).rejects.toBeInstanceOf(ConflictError);
     expect(consultas.some(({ sql }) => /delete/i.test(sql))).toBe(false);
@@ -171,6 +178,7 @@ describe("Reglas del servicio de ofertas", () => {
 
   it("permite borrar una oferta vacía autorizada y rechaza una inexistente", async () => {
     simularOferta();
+    simularGuardiaBorrado();
     respuestas.push([[9]], [], [[9]]);
     await expect(ofertasService.deleteOferta(9, alcance)).resolves.toBeUndefined();
     expect(consultas.at(-1)?.sql).toContain('delete from "ofertas_asignaturas"');
@@ -183,36 +191,40 @@ describe("Reglas del servicio de ofertas", () => {
 
 describe("Contrato SQL de borrado seguro", () => {
   it("bloquea la oferta antes de comprobar horarios y rechaza sin ejecutar DELETE", async () => {
+    simularGuardiaBorrado();
     respuestas.push([[9]], [[20]]);
     await expect(ofertasRepository.delete(9)).rejects.toMatchObject({ statusCode: 409 });
     expect(transaccion).toHaveBeenCalledTimes(1);
     expect(transaccion.mock.calls[0][1]).toEqual({ isolationLevel: "read committed" });
-    expect(consultas).toHaveLength(2);
-    expect(consultas[0].sql).toContain('from "ofertas_asignaturas"');
-    expect(consultas[0].sql).toContain("for update");
-    expect(consultas[0].parametros).toContain(9);
-    expect(consultas[1].sql).toContain('from "horarios_asignaturas"');
-    expect(consultas[1].sql).toContain('"horarios_asignaturas"."oferta_id" = $1');
-    expect(consultas[1].parametros).toContain(9);
+    expect(consultas).toHaveLength(7);
+    expect(consultas[2].sql).toContain('from "carreras"');
+    expect(consultas[2].sql).toContain("for update");
+    expect(consultas[5].sql).toContain('from "ofertas_asignaturas"');
+    expect(consultas[5].sql).toContain("for update");
+    expect(consultas[5].parametros).toContain(9);
+    expect(consultas[6].sql).toContain('from "horarios_asignaturas"');
+    expect(consultas[6].sql).toContain('"horarios_asignaturas"."oferta_id" = $1');
+    expect(consultas[6].parametros).toContain(9);
     expect(consultas.some(({ sql }) => /delete/i.test(sql))).toBe(false);
   });
 
   it("elimina una oferta sin horarios dentro de la misma transacción", async () => {
+    simularGuardiaBorrado();
     respuestas.push([[9]], [], [[9]]);
     expect(await ofertasRepository.delete(9)).toBe(true);
     expect(transaccion).toHaveBeenCalledTimes(1);
-    expect(consultas).toHaveLength(3);
-    expect(consultas[0].sql).toContain("for update");
-    expect(consultas[1].sql).toContain('from "horarios_asignaturas"');
-    expect(consultas[2].sql).toContain('delete from "ofertas_asignaturas"');
-    expect(consultas[2].parametros).toEqual([9]);
+    expect(consultas).toHaveLength(8);
+    expect(consultas[5].sql).toContain("for update");
+    expect(consultas[6].sql).toContain('from "horarios_asignaturas"');
+    expect(consultas[7].sql).toContain('delete from "ofertas_asignaturas"');
+    expect(consultas[7].parametros).toEqual([9]);
   });
 
   it("no consulta dependencias ni borra si la oferta ya no existe", async () => {
     respuestas.push([]);
-    expect(await ofertasRepository.delete(404)).toBe(false);
+    await expect(ofertasRepository.delete(404)).rejects.toMatchObject({ statusCode: 404 });
     expect(consultas).toHaveLength(1);
-    expect(consultas[0].sql).toContain("for update");
+    expect(consultas[0].sql).toContain('from "ofertas_asignaturas"');
   });
 
   it("propaga fallos de consulta sin continuar al borrado", async () => {

@@ -30,6 +30,11 @@ const entry = { ofertaId: 2, salaId: null, bloqueId: 3, tipoHoraId: 4, planifica
 const entryRow = [12, 2, null, 3, 4, 7];
 beforeEach(() => { statements.length = 0; responses.length = 0; transaction.mockClear(); });
 afterEach(() => vi.restoreAllMocks());
+function simularGuardia(lecturas: unknown[][][], ids = [7]) {
+  const planificaciones = ids.map(id => [id, 1, "2027-1", true, "preparacion"]);
+  responses.push(...lecturas, ...planificaciones.map(fila => [fila]), [[1]], ...planificaciones.map(fila => [fila]), ...lecturas);
+}
+const ofertaRow = [2, "INF100", 7, 7, 1, 30];
 
 describe("Publicación única por planificación (offline)", () => {
   it("no exporta entidad legacy ni agregado ni publicación por entrada", () => {
@@ -54,24 +59,27 @@ describe("Publicación única por planificación (offline)", () => {
     }
   });
   it("crea entrada con sala null sin relación secundaria", async () => {
+    simularGuardia([[ofertaRow]]);
     responses.push([entryRow]);
     expect(await horariosRepository.create(entry)).toEqual({ id: 12, ...entry });
-    expect(statements).toHaveLength(1);
-    expect(statements[0].sql).toContain('insert into "horarios_asignaturas"');
-    expect(statements[0].params).toEqual([2, null, 3, 4, 7]);
+    expect(statements.at(-1)!.sql).toContain('insert into "horarios_asignaturas"');
+    expect(statements.at(-1)!.params).toEqual([2, null, 3, 4, 7]);
+    expect(transaction).toHaveBeenCalledOnce();
   });
   it("propaga fallo de inserción", async () => {
+    simularGuardia([[ofertaRow]]);
     responses.push(new Error("fallo entrada"));
-    await expect(horariosRepository.create(entry)).rejects.toThrow();
+    await expect(horariosRepository.create(entry)).rejects.toMatchObject({ cause: { message: "fallo entrada" } });
   });
   it("actualiza contexto y sala sin escribir publicación", async () => {
+    simularGuardia([[entryRow], [[...ofertaRow.slice(0, 3), 8, 1, 30]]], [7, 8]);
     responses.push([[12, 2, null, 3, 4, 8]]);
     expect(await horariosRepository.update(12, { planificacionSemestreId: 8, salaId: null })).toEqual({ id: 12, ...entry, planificacionSemestreId: 8 });
-    expect(statements).toHaveLength(1);
-    expect(statements[0].sql).not.toContain("horario_publicado");
+    expect(statements.at(-1)!.sql).toContain('update "horarios_asignaturas"');
+    expect(statements.every(({ sql }) => !sql.includes("horario_publicado"))).toBe(true);
   });
-  it("devuelve undefined al actualizar entrada inexistente", async () => {
-    expect(await horariosRepository.update(404, { salaId: null })).toBeUndefined();
+  it("rechaza actualizar entrada inexistente sin escribir", async () => {
+    await expect(horariosRepository.update(404, { salaId: null })).rejects.toMatchObject({ statusCode: 404 });
     expect(statements).toHaveLength(1);
   });
   it("lee estado a través de planificación, sin proyección legacy", async () => {
@@ -92,10 +100,11 @@ describe("Publicación única por planificación (offline)", () => {
     expect(statements[1].sql).toContain('insert into "planificaciones_semestres"');
   });
   it("borrar entrada no reabre la planificación", async () => {
+    simularGuardia([[entryRow]]);
     responses.push([entryRow]);
     expect(await horariosRepository.delete(12)).toBe(true);
-    expect(statements).toHaveLength(1);
-    expect(statements[0].sql).toContain('delete from "horarios_asignaturas"');
+    expect(statements.at(-1)!.sql).toContain('delete from "horarios_asignaturas"');
+    expect(statements.some(({ sql }) => sql.startsWith('update "planificaciones_semestres"'))).toBe(false);
   });
   it("limita el reset de desarrollo de 0013 y elimina solo las tablas obsoletas", () => {
     const dir = new URL("../src/db/migrations/", import.meta.url);
@@ -207,7 +216,7 @@ describe("Sala nullable y consistencia de planificación", () => {
     const conflicto = vi.spyOn(horariosRepository, "findBySalaBloquePlanificacion");
     const actualizar = vi.spyOn(horariosRepository, "update").mockResolvedValue(creada);
     await horariosService.updateHorario(12, { tipoHoraId: 4 });
-    expect(actualizar).toHaveBeenCalledWith(12, entry);
+    expect(actualizar).toHaveBeenCalledWith(12, entry, 7);
     expect(conflicto).not.toHaveBeenCalled();
   });
   it("libera sala anterior sin tratarla como ocupada", async () => {
@@ -216,7 +225,7 @@ describe("Sala nullable y consistencia de planificación", () => {
     const conflicto = vi.spyOn(horariosRepository, "findBySalaBloquePlanificacion");
     const actualizar = vi.spyOn(horariosRepository, "update").mockResolvedValue({ id: 12, ...entry });
     await horariosService.updateHorario(12, { salaId: null });
-    expect(actualizar).toHaveBeenCalledWith(12, entry);
+    expect(actualizar).toHaveBeenCalledWith(12, entry, 7);
     expect(conflicto).not.toHaveBeenCalled();
     expect(lecturas).toHaveBeenCalledTimes(2);
   });

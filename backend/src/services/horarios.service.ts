@@ -246,20 +246,20 @@ export const horariosService = {
       tipoHoraId: datos.tipoHoraId ?? existente.tipoHoraId,
       planificacionSemestreId: datos.planificacionSemestreId ?? existente.planificacionSemestreId,
     }, alcance, id);
-    await horariosRepository.update(id, entrada);
+    await horariosRepository.update(id, entrada, existente.planificacionSemestreId);
     return this.getHorarioById(id, alcance);
   },
 
   async deleteHorario(id: number, alcance?: AlcanceCarrera) {
-    await this.getHorarioById(id, alcance);
-    await horariosRepository.delete(id);
+    const existente = await this.getHorarioById(id, alcance);
+    await horariosRepository.delete(id, existente.planificacionSemestreId);
   },
 
   async deleteHorariosByOferta(ofertaId: number, alcance?: AlcanceCarrera) {
     const oferta = await horariosRepository.findOfertaWithDetails(ofertaId);
     if (!oferta) throw new NotFoundError("Oferta no encontrada");
     await planificacionesSemestresService.getById(oferta.planificacionSemestreId, alcance);
-    return horariosRepository.deleteByOferta(ofertaId);
+    return horariosRepository.deleteByOferta(ofertaId, oferta.planificacionSemestreId);
   },
 
   async getMiHorario(usuarioId: number, consulta?: MiHorarioQueryDTO) {

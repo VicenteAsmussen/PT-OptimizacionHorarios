@@ -1,9 +1,10 @@
 import type { AlcanceCarrera } from "../utils/alcance-carrera.js";
-import { eq, and, inArray, sql } from "drizzle-orm";
+import { eq, and, inArray } from "drizzle-orm";
 import { db } from "../config/db.js";
 import { horariosAsignaturas, type NuevoHorarioAsignatura } from "../db/schema/horarios-asignaturas.schema.js";
 import { departamentos } from "../db/schema/departamentos.schema.js";
-import { ConflictError } from "../utils/errors.js";
+import { BadRequestError, ConflictError, NotFoundError } from "../utils/errors.js";
+import { conPlanificacionesEditables, exigirVinculoEsperado, type TransaccionPlanificacion } from "./planificacion-escritura.js";
 import { ofertasAsignaturas } from "../db/schema/ofertas-asignaturas.schema.js";
 import { asignaturas } from "../db/schema/asignaturas.schema.js";
 import { profesores, columnasProfesorSinRut } from "../db/schema/profesores.schema.js";
@@ -15,6 +16,20 @@ import { planificacionesSemestresRepository } from "./planificaciones-semestres.
 import { secretarias } from "../db/schema/secretarias.schema.js";
 import { carreraAsignatura } from "../db/schema/carrera-asignatura.schema.js";
 import { carreraDepartamento } from "../db/schema/carrera-departamento.schema.js";
+
+async function leerOferta(tx: TransaccionPlanificacion, id: number) {
+  const oferta = await tx.query.ofertasAsignaturas.findFirst({ where: eq(ofertasAsignaturas.id, id) });
+  if (!oferta) throw new NotFoundError("Oferta no encontrada");
+  return oferta;
+}
+async function leerHorario(tx: TransaccionPlanificacion, id: number) {
+  const horario = await tx.query.horariosAsignaturas.findFirst({ where: eq(horariosAsignaturas.id, id) });
+  if (!horario) throw new NotFoundError("Horario no encontrado");
+  return horario;
+}
+function exigirMismaPlanificacion(planificacionSemestreId: number, ofertaPlanificacionId: number) {
+  if (planificacionSemestreId !== ofertaPlanificacionId) throw new BadRequestError("La planificación indicada no coincide con la planificación de la oferta");
+}
 
 function condicionAlcanceExcel(carreraId?: number) {
   if (carreraId === undefined) return undefined;
@@ -51,8 +66,7 @@ export const horariosRepository = {
     };
   },
   async crearExternosEnTransaccion(planificacionSemestreId: number, filas: { asignaturaCodigo: string; profesorId: number; seccion: number; cupos: number; sesiones: { bloqueId: number; tipoHoraId: number }[] }[]) {
-    await db.transaction(async tx => {
-      await tx.execute(sql`LOCK TABLE ofertas_asignaturas IN SHARE ROW EXCLUSIVE MODE`);
+    await conPlanificacionesEditables(async () => [planificacionSemestreId], async tx => {
       for (const fila of filas) {
         const existente = await tx.query.ofertasAsignaturas.findFirst({ where: and(eq(ofertasAsignaturas.planificacionSemestreId, planificacionSemestreId), eq(ofertasAsignaturas.asignaturaCodigo, fila.asignaturaCodigo), eq(ofertasAsignaturas.seccion, fila.seccion)) });
         if (existente) throw new ConflictError("La oferta ya existe; no se importó ninguna fila.");
@@ -60,9 +74,6 @@ export const horariosRepository = {
         const [creada] = await tx.insert(ofertasAsignaturas).values({ ...oferta, planificacionSemestreId }).returning();
         for (const sesion of sesiones) await tx.insert(horariosAsignaturas).values({ ...sesion, ofertaId: creada.id, planificacionSemestreId, salaId: null });
       }
-      // Una importación real constituye propuesta, sin verdad de publicación por entrada.
-      if (filas.some(fila => fila.sesiones.length)) await tx.update(planificacionesSemestres).set({ estadoPlanificacion: "propuesta" })
-        .where(and(eq(planificacionesSemestres.id, planificacionSemestreId), eq(planificacionesSemestres.estadoPlanificacion, "preparacion")));
     });
   },
   async findCarreraSecretariaByUsuarioId(usuarioId: number) {
@@ -76,7 +87,11 @@ export const horariosRepository = {
     return { entradas, entradasParaConflictos: entradas, salas: salasExistentes };
   },
   async actualizarSalasEnTransaccion(planificacionSemestreId: number, cambios: { id: number; salaId: number | null }[], carreraId?: number) {
-    await db.transaction(async tx => {
+    await conPlanificacionesEditables(async tx => {
+      const vinculos = [planificacionSemestreId];
+      for (const cambio of cambios) vinculos.push((await leerHorario(tx, cambio.id)).planificacionSemestreId);
+      return vinculos;
+    }, async tx => {
       for (const cambio of cambios) {
         const actualizadas = await tx.update(horariosAsignaturas).set({ salaId: cambio.salaId })
           .where(and(eq(horariosAsignaturas.id, cambio.id), eq(horariosAsignaturas.planificacionSemestreId, planificacionSemestreId), condicionAlcanceExcel(carreraId))).returning({ id: horariosAsignaturas.id });
@@ -129,15 +144,47 @@ export const horariosRepository = {
   async checkTipoHoraExists(id: number) { return !!await db.query.tiposHora.findFirst({ where: eq(tiposHora.id, id) }); },
   async checkPlanificacionExists(id: number) { return !!await planificacionesSemestresRepository.findById(id); },
   async create(datos: NuevoHorarioAsignatura) {
-    const [creada] = await db.insert(horariosAsignaturas).values(datos).returning();
-    return creada;
+    let ofertaPlanificacionId: number;
+    return conPlanificacionesEditables(async tx => {
+      ofertaPlanificacionId = (await leerOferta(tx, datos.ofertaId)).planificacionSemestreId;
+      return [datos.planificacionSemestreId, ofertaPlanificacionId];
+    }, async tx => {
+      exigirMismaPlanificacion(datos.planificacionSemestreId, ofertaPlanificacionId);
+      const [creada] = await tx.insert(horariosAsignaturas).values(datos).returning();
+      return creada;
+    });
   },
-  async update(id: number, datos: Partial<Omit<NuevoHorarioAsignatura, "id">>) {
-    const [actualizada] = await db.update(horariosAsignaturas).set(datos).where(eq(horariosAsignaturas.id, id)).returning();
-    return actualizada;
+  async update(id: number, datos: Partial<Omit<NuevoHorarioAsignatura, "id">>, origenEsperado?: number) {
+    let destino: number;
+    let ofertaPlanificacionId: number;
+    return conPlanificacionesEditables(async tx => {
+      const origen = await leerHorario(tx, id);
+      exigirVinculoEsperado(origen.planificacionSemestreId, origenEsperado);
+      destino = datos.planificacionSemestreId ?? origen.planificacionSemestreId;
+      ofertaPlanificacionId = (await leerOferta(tx, datos.ofertaId ?? origen.ofertaId)).planificacionSemestreId;
+      return [origen.planificacionSemestreId, destino, ofertaPlanificacionId];
+    }, async tx => {
+      exigirMismaPlanificacion(destino, ofertaPlanificacionId);
+      const [actualizada] = await tx.update(horariosAsignaturas).set(datos).where(eq(horariosAsignaturas.id, id)).returning();
+      return actualizada;
+    });
   },
-  async delete(id: number) { return !!(await db.delete(horariosAsignaturas).where(eq(horariosAsignaturas.id, id)).returning()).length; },
-  async deleteByOferta(ofertaId: number) { return (await db.delete(horariosAsignaturas).where(eq(horariosAsignaturas.ofertaId, ofertaId)).returning()).length; },
+  async delete(id: number, origenEsperado?: number) {
+    return conPlanificacionesEditables(async tx => {
+      const origen = (await leerHorario(tx, id)).planificacionSemestreId;
+      exigirVinculoEsperado(origen, origenEsperado);
+      return [origen];
+    }, async tx =>
+      !!(await tx.delete(horariosAsignaturas).where(eq(horariosAsignaturas.id, id)).returning()).length);
+  },
+  async deleteByOferta(ofertaId: number, origenEsperado?: number) {
+    return conPlanificacionesEditables(async tx => {
+      const origen = (await leerOferta(tx, ofertaId)).planificacionSemestreId;
+      exigirVinculoEsperado(origen, origenEsperado);
+      return [origen];
+    }, async tx =>
+      (await tx.delete(horariosAsignaturas).where(eq(horariosAsignaturas.ofertaId, ofertaId)).returning()).length);
+  },
   async findProfesorByUsuarioId(usuarioId: number) {
     return db.query.profesores.findFirst({ where: eq(profesores.usuarioId, usuarioId) });
   },

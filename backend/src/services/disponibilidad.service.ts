@@ -12,10 +12,10 @@ async function exigirProfesorPropio(profesorId: number, usuario?: UsuarioPlanifi
 }
 async function exigirEditable(planificacionSemestreId: number, alcance?: AlcanceCarrera, usuario?: UsuarioPlanificacion) {
   const planificacion = await planificacionesSemestresService.getById(planificacionSemestreId, alcance, usuario);
-  if (planificacion.estadoPlanificacion !== "preparacion" || await disponibilidadRepository.checkHorariosExistForPlanificacion(planificacionSemestreId)) {
-    throw new ForbiddenError("No es posible modificar disponibilidad con una propuesta o publicación existente");
+  if (!planificacion.actual || planificacion.estadoPlanificacion !== "preparacion") {
+    throw new ForbiddenError("Solo se puede modificar disponibilidad en una planificación actual en preparación");
   }
-  // T3: integrar todos los guards de ciclo de vida bajo bloqueo transaccional.
+  // El repositorio vuelve a validar el estado bajo el bloqueo de carrera.
 }
 export const disponibilidadService = {
   async getDisponibilidad(consulta?: DisponibilidadQueryDTO, alcance?: AlcanceCarrera, usuario?: UsuarioPlanificacion) {

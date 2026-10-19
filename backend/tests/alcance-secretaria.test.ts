@@ -54,7 +54,7 @@ beforeEach(() => {
   vi.mocked(ofertasRepository.findById).mockResolvedValue({ id: 10, asignaturaCodigo: "OTRA", planificacionSemestreId: 2, planificacionSemestre: { carreraId: 2 }, horarios: [] } as never);
   vi.mocked(horariosRepository.findById).mockResolvedValue({ id: 20, ofertaId: 10, planificacionSemestreId: 2, planificacionSemestre: { carreraId: 2 } } as never);
   vi.mocked(horariosRepository.findOfertaWithDetails).mockResolvedValue({ id: 10, planificacionSemestreId: 2 } as never);
-  vi.mocked(planificacionesSemestresRepository.findById).mockImplementation(async id => ({ id, carreraId: id === 1 ? 1 : 2, estadoPlanificacion: "preparacion" }) as never);
+  vi.mocked(planificacionesSemestresRepository.findById).mockImplementation(async id => ({ id, carreraId: id === 1 ? 1 : 2, actual: true, estadoPlanificacion: "preparacion" }) as never);
   vi.mocked(planificacionesSemestresRepository.asignaturaPertenece).mockImplementation(async (_carreraId, codigo) => codigo === "LOCAL");
   vi.mocked(planificacionesSemestresRepository.findProfesorByUsuarioId).mockResolvedValue({ id: 7, departamentoId: 4 });
   vi.mocked(planificacionesSemestresRepository.profesorAutorizado).mockImplementation(async carreraId => carreraId === 1);
@@ -164,10 +164,10 @@ it.each(["/carreras", "/departamentos"])("secretaria no puede mutar catálogo %s
   expect((await request(aplicacion).put(`${ruta}/1`).send({ nombre: "Cambio" })).status).toBe(403);
   expect((await request(aplicacion).delete(`${ruta}/1`)).status).toBe(403);
 });
-it("secretaria sincroniza disponibilidad local pero no la de un profesor ajeno", async () => {
+it("secretaria sincroniza preparación actual con horarios sin dar acceso a profesor ajeno", async () => {
   vi.mocked(disponibilidadRepository.checkProfesorExists).mockResolvedValue(true);
   vi.mocked(disponibilidadRepository.findExistingBloquesIds).mockResolvedValue([]);
-  vi.mocked(disponibilidadRepository.checkHorariosExistForPlanificacion).mockResolvedValue(false);
+  vi.mocked(disponibilidadRepository.checkHorariosExistForPlanificacion).mockResolvedValue(true);
   vi.mocked(disponibilidadRepository.syncDisponibilidad).mockResolvedValue([]);
   expect((await request(aplicacion).post("/disponibilidad/sincronizar").send({ profesorId: 7, planificacionSemestreId: 1, bloquesIds: [] })).status).toBe(200);
   expect(disponibilidadRepository.syncDisponibilidad).toHaveBeenCalledWith(7, 1, []);
