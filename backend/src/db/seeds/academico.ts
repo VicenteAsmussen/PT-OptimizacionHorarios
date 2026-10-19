@@ -82,7 +82,6 @@ export async function sembrarAcademico(baseDatos: BaseDatosSeed): Promise<Catalo
     await baseDatos.insert(esquema.planificacionesSemestres).values(datosSemestres.map((semestre) => ({
       carreraId: carrera.id,
       codigo: semestre.codigo,
-      anio: semestre.anio,
       actual: semestre.actual && !planificacionActual,
     }))).onConflictDoNothing({
       target: [esquema.planificacionesSemestres.carreraId, esquema.planificacionesSemestres.codigo],

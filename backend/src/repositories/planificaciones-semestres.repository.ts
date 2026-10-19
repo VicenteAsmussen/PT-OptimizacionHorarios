@@ -43,7 +43,7 @@ export const planificacionesSemestresRepository = {
       return creada;
     });
   },
-  async update(id: number, carreraId: number, datos: Partial<Pick<NuevaPlanificacionSemestre, "codigo" | "anio" | "actual">>) {
+  async update(id: number, carreraId: number, datos: Partial<Pick<NuevaPlanificacionSemestre, "codigo" | "actual">>) {
     return db.transaction(async tx => {
       await tx.select({ id: carreras.id }).from(carreras).where(eq(carreras.id, carreraId)).for("update");
       if (datos.actual) await tx.update(planificacionesSemestres).set({ actual: false }).where(eq(planificacionesSemestres.carreraId, carreraId));

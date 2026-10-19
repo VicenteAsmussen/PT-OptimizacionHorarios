@@ -21,7 +21,7 @@ const app = express();
 app.use(express.json());
 app.use("/api/planificaciones-semestres", planificacionesSemestresRouter);
 app.use((error: { statusCode?: number }, _req: Request, res: Response, _next: NextFunction) => res.sendStatus(error.statusCode ?? 500));
-const planificacion = { id: 7, carreraId: 1, codigo: "2026-2", anio: 2026, actual: true, estadoPlanificacion: "preparacion", carrera: { id: 1, nombre: "Carrera A" } };
+const planificacion = { id: 7, carreraId: 1, codigo: "2026-2", actual: true, estadoPlanificacion: "preparacion", carrera: { id: 1, nombre: "Carrera A" } };
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(planificacionesSemestresRepository.findAll).mockResolvedValue([planificacion] as never);
@@ -54,35 +54,32 @@ describe("Planificaciones semestre HTTP (offline; reemplazo de semestres)", () =
   });
   it("profesor no puede activar ni crear períodos", async () => {
     expect((await request(app).patch("/api/planificaciones-semestres/7").set("x-rol", "profesor").send({ actual: true })).status).toBe(403);
-    expect((await request(app).post("/api/planificaciones-semestres").set("x-rol", "profesor").send({ carreraId: 1, codigo: "2027-1", anio: 2027 })).status).toBe(403);
+    expect((await request(app).post("/api/planificaciones-semestres").set("x-rol", "profesor").send({ carreraId: 1, codigo: "2027-1" })).status).toBe(403);
   });
   it("crea período vacío y actualiza codigo sin desactivar actual ni publicar entradas", async () => {
-    const nueva = await request(app).post("/api/planificaciones-semestres").set("x-rol", "secretaria").send({ carreraId: 1, codigo: "2027-1", anio: 2027 });
+    const nueva = await request(app).post("/api/planificaciones-semestres").set("x-rol", "secretaria").send({ carreraId: 1, codigo: "2027-1" });
     expect(nueva.status).toBe(201);
     expect(nueva.body.data).not.toHaveProperty("horarioPublicado");
-    expect(nueva.body.data.anio).toBe(2026);
-    expect(planificacionesSemestresRepository.create).toHaveBeenCalledWith({ carreraId: 1, codigo: "2027-1", anio: 2027, actual: false });
+    expect(nueva.body.data).not.toHaveProperty("anio");
+    expect(planificacionesSemestresRepository.create).toHaveBeenCalledWith({ carreraId: 1, codigo: "2027-1", actual: false });
     expect((await request(app).patch("/api/planificaciones-semestres/7").set("x-rol", "secretaria").send({ codigo: "2028-1" })).status).toBe(200);
     expect(planificacionesSemestresRepository.update).toHaveBeenCalledWith(7, 1, { codigo: "2028-1" });
   });
-  it.each([2000, 2026, 2100])("acepta anio %s en POST y PATCH", async anio => {
-    expect((await request(app).post("/api/planificaciones-semestres").set("x-rol", "admin").send({ carreraId: 1, codigo: "Periodo libre", anio })).status).toBe(201);
-    expect(planificacionesSemestresRepository.create).toHaveBeenCalledWith({ carreraId: 1, codigo: "Periodo libre", anio, actual: false });
-    expect((await request(app).patch("/api/planificaciones-semestres/7").set("x-rol", "admin").send({ anio })).status).toBe(200);
-    expect(planificacionesSemestresRepository.update).toHaveBeenCalledWith(7, 1, { anio });
+  it.each(["2026-1", "2026-2", "0000-1", "9999-2"])("acepta codigo ASCII %s en POST y PATCH sin normalizar", async codigo => {
+    expect((await request(app).post("/api/planificaciones-semestres").set("x-rol", "admin").send({ carreraId: 1, codigo })).status).toBe(201);
+    expect(planificacionesSemestresRepository.create).toHaveBeenCalledWith({ carreraId: 1, codigo, actual: false });
+    expect((await request(app).patch("/api/planificaciones-semestres/7").set("x-rol", "admin").send({ codigo })).status).toBe(200);
+    expect(planificacionesSemestresRepository.update).toHaveBeenCalledWith(7, 1, { codigo });
   });
-  it.each([1999, 2101, 2026.5, "2026", null])("rechaza anio invalido %j en POST y PATCH", async anio => {
-    expect((await request(app).post("/api/planificaciones-semestres").set("x-rol", "admin").send({ carreraId: 1, codigo: "2026-1", anio })).status).toBe(400);
-    expect((await request(app).patch("/api/planificaciones-semestres/7").set("x-rol", "admin").send({ anio })).status).toBe(400);
+  it.each(["026-1", "20266-1", "2026-0", "2026-3", " 2026-1", "2026-1 ", "", "２０２６-1", "2026–1", "2026-11", "2026-1\n", "2026-1\r\n"])("rechaza codigo malformado %j en POST y PATCH", async codigo => {
+    expect((await request(app).post("/api/planificaciones-semestres").set("x-rol", "admin").send({ carreraId: 1, codigo })).status).toBe(400);
+    expect((await request(app).patch("/api/planificaciones-semestres/7").set("x-rol", "admin").send({ codigo })).status).toBe(400);
     expect(planificacionesSemestresRepository.create).not.toHaveBeenCalled();
     expect(planificacionesSemestresRepository.update).not.toHaveBeenCalled();
   });
-  it("requiere anio al crear y limita codigo a varchar20", async () => {
-    expect((await request(app).post("/api/planificaciones-semestres").set("x-rol", "admin").send({ carreraId: 1, codigo: "2026-1" })).status).toBe(400);
-    for (const codigo of ["", "x".repeat(21)]) {
-      expect((await request(app).post("/api/planificaciones-semestres").set("x-rol", "admin").send({ carreraId: 1, codigo, anio: 2026 })).status).toBe(400);
-      expect((await request(app).patch("/api/planificaciones-semestres/7").set("x-rol", "admin").send({ codigo })).status).toBe(400);
-    }
+  it("rechaza anio eliminado tanto en POST como en PATCH", async () => {
+    expect((await request(app).post("/api/planificaciones-semestres").set("x-rol", "admin").send({ carreraId: 1, codigo: "2026-1", anio: 2026 })).status).toBe(400);
+    expect((await request(app).patch("/api/planificaciones-semestres/7").set("x-rol", "admin").send({ anio: 2026 })).status).toBe(400);
     expect(planificacionesSemestresRepository.create).not.toHaveBeenCalled();
     expect(planificacionesSemestresRepository.update).not.toHaveBeenCalled();
   });

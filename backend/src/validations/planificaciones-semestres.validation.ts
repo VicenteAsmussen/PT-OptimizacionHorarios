@@ -4,8 +4,7 @@ import { z } from "zod";
 // Nunca aceptar estadoPlanificacion en PATCH/POST genérico.
 export const createPlanificacionSemestreValidation = z.object({
   carreraId: z.number().int().positive(),
-  codigo: z.string().min(1).max(20),
-  anio: z.number().int().min(2000).max(2100),
+  codigo: z.string().length(6).regex(/^[0-9]{4}-[12]$/),
   actual: z.boolean().default(false),
 }).strict();
 export const updatePlanificacionSemestreValidation = createPlanificacionSemestreValidation.omit({ carreraId: true }).partial().extend({ actual: z.boolean().optional() });

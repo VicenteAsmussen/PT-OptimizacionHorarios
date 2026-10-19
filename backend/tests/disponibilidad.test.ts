@@ -21,7 +21,7 @@ describe("Módulo Disponibilidad Docente (/api/disponibilidad-profesores)", () =
     const perfilProfesor = await db.query.profesores.findFirst({ where: (tabla, { eq }) => eq(tabla.usuarioId, usuario!.id) });
     profesorId = perfilProfesor!.id;
     const perfil = await db.query.secretarias.findFirst();
-    const [planificacion] = await db.insert(planificacionesSemestres).values({ carreraId: perfil!.carreraId, codigo: "2091-1", anio: 2091 }).returning();
+    const [planificacion] = await db.insert(planificacionesSemestres).values({ carreraId: perfil!.carreraId, codigo: "2091-1" }).returning();
     planificacionSemestreId = planificacion.id;
     const bloques = await db.query.bloquesHorarios.findMany({ limit: 2 });
     bloqueId1 = bloques[0].id;

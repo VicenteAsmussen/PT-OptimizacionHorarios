@@ -9,13 +9,13 @@ export const planificacionesSemestres = pgTable("planificaciones_semestres", {
   id: serial("id").primaryKey(),
   carreraId: integer("carrera_id").notNull().references(() => carreras.id, { onDelete: "restrict" }),
   codigo: varchar("codigo", { length: 20 }).notNull(),
-  anio: integer("anio").notNull(),
   actual: boolean("actual").notNull().default(false),
   estadoPlanificacion: varchar("estado_planificacion", { length: 20, enum: ["preparacion", "propuesta", "publicado"] })
     .notNull().default("preparacion"),
 }, (tabla) => [
   unique("planificaciones_semestres_carrera_codigo_unique").on(tabla.carreraId, tabla.codigo),
   uniqueIndex("planificaciones_semestres_carrera_actual_unique").on(tabla.carreraId).where(sql`${tabla.actual} = true`),
+  check("planificaciones_semestres_codigo_check", sql`char_length(${tabla.codigo}) = 6 and ${tabla.codigo} ~ '^[0-9]{4}-[12]$'`),
   check("planificaciones_semestres_estado_check", sql`${tabla.estadoPlanificacion} in ('preparacion', 'propuesta', 'publicado')`),
 ]);
 

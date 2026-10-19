@@ -24,7 +24,7 @@ describe("Módulo Ofertas de Asignaturas (/api/ofertas-asignaturas)", () => {
     const profesor = await db.query.profesores.findFirst();
     profesorId = profesor!.id;
     const perfil = await db.query.secretarias.findFirst();
-    const [planificacion] = await db.insert(planificacionesSemestres).values({ carreraId: perfil!.carreraId, codigo: "2093-1", anio: 2093 }).returning();
+    const [planificacion] = await db.insert(planificacionesSemestres).values({ carreraId: perfil!.carreraId, codigo: "2093-1" }).returning();
     planificacionSemestreId = planificacion.id;
     const creacion = await request(app).post("/api/asignaturas").set("Cookie", secretariaCookie).send({
       codigo: asignaturaCodigo, nombre: "Base de Datos I", semestreMalla: 4,

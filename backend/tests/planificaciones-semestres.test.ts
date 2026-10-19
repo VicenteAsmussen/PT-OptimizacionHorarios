@@ -34,7 +34,7 @@ describe("Planificaciones por carrera (offline)", () => {
     const config = getTableConfig(tabla());
     expect(config.name).toBe("planificaciones_semestres");
     expect(config.columns.map((columna) => columna.name)).toEqual([
-      "id", "carrera_id", "codigo", "anio", "actual", "estado_planificacion",
+      "id", "carrera_id", "codigo", "actual", "estado_planificacion",
     ]);
     expect(config.columns.every((columna) => columna.notNull)).toBe(true);
     expect(tabla().id.primary).toBe(true);
@@ -57,15 +57,41 @@ describe("Planificaciones por carrera (offline)", () => {
     expect(textoSql(indice.config.where!)).toMatch(/"actual"\s*=\s*true/);
   });
 
-  it("mantiene anio obligatorio y codigo libre sin CHECK de formato", () => {
-    expect(tabla().anio.notNull).toBe(true);
+  it("restringe codigo en PostgreSQL sin reducir varchar ni truncar datos existentes", () => {
+    const restriccion = getTableConfig(tabla()).checks.find(check => check.name === "planificaciones_semestres_codigo_check");
+    expect(restriccion).toBeDefined();
+    expect(textoSql(restriccion!.value)).toContain('char_length("planificaciones_semestres"."codigo") = 6');
+    expect(textoSql(restriccion!.value)).toContain("~ '^[0-9]{4}-[12]$'");
     expect(tabla().codigo.length).toBe(20);
-    expect(getTableConfig(tabla()).checks.map(check => check.name)).toEqual(["planificaciones_semestres_estado_check"]);
   });
 
   it("restringe los estados a preparacion, propuesta y publicado", () => {
     const restriccion = getTableConfig(tabla()).checks.find(check => check.name === "planificaciones_semestres_estado_check")!;
     expect(textoSql(restriccion.value)).toMatch(/in\s*\('preparacion', 'propuesta', 'publicado'\)/i);
+  });
+
+  it("0014 elimina solo anio y añade el CHECK sin corregir ni reiniciar datos", () => {
+    const directorio = new URL("../src/db/migrations/", import.meta.url);
+    const diario = JSON.parse(readFileSync(new URL("meta/_journal.json", directorio), "utf8"));
+    const entrada = diario.entries.find((entrada: { idx: number }) => entrada.idx === 14);
+    expect(entrada).toBeDefined();
+    const migracion = readFileSync(new URL(`${entrada.tag}.sql`, directorio), "utf8");
+    const sentencias = migracion.replace(/--[^\n]*/g, "").split(";").map(texto => texto.trim()).filter(Boolean);
+    expect(sentencias).toEqual([
+      'ALTER TABLE "planificaciones_semestres" DROP COLUMN "anio"',
+      `ALTER TABLE "planificaciones_semestres" ADD CONSTRAINT "planificaciones_semestres_codigo_check" CHECK (char_length("planificaciones_semestres"."codigo") = 6 and "planificaciones_semestres"."codigo" ~ '^[0-9]{4}-[12]$')`,
+    ]);
+    const anterior = JSON.parse(readFileSync(new URL("meta/0013_snapshot.json", directorio), "utf8"));
+    const actual = JSON.parse(readFileSync(new URL("meta/0014_snapshot.json", directorio), "utf8"));
+    expect(actual.prevId).toBe(anterior.id);
+    const esperado = structuredClone(anterior.tables);
+    delete esperado["public.planificaciones_semestres"].columns.anio;
+    esperado["public.planificaciones_semestres"].checkConstraints.planificaciones_semestres_codigo_check = {
+      name: "planificaciones_semestres_codigo_check",
+      value: 'char_length("planificaciones_semestres"."codigo") = 6 and "planificaciones_semestres"."codigo" ~ \'^[0-9]{4}-[12]$\'',
+    };
+    expect(actual.tables).toEqual(esperado);
+    for (const clave of ["enums", "schemas", "sequences", "roles", "policies", "views"]) expect(actual[clave]).toEqual(anterior[clave]);
   });
 
   it("genera una migracion exclusivamente aditiva y conserva las tablas previas", () => {
@@ -96,7 +122,7 @@ function crearBaseDatos(planificaciones: unknown[][] = [], fallo?: Error) {
   const baseDatos = drizzle(async (sql, params) => {
     sentencias.push({ sql, params });
     if (sql.startsWith('select') && sql.includes('from "planificaciones_semestres"')) {
-      return { rows: planificaciones.filter((fila) => fila[1] === params[0] && fila[4] === true) };
+      return { rows: planificaciones.filter((fila) => fila[1] === params[0] && fila[3] === true) };
     }
     for (const [tablaCatalogo, datos] of catalogos) {
       if (sql.startsWith('select') && sql.includes(`from "${getTableName(tablaCatalogo)}"`)) {
@@ -108,12 +134,13 @@ function crearBaseDatos(planificaciones: unknown[][] = [], fallo?: Error) {
     if (sql.startsWith('insert into "planificaciones_semestres"')) {
       if (fallo) throw fallo;
       expect(sql).toContain('on conflict ("carrera_id","codigo") do nothing');
-      for (let indice = 0; indice < params.length; indice += 4) {
-        const [carreraId, codigo, anio, actual] = params.slice(indice, indice + 4);
-        expect(anio).toBe(2026);
+      for (let indice = 0; indice < params.length; indice += 3) {
+        const [carreraId, codigo, actual] = params.slice(indice, indice + 3);
+        expect(codigo).toMatch(/^[0-9]{4}-[12]$/);
+        expect(codigo).toHaveLength(6);
         if (planificaciones.some((fila) => fila[1] === carreraId && fila[2] === codigo)) continue;
-        if (actual && planificaciones.some((fila) => fila[1] === carreraId && fila[4])) throw new Error('actual duplicado');
-        planificaciones.push([planificaciones.length + 1, carreraId, codigo, anio, actual, 'preparacion']);
+        if (actual && planificaciones.some((fila) => fila[1] === carreraId && fila[3])) throw new Error('actual duplicado');
+        planificaciones.push([planificaciones.length + 1, carreraId, codigo, actual, 'preparacion']);
       }
     }
     return { rows: [] };
@@ -129,7 +156,7 @@ describe("Seed de planificaciones (offline)", () => {
       const resultado = await sembrarAcademico(contexto.baseDatos);
       expect(resultado.carreras).toHaveLength(datosCarreras.length);
       expect(contexto.planificaciones).toHaveLength(datosCarreras.length * datosSemestres.length);
-      expect(contexto.planificaciones.filter((fila) => fila[4]).map((fila) => fila[2]))
+      expect(contexto.planificaciones.filter((fila) => fila[3]).map((fila) => fila[2]))
         .toEqual(datosCarreras.map(() => '2026-2'));
       const anteriores = structuredClone(contexto.planificaciones);
       await sembrarAcademico(contexto.baseDatos);
@@ -138,19 +165,19 @@ describe("Seed de planificaciones (offline)", () => {
   });
 
   it.each(['propuesta', 'publicado'])("preserva estado %s e historial inactivo sin reemplazar otro actual", async (estado) => {
-    const existentes = [[51, 1, '2026-1', 2026, false, estado], [52, 1, '2026-2', 2026, false, estado], [53, 2, '2027-1', 2027, true, estado]];
+    const existentes = [[51, 1, '2026-1', false, estado], [52, 1, '2026-2', false, estado], [53, 2, '2027-1', true, estado]];
     const contexto = crearBaseDatos(structuredClone(existentes));
     const registro = vi.spyOn(console, 'log').mockImplementation(() => {});
     try {
       await sembrarAcademico(contexto.baseDatos);
       expect(contexto.planificaciones.slice(0, 3)).toEqual(existentes);
-      expect(contexto.planificaciones.find((fila) => fila[1] === 2 && fila[2] === '2026-2')?.[4]).toBe(false);
+      expect(contexto.planificaciones.find((fila) => fila[1] === 2 && fila[2] === '2026-2')?.[3]).toBe(false);
       expect(contexto.sentencias.some(({ sql }) => sql.startsWith('update "planificaciones_semestres"'))).toBe(false);
     } finally { registro.mockRestore(); }
   });
 
   it("conserva una planificacion publicada actual y agrega solo el periodo faltante", async () => {
-    const existente = [51, 1, '2026-2', 2026, true, 'publicado'];
+    const existente = [51, 1, '2026-2', true, 'publicado'];
     const contexto = crearBaseDatos([structuredClone(existente)]);
     const registro = vi.spyOn(console, 'log').mockImplementation(() => {});
     try {
@@ -158,7 +185,7 @@ describe("Seed de planificaciones (offline)", () => {
       expect(contexto.planificaciones[0]).toEqual(existente);
       expect(contexto.planificaciones.filter((fila) => fila[1] === 1)).toHaveLength(2);
       expect(contexto.planificaciones.find((fila) => fila[1] === 1 && fila[2] === '2026-1'))
-        .toEqual([2, 1, '2026-1', 2026, false, 'preparacion']);
+        .toEqual([2, 1, '2026-1', false, 'preparacion']);
     } finally { registro.mockRestore(); }
   });
 

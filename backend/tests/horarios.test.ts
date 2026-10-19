@@ -28,7 +28,7 @@ describe.skipIf(!runDatabaseTests)("Gestión de Horarios y Choques (/api/horario
     const perfil = await db.query.profesores.findFirst();
     profesorId = perfil!.id;
     const secretariaPerfil = await db.query.secretarias.findFirst();
-    const [planificacion] = await db.insert(planificacionesSemestres).values({ carreraId: secretariaPerfil!.carreraId, codigo: "2092-1", anio: 2092 }).returning();
+    const [planificacion] = await db.insert(planificacionesSemestres).values({ carreraId: secretariaPerfil!.carreraId, codigo: "2092-1" }).returning();
     planificacionSemestreId = planificacion.id;
     const salas = await db.query.salas.findMany({ limit: 2 });
     salaId1 = salas[0].id;

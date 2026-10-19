@@ -112,7 +112,7 @@ describe("Control de Acceso y Roles (RBAC)", () => {
       expect(alcance?.profesoresIds).toContain(profesor!.id);
       const bloques = await db.query.bloquesHorarios.findMany({ limit: 2 });
       expect(bloques).toHaveLength(2);
-      const [planificacion] = await db.insert(planificacionesSemestres).values({ carreraId: alcance!.carreraId, codigo: "2094-1", anio: 2094 }).returning();
+      const [planificacion] = await db.insert(planificacionesSemestres).values({ carreraId: alcance!.carreraId, codigo: "2094-1" }).returning();
       let departamentoId: number | undefined;
       let profesorAjenoId: number | undefined;
       try {
@@ -154,7 +154,7 @@ describe("Control de Acceso y Roles (RBAC)", () => {
       expect(bloque).toBeDefined();
       const relacion = await db.query.carreraDepartamento.findFirst({ where: (tabla, { eq }) => eq(tabla.departamentoId, profesor!.departamentoId) });
       expect(relacion).toBeDefined();
-      const [planificacion] = await db.insert(planificacionesSemestres).values({ carreraId: relacion!.carreraId, codigo: "2094-2", anio: 2094 }).returning();
+      const [planificacion] = await db.insert(planificacionesSemestres).values({ carreraId: relacion!.carreraId, codigo: "2094-2" }).returning();
       try {
         const res = await request(app).post("/api/disponibilidad-profesores/sincronizar")
           .set("Cookie", profesorCookie).send({ profesorId: profesor!.id, planificacionSemestreId: planificacion.id, bloquesIds: [bloque!.id] });

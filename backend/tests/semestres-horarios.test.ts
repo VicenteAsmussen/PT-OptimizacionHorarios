@@ -49,7 +49,7 @@ describe("Publicación única por planificación (offline)", () => {
     expect(updateHorarioValidation.parse({})).toEqual({});
     expect(createHorarioValidation.safeParse({ ...entry, semestreId: 7 }).success).toBe(false);
     for (const estadoPlanificacion of ["preparacion", "propuesta", "publicado"]) {
-      expect(createPlanificacionSemestreValidation.safeParse({ carreraId: 1, codigo: "2027-1", anio: 2027, estadoPlanificacion }).success).toBe(false);
+      expect(createPlanificacionSemestreValidation.safeParse({ carreraId: 1, codigo: "2027-1", estadoPlanificacion }).success).toBe(false);
       expect(updatePlanificacionSemestreValidation.safeParse({ estadoPlanificacion }).success).toBe(false);
     }
   });
@@ -84,19 +84,12 @@ describe("Publicación única por planificación (offline)", () => {
     }
   });
   it("crea planificación vacía sin horarios y conserva preparacion", async () => {
-    responses.push([[1]], [[7, 1, "2027-1", 2027, false, "preparacion"]]);
-    expect(await planificacionesSemestresRepository.create({ carreraId: 1, codigo: "2027-1", anio: 2027 })).toEqual({ id: 7, carreraId: 1, codigo: "2027-1", anio: 2027, actual: false, estadoPlanificacion: "preparacion" });
+    responses.push([[1]], [[7, 1, "2027-1", false, "preparacion"]]);
+    expect(await planificacionesSemestresRepository.create({ carreraId: 1, codigo: "2027-1" })).toEqual({ id: 7, carreraId: 1, codigo: "2027-1", actual: false, estadoPlanificacion: "preparacion" });
     expect(transaction).toHaveBeenCalledOnce();
     expect(statements).toHaveLength(2);
     expect(statements[0].sql).toContain("for update");
     expect(statements[1].sql).toContain('insert into "planificaciones_semestres"');
-  });
-  it("actualiza anio sin cambiar actual ni estado", async () => {
-    responses.push([[1]], [[7, 1, "2027-1", 2028, true, "preparacion"]]);
-    expect(await planificacionesSemestresRepository.update(7, 1, { anio: 2028 })).toEqual({ id: 7, carreraId: 1, codigo: "2027-1", anio: 2028, actual: true, estadoPlanificacion: "preparacion" });
-    expect(statements).toHaveLength(2);
-    expect(statements[1].sql).toContain('set "anio" =');
-    expect(statements[1].sql).not.toContain('set "actual"');
   });
   it("borrar entrada no reabre la planificación", async () => {
     responses.push([entryRow]);
