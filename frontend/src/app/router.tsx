@@ -4,6 +4,7 @@ import LoginPage from "../features/auth/pages/LoginPage";
 import DashboardPage from "../features/dashboard/pages/DashboardPage";
 import ProfesoresPage, { RequireGestionProfesores } from "../features/profesores/ProfesoresPage";
 import { GuestOnly, RequireAuth } from "./AuthGuards";
+import AsignaturasPage, { RequireGestionAsignaturas } from "../features/asignaturas/AsignaturasPage";
 
 export const router = createBrowserRouter([
   { path: "/", element: <Navigate to="/login" replace /> },
@@ -21,6 +22,9 @@ export const router = createBrowserRouter([
         { path: "dashboard", element: <DashboardPage /> },
         { element: <RequireGestionProfesores />, children: [
           { path: "profesores", element: <ProfesoresPage /> },
+        ] },
+        { element: <RequireGestionAsignaturas />, children: [
+          { path: "asignaturas", element: <AsignaturasPage /> },
         ] },
         { path: "*", element: <p>Página no encontrada</p> },
       ],

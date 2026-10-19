@@ -22,7 +22,7 @@ export const ofertasService = {
 
   async createOferta(dto: CreateOfertaDTO, alcance?: AlcanceCarrera) {
     exigirEnAlcance(alcance?.asignaturasCodigos, dto.asignaturaCodigo);
-    exigirEnAlcance(alcance?.profesoresIds, dto.profesorId);
+    // Seleccionar un profesor de cualquier departamento no otorga permisos de gestión.
     const asigExists = await ofertasRepository.checkAsignaturaExists(dto.asignaturaCodigo);
     if (!asigExists) {
       throw new BadRequestError(`La asignatura con código '${dto.asignaturaCodigo}' no existe`);
@@ -58,7 +58,6 @@ export const ofertasService = {
   async updateOferta(id: number, dto: UpdateOfertaDTO, alcance?: AlcanceCarrera) {
     const existing = await this.getOfertaById(id, alcance);
     exigirEnAlcance(alcance?.asignaturasCodigos, dto.asignaturaCodigo ?? existing.asignaturaCodigo);
-    exigirEnAlcance(alcance?.profesoresIds, dto.profesorId ?? existing.profesorId);
 
     if (dto.asignaturaCodigo) {
       const asigExists = await ofertasRepository.checkAsignaturaExists(dto.asignaturaCodigo);

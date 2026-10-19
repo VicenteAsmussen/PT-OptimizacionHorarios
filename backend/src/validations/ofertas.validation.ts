@@ -18,6 +18,7 @@ export const createOfertaValidation = z.object({
     .number({ message: "La sección debe ser un número" })
     .int("La sección debe ser un número entero")
     .positive("La sección debe ser mayor a 0")
+    .max(5, "La sección no puede ser mayor a 5")
     .optional()
     .default(1),
   cupos: z
@@ -49,6 +50,7 @@ export const updateOfertaValidation = z.object({
     .number()
     .int("La sección debe ser un número entero")
     .positive("La sección debe ser mayor a 0")
+    .max(5, "La sección no puede ser mayor a 5")
     .optional(),
   cupos: z
     .number()

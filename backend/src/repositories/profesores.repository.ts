@@ -9,6 +9,16 @@ import { disponibilidadProfesores } from "../db/schema/disponibilidad-profesores
 import { horariosAsignaturas } from "../db/schema/horarios-asignaturas.schema.js";
 
 export const profesoresRepository = {
+  async findSeleccion() {
+    return await db.select({
+      id: profesores.id,
+      nombre: profesores.nombre,
+      rut: profesores.rut,
+      departamento: { id: departamentos.id, nombre: departamentos.nombre },
+    }).from(profesores)
+      .innerJoin(departamentos, eq(profesores.departamentoId, departamentos.id));
+  },
+
   async findAll(departamentoId?: number, alcance?: AlcanceCarrera) {
     return await db.query.profesores.findMany({
       where: and(departamentoId === undefined ? undefined : eq(profesores.departamentoId, departamentoId),

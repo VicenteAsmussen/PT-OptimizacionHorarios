@@ -51,6 +51,10 @@ function exigirProfesorPartTimeGestionado(alcance: AlcanceCarrera | undefined, d
 }
 
 export const profesoresService = {
+  async getSeleccionProfesores() {
+    return await profesoresRepository.findSeleccion();
+  },
+
   async getAllProfesores(departamentoId?: number, alcance?: AlcanceCarrera) {
     if (departamentoId !== undefined) exigirEnAlcance(alcance?.departamentosIds, departamentoId);
     return await profesoresRepository.findAll(departamentoId, alcance);

@@ -9,6 +9,8 @@ import {
 import { asignaturas } from "../db/schema/asignaturas.schema.js";
 import { profesores, columnasProfesorSinRut } from "../db/schema/profesores.schema.js";
 import { semestres } from "../db/schema/semestres.schema.js";
+import { horariosAsignaturas } from "../db/schema/horarios-asignaturas.schema.js";
+import { ConflictError } from "../utils/errors.js";
 
 export const ofertasRepository = {
   async findAll(filter?: { semestreId?: number; profesorId?: number; asignaturaCodigo?: string }, alcance?: AlcanceCarrera) {
@@ -142,10 +144,30 @@ export const ofertasRepository = {
   },
 
   async delete(id: number): Promise<boolean> {
-    const [deleted] = await db
-      .delete(ofertasAsignaturas)
-      .where(eq(ofertasAsignaturas.id, id))
-      .returning();
-    return !!deleted;
+    return await db.transaction(async (tx) => {
+      // FOR UPDATE bloquea el KEY SHARE de la FK de nuevos horarios. Si un horario
+      // ya se estaba insertando, esperamos su commit antes de consultar dependencias.
+      const [oferta] = await tx
+        .select({ id: ofertasAsignaturas.id })
+        .from(ofertasAsignaturas)
+        .where(eq(ofertasAsignaturas.id, id))
+        .for("update");
+      if (!oferta) return false;
+
+      const [horario] = await tx
+        .select({ id: horariosAsignaturas.id })
+        .from(horariosAsignaturas)
+        .where(eq(horariosAsignaturas.ofertaId, id))
+        .limit(1);
+      if (horario) {
+        throw new ConflictError("No se puede eliminar una oferta con horarios asociados");
+      }
+
+      const [eliminada] = await tx
+        .delete(ofertasAsignaturas)
+        .where(eq(ofertasAsignaturas.id, id))
+        .returning({ id: ofertasAsignaturas.id });
+      return !!eliminada;
+    }, { isolationLevel: "read committed" });
   },
 };

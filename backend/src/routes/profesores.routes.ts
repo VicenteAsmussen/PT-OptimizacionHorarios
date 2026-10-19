@@ -18,6 +18,8 @@ router.use(authenticate, authorizeRoles("admin", "secretaria"));
 
 router.get("/", validateRequest({ query: profesorQueryValidation }), profesoresController.getAll);
 
+router.get("/seleccion", profesoresController.getSeleccion);
+
 router.post(
   "/",
   validateRequest({ body: createProfesorValidation }),
