@@ -7,6 +7,23 @@ import { db } from "../src/config/db.js";
 import { departamentos, profesores, planificacionesSemestres, disponibilidadProfesores } from "../src/db/schema/index.js";
 import { carrerasRepository } from "../src/repositories/carreras.repository.js";
 
+// Cada caso usa su propia preparación actual y devuelve la vigencia del seed sin cambiar su estado.
+async function crearPlanificacionActual(carreraId: number, codigo: string) {
+  const anterior = await db.query.planificacionesSemestres.findFirst({
+    where: and(eq(planificacionesSemestres.carreraId, carreraId), eq(planificacionesSemestres.actual, true)),
+  });
+  const planificacion = await db.transaction(async (tx) => {
+    await tx.update(planificacionesSemestres).set({ actual: false }).where(eq(planificacionesSemestres.carreraId, carreraId));
+    const [propia] = await tx.insert(planificacionesSemestres).values({ carreraId, codigo, actual: true, estadoPlanificacion: "preparacion" }).returning();
+    return propia;
+  });
+  const restaurar = () => db.transaction(async (tx) => {
+    await tx.delete(planificacionesSemestres).where(eq(planificacionesSemestres.id, planificacion.id));
+    if (anterior) await tx.update(planificacionesSemestres).set({ actual: true }).where(eq(planificacionesSemestres.id, anterior.id));
+  });
+  return { planificacion, restaurar };
+}
+
 describe("Control de Acceso y Roles (RBAC)", () => {
   let adminCookie: string[];
   let secretariaCookie: string[];
@@ -112,7 +129,7 @@ describe("Control de Acceso y Roles (RBAC)", () => {
       expect(alcance?.profesoresIds).toContain(profesor!.id);
       const bloques = await db.query.bloquesHorarios.findMany({ limit: 2 });
       expect(bloques).toHaveLength(2);
-      const [planificacion] = await db.insert(planificacionesSemestres).values({ carreraId: alcance!.carreraId, codigo: "2094-1" }).returning();
+      const { planificacion, restaurar } = await crearPlanificacionActual(alcance!.carreraId, "2094-1");
       let departamentoId: number | undefined;
       let profesorAjenoId: number | undefined;
       try {
@@ -139,7 +156,7 @@ describe("Control de Acceso y Roles (RBAC)", () => {
         expect(await leerAjena()).toEqual(antes);
       } finally {
         // Planificación dedicada: la limpieza no toca disponibilidad del seed.
-        await db.delete(planificacionesSemestres).where(eq(planificacionesSemestres.id, planificacion.id));
+        await restaurar();
         if (profesorAjenoId !== undefined) await db.delete(profesores).where(eq(profesores.id, profesorAjenoId));
         if (departamentoId !== undefined) await db.delete(departamentos).where(eq(departamentos.id, departamentoId));
       }
@@ -154,7 +171,7 @@ describe("Control de Acceso y Roles (RBAC)", () => {
       expect(bloque).toBeDefined();
       const relacion = await db.query.carreraDepartamento.findFirst({ where: (tabla, { eq }) => eq(tabla.departamentoId, profesor!.departamentoId) });
       expect(relacion).toBeDefined();
-      const [planificacion] = await db.insert(planificacionesSemestres).values({ carreraId: relacion!.carreraId, codigo: "2094-2" }).returning();
+      const { planificacion, restaurar } = await crearPlanificacionActual(relacion!.carreraId, "2094-2");
       try {
         const res = await request(app).post("/api/disponibilidad-profesores/sincronizar")
           .set("Cookie", profesorCookie).send({ profesorId: profesor!.id, planificacionSemestreId: planificacion.id, bloquesIds: [bloque!.id] });
@@ -163,7 +180,7 @@ describe("Control de Acceso y Roles (RBAC)", () => {
           eq(disponibilidadProfesores.profesorId, profesor!.id), eq(disponibilidadProfesores.planificacionSemestreId, planificacion.id)));
         expect(guardada.map((fila) => fila.bloqueId)).toEqual([bloque!.id]);
       } finally {
-        await db.delete(planificacionesSemestres).where(eq(planificacionesSemestres.id, planificacion.id));
+        await restaurar();
       }
     });
   });
