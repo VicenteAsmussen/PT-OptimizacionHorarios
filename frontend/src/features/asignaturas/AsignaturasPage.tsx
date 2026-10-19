@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { asignaturasApi } from './asignaturas.api';
-import { contarSecciones, filtrarAsignaturas, limpiarFiltros, puedeGestionarAsignaturas, planificacionInicial } from './datos';
+import { contarSecciones, estadoSecciones, filtrarAsignaturas, limpiarFiltros, puedeGestionarAsignaturas, planificacionInicial } from './datos';
 import type { Asignatura, Departamento, PlanificacionSemestre } from './types';
 import EditarAsignatura from './EditarAsignatura';
 import PanelSecciones from './PanelSecciones';
@@ -120,11 +120,11 @@ export default function AsignaturasPage() {
         ? 'Selecciona carrera y semestre para gestionar secciones. No se elige automáticamente si hay varias carreras actuales.'
         : 'No hay planificaciones disponibles. Puedes editar asignaturas, pero no gestionar secciones.'}</p>}
       {planificacion && <>
-        <p className={estilos.contexto}>Secciones en <strong>{planificacion.carrera.nombre} · {planificacion.codigo}</strong> · {planificacion.estadoPlanificacion}. El catálogo de asignaturas se conserva entre semestres.</p>
+        <p className={estilos.contexto}>Secciones en <strong>{planificacion.carrera.nombre} · {planificacion.codigo}</strong> · {estadoSecciones(planificacion).etiqueta}. El catálogo de asignaturas se conserva entre semestres.</p>
         {(!conteoVigente || conteoVigente.estado === 'cargando') && <p role="status">Cargando conteos de secciones…</p>}
         {conteoVigente?.estado === 'error' && <div role="alert" className={estilos.error}>
           <p>Conteo no disponible en {planificacion.codigo}: {conteoVigente.mensaje}</p>
-          <p>Puedes seguir editando asignaturas y gestionando secciones. No se muestran cantidades anteriores.</p>
+          <p>Puedes seguir editando asignaturas y consultando secciones. No se muestran cantidades anteriores.</p>
           <button type="button" className="boton" onClick={() => void cargarConteos()}>Reintentar conteos</button>
         </div>}
       </>}
