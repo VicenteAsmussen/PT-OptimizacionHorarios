@@ -15,3 +15,4 @@ export * from "./ofertas-asignaturas.schema.js";
 export * from "./disponibilidad-profesores.schema.js";
 export * from "./horarios-asignaturas.schema.js";
 export * from "./semestres-horarios.schema.js";
+export * from "./planificaciones-semestres.schema.js";

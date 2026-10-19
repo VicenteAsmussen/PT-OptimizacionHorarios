@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import * as esquema from "../schema/index.js";
 import type { BaseDatosSeed, CatalogosAcademicosSeed } from "./contexto.js";
 import {
@@ -91,6 +91,22 @@ export async function sembrarAcademico(baseDatos: BaseDatosSeed): Promise<Catalo
   const semestresAsegurados: (typeof esquema.semestres.$inferSelect)[] = [];
   for (const semestre of datosSemestres) semestresAsegurados.push(await asegurarSemestre(baseDatos, semestre));
   console.log(`✓ Asegurados ${semestresAsegurados.length} semestres`);
+
+  for (const carrera of carrerasAseguradas) {
+    const [planificacionActual] = await baseDatos.select().from(esquema.planificacionesSemestres)
+      .where(and(eq(esquema.planificacionesSemestres.carreraId, carrera.id), eq(esquema.planificacionesSemestres.actual, true)))
+      .limit(1);
+    // No reemplazar otro periodo actual ni reactivar planificaciones existentes.
+    await baseDatos.insert(esquema.planificacionesSemestres).values(datosSemestres.map((semestre) => ({
+      carreraId: carrera.id,
+      codigo: semestre.codigo,
+      anio: semestre.anio,
+      actual: semestre.actual && !planificacionActual,
+    }))).onConflictDoNothing({
+      target: [esquema.planificacionesSemestres.carreraId, esquema.planificacionesSemestres.codigo],
+    });
+  }
+  console.log(`✓ Aseguradas planificaciones para ${carrerasAseguradas.length} carreras`);
 
   return { carreras: carrerasAseguradas, departamentos: departamentosAsegurados };
 }
