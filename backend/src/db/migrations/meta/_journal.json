@@ -92,6 +92,13 @@
       "when": 1792363469639,
       "tag": "0012_dashing_sumo",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1792366347650,
+      "tag": "0013_corte_planificacion_semestre",
+      "breakpoints": true
     }
   ]
 }

@@ -31,20 +31,6 @@ async function asegurarCarrera(baseDatos: BaseDatosSeed, carrera: typeof datosCa
   return insertada;
 }
 
-async function asegurarSemestre(baseDatos: BaseDatosSeed, semestre: typeof datosSemestres[number]) {
-  const [existente] = await baseDatos.select().from(esquema.semestres).where(eq(esquema.semestres.codigo, semestre.codigo)).limit(1);
-  if (existente) {
-    const [actualizado] = await baseDatos
-      .update(esquema.semestres)
-      .set({ anio: semestre.anio, actual: semestre.actual })
-      .where(eq(esquema.semestres.id, existente.id))
-      .returning();
-    return actualizado;
-  }
-  const [insertado] = await baseDatos.insert(esquema.semestres).values(semestre).returning();
-  return insertado;
-}
-
 export async function sembrarAcademico(baseDatos: BaseDatosSeed): Promise<CatalogosAcademicosSeed> {
   const tiposHoraAsegurados: (typeof esquema.tiposHora.$inferSelect)[] = [];
   for (const tipoHora of datosTiposHora) tiposHoraAsegurados.push(await asegurarTipoHora(baseDatos, tipoHora));
@@ -87,10 +73,6 @@ export async function sembrarAcademico(baseDatos: BaseDatosSeed): Promise<Catalo
     }
   }
   console.log(`✓ Aseguradas ${datosAsignaturas.length} asignaturas con departamento explícito`);
-
-  const semestresAsegurados: (typeof esquema.semestres.$inferSelect)[] = [];
-  for (const semestre of datosSemestres) semestresAsegurados.push(await asegurarSemestre(baseDatos, semestre));
-  console.log(`✓ Asegurados ${semestresAsegurados.length} semestres`);
 
   for (const carrera of carrerasAseguradas) {
     const [planificacionActual] = await baseDatos.select().from(esquema.planificacionesSemestres)

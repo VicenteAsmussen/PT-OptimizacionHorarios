@@ -7,10 +7,10 @@ const profesores = [
   { id: 2, nombre: 'Berta', rut: '6000000-K', departamento: { nombre: 'B' } },
 ];
 const ofertas = [
-  { id: 1, asignaturaCodigo: 'A', semestreId: 1, seccion: 1 },
-  { id: 2, asignaturaCodigo: 'A', semestreId: 1, seccion: 3 },
-  { id: 3, asignaturaCodigo: 'A', semestreId: 2, seccion: 2 },
-  { id: 4, asignaturaCodigo: 'B', semestreId: 1, seccion: 2 },
+  { id: 1, asignaturaCodigo: 'A', planificacionSemestreId: 1, seccion: 1 },
+  { id: 2, asignaturaCodigo: 'A', planificacionSemestreId: 1, seccion: 3 },
+  { id: 3, asignaturaCodigo: 'A', planificacionSemestreId: 2, seccion: 2 },
+  { id: 4, asignaturaCodigo: 'B', planificacionSemestreId: 1, seccion: 2 },
 ];
 test('filtros combinan nombre/código, departamento y semestre de malla sin mutar', async () => {
   const { filtrarAsignaturas } = await cargar();
@@ -32,20 +32,21 @@ test('profesor se busca por nombre o RUT con puntuación, sin limitar departamen
   assert.deepEqual(buscarProfesores(profesores, '...'), []);
 });
 test('semestre por defecto actual o selección explícita, nunca primero arbitrario', async () => {
-  const { semestreInicial } = await cargar();
-  assert.equal(semestreInicial([{ id: 1 }, { id: 2, actual: true }]), 2);
-  assert.equal(semestreInicial([{ id: 1 }]), null);
-  assert.equal(semestreInicial([]), null);
+  const { planificacionInicial } = await cargar();
+  assert.equal(planificacionInicial([{ id: 1 }, { id: 2, actual: true }]), 2);
+  assert.equal(planificacionInicial([{ id: 1 }]), null);
+  assert.equal(planificacionInicial([]), null);
+  assert.equal(planificacionInicial([{ id: 1, carreraId: 1, actual: true }, { id: 2, carreraId: 2, actual: true }]), null);
 });
 test('aislamiento y conteos por asignatura/semestre; números libres sin renumerar', async () => {
-  const { ofertasDelSemestre, seccionesLibres } = await cargar();
-  const propias = ofertasDelSemestre(ofertas, 'A', 1);
+  const { ofertasDePlanificacion, seccionesLibres } = await cargar();
+  const propias = ofertasDePlanificacion(ofertas, 'A', 1);
   assert.deepEqual(propias.map(o => o.id), [1, 2]);
   assert.deepEqual(seccionesLibres(propias), [2, 4, 5]);
   assert.deepEqual(seccionesLibres(propias, 2), [2, 3, 4, 5]);
   assert.equal(seccionesLibres(Array.from({ length: 5 }, (_, i) => ({ id: i, seccion: i + 1 }))).length, 0);
   assert.deepEqual(seccionesLibres(propias.filter(o => o.id !== 1)), [1, 2, 4, 5]);
-  assert.deepEqual(ofertasDelSemestre(ofertas, 'A', null), []);
+  assert.deepEqual(ofertasDePlanificacion(ofertas, 'A', null), []);
 });
 test('payload exige profesor seleccionado existente, sección única 1..5 y cupos enteros no negativos', async () => {
   const { prepararOferta } = await cargar();

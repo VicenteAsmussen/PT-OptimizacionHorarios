@@ -18,18 +18,20 @@ import { carrerasRepository } from "../src/repositories/carreras.repository.js";
 import { departamentosRepository } from "../src/repositories/departamentos.repository.js";
 import { disponibilidadRepository } from "../src/repositories/disponibilidad.repository.js";
 import { resolverAlcanceCarrera } from "../src/utils/alcance-carrera.js";
+import { planificacionesSemestresRepository } from "../src/repositories/planificaciones-semestres.repository.js";
 import { asignaturasRepository } from "../src/repositories/asignaturas.repository.js";
 import { profesoresRepository } from "../src/repositories/profesores.repository.js";
 import { ofertasRepository } from "../src/repositories/ofertas.repository.js";
 import { horariosRepository } from "../src/repositories/horarios.repository.js";
+vi.mock("../src/repositories/planificaciones-semestres.repository.js", () => ({ planificacionesSemestresRepository: { findById: vi.fn(), asignaturaPertenece: vi.fn(), findAll: vi.fn(), findProfesorByUsuarioId: vi.fn(), profesorAutorizado: vi.fn() } }));
 vi.mock("../src/repositories/usuarios.repository.js", () => ({ usuariosRepository: { findByCorreo: vi.fn() } }));
 vi.mock("../src/repositories/carreras.repository.js", () => ({ carrerasRepository: { findAlcanceByUsuarioId: vi.fn(), findAll: vi.fn(), findById: vi.fn() } }));
 vi.mock("../src/repositories/asignaturas.repository.js", () => ({ asignaturasRepository: { findAll: vi.fn(), findByCodigo: vi.fn(), update: vi.fn(), create: vi.fn() } }));
 vi.mock("../src/repositories/profesores.repository.js", () => ({ profesoresRepository: { findAll: vi.fn(), findById: vi.fn(), update: vi.fn(), create: vi.fn() } }));
 vi.mock("../src/repositories/ofertas.repository.js", () => ({ ofertasRepository: { findAll: vi.fn(), findById: vi.fn(), update: vi.fn(), create: vi.fn() } }));
-vi.mock("../src/repositories/horarios.repository.js", () => ({ horariosRepository: { findAll: vi.fn(), findById: vi.fn(), update: vi.fn(), create: vi.fn(), deleteByOferta: vi.fn() } }));
+vi.mock("../src/repositories/horarios.repository.js", () => ({ horariosRepository: { findAll: vi.fn(), findById: vi.fn(), update: vi.fn(), create: vi.fn(), deleteByOferta: vi.fn(), findOfertaWithDetails: vi.fn() } }));
 vi.mock("../src/repositories/departamentos.repository.js", () => ({ departamentosRepository: { findAll: vi.fn(), findById: vi.fn(), hasAsignaturas: vi.fn(), delete: vi.fn() } }));
-vi.mock("../src/repositories/disponibilidad.repository.js", () => ({ disponibilidadRepository: { findAll: vi.fn(), findById: vi.fn(), create: vi.fn(), syncDisponibilidad: vi.fn(), delete: vi.fn(), deleteByProfesorAndSemestre: vi.fn(), checkProfesorExists: vi.fn(), checkSemestreExists: vi.fn(), checkHorariosExistForSemestre: vi.fn() } }));
+vi.mock("../src/repositories/disponibilidad.repository.js", () => ({ disponibilidadRepository: { findAll: vi.fn(), findById: vi.fn(), create: vi.fn(), syncDisponibilidad: vi.fn(), delete: vi.fn(), deleteByProfesorAndPlanificacion: vi.fn(), checkProfesorExists: vi.fn(), findExistingBloquesIds: vi.fn(), checkHorariosExistForPlanificacion: vi.fn() } }));
 vi.mock("../src/middlewares/auth.middleware.js", () => ({ authenticate: (req: Request, _res: Response, next: NextFunction) => {
   req.user = { id: 42, rol: req.header("x-rol") ?? "secretaria" } as Request["user"];
   next();
@@ -49,8 +51,14 @@ beforeEach(() => {
   vi.mocked(carrerasRepository.findAlcanceByUsuarioId).mockResolvedValue(alcance);
   vi.mocked(asignaturasRepository.findByCodigo).mockResolvedValue({ codigo: "OTRA" } as never);
   vi.mocked(profesoresRepository.findById).mockResolvedValue({ id: 8, departamentoId: 5 } as never);
-  vi.mocked(ofertasRepository.findById).mockResolvedValue({ id: 10, asignaturaCodigo: "OTRA" } as never);
-  vi.mocked(horariosRepository.findById).mockResolvedValue({ id: 20, ofertaId: 10 } as never);
+  vi.mocked(ofertasRepository.findById).mockResolvedValue({ id: 10, asignaturaCodigo: "OTRA", planificacionSemestreId: 2, planificacionSemestre: { carreraId: 2 }, horarios: [] } as never);
+  vi.mocked(horariosRepository.findById).mockResolvedValue({ id: 20, ofertaId: 10, planificacionSemestreId: 2, planificacionSemestre: { carreraId: 2 } } as never);
+  vi.mocked(horariosRepository.findOfertaWithDetails).mockResolvedValue({ id: 10, planificacionSemestreId: 2 } as never);
+  vi.mocked(planificacionesSemestresRepository.findById).mockImplementation(async id => ({ id, carreraId: id === 1 ? 1 : 2, estadoPlanificacion: "preparacion" }) as never);
+  vi.mocked(planificacionesSemestresRepository.asignaturaPertenece).mockImplementation(async (_carreraId, codigo) => codigo === "LOCAL");
+  vi.mocked(planificacionesSemestresRepository.findProfesorByUsuarioId).mockResolvedValue({ id: 7, departamentoId: 4 });
+  vi.mocked(planificacionesSemestresRepository.profesorAutorizado).mockImplementation(async carreraId => carreraId === 1);
+  vi.mocked(planificacionesSemestresRepository.findAll).mockResolvedValue([{ id: 1, carreraId: 1 }] as never);
 });
 describe("departamento de asignaturas", () => {
   it.each(["0", "-1", "1.5", "abc", "", "1&departamentoId=2"])("rechaza filtro inválido %s", async (valor) => {
@@ -132,15 +140,15 @@ it("no actualiza ni crea una asignatura exclusivamente ajena", async () => {
 });
 it("no crea profesor, oferta ni horario fuera del alcance", async () => {
   await expect(profesoresService.createProfesor({ departamentoId: 5, rut: "12345678-5" } as never, alcance)).rejects.toMatchObject({ statusCode: 403 });
-  await expect(ofertasService.createOferta({ asignaturaCodigo: "LOCAL", profesorId: 8 } as never, alcance)).rejects.toMatchObject({ statusCode: 403 });
-  await expect(horariosService.createHorario({ ofertaId: 10 } as never, alcance)).rejects.toMatchObject({ statusCode: 403 });
+  await expect(ofertasService.createOferta({ asignaturaCodigo: "LOCAL", profesorId: 8, planificacionSemestreId: 2 } as never, alcance)).rejects.toMatchObject({ statusCode: 404 });
+  await expect(horariosService.createHorario({ ofertaId: 10 } as never, alcance)).rejects.toMatchObject({ statusCode: 404 });
   expect(profesoresRepository.create).not.toHaveBeenCalled();
   expect(ofertasRepository.create).not.toHaveBeenCalled();
   expect(horariosRepository.create).not.toHaveBeenCalled();
 });
 it("propaga identidad autenticada en HTTP de asignaturas, ofertas y horarios", async () => {
   for (const ruta of ["/asignaturas", "/ofertas", "/horarios"]) {
-    expect((await request(aplicacion).get(`${ruta}?carreraId=2`)).status).toBe(200);
+    expect((await request(aplicacion).get(ruta)).status).toBe(200);
   }
   expect(carrerasRepository.findAlcanceByUsuarioId).toHaveBeenCalledWith(42);
   expect(asignaturasRepository.findAll).toHaveBeenCalledWith(alcance, undefined);
@@ -158,13 +166,13 @@ it.each(["/carreras", "/departamentos"])("secretaria no puede mutar catálogo %s
 });
 it("secretaria sincroniza disponibilidad local pero no la de un profesor ajeno", async () => {
   vi.mocked(disponibilidadRepository.checkProfesorExists).mockResolvedValue(true);
-  vi.mocked(disponibilidadRepository.checkSemestreExists).mockResolvedValue(true);
-  vi.mocked(disponibilidadRepository.checkHorariosExistForSemestre).mockResolvedValue(false);
+  vi.mocked(disponibilidadRepository.findExistingBloquesIds).mockResolvedValue([]);
+  vi.mocked(disponibilidadRepository.checkHorariosExistForPlanificacion).mockResolvedValue(false);
   vi.mocked(disponibilidadRepository.syncDisponibilidad).mockResolvedValue([]);
-  expect((await request(aplicacion).post("/disponibilidad/sincronizar").send({ profesorId: 7, semestreId: 1, bloquesIds: [] })).status).toBe(200);
+  expect((await request(aplicacion).post("/disponibilidad/sincronizar").send({ profesorId: 7, planificacionSemestreId: 1, bloquesIds: [] })).status).toBe(200);
   expect(disponibilidadRepository.syncDisponibilidad).toHaveBeenCalledWith(7, 1, []);
   vi.mocked(disponibilidadRepository.syncDisponibilidad).mockClear();
-  expect((await request(aplicacion).post("/disponibilidad/sincronizar").send({ profesorId: 8, semestreId: 1, bloquesIds: [] })).status).toBe(403);
+  expect((await request(aplicacion).post("/disponibilidad/sincronizar").send({ profesorId: 8, planificacionSemestreId: 1, bloquesIds: [] })).status).toBe(403);
   expect(disponibilidadRepository.syncDisponibilidad).not.toHaveBeenCalled();
 });
 it("resuelve desde usuario y falla cerrado sin perfil; admin no consulta perfil", async () => {
@@ -181,8 +189,8 @@ it("resuelve desde usuario y falla cerrado sin perfil; admin no consulta perfil"
 it("permite detalle local y profesor de departamento externo relacionado", async () => {
   vi.mocked(asignaturasRepository.findByCodigo).mockResolvedValue({ codigo: "LOCAL" } as never);
   vi.mocked(profesoresRepository.findById).mockResolvedValue({ id: 7, departamentoId: 4, departamento: { esGestionado: false } } as never);
-  vi.mocked(ofertasRepository.findById).mockResolvedValue({ id: 9, asignaturaCodigo: "LOCAL" } as never);
-  vi.mocked(horariosRepository.findById).mockResolvedValue({ id: 20, ofertaId: 9 } as never);
+  vi.mocked(ofertasRepository.findById).mockResolvedValue({ id: 9, asignaturaCodigo: "LOCAL", planificacionSemestreId: 1, planificacionSemestre: { carreraId: 1 }, horarios: [] } as never);
+  vi.mocked(horariosRepository.findById).mockResolvedValue({ id: 20, ofertaId: 9, planificacionSemestreId: 1, planificacionSemestre: { carreraId: 1 } } as never);
   expect(await asignaturasService.getAsignaturaByCodigo("LOCAL", alcance)).toMatchObject({ codigo: "LOCAL" });
   expect(await profesoresService.getProfesorById(7, alcance)).toMatchObject({ id: 7 });
   expect(await ofertasService.getOfertaById(9, alcance)).toMatchObject({ id: 9 });
@@ -194,12 +202,12 @@ it("impide quitar la carrera propia y cambiar relaciones hacia recursos ajenos",
   await expect(asignaturasService.updateAsignatura("LOCAL", { carrerasIds: [1, 2] }, alcance)).rejects.toMatchObject({ statusCode: 400 });
   vi.mocked(profesoresRepository.findById).mockResolvedValue({ id: 7, departamentoId: 4 } as never);
   await expect(profesoresService.updateProfesor(7, { departamentoId: 5 }, alcance)).rejects.toMatchObject({ statusCode: 403 });
-  vi.mocked(ofertasRepository.findById).mockResolvedValue({ id: 9, asignaturaCodigo: "LOCAL", profesorId: 7 } as never);
-  await expect(ofertasService.updateOferta(9, { asignaturaCodigo: "OTRA" }, alcance)).rejects.toMatchObject({ statusCode: 403 });
-  await expect(ofertasService.updateOferta(9, { profesorId: 8 }, alcance)).rejects.toMatchObject({ statusCode: 403 });
-  vi.mocked(horariosRepository.findById).mockResolvedValue({ id: 20, ofertaId: 9 } as never);
-  await expect(horariosService.updateHorario(20, { ofertaId: 10 }, alcance)).rejects.toMatchObject({ statusCode: 403 });
-  await expect(horariosService.deleteHorariosByOferta(10, alcance)).rejects.toMatchObject({ statusCode: 403 });
+  vi.mocked(ofertasRepository.findById).mockResolvedValue({ id: 9, asignaturaCodigo: "LOCAL", profesorId: 7, planificacionSemestreId: 1, planificacionSemestre: { carreraId: 1 }, horarios: [] } as never);
+  await expect(ofertasService.updateOferta(9, { asignaturaCodigo: "OTRA" }, alcance)).rejects.toMatchObject({ statusCode: 400 });
+  await expect(ofertasService.updateOferta(9, { planificacionSemestreId: 2 }, alcance)).rejects.toMatchObject({ statusCode: 404 });
+  vi.mocked(horariosRepository.findById).mockResolvedValue({ id: 20, ofertaId: 9, planificacionSemestreId: 1, planificacionSemestre: { carreraId: 1 } } as never);
+  await expect(horariosService.updateHorario(20, { ofertaId: 10 }, alcance)).rejects.toMatchObject({ statusCode: 404 });
+  await expect(horariosService.deleteHorariosByOferta(10, alcance)).rejects.toMatchObject({ statusCode: 404 });
   expect(asignaturasRepository.update).not.toHaveBeenCalled();
   expect(profesoresRepository.update).not.toHaveBeenCalled();
   expect(ofertasRepository.update).not.toHaveBeenCalled();
@@ -215,7 +223,7 @@ it("filtra catálogos y disponibilidad, y deniega mutaciones de disponibilidad a
   expect(disponibilidadRepository.findAll).toHaveBeenCalledWith(undefined, alcance);
   vi.mocked(carrerasRepository.findById).mockResolvedValue({ id: 2 } as never);
   vi.mocked(departamentosRepository.findById).mockResolvedValue({ id: 5 } as never);
-  vi.mocked(disponibilidadRepository.findById).mockResolvedValue({ id: 1, profesorId: 8 } as never);
+  vi.mocked(disponibilidadRepository.findById).mockResolvedValue({ id: 1, profesorId: 8, planificacionSemestreId: 2 } as never);
   await expect(carrerasService.getCarreraById(2, alcance)).rejects.toMatchObject({ statusCode: 404 });
   await expect(departamentosService.getDepartamentoById(5, alcance)).rejects.toMatchObject({ statusCode: 404 });
   await expect(disponibilidadService.getById(1, alcance)).rejects.toMatchObject({ statusCode: 404 });
@@ -226,5 +234,27 @@ it("filtra catálogos y disponibilidad, y deniega mutaciones de disponibilidad a
   expect(disponibilidadRepository.create).not.toHaveBeenCalled();
   expect(disponibilidadRepository.syncDisponibilidad).not.toHaveBeenCalled();
   expect(disponibilidadRepository.delete).not.toHaveBeenCalled();
-  expect(disponibilidadRepository.deleteByProfesorAndSemestre).not.toHaveBeenCalled();
+  expect(disponibilidadRepository.deleteByProfesorAndPlanificacion).not.toHaveBeenCalled();
+});
+
+it("profesor consulta solo disponibilidad propia en planificaciones autorizadas", async () => {
+  const usuario = { id: 42, rol: "profesor" };
+  await expect(disponibilidadService.getDisponibilidad({ profesorId: 8 }, undefined, usuario)).rejects.toMatchObject({ statusCode: 403 });
+  vi.mocked(disponibilidadRepository.findAll).mockResolvedValue([
+    { id: 1, profesorId: 7, planificacionSemestreId: 1 },
+    { id: 2, profesorId: 7, planificacionSemestreId: 2 },
+  ] as never);
+  const propias = await disponibilidadService.getDisponibilidad(undefined, undefined, usuario);
+  expect(disponibilidadRepository.findAll).toHaveBeenCalledWith({ profesorId: 7 }, undefined);
+  expect(propias.map(fila => fila.id)).toEqual([1]);
+  await expect(disponibilidadService.getDisponibilidad({ planificacionSemestreId: 2 }, undefined, usuario)).rejects.toMatchObject({ statusCode: 403 });
+  vi.mocked(disponibilidadRepository.findById).mockResolvedValue({ id: 3, profesorId: 8, planificacionSemestreId: 1 } as never);
+  await expect(disponibilidadService.getById(3, undefined, usuario)).rejects.toMatchObject({ statusCode: 403 });
+});
+
+it("profesor no muta disponibilidad ajena ni planificación no autorizada", async () => {
+  const usuario = { id: 42, rol: "profesor" };
+  await expect(disponibilidadService.syncGrid({ profesorId: 8, planificacionSemestreId: 1, bloquesIds: [] }, undefined, usuario)).rejects.toMatchObject({ statusCode: 403 });
+  await expect(disponibilidadService.syncGrid({ profesorId: 7, planificacionSemestreId: 2, bloquesIds: [] }, undefined, usuario)).rejects.toMatchObject({ statusCode: 403 });
+  expect(disponibilidadRepository.syncDisponibilidad).not.toHaveBeenCalled();
 });

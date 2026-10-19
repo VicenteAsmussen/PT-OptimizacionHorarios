@@ -1,4 +1,4 @@
-import type { Asignatura, Oferta, ProfesorSeccion, Semestre } from './types.ts';
+import type { Asignatura, Oferta, ProfesorSeccion, PlanificacionSemestre } from './types.ts';
 
 const normalizar = (texto: string) => texto.trim().toLocaleLowerCase('es').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 export function filtrarAsignaturas(asignaturas: readonly Asignatura[], busqueda = '', departamento = '', malla = '') {
@@ -11,10 +11,10 @@ export function filtrarAsignaturas(asignaturas: readonly Asignatura[], busqueda 
 export function limpiarFiltros<T extends { busqueda: string; departamento: string; malla: string }>(filtros: T): T {
   return { ...filtros, busqueda: '', departamento: '', malla: '' };
 }
-export function contarSecciones(ofertas: readonly Oferta[], semestreId: number | null) {
+export function contarSecciones(ofertas: readonly Oferta[], planificacionSemestreId: number | null) {
   const conteos = new Map<string, number>();
   for (const oferta of ofertas) {
-    if (oferta.semestreId === semestreId) {
+    if (oferta.planificacionSemestreId === planificacionSemestreId) {
       conteos.set(oferta.asignaturaCodigo, (conteos.get(oferta.asignaturaCodigo) ?? 0) + 1);
     }
   }
@@ -27,11 +27,13 @@ export function buscarProfesores(profesores: readonly ProfesorSeccion[], busqued
     || Boolean(rut && p.rut?.replace(/[.\-\s]/g, '').toLowerCase().includes(rut)))
     .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
 }
-export function semestreInicial(semestres: readonly Semestre[]) {
-  return semestres.find(s => s.actual)?.id ?? null;
+export function planificacionInicial(planificaciones: readonly PlanificacionSemestre[]) {
+  const actuales = planificaciones.filter(planificacion => planificacion.actual);
+  // Un admin con varias carreras debe elegir; no inferir dueño por código compartido.
+  return actuales.length === 1 ? actuales[0].id : null;
 }
-export function ofertasDelSemestre(ofertas: readonly Oferta[], codigo: string, semestreId: number | null) {
-  return ofertas.filter(o => o.asignaturaCodigo === codigo && o.semestreId === semestreId)
+export function ofertasDePlanificacion(ofertas: readonly Oferta[], codigo: string, planificacionSemestreId: number | null) {
+  return ofertas.filter(o => o.asignaturaCodigo === codigo && o.planificacionSemestreId === planificacionSemestreId)
     .sort((a, b) => a.seccion - b.seccion);
 }
 export function seccionesLibres(ofertas: readonly Oferta[], editandoId?: number) {

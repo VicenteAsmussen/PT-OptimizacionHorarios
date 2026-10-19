@@ -8,7 +8,7 @@ import {
   syncDisponibilidadValidation,
   disponibilidadQueryValidation,
   disponibilidadIdParamValidation,
-  profesorSemestreParamValidation,
+  profesorPlanificacionParamValidation,
 } from "../validations/disponibilidad.validation.js";
 
 const router = Router();
@@ -54,9 +54,9 @@ router.delete(
 );
 
 router.delete(
-  "/profesor/:profesorId/semestre/:semestreId",
+  "/profesor/:profesorId/planificacion-semestre/:planificacionSemestreId",
   authorizeRoles("admin", "secretaria", "profesor"),
-  validateRequest({ params: profesorSemestreParamValidation }),
+  validateRequest({ params: profesorPlanificacionParamValidation }),
   disponibilidadController.clear
 );
 

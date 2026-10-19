@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { asignaturasApi } from './asignaturas.api';
-import { ofertasDelSemestre, prepararOferta, seccionesLibres } from './datos';
-import type { Asignatura, Oferta, ProfesorSeccion, Semestre } from './types';
+import { ofertasDePlanificacion, prepararOferta, seccionesLibres } from './datos';
+import type { Asignatura, Oferta, ProfesorSeccion, PlanificacionSemestre } from './types';
 import { useMutacion } from './useMutacion';
 import PanelAsignatura from './PanelAsignatura';
 import SelectorProfesor from './SelectorProfesor';
@@ -9,7 +9,7 @@ import estilos from './Asignaturas.module.css';
 
 type Accion = { tipo: 'editar'; oferta: Oferta } | { tipo: 'crear' } | { tipo: 'eliminar'; oferta: Oferta };
 export default function PanelSecciones({ asignatura, semestre, alCerrar, alCambiarOfertas }: {
-  asignatura: Asignatura; semestre: Semestre; alCerrar: () => void; alCambiarOfertas: () => void;
+  asignatura: Asignatura; semestre: PlanificacionSemestre; alCerrar: () => void; alCambiarOfertas: () => void;
 }) {
   const [datos, setDatos] = useState<{ ofertas: Oferta[]; profesores: ProfesorSeccion[] } | null>(null);
   const [cargando, setCargando] = useState(true);
@@ -32,7 +32,7 @@ export default function PanelSecciones({ asignatura, semestre, alCerrar, alCambi
         asignaturasApi.ofertas(asignatura.codigo, semestre.id), asignaturasApi.profesores(),
       ]);
       if (numero === solicitud.current) setDatos({
-        ofertas: ofertasDelSemestre(ofertas, asignatura.codigo, semestre.id), profesores,
+        ofertas: ofertasDePlanificacion(ofertas, asignatura.codigo, semestre.id), profesores,
       });
     } catch (fallo) {
       if (numero === solicitud.current) setErrorCarga(fallo instanceof Error ? fallo.message : 'No se pudieron cargar las secciones.');
@@ -77,7 +77,7 @@ export default function PanelSecciones({ asignatura, semestre, alCerrar, alCambi
   }
   return <PanelAsignatura titulo={`Secciones · ${asignatura.codigo}`} ocupado={ocupado} alCerrar={alCerrar}>
     <p>{asignatura.nombre}</p>
-    <p className={estilos.estado}>Semestre seleccionado: <strong>{semestre.codigo}</strong>{semestre.actual ? ' (actual)' : ''}.
+    <p className={estilos.estado}>Semestre seleccionado: <strong>{semestre.carrera.nombre} · {semestre.codigo}</strong>{semestre.actual ? ' (actual)' : ''} · {semestre.estadoPlanificacion}.
       Para cambiarlo, cierra este panel y utiliza el selector de semestre.</p>
     <h3 ref={contenido} tabIndex={-1}>{accion?.tipo === 'crear' ? 'Agregar sección'
       : accion?.tipo === 'editar' ? `Editar sección ${accion.oferta.seccion}`

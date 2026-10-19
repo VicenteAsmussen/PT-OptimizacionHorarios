@@ -7,7 +7,10 @@ export interface Asignatura {
   semestreMalla: number;
   esCritica: boolean;
 }
-export interface Semestre { id: number; codigo: string; actual: boolean }
+export interface PlanificacionSemestre {
+  id: number; carreraId: number; carrera: { id: number; nombre: string };
+  codigo: string; actual: boolean; estadoPlanificacion: 'preparacion' | 'propuesta' | 'publicado';
+}
 export interface ProfesorSeccion {
   id: number;
   nombre: string;
@@ -17,7 +20,7 @@ export interface ProfesorSeccion {
 export interface Oferta {
   id: number;
   asignaturaCodigo: string;
-  semestreId: number;
+  planificacionSemestreId: number;
   seccion: number;
   profesorId: number;
   cupos: number;

@@ -1,6 +1,9 @@
 import { pgTable, serial, integer, varchar, boolean, unique, uniqueIndex, check } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
 import { carreras } from "./carreras.schema.js";
+import { ofertasAsignaturas } from "./ofertas-asignaturas.schema.js";
+import { horariosAsignaturas } from "./horarios-asignaturas.schema.js";
+import { disponibilidadProfesores } from "./disponibilidad-profesores.schema.js";
 
 export const planificacionesSemestres = pgTable("planificaciones_semestres", {
   id: serial("id").primaryKey(),
@@ -16,7 +19,10 @@ export const planificacionesSemestres = pgTable("planificaciones_semestres", {
   check("planificaciones_semestres_estado_check", sql`${tabla.estadoPlanificacion} in ('preparacion', 'propuesta', 'publicado')`),
 ]);
 
-export const planificacionesSemestresRelations = relations(planificacionesSemestres, ({ one }) => ({
+export const planificacionesSemestresRelations = relations(planificacionesSemestres, ({ one, many }) => ({
+  ofertas: many(ofertasAsignaturas),
+  horarios: many(horariosAsignaturas),
+  disponibilidades: many(disponibilidadProfesores),
   carrera: one(carreras, {
     fields: [planificacionesSemestres.carreraId],
     references: [carreras.id],

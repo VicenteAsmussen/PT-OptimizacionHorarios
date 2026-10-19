@@ -1,106 +1,109 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import express, { type Request, type Response, type NextFunction } from "express";
 import request from "supertest";
-// Opt in only with an explicitly isolated, disposable database.
-const runDatabaseTests = process.env.RUN_ISOLATED_DATABASE_TESTS === "true";
-const app = runDatabaseTests ? (await import("../src/app.js")).app : undefined!;
+import { planificacionesSemestresRouter } from "../src/routes/planificaciones-semestres.routes.js";
+import { planificacionesSemestresRepository } from "../src/repositories/planificaciones-semestres.repository.js";
 
-describe.skipIf(!runDatabaseTests)("Módulo Semestres (/api/semestres)", () => {
-  let secretariaCookie: string[];
-  let profesorCookie: string[];
-  let semestreId1: number;
-  let semestreId2: number;
-
-  beforeAll(async () => {
-    // Iniciar sesión como secretaria y profesor
-    const secRes = await request(app)
-      .post("/api/auth/login")
-      .send({ correo: "secretaria@ubiobio.cl", clave: "123456" });
-    secretariaCookie = secRes.headers["set-cookie"];
-
-    const profRes = await request(app)
-      .post("/api/auth/login")
-      .send({ correo: "profesor@ubiobio.cl", clave: "123456" });
-    profesorCookie = profRes.headers["set-cookie"];
-
-    // Obtener semestres existentes
-    const semsRes = await request(app)
-      .get("/api/semestres")
-      .set("Cookie", secretariaCookie);
-    semestreId1 = semsRes.body.data[0].id;
-    semestreId2 = semsRes.body.data[1].id;
+vi.mock("../src/repositories/planificaciones-semestres.repository.js", () => ({ planificacionesSemestresRepository: {
+  findAll: vi.fn(), findById: vi.fn(), findProfesorByUsuarioId: vi.fn(), profesorAutorizado: vi.fn(), create: vi.fn(), update: vi.fn(),
+} }));
+vi.mock("../src/utils/alcance-carrera.js", async importar => {
+  const original = await importar<typeof import("../src/utils/alcance-carrera.js")>();
+  return { ...original, resolverAlcanceCarrera: async (usuario: { rol: string }) => usuario.rol === "secretaria" ? { carreraId: 1 } : undefined };
+});
+vi.mock("../src/middlewares/auth.middleware.js", () => ({ authenticate: (req: Request, res: Response, next: NextFunction) => {
+  const rol = req.header("x-rol");
+  if (!rol) { res.sendStatus(401); return; }
+  req.user = { id: 5, rol } as Request["user"];
+  next();
+} }));
+const app = express();
+app.use(express.json());
+app.use("/api/planificaciones-semestres", planificacionesSemestresRouter);
+app.use((error: { statusCode?: number }, _req: Request, res: Response, _next: NextFunction) => res.sendStatus(error.statusCode ?? 500));
+const planificacion = { id: 7, carreraId: 1, codigo: "2026-2", anio: 2026, actual: true, estadoPlanificacion: "preparacion", carrera: { id: 1, nombre: "Carrera A" } };
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.mocked(planificacionesSemestresRepository.findAll).mockResolvedValue([planificacion] as never);
+  vi.mocked(planificacionesSemestresRepository.findById).mockResolvedValue(planificacion as never);
+  vi.mocked(planificacionesSemestresRepository.findProfesorByUsuarioId).mockResolvedValue({ id: 3, departamentoId: 4 });
+  vi.mocked(planificacionesSemestresRepository.profesorAutorizado).mockResolvedValue(true);
+  vi.mocked(planificacionesSemestresRepository.create).mockResolvedValue(planificacion as never);
+  vi.mocked(planificacionesSemestresRepository.update).mockResolvedValue(planificacion as never);
+});
+describe("Planificaciones semestre HTTP (offline; reemplazo de semestres)", () => {
+  it("profesor puede listar períodos autorizados con estado actual", async () => {
+    const respuesta = await request(app).get("/api/planificaciones-semestres").set("x-rol", "profesor");
+    expect(respuesta.status).toBe(200);
+    expect(respuesta.body.data[0]).toMatchObject({ actual: true, estadoPlanificacion: "preparacion" });
+    expect(planificacionesSemestresRepository.findAll).toHaveBeenCalledWith(undefined, 5);
   });
-
-  it("Debe consultar el semestre actual con GET /api/semestres/actual (200)", async () => {
-    const res = await request(app)
-      .get("/api/semestres/actual")
-      .set("Cookie", profesorCookie); // El profesor también puede consultar el actual
-
-    expect(res.status).toBe(200);
-    expect(res.body.status).toBe("success");
-    expect(res.body.data.actual).toBe(true);
+  it("secretaria lista solo su carrera y no puede seleccionar otra", async () => {
+    expect((await request(app).get("/api/planificaciones-semestres").set("x-rol", "secretaria")).status).toBe(200);
+    expect(planificacionesSemestresRepository.findAll).toHaveBeenCalledWith(1, undefined);
+    expect((await request(app).get("/api/planificaciones-semestres?carreraId=2").set("x-rol", "secretaria")).status).toBe(403);
   });
-
-  it("Secretaria puede activar un semestre diferente como actual con PATCH /:id/activar (200)", async () => {
-    // 1. Activar semestre 2
-    const patchRes = await request(app)
-      .patch(`/api/semestres/${semestreId2}/activar`)
-      .set("Cookie", secretariaCookie);
-
-    expect(patchRes.status).toBe(200);
-    expect(patchRes.body.status).toBe("success");
-    expect(patchRes.body.data.id).toBe(semestreId2);
-    expect(patchRes.body.data.actual).toBe(true);
-
-    // 2. Verificar que el nuevo actual es el semestre 2
-    const actualRes = await request(app)
-      .get("/api/semestres/actual")
-      .set("Cookie", profesorCookie);
-
-    expect(actualRes.body.data.id).toBe(semestreId2);
-
-    // 3. Restaurar semestre 1 como actual
-    await request(app)
-      .patch(`/api/semestres/${semestreId1}/activar`)
-      .set("Cookie", secretariaCookie);
+  it("admin puede listar todas las carreras sin una elección implícita", async () => {
+    expect((await request(app).get("/api/planificaciones-semestres").set("x-rol", "admin")).status).toBe(200);
+    expect(planificacionesSemestresRepository.findAll).toHaveBeenCalledWith(undefined, undefined);
   });
-
-  it("Profesor NO puede activar semestres (403 Forbidden)", async () => {
-    const res = await request(app)
-      .patch(`/api/semestres/${semestreId2}/activar`)
-      .set("Cookie", profesorCookie);
-
-    expect(res.status).toBe(403);
+  it("secretaria puede activar un período de su carrera con PATCH", async () => {
+    const respuesta = await request(app).patch("/api/planificaciones-semestres/7").set("x-rol", "secretaria").send({ actual: true });
+    expect(respuesta.status).toBe(200);
+    expect(planificacionesSemestresRepository.update).toHaveBeenCalledWith(7, 1, { actual: true });
   });
-
-  it("Debe crear un semestre sin publicación en su respuesta (201)", async () => {
-    const nuevoCodigo = `2099-${Date.now().toString().slice(-3)}`;
-    const res = await request(app)
-      .post("/api/semestres")
-      .set("Cookie", secretariaCookie)
-      .send({
-        codigo: nuevoCodigo,
-        anio: 2099,
-      });
-
-    expect(res.status).toBe(201);
-    expect(res.body.status).toBe("success");
-    expect(res.body.data.codigo).toBe(nuevoCodigo);
-    expect(res.body.data).not.toHaveProperty("horarioPublicado");
-
-    const nuevoId = res.body.data.id;
-
-    const patchRes = await request(app)
-      .patch(`/api/semestres/${nuevoId}`)
-      .set("Cookie", secretariaCookie)
-      .send({ anio: 2098 });
-
-    expect(patchRes.status).toBe(200);
-    expect(patchRes.body.data.anio).toBe(2098);
-    expect(patchRes.body.data).not.toHaveProperty("horarioPublicado");
-
-    // Limpiar semestre de prueba
-    await request(app)
-      .delete(`/api/semestres/${nuevoId}`)
-      .set("Cookie", secretariaCookie);
+  it("profesor no puede activar ni crear períodos", async () => {
+    expect((await request(app).patch("/api/planificaciones-semestres/7").set("x-rol", "profesor").send({ actual: true })).status).toBe(403);
+    expect((await request(app).post("/api/planificaciones-semestres").set("x-rol", "profesor").send({ carreraId: 1, codigo: "2027-1", anio: 2027 })).status).toBe(403);
+  });
+  it("crea período vacío y actualiza codigo sin desactivar actual ni publicar entradas", async () => {
+    const nueva = await request(app).post("/api/planificaciones-semestres").set("x-rol", "secretaria").send({ carreraId: 1, codigo: "2027-1", anio: 2027 });
+    expect(nueva.status).toBe(201);
+    expect(nueva.body.data).not.toHaveProperty("horarioPublicado");
+    expect(nueva.body.data.anio).toBe(2026);
+    expect(planificacionesSemestresRepository.create).toHaveBeenCalledWith({ carreraId: 1, codigo: "2027-1", anio: 2027, actual: false });
+    expect((await request(app).patch("/api/planificaciones-semestres/7").set("x-rol", "secretaria").send({ codigo: "2028-1" })).status).toBe(200);
+    expect(planificacionesSemestresRepository.update).toHaveBeenCalledWith(7, 1, { codigo: "2028-1" });
+  });
+  it.each([2000, 2026, 2100])("acepta anio %s en POST y PATCH", async anio => {
+    expect((await request(app).post("/api/planificaciones-semestres").set("x-rol", "admin").send({ carreraId: 1, codigo: "Periodo libre", anio })).status).toBe(201);
+    expect(planificacionesSemestresRepository.create).toHaveBeenCalledWith({ carreraId: 1, codigo: "Periodo libre", anio, actual: false });
+    expect((await request(app).patch("/api/planificaciones-semestres/7").set("x-rol", "admin").send({ anio })).status).toBe(200);
+    expect(planificacionesSemestresRepository.update).toHaveBeenCalledWith(7, 1, { anio });
+  });
+  it.each([1999, 2101, 2026.5, "2026", null])("rechaza anio invalido %j en POST y PATCH", async anio => {
+    expect((await request(app).post("/api/planificaciones-semestres").set("x-rol", "admin").send({ carreraId: 1, codigo: "2026-1", anio })).status).toBe(400);
+    expect((await request(app).patch("/api/planificaciones-semestres/7").set("x-rol", "admin").send({ anio })).status).toBe(400);
+    expect(planificacionesSemestresRepository.create).not.toHaveBeenCalled();
+    expect(planificacionesSemestresRepository.update).not.toHaveBeenCalled();
+  });
+  it("requiere anio al crear y limita codigo a varchar20", async () => {
+    expect((await request(app).post("/api/planificaciones-semestres").set("x-rol", "admin").send({ carreraId: 1, codigo: "2026-1" })).status).toBe(400);
+    for (const codigo of ["", "x".repeat(21)]) {
+      expect((await request(app).post("/api/planificaciones-semestres").set("x-rol", "admin").send({ carreraId: 1, codigo, anio: 2026 })).status).toBe(400);
+      expect((await request(app).patch("/api/planificaciones-semestres/7").set("x-rol", "admin").send({ codigo })).status).toBe(400);
+    }
+    expect(planificacionesSemestresRepository.create).not.toHaveBeenCalled();
+    expect(planificacionesSemestresRepository.update).not.toHaveBeenCalled();
+  });
+  it("no permite transferir carrera ni escribir estado mediante PATCH", async () => {
+    for (const datos of [{ carreraId: 2 }, { estadoPlanificacion: "publicado" }, { estadoPlanificacion: "preparacion" }]) {
+      expect((await request(app).patch("/api/planificaciones-semestres/7").set("x-rol", "admin").send(datos)).status).toBe(400);
+    }
+    expect(planificacionesSemestresRepository.update).not.toHaveBeenCalled();
+  });
+  it("secretaria no puede leer/modificar planificación ajena con mismo código", async () => {
+    vi.mocked(planificacionesSemestresRepository.findById).mockResolvedValue({ ...planificacion, carreraId: 2 } as never);
+    expect((await request(app).get("/api/planificaciones-semestres/7").set("x-rol", "secretaria")).status).toBe(404);
+    expect((await request(app).patch("/api/planificaciones-semestres/7").set("x-rol", "secretaria").send({ codigo: "2028-1" })).status).toBe(404);
+  });
+  it("profesor sin relación de carrera no puede consultar el período", async () => {
+    vi.mocked(planificacionesSemestresRepository.profesorAutorizado).mockResolvedValue(false);
+    expect((await request(app).get("/api/planificaciones-semestres/7").set("x-rol", "profesor")).status).toBe(403);
+  });
+  it.each(["propuesta", "publicado"])("PATCH no modifica planificación %s", async estadoPlanificacion => {
+    vi.mocked(planificacionesSemestresRepository.findById).mockResolvedValue({ ...planificacion, estadoPlanificacion } as never);
+    expect((await request(app).patch("/api/planificaciones-semestres/7").set("x-rol", "admin").send({ codigo: "2028-1" })).status).toBe(403);
+    expect(planificacionesSemestresRepository.update).not.toHaveBeenCalled();
   });
 });

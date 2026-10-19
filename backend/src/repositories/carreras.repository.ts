@@ -11,6 +11,7 @@ import { secretarias } from "../db/schema/secretarias.schema.js";
 import { carreraAsignatura } from "../db/schema/carrera-asignatura.schema.js";
 import { profesores } from "../db/schema/profesores.schema.js";
 import { ofertasAsignaturas } from "../db/schema/ofertas-asignaturas.schema.js";
+import { planificacionesSemestres } from "../db/schema/planificaciones-semestres.schema.js";
 import type { AlcanceCarrera } from "../utils/alcance-carrera.js";
 
 type RelacionDepartamentoInput = {
@@ -40,8 +41,9 @@ export const carrerasRepository = {
       .map((relacion) => relacion.id);
     const docentes = departamentosIds.length ? await db.select({ id: profesores.id }).from(profesores)
       .where(inArray(profesores.departamentoId, departamentosIds)) : [];
-    const ofertas = asignaturasCodigos.length ? await db.select({ id: ofertasAsignaturas.id }).from(ofertasAsignaturas)
-      .where(inArray(ofertasAsignaturas.asignaturaCodigo, asignaturasCodigos)) : [];
+    const ofertas = await db.select({ id: ofertasAsignaturas.id }).from(ofertasAsignaturas)
+      .innerJoin(planificacionesSemestres, eq(planificacionesSemestres.id, ofertasAsignaturas.planificacionSemestreId))
+      .where(eq(planificacionesSemestres.carreraId, carreraId));
     return { carreraId, asignaturasCodigos, departamentosIds, departamentosGestionadosIds,
       profesoresIds: docentes.map((docente) => docente.id), ofertasIds: ofertas.map((oferta) => oferta.id) };
   },
