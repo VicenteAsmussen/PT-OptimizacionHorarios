@@ -253,6 +253,17 @@ function crearSeedHorarios() {
 }
 
 describe("Seed de ofertas/horarios/disponibilidad por carrera (offline)", () => {
+  it("mantiene Civil actual en preparacion, el historico publicado y Ejecucion en propuesta", async () => {
+    const contexto = crearSeedHorarios();
+    for (let repeticion = 0; repeticion < 2; repeticion++) {
+      await sembrarPlanificacionHorarios(contexto.baseDatos);
+      const estados = datosPlanificacionHorarios.map(fixture => {
+        const carrera = contexto.tablas.carreras.find(fila => fila.nombre === fixture.carrera)!;
+        return contexto.tablas.planificaciones_semestres.find(fila => fila.carreraId === carrera.id && fila.codigo === fixture.periodo)?.estadoPlanificacion;
+      });
+      expect(estados).toEqual(["publicado", "preparacion", "propuesta"]);
+    }
+  });
   it("mapea fixtures explícitos y repetir no duplica ni reabre estados", async () => {
     const contexto = crearSeedHorarios();
     await sembrarPlanificacionHorarios(contexto.baseDatos);
@@ -262,7 +273,7 @@ describe("Seed de ofertas/horarios/disponibilidad por carrera (offline)", () => 
     for (const fixture of datosPlanificacionHorarios) {
       const carrera = contexto.tablas.carreras.find(fila => fila.nombre === fixture.carrera)!;
       const planificacion = contexto.tablas.planificaciones_semestres.find(fila => fila.carreraId === carrera.id && fila.codigo === fixture.periodo)!;
-      expect(planificacion.estadoPlanificacion).toBe(fixture.publicado ? "publicado" : "propuesta");
+      expect(planificacion.estadoPlanificacion).toBe(fixture.estadoPlanificacion);
       const oferta = contexto.tablas.ofertas_asignaturas.find(fila => fila.planificacionSemestreId === planificacion.id)!;
       expect(oferta.asignaturaCodigo).toBe(fixture.asignaturaCodigo);
       expect(contexto.tablas.horarios_asignaturas.find(fila => fila.ofertaId === oferta.id)?.planificacionSemestreId).toBe(planificacion.id);
@@ -279,6 +290,7 @@ describe("Seed de ofertas/horarios/disponibilidad por carrera (offline)", () => 
     const contexto = crearSeedHorarios();
     contexto.tablas.planificaciones_semestres.forEach(fila => { fila.estadoPlanificacion = estado; });
     const antes = structuredClone(contexto.tablas);
+    await sembrarPlanificacionHorarios(contexto.baseDatos);
     await sembrarPlanificacionHorarios(contexto.baseDatos);
     expect(contexto.tablas).toEqual(antes);
     expect(contexto.sentencias.some(sql => /^(insert|update|delete)/.test(sql))).toBe(false);
