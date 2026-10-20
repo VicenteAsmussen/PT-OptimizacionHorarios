@@ -39,12 +39,18 @@ describe("proyecciones anidadas sin nueva exposición de RUT", () => {
     const { disponibilidadRepository } = await import("../src/repositories/disponibilidad.repository.js");
     await disponibilidadRepository.findAll();
     await disponibilidadRepository.findById(1);
-    await disponibilidadRepository.findSpecific(7, 1, 1);
+    // Solo las lecturas de recursos hidratan profesor; findSpecific comprueba existencia.
+    expect(db.query.disponibilidadProfesores.findMany).toHaveBeenCalledTimes(1);
+    expect(db.query.disponibilidadProfesores.findFirst).toHaveBeenCalledTimes(1);
     for (const consulta of [db.query.disponibilidadProfesores.findMany, db.query.disponibilidadProfesores.findFirst]) {
       for (const [opciones] of vi.mocked(consulta).mock.calls) {
         expect(opciones?.with?.profesor).toMatchObject({ columns: columnasAnteriores });
       }
     }
+    vi.mocked(db.query.disponibilidadProfesores.findFirst).mockClear();
+    await disponibilidadRepository.findSpecific(7, 1, 1);
+    expect(db.query.disponibilidadProfesores.findFirst).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(db.query.disponibilidadProfesores.findFirst).mock.calls[0]?.[0]?.with).toBeUndefined();
   });
   it("ofertas conserva departamento y campos anteriores", async () => {
     const { db } = await import("../src/config/db.js");

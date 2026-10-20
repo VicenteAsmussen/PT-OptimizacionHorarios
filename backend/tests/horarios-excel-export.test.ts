@@ -8,17 +8,18 @@ import { horariosService as servicioHorarios } from "../src/services/horarios.se
 
 // Los casos de formato existentes usan el alcance global de un administrador.
 const horariosService = {
-  exportarExcelSalas: (semestreId: number, usuario = { id: 1, rol: "admin" }) =>
-    servicioHorarios.exportarExcelSalas(semestreId, usuario),
+  exportarExcelSalas: (planificacionSemestreId: number, usuario = { id: 1, rol: "admin" }) =>
+    servicioHorarios.exportarExcelSalas(planificacionSemestreId, usuario),
 };
 import { excelSalasQueryValidation } from "../src/validations/horarios.validation.js";
 import { encabezadosExcelSalas } from "../src/utils/excel-salas.js";
 import { BadRequestError, NotFoundError, ForbiddenError } from "../src/utils/errors.js";
 
 vi.mock("../src/repositories/horarios.repository.js", () => ({
-  horariosRepository: { findParaExportarSalas: vi.fn(), findSemestreById: vi.fn(), findCarreraSecretariaByUsuarioId: vi.fn() },
+  horariosRepository: { findParaExportarSalas: vi.fn(), findPlanificacionById: vi.fn(), findCarreraSecretariaByUsuarioId: vi.fn() },
 }));
 
+vi.mock("../src/config/db.js", () => ({ db: {} }));
 vi.mock("../src/middlewares/auth.middleware.js", () => ({
   authenticate: (req: Request, res: Response, next: NextFunction) => {
     const rol = req.header("x-rol-prueba");
@@ -59,12 +60,12 @@ async function leerLibro() {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(horariosRepository.findCarreraSecretariaByUsuarioId).mockResolvedValue({ carreraId: 3 });
-  vi.mocked(horariosRepository.findSemestreById).mockResolvedValue({ codigo: "2026-1" });
+  vi.mocked(horariosRepository.findPlanificacionById).mockResolvedValue({ id: 9, carreraId: 3, codigo: "2026-1" } as never);
 });
 describe("Exportación Excel de asignación de salas", () => {
   it("deriva el alcance de secretaria del usuario y no de filtros HTTP", async () => {
     vi.mocked(horariosRepository.findParaExportarSalas).mockResolvedValue([entrada()]);
-    const respuesta = await request(aplicacion).get("/api/horarios-asignaturas/excel/salas?semestreId=9&carreraId=99&departamentoId=99")
+    const respuesta = await request(aplicacion).get("/api/horarios-asignaturas/excel/salas?planificacionSemestreId=9&carreraId=99&departamentoId=99")
       .set("x-rol-prueba", "secretaria");
     expect(respuesta.status).toBe(200);
     expect(horariosRepository.findCarreraSecretariaByUsuarioId).toHaveBeenCalledWith(1);
@@ -79,7 +80,7 @@ describe("Exportación Excel de asignación de salas", () => {
   it("genera una hoja visible, encabezados y datos de malla, con todas las salas vacías", async () => {
     vi.mocked(horariosRepository.findParaExportarSalas).mockResolvedValue([entrada()]);
     const libro = await leerLibro();
-    expect(horariosRepository.findSemestreById).toHaveBeenCalledWith(9);
+    expect(horariosRepository.findPlanificacionById).toHaveBeenCalledWith(9);
     expect(horariosRepository.findParaExportarSalas).toHaveBeenCalledWith(9);
     expect(libro.worksheets).toHaveLength(1);
     const hoja = libro.worksheets[0]!;
@@ -128,22 +129,22 @@ describe("Exportación Excel de asignación de salas", () => {
   });
 
   it("usa el código del semestre seleccionado, no su ID", async () => {
-    vi.mocked(horariosRepository.findSemestreById).mockResolvedValue({ codigo: "2027-2" });
+    vi.mocked(horariosRepository.findPlanificacionById).mockResolvedValue({ id: 42, carreraId: 3, codigo: "2027-2" } as never);
     vi.mocked(horariosRepository.findParaExportarSalas).mockResolvedValue([entrada()]);
     expect((await horariosService.exportarExcelSalas(42)).nombreArchivo).toBe("Resumen Malla (2027-2).xlsx");
-    expect(horariosRepository.findSemestreById).toHaveBeenCalledWith(42);
+    expect(horariosRepository.findPlanificacionById).toHaveBeenCalledWith(42);
   });
 
   it("rechaza un semestre inexistente antes de consultar horarios", async () => {
-    vi.mocked(horariosRepository.findSemestreById).mockResolvedValue(undefined);
+    vi.mocked(horariosRepository.findPlanificacionById).mockResolvedValue(undefined);
     await expect(horariosService.exportarExcelSalas(9)).rejects.toBeInstanceOf(NotFoundError);
-    await expect(horariosService.exportarExcelSalas(9)).rejects.toThrow("Semestre con ID 9 no encontrado");
+    await expect(horariosService.exportarExcelSalas(9)).rejects.toThrow("Planificación con ID 9 no encontrada");
     expect(horariosRepository.findParaExportarSalas).not.toHaveBeenCalled();
   });
 
   it("responde HTTP 404 para un semestre inexistente", async () => {
-    vi.mocked(horariosRepository.findSemestreById).mockResolvedValue(undefined);
-    const respuesta = await request(aplicacion).get("/api/horarios-asignaturas/excel/salas?semestreId=9")
+    vi.mocked(horariosRepository.findPlanificacionById).mockResolvedValue(undefined);
+    const respuesta = await request(aplicacion).get("/api/horarios-asignaturas/excel/salas?planificacionSemestreId=9")
       .set("x-rol-prueba", "secretaria");
     expect(respuesta.status).toBe(404);
     expect(respuesta.headers["content-disposition"]).toBeUndefined();
@@ -157,7 +158,7 @@ describe("Exportación Excel de asignación de salas", () => {
     vi.mocked(horariosRepository.findParaExportarSalas).mockResolvedValue(entradas);
     await expect(horariosService.exportarExcelSalas(9)).rejects.toBeInstanceOf(BadRequestError);
     await expect(horariosService.exportarExcelSalas(9)).rejects.toThrow("No hay horarios generados para este semestre que se puedan exportar (se excluyen laboratorios).");
-    const respuesta = await request(aplicacion).get("/api/horarios-asignaturas/excel/salas?semestreId=9")
+    const respuesta = await request(aplicacion).get("/api/horarios-asignaturas/excel/salas?planificacionSemestreId=9")
       .set("x-rol-prueba", "secretaria");
     expect(respuesta.status).toBe(400);
     expect(respuesta.headers["content-disposition"]).toBeUndefined();
@@ -165,7 +166,7 @@ describe("Exportación Excel de asignación de salas", () => {
 
   it.each(["admin", "secretaria"])("descarga HTTP para %s con cabeceras de adjunto", async (rol) => {
     vi.mocked(horariosRepository.findParaExportarSalas).mockResolvedValue([entrada()]);
-    const respuesta = await request(aplicacion).get("/api/horarios-asignaturas/excel/salas?semestreId=9")
+    const respuesta = await request(aplicacion).get("/api/horarios-asignaturas/excel/salas?planificacionSemestreId=9")
       .set("x-rol-prueba", rol).buffer(true).parse((respuestaBinaria, terminar) => {
         const fragmentos: Buffer[] = [];
         respuestaBinaria.on("data", (fragmento: Buffer) => fragmentos.push(fragmento));
@@ -186,23 +187,23 @@ describe("Exportación Excel de asignación de salas", () => {
   });
 
   it("rechaza profesor y solicitudes sin autenticación antes de consultar", async () => {
-    expect((await request(aplicacion).get("/api/horarios-asignaturas/excel/salas?semestreId=9")).status).toBe(401);
-    expect((await request(aplicacion).get("/api/horarios-asignaturas/excel/salas?semestreId=9")
+    expect((await request(aplicacion).get("/api/horarios-asignaturas/excel/salas?planificacionSemestreId=9")).status).toBe(401);
+    expect((await request(aplicacion).get("/api/horarios-asignaturas/excel/salas?planificacionSemestreId=9")
       .set("x-rol-prueba", "profesor")).status).toBe(403);
     expect(horariosRepository.findParaExportarSalas).not.toHaveBeenCalled();
   });
 
   it("rechaza la consulta HTTP inválida antes de consultar", async () => {
-    const respuesta = await request(aplicacion).get("/api/horarios-asignaturas/excel/salas?semestreId=0")
+    const respuesta = await request(aplicacion).get("/api/horarios-asignaturas/excel/salas?planificacionSemestreId=0")
       .set("x-rol-prueba", "secretaria");
     expect(respuesta.status).toBe(400);
     expect(horariosRepository.findParaExportarSalas).not.toHaveBeenCalled();
   });
 
-  it("requiere semestreId entero positivo", () => {
-    expect(excelSalasQueryValidation.parse({ semestreId: "9" })).toEqual({ semestreId: 9 });
-    for (const semestreId of [undefined, "", "0", "-1", "1.5", "abc"]) {
-      expect(excelSalasQueryValidation.safeParse({ semestreId }).success).toBe(false);
+  it("requiere planificacionSemestreId entero positivo", () => {
+    expect(excelSalasQueryValidation.parse({ planificacionSemestreId: "9" })).toEqual({ planificacionSemestreId: 9 });
+    for (const planificacionSemestreId of [undefined, "", "0", "-1", "1.5", "abc"]) {
+      expect(excelSalasQueryValidation.safeParse({ planificacionSemestreId }).success).toBe(false);
     }
   });
 });

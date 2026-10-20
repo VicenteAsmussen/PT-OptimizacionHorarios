@@ -2,8 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { asignaturasApi } from './asignaturas.api';
-import { contarSecciones, filtrarAsignaturas, limpiarFiltros, puedeGestionarAsignaturas, semestreInicial } from './datos';
-import type { Asignatura, Departamento, Semestre } from './types';
+import { contarSecciones, estadoSecciones, filtrarAsignaturas, limpiarFiltros, puedeGestionarAsignaturas, planificacionInicial } from './datos';
+import type { Asignatura, Departamento, PlanificacionSemestre } from './types';
 import EditarAsignatura from './EditarAsignatura';
 import PanelSecciones from './PanelSecciones';
 import estilos from './Asignaturas.module.css';
@@ -12,8 +12,8 @@ export function RequireGestionAsignaturas() {
   const { usuario } = useAuth();
   return puedeGestionarAsignaturas(usuario?.rol) ? <Outlet /> : <Navigate to="/app/dashboard" replace />;
 }
-interface Datos { asignaturas: Asignatura[]; departamentos: Departamento[]; semestres: Semestre[] }
-type Conteos = { usuarioId: number | undefined; semestreId: number } & (
+interface Datos { asignaturas: Asignatura[]; departamentos: Departamento[]; planificaciones: PlanificacionSemestre[] }
+type Conteos = { usuarioId: number | undefined; planificacionSemestreId: number } & (
   { estado: 'cargando' } | { estado: 'error'; mensaje: string } | { estado: 'listo'; cantidades: Map<string, number> }
 );
 export default function AsignaturasPage() {
@@ -25,7 +25,7 @@ export default function AsignaturasPage() {
   const [busqueda, setBusqueda] = useState('');
   const [departamento, setDepartamento] = useState('');
   const [malla, setMalla] = useState('');
-  const [semestreId, setSemestreId] = useState<number | null>(null);
+  const [planificacionSemestreId, setPlanificacionSemestreId] = useState<number | null>(null);
   const [seleccion, setSeleccion] = useState<{ tipo: 'editar' | 'secciones'; asignatura: Asignatura } | null>(null);
   const [conteos, setConteos] = useState<Conteos | null>(null);
   const solicitudConteos = useRef(0);
@@ -37,12 +37,12 @@ export default function AsignaturasPage() {
     setDatos(null);
     setError('');
     try {
-      const [asignaturas, departamentos, semestres] = await Promise.all([
-        asignaturasApi.listar(), asignaturasApi.departamentos(), asignaturasApi.semestres(),
+      const [asignaturas, departamentos, planificaciones] = await Promise.all([
+        asignaturasApi.listar(), asignaturasApi.departamentos(), asignaturasApi.planificaciones(),
       ]);
       if (numero === solicitud.current) {
-        setDatos({ asignaturas, departamentos, semestres });
-        setSemestreId(anterior => semestres.some(s => s.id === anterior) ? anterior : semestreInicial(semestres));
+        setDatos({ asignaturas, departamentos, planificaciones });
+        setPlanificacionSemestreId(anterior => planificaciones.some(p => p.id === anterior) ? anterior : planificacionInicial(planificaciones));
       }
     } catch (fallo) {
       if (numero === solicitud.current) setError(fallo instanceof Error ? fallo.message : 'No se pudieron cargar las asignaturas.');
@@ -52,35 +52,34 @@ export default function AsignaturasPage() {
   }, []);
   useEffect(() => {
     setSeleccion(null);
-    setSemestreId(null);
+    setPlanificacionSemestreId(null);
     void cargar();
     return () => { solicitud.current++; };
   }, [cargar, usuario?.id]);
   const cargarConteos = useCallback(async () => {
     const numero = ++solicitudConteos.current;
-    if (semestreId === null) {
+    if (planificacionSemestreId === null) {
       setConteos(null);
       return;
     }
-    const contexto = { usuarioId: usuario?.id, semestreId };
-    // Invalidar antes de leer: una lectura fallida nunca conserva cantidades anteriores.
+    const contexto = { usuarioId: usuario?.id, planificacionSemestreId };
+    // Una lectura fallida nunca conserva cantidades de otra carrera o periodo.
     setConteos({ ...contexto, estado: 'cargando' });
     try {
-      const ofertas = await asignaturasApi.ofertasSemestre(semestreId);
+      const ofertas = await asignaturasApi.ofertasPlanificacion(planificacionSemestreId);
       if (numero === solicitudConteos.current) {
-        setConteos({ ...contexto, estado: 'listo', cantidades: contarSecciones(ofertas, semestreId) });
+        setConteos({ ...contexto, estado: 'listo', cantidades: contarSecciones(ofertas, planificacionSemestreId) });
       }
     } catch (fallo) {
       if (numero === solicitudConteos.current) setConteos({ ...contexto, estado: 'error',
         mensaje: fallo instanceof Error ? fallo.message : 'No se pudieron cargar los conteos.' });
     }
-  }, [semestreId, usuario?.id]);
+  }, [planificacionSemestreId, usuario?.id]);
   useEffect(() => {
     void cargarConteos();
     return () => { solicitudConteos.current++; };
   }, [cargarConteos]);
-  // El contexto evita mostrar un conteo anterior incluso antes de ejecutar el efecto.
-  const conteoVigente = conteos?.usuarioId === usuario?.id && conteos?.semestreId === semestreId ? conteos : null;
+  const conteoVigente = conteos?.usuarioId === usuario?.id && conteos?.planificacionSemestreId === planificacionSemestreId ? conteos : null;
   function restablecerFiltros() {
     const filtros = limpiarFiltros({ busqueda, departamento, malla });
     setBusqueda(filtros.busqueda);
@@ -88,11 +87,11 @@ export default function AsignaturasPage() {
     setMalla(filtros.malla);
   }
   const visibles = datos ? filtrarAsignaturas(datos.asignaturas, busqueda, departamento, malla) : [];
-  const semestre = datos?.semestres.find(s => s.id === semestreId);
+  const planificacion = datos?.planificaciones.find(p => p.id === planificacionSemestreId);
   return <section className={estilos.pagina} aria-labelledby="titulo-asignaturas">
     <header className={estilos.cabecera}><div>
       <h1 id="titulo-asignaturas" tabIndex={-1} ref={titulo}>Asignaturas</h1>
-      <p>Edita las asignaturas de tu alcance y gestiona sus secciones por semestre.</p>
+      <p>Edita las asignaturas de tu alcance y gestiona sus secciones por semestre y carrera.</p>
     </div></header>
     <div className={estilos.filtros}>
       <label>Buscar por nombre o código<input type="search" placeholder="Buscar por nombre o código" value={busqueda} onChange={e => setBusqueda(e.target.value)} /></label>
@@ -103,29 +102,29 @@ export default function AsignaturasPage() {
       <label>Semestre de malla<select value={malla} onChange={e => setMalla(e.target.value)}>
         <option value="">Todos</option>{Array.from({ length: 14 }, (_, i) => <option key={i + 1} value={i + 1}>{i + 1}</option>)}
       </select></label>
-      <label>Semestre para secciones<select disabled={cargando} value={semestreId ?? ''} onChange={e => {
+      <label>Semestre para secciones<select disabled={cargando} value={planificacionSemestreId ?? ''} onChange={e => {
         setSeleccion(null);
-        setSemestreId(e.target.value ? Number(e.target.value) : null);
+        setPlanificacionSemestreId(e.target.value ? Number(e.target.value) : null);
       }}>
-        <option value="">Selecciona un semestre</option>
-        {datos?.semestres.map(s => <option key={s.id} value={s.id}>{s.codigo}{s.actual ? ' (actual)' : ''}</option>)}
+        <option value="">Selecciona carrera y semestre</option>
+        {datos?.planificaciones.map(p => <option key={p.id} value={p.id}>{p.carrera.nombre} · {p.codigo}{p.actual ? ' (actual)' : ''}</option>)}
       </select></label>
       <div className={estilos.acciones}><button type="button" className="boton boton--gris" onClick={restablecerFiltros}>Limpiar filtros</button></div>
     </div>
-    {cargando && <p role="status" className={estilos.estado}>Cargando asignaturas y semestres…</p>}
+    {cargando && <p role="status" className={estilos.estado}>Cargando asignaturas y planificaciones…</p>}
     {error && <div role="alert" className={estilos.error}><p>{error}</p>
       {guardado && <p>Los cambios ya se guardaron. Reintentar solo actualiza la lista.</p>}
       <button className="boton" type="button" onClick={() => void cargar()}>Reintentar carga</button></div>}
     {datos && <>
-      {!semestre && <p className={estilos.estado}>{datos.semestres.length
-        ? 'Selecciona un semestre para gestionar secciones. No se ha elegido uno automáticamente porque no hay semestre actual.'
-        : 'No hay semestres disponibles. Puedes editar asignaturas, pero no gestionar secciones.'}</p>}
-      {semestre && <>
-        <p className={estilos.contexto}>Secciones en <strong>{semestre.codigo}</strong>. El catálogo de asignaturas se conserva entre semestres.</p>
+      {!planificacion && <p className={estilos.estado}>{datos.planificaciones.length
+        ? 'Selecciona carrera y semestre para gestionar secciones. No se elige automáticamente si hay varias carreras actuales.'
+        : 'No hay planificaciones disponibles. Puedes editar asignaturas, pero no gestionar secciones.'}</p>}
+      {planificacion && <>
+        <p className={estilos.contexto}>Secciones en <strong>{planificacion.carrera.nombre} · {planificacion.codigo}</strong> · {estadoSecciones(planificacion).etiqueta}. El catálogo de asignaturas se conserva entre semestres.</p>
         {(!conteoVigente || conteoVigente.estado === 'cargando') && <p role="status">Cargando conteos de secciones…</p>}
         {conteoVigente?.estado === 'error' && <div role="alert" className={estilos.error}>
-          <p>Conteo no disponible en {semestre.codigo}: {conteoVigente.mensaje}</p>
-          <p>Puedes seguir editando asignaturas y gestionando secciones. No se muestran cantidades anteriores.</p>
+          <p>Conteo no disponible en {planificacion.codigo}: {conteoVigente.mensaje}</p>
+          <p>Puedes seguir editando asignaturas y consultando secciones. No se muestran cantidades anteriores.</p>
           <button type="button" className="boton" onClick={() => void cargarConteos()}>Reintentar conteos</button>
         </div>}
       </>}
@@ -134,10 +133,10 @@ export default function AsignaturasPage() {
         ? 'No hay asignaturas que coincidan con los filtros.' : 'No hay asignaturas disponibles para tu carrera.'}</p>
         : <div className={estilos.tablaContenedor} tabIndex={0} role="region" aria-label="Tabla de asignaturas">
           <table className={estilos.tabla}><thead><tr><th scope="col">Código</th><th scope="col">Asignatura</th>
-            <th scope="col">Departamento</th><th scope="col">Semestre de malla</th><th scope="col">Secciones{semestre ? ` · ${semestre.codigo}` : ''}</th><th scope="col">Acciones</th></tr></thead>
+            <th scope="col">Departamento</th><th scope="col">Semestre de malla</th><th scope="col">Secciones{planificacion ? ` · ${planificacion.codigo}` : ''}</th><th scope="col">Acciones</th></tr></thead>
             <tbody>{visibles.map(a => <tr key={a.codigo}><th scope="row">{a.codigo}</th><td>{a.nombre}</td>
               <td>{a.departamento.nombre}</td><td>{a.semestreMalla}</td><td>
-                {!semestre ? 'Sin semestre' : conteoVigente?.estado === 'listo'
+                {!planificacion ? 'Sin semestre' : conteoVigente?.estado === 'listo'
                   ? (conteoVigente.cantidades.get(a.codigo) ?? 0) === 0
                     ? <span className={estilos.sinSecciones}>Sin secciones</span>
                     : `${conteoVigente.cantidades.get(a.codigo)} secciones`
@@ -145,7 +144,7 @@ export default function AsignaturasPage() {
               </td>
               <td><div className={estilos.acciones}>
                 <button className="boton boton--azul" type="button" aria-label={`Editar ${a.nombre}`} onClick={() => setSeleccion({ tipo: 'editar', asignatura: a })}>Editar</button>
-                <button className="boton boton--gris" type="button" disabled={!semestre} aria-label={`Gestionar secciones de ${a.nombre}`}
+                <button className="boton boton--gris" type="button" disabled={!planificacion} aria-label={`Gestionar secciones de ${a.nombre}`}
                   onClick={() => setSeleccion({ tipo: 'secciones', asignatura: a })}>Gestionar secciones</button>
               </div></td></tr>)}</tbody>
           </table>
@@ -157,8 +156,8 @@ export default function AsignaturasPage() {
           void cargar();
           titulo.current?.focus();
         }} />}
-      {seleccion?.tipo === 'secciones' && semestre && <PanelSecciones key={`${seleccion.asignatura.codigo}-${semestre.id}`}
-        asignatura={seleccion.asignatura} semestre={semestre} alCerrar={() => setSeleccion(null)}
+      {seleccion?.tipo === 'secciones' && planificacion && <PanelSecciones key={`${seleccion.asignatura.codigo}-${planificacion.id}`}
+        asignatura={seleccion.asignatura} semestre={planificacion} alCerrar={() => setSeleccion(null)}
         alCambiarOfertas={() => void cargarConteos()} />}
     </>}
   </section>;

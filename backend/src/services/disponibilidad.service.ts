@@ -1,128 +1,76 @@
 import { exigirEnAlcance, type AlcanceCarrera } from "../utils/alcance-carrera.js";
 import { disponibilidadRepository } from "../repositories/disponibilidad.repository.js";
-import {
-  type CreateDisponibilidadDTO,
-  type SyncDisponibilidadDTO,
-  type DisponibilidadQueryDTO,
-} from "../validations/disponibilidad.validation.js";
+import { planificacionesSemestresRepository } from "../repositories/planificaciones-semestres.repository.js";
+import { planificacionesSemestresService, type UsuarioPlanificacion } from "./planificaciones-semestres.service.js";
+import type { CreateDisponibilidadDTO, SyncDisponibilidadDTO, DisponibilidadQueryDTO } from "../validations/disponibilidad.validation.js";
 import { NotFoundError, ConflictError, BadRequestError, ForbiddenError } from "../utils/errors.js";
 
+async function exigirProfesorPropio(profesorId: number, usuario?: UsuarioPlanificacion) {
+  if (usuario?.rol !== "profesor") return;
+  const profesor = await planificacionesSemestresRepository.findProfesorByUsuarioId(usuario.id);
+  if (!profesor || profesor.id !== profesorId) throw new ForbiddenError("Solo puede gestionar su propia disponibilidad");
+}
+async function exigirEditable(planificacionSemestreId: number, alcance?: AlcanceCarrera, usuario?: UsuarioPlanificacion) {
+  const planificacion = await planificacionesSemestresService.getById(planificacionSemestreId, alcance, usuario);
+  if (!planificacion.actual || planificacion.estadoPlanificacion !== "preparacion") {
+    throw new ForbiddenError("Solo se puede modificar disponibilidad en una planificación actual en preparación");
+  }
+  // El repositorio vuelve a validar el estado bajo el bloqueo de carrera.
+}
 export const disponibilidadService = {
-  async getDisponibilidad(query?: DisponibilidadQueryDTO, alcance?: AlcanceCarrera) {
-    return await disponibilidadRepository.findAll(query, alcance);
+  async getDisponibilidad(consulta?: DisponibilidadQueryDTO, alcance?: AlcanceCarrera, usuario?: UsuarioPlanificacion) {
+    let filtro = consulta;
+    if (usuario?.rol === "profesor") {
+      const profesor = await planificacionesSemestresRepository.findProfesorByUsuarioId(usuario.id);
+      if (!profesor) throw new ForbiddenError("No existe un perfil de profesor asociado");
+      if (consulta?.profesorId && consulta.profesorId !== profesor.id) throw new ForbiddenError("Solo puede consultar su propia disponibilidad");
+      if (consulta?.planificacionSemestreId) await planificacionesSemestresService.getById(consulta.planificacionSemestreId, alcance, usuario);
+      filtro = { ...consulta, profesorId: profesor.id };
+      const planificaciones = await planificacionesSemestresService.getAll(undefined, alcance, usuario);
+      const permitidas = new Set(planificaciones.map(fila => fila.id));
+      return (await disponibilidadRepository.findAll(filtro, alcance)).filter(fila => permitidas.has(fila.planificacionSemestreId));
+    }
+    if (consulta?.planificacionSemestreId) await planificacionesSemestresService.getById(consulta.planificacionSemestreId, alcance, usuario);
+    return disponibilidadRepository.findAll(filtro, alcance);
   },
-
-  async getById(id: number, alcance?: AlcanceCarrera) {
-    const record = await disponibilidadRepository.findById(id);
-    if (!record || (alcance && !alcance.profesoresIds.includes(record.profesorId))) {
-      throw new NotFoundError(`Registro de disponibilidad con ID ${id} no encontrado`);
-    }
-    return record;
+  async getById(id: number, alcance?: AlcanceCarrera, usuario?: UsuarioPlanificacion) {
+    const registro = await disponibilidadRepository.findById(id);
+    if (!registro) throw new NotFoundError(`Registro de disponibilidad con ID ${id} no encontrado`);
+    await exigirProfesorPropio(registro.profesorId, usuario);
+    await planificacionesSemestresService.getById(registro.planificacionSemestreId, alcance, usuario);
+    return registro;
   },
-
-  async createSingle(dto: CreateDisponibilidadDTO, alcance?: AlcanceCarrera) {
-    exigirEnAlcance(alcance?.profesoresIds, dto.profesorId);
-    const profExists = await disponibilidadRepository.checkProfesorExists(dto.profesorId);
-    if (!profExists) {
-      throw new BadRequestError(`El profesor con ID ${dto.profesorId} no existe`);
-    }
-
-    const semExists = await disponibilidadRepository.checkSemestreExists(dto.semestreId);
-    if (!semExists) {
-      throw new BadRequestError(`El semestre con ID ${dto.semestreId} no existe`);
-    }
-
-    const horariosExist = await disponibilidadRepository.checkHorariosExistForSemestre(dto.semestreId);
-    if (horariosExist) {
-      throw new ForbiddenError(
-        "No es posible registrar disponibilidad: ya existe una propuesta de horarios generada para este semestre."
-      );
-    }
-
-    const bloqueExists = await disponibilidadRepository.checkBloqueExists(dto.bloqueId);
-    if (!bloqueExists) {
-      throw new BadRequestError(`El bloque horario con ID ${dto.bloqueId} no existe`);
-    }
-
-    const existing = await disponibilidadRepository.findSpecific(
-      dto.profesorId,
-      dto.semestreId,
-      dto.bloqueId
-    );
-    if (existing) {
-      throw new ConflictError("El profesor ya tiene registrada disponibilidad para ese bloque y semestre");
-    }
-
-    const created = await disponibilidadRepository.create(dto);
-    return await this.getById(created.id);
+  async createSingle(datos: CreateDisponibilidadDTO, alcance?: AlcanceCarrera, usuario?: UsuarioPlanificacion) {
+    exigirEnAlcance(alcance?.profesoresIds, datos.profesorId);
+    await exigirProfesorPropio(datos.profesorId, usuario);
+    await exigirEditable(datos.planificacionSemestreId, alcance, usuario);
+    if (!await disponibilidadRepository.checkProfesorExists(datos.profesorId)) throw new BadRequestError("El profesor no existe");
+    if (!await disponibilidadRepository.checkBloqueExists(datos.bloqueId)) throw new BadRequestError("El bloque horario no existe");
+    if (await disponibilidadRepository.findSpecific(datos.profesorId, datos.planificacionSemestreId, datos.bloqueId)) throw new ConflictError("El profesor ya tiene disponibilidad en ese bloque y planificación");
+    const creada = await disponibilidadRepository.create(datos);
+    return this.getById(creada.id, alcance, usuario);
   },
-
-  async syncGrid(dto: SyncDisponibilidadDTO, alcance?: AlcanceCarrera) {
-    exigirEnAlcance(alcance?.profesoresIds, dto.profesorId);
-    const profExists = await disponibilidadRepository.checkProfesorExists(dto.profesorId);
-    if (!profExists) {
-      throw new BadRequestError(`El profesor con ID ${dto.profesorId} no existe`);
-    }
-
-    const semExists = await disponibilidadRepository.checkSemestreExists(dto.semestreId);
-    if (!semExists) {
-      throw new BadRequestError(`El semestre con ID ${dto.semestreId} no existe`);
-    }
-
-    const horariosExist = await disponibilidadRepository.checkHorariosExistForSemestre(dto.semestreId);
-    if (horariosExist) {
-      throw new ForbiddenError(
-        "No es posible modificar la disponibilidad: ya existe una propuesta de horarios generada para este semestre."
-      );
-    }
-
-    const uniqueBloquesIds = Array.from(new Set(dto.bloquesIds));
-
-    if (uniqueBloquesIds.length > 0) {
-      const existingBloques = await disponibilidadRepository.findExistingBloquesIds(uniqueBloquesIds);
-      const missing = uniqueBloquesIds.filter((id) => !existingBloques.includes(id));
-      if (missing.length > 0) {
-        throw new BadRequestError(`Los siguientes bloques horarios no existen: [${missing.join(", ")}]`);
-      }
-    }
-
-    return await disponibilidadRepository.syncDisponibilidad(
-      dto.profesorId,
-      dto.semestreId,
-      uniqueBloquesIds
-    );
+  async syncGrid(datos: SyncDisponibilidadDTO, alcance?: AlcanceCarrera, usuario?: UsuarioPlanificacion) {
+    exigirEnAlcance(alcance?.profesoresIds, datos.profesorId);
+    await exigirProfesorPropio(datos.profesorId, usuario);
+    await exigirEditable(datos.planificacionSemestreId, alcance, usuario);
+    if (!await disponibilidadRepository.checkProfesorExists(datos.profesorId)) throw new BadRequestError("El profesor no existe");
+    const bloquesIds = [...new Set(datos.bloquesIds)];
+    const existentes = await disponibilidadRepository.findExistingBloquesIds(bloquesIds);
+    if (bloquesIds.some(id => !existentes.includes(id))) throw new BadRequestError("Hay bloques horarios inexistentes");
+    return disponibilidadRepository.syncDisponibilidad(datos.profesorId, datos.planificacionSemestreId, bloquesIds);
   },
-
-  async deleteSingle(id: number, alcance?: AlcanceCarrera) {
-    const record = await this.getById(id, alcance);
-    const horariosExist = await disponibilidadRepository.checkHorariosExistForSemestre(record.semestreId);
-    if (horariosExist) {
-      throw new ForbiddenError(
-        "No es posible eliminar la disponibilidad: ya existe una propuesta de horarios generada para este semestre."
-      );
-    }
+  async deleteSingle(id: number, alcance?: AlcanceCarrera, usuario?: UsuarioPlanificacion) {
+    const registro = await this.getById(id, alcance, usuario);
+    exigirEnAlcance(alcance?.profesoresIds, registro.profesorId);
+    await exigirEditable(registro.planificacionSemestreId, alcance, usuario);
     await disponibilidadRepository.delete(id);
   },
-
-  async clearGrid(profesorId: number, semestreId: number, alcance?: AlcanceCarrera) {
+  async clearGrid(profesorId: number, planificacionSemestreId: number, alcance?: AlcanceCarrera, usuario?: UsuarioPlanificacion) {
     exigirEnAlcance(alcance?.profesoresIds, profesorId);
-    const profExists = await disponibilidadRepository.checkProfesorExists(profesorId);
-    if (!profExists) {
-      throw new BadRequestError(`El profesor con ID ${profesorId} no existe`);
-    }
-
-    const semExists = await disponibilidadRepository.checkSemestreExists(semestreId);
-    if (!semExists) {
-      throw new BadRequestError(`El semestre con ID ${semestreId} no existe`);
-    }
-
-    const horariosExist = await disponibilidadRepository.checkHorariosExistForSemestre(semestreId);
-    if (horariosExist) {
-      throw new ForbiddenError(
-        "No es posible limpiar la disponibilidad: ya existe una propuesta de horarios generada para este semestre."
-      );
-    }
-
-    return await disponibilidadRepository.deleteByProfesorAndSemestre(profesorId, semestreId);
+    await exigirProfesorPropio(profesorId, usuario);
+    await exigirEditable(planificacionSemestreId, alcance, usuario);
+    if (!await disponibilidadRepository.checkProfesorExists(profesorId)) throw new BadRequestError("El profesor no existe");
+    return disponibilidadRepository.deleteByProfesorAndPlanificacion(profesorId, planificacionSemestreId);
   },
 };

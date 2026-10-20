@@ -4,8 +4,25 @@ import { app } from "../src/app.js";
 import { randomUUID } from "node:crypto";
 import { eq, and } from "drizzle-orm";
 import { db } from "../src/config/db.js";
-import { departamentos, profesores, semestres, disponibilidadProfesores } from "../src/db/schema/index.js";
+import { departamentos, profesores, planificacionesSemestres, disponibilidadProfesores } from "../src/db/schema/index.js";
 import { carrerasRepository } from "../src/repositories/carreras.repository.js";
+
+// Cada caso usa su propia preparación actual y devuelve la vigencia del seed sin cambiar su estado.
+async function crearPlanificacionActual(carreraId: number, codigo: string) {
+  const anterior = await db.query.planificacionesSemestres.findFirst({
+    where: and(eq(planificacionesSemestres.carreraId, carreraId), eq(planificacionesSemestres.actual, true)),
+  });
+  const planificacion = await db.transaction(async (tx) => {
+    await tx.update(planificacionesSemestres).set({ actual: false }).where(eq(planificacionesSemestres.carreraId, carreraId));
+    const [propia] = await tx.insert(planificacionesSemestres).values({ carreraId, codigo, actual: true, estadoPlanificacion: "preparacion" }).returning();
+    return propia;
+  });
+  const restaurar = () => db.transaction(async (tx) => {
+    await tx.delete(planificacionesSemestres).where(eq(planificacionesSemestres.id, planificacion.id));
+    if (anterior) await tx.update(planificacionesSemestres).set({ actual: true }).where(eq(planificacionesSemestres.id, anterior.id));
+  });
+  return { planificacion, restaurar };
+}
 
 describe("Control de Acceso y Roles (RBAC)", () => {
   let adminCookie: string[];
@@ -112,7 +129,7 @@ describe("Control de Acceso y Roles (RBAC)", () => {
       expect(alcance?.profesoresIds).toContain(profesor!.id);
       const bloques = await db.query.bloquesHorarios.findMany({ limit: 2 });
       expect(bloques).toHaveLength(2);
-      const [semestre] = await db.insert(semestres).values({ codigo: `RB${randomUUID().slice(0, 6)}`, anio: 2026 }).returning();
+      const { planificacion, restaurar } = await crearPlanificacionActual(alcance!.carreraId, "2094-1");
       let departamentoId: number | undefined;
       let profesorAjenoId: number | undefined;
       try {
@@ -122,24 +139,24 @@ describe("Control de Acceso y Roles (RBAC)", () => {
         profesorAjenoId = ajeno.id;
         expect(alcance?.departamentosIds).not.toContain(departamentoId);
         expect(alcance?.profesoresIds).not.toContain(ajeno.id);
-        await db.insert(disponibilidadProfesores).values({ profesorId: ajeno.id, semestreId: semestre.id, bloqueId: bloques[0].id });
+        await db.insert(disponibilidadProfesores).values({ profesorId: ajeno.id, planificacionSemestreId: planificacion.id, bloqueId: bloques[0].id });
         const leerAjena = () => db.select().from(disponibilidadProfesores).where(and(
-          eq(disponibilidadProfesores.profesorId, ajeno.id), eq(disponibilidadProfesores.semestreId, semestre.id)));
+          eq(disponibilidadProfesores.profesorId, ajeno.id), eq(disponibilidadProfesores.planificacionSemestreId, planificacion.id)));
         const antes = await leerAjena();
         const permitida = await request(app).post("/api/disponibilidad-profesores/sincronizar")
-          .set("Cookie", secretariaCookie).send({ profesorId: profesor!.id, semestreId: semestre.id, bloquesIds: bloques.map((bloque) => bloque.id) });
+          .set("Cookie", secretariaCookie).send({ profesorId: profesor!.id, planificacionSemestreId: planificacion.id, bloquesIds: bloques.map((bloque) => bloque.id) });
         expect(permitida.status).toBe(200);
         const guardada = await db.select().from(disponibilidadProfesores).where(and(
-          eq(disponibilidadProfesores.profesorId, profesor!.id), eq(disponibilidadProfesores.semestreId, semestre.id)));
+          eq(disponibilidadProfesores.profesorId, profesor!.id), eq(disponibilidadProfesores.planificacionSemestreId, planificacion.id)));
         expect(guardada.map((fila) => fila.bloqueId).sort((a, b) => a - b))
           .toEqual(bloques.map((bloque) => bloque.id).sort((a, b) => a - b));
         const prohibida = await request(app).post("/api/disponibilidad-profesores/sincronizar")
-          .set("Cookie", secretariaCookie).send({ profesorId: ajeno.id, semestreId: semestre.id, bloquesIds: [bloques[1].id] });
+          .set("Cookie", secretariaCookie).send({ profesorId: ajeno.id, planificacionSemestreId: planificacion.id, bloquesIds: [bloques[1].id] });
         expect(prohibida.status).toBe(403);
         expect(await leerAjena()).toEqual(antes);
       } finally {
-        // Dedicated semester: cascading cleanup never touches seeded availability.
-        await db.delete(semestres).where(eq(semestres.id, semestre.id));
+        // Planificación dedicada: la limpieza no toca disponibilidad del seed.
+        await restaurar();
         if (profesorAjenoId !== undefined) await db.delete(profesores).where(eq(profesores.id, profesorAjenoId));
         if (departamentoId !== undefined) await db.delete(departamentos).where(eq(departamentos.id, departamentoId));
       }
@@ -152,16 +169,18 @@ describe("Control de Acceso y Roles (RBAC)", () => {
       expect(profesor).toBeDefined();
       const bloque = await db.query.bloquesHorarios.findFirst();
       expect(bloque).toBeDefined();
-      const [semestre] = await db.insert(semestres).values({ codigo: `RB${randomUUID().slice(0, 6)}`, anio: 2026 }).returning();
+      const relacion = await db.query.carreraDepartamento.findFirst({ where: (tabla, { eq }) => eq(tabla.departamentoId, profesor!.departamentoId) });
+      expect(relacion).toBeDefined();
+      const { planificacion, restaurar } = await crearPlanificacionActual(relacion!.carreraId, "2094-2");
       try {
         const res = await request(app).post("/api/disponibilidad-profesores/sincronizar")
-          .set("Cookie", profesorCookie).send({ profesorId: profesor!.id, semestreId: semestre.id, bloquesIds: [bloque!.id] });
+          .set("Cookie", profesorCookie).send({ profesorId: profesor!.id, planificacionSemestreId: planificacion.id, bloquesIds: [bloque!.id] });
         expect(res.status).toBe(200);
         const guardada = await db.select().from(disponibilidadProfesores).where(and(
-          eq(disponibilidadProfesores.profesorId, profesor!.id), eq(disponibilidadProfesores.semestreId, semestre.id)));
+          eq(disponibilidadProfesores.profesorId, profesor!.id), eq(disponibilidadProfesores.planificacionSemestreId, planificacion.id)));
         expect(guardada.map((fila) => fila.bloqueId)).toEqual([bloque!.id]);
       } finally {
-        await db.delete(semestres).where(eq(semestres.id, semestre.id));
+        await restaurar();
       }
     });
   });

@@ -16,10 +16,9 @@ const modules = {
   "horarios-asignaturas": "horariosAsignaturas",
   "ofertas-asignaturas": "ofertasAsignaturas",
   "profesores": "profesores",
+  "planificaciones-semestres": "planificacionesSemestres",
   "salas": "salas",
   "secretarias": "secretarias",
-  "semestres": "semestres",
-  "semestres-horarios": "semestresHorarios",
   "tipos-hora": "tiposHora",
   "usuarios": "usuarios",
 } as const;
@@ -32,16 +31,15 @@ const graph = {
   bloquesHorarios: { disponibilidades: "Many:disponibilidad_profesores", horarios: "Many:horarios_asignaturas" },
   carreraAsignatura: { carrera: "One:carreras", asignatura: "One:asignaturas" },
   carreraDepartamento: { carrera: "One:carreras", departamento: "One:departamentos" },
-  carreras: { carreraDepartamentos: "Many:carrera_departamento", carreraAsignaturas: "Many:carrera_asignatura", secretarias: "Many:secretarias" },
+  carreras: { carreraDepartamentos: "Many:carrera_departamento", carreraAsignaturas: "Many:carrera_asignatura", secretarias: "Many:secretarias", planificacionesSemestres: "Many:planificaciones_semestres" },
   departamentos: { asignaturas: "Many:asignaturas", profesores: "Many:profesores", carreraDepartamentos: "Many:carrera_departamento" },
-  disponibilidadProfesores: { profesor: "One:profesores", semestre: "One:semestres", bloque: "One:bloques_horarios" },
-  horariosAsignaturas: { publicacion: "One:semestres_horarios", oferta: "One:ofertas_asignaturas", sala: "One:salas", bloque: "One:bloques_horarios", tipoHora: "One:tipos_hora", semestre: "One:semestres" },
-  ofertasAsignaturas: { asignatura: "One:asignaturas", profesor: "One:profesores", semestre: "One:semestres", horarios: "Many:horarios_asignaturas" },
+  disponibilidadProfesores: { profesor: "One:profesores", planificacionSemestre: "One:planificaciones_semestres", bloque: "One:bloques_horarios" },
+  horariosAsignaturas: { oferta: "One:ofertas_asignaturas", sala: "One:salas", bloque: "One:bloques_horarios", tipoHora: "One:tipos_hora", planificacionSemestre: "One:planificaciones_semestres" },
+  ofertasAsignaturas: { asignatura: "One:asignaturas", profesor: "One:profesores", planificacionSemestre: "One:planificaciones_semestres", horarios: "Many:horarios_asignaturas" },
+  planificacionesSemestres: { carrera: "One:carreras", ofertas: "Many:ofertas_asignaturas", horarios: "Many:horarios_asignaturas", disponibilidades: "Many:disponibilidad_profesores" },
   profesores: { usuario: "One:usuarios", departamento: "One:departamentos", ofertas: "Many:ofertas_asignaturas", disponibilidades: "Many:disponibilidad_profesores" },
   salas: { horarios: "Many:horarios_asignaturas" },
   secretarias: { usuario: "One:usuarios", carrera: "One:carreras" },
-  semestres: { publicaciones: "Many:semestres_horarios", ofertas: "Many:ofertas_asignaturas", disponibilidades: "Many:disponibilidad_profesores", horarios: "Many:horarios_asignaturas" },
-  semestresHorarios: { semestre: "One:semestres", entrada: "One:horarios_asignaturas" },
   tiposHora: { horarios: "Many:horarios_asignaturas", asignaturas: "Many:asignatura_tipo_hora" },
   usuarios: { profesor: "One:profesores", secretaria: "One:secretarias" },
 };
@@ -59,11 +57,8 @@ describe("Flat schema organization (offline)", () => {
       const relationsOffset = source.indexOf(`export const ${table}Relations = relations(`);
       expect(tableOffset).toBeGreaterThanOrEqual(0);
       expect(relationsOffset).toBeGreaterThan(tableOffset);
-      // semestresHorarios originally has no inferred types; do not add public names.
-      if (table !== "semestresHorarios") {
-        expect(source.match(/export type \w+ = typeof \w+\.\$infer(?:Select|Insert);/g)).toHaveLength(2);
-        expect(source.indexOf("export type ")).toBeGreaterThan(relationsOffset);
-      }
+      expect(source.match(/export type \w+ = typeof \w+\.\$infer(?:Select|Insert);/g)).toHaveLength(2);
+      expect(source.indexOf("export type ")).toBeGreaterThan(relationsOffset);
       expect(source).not.toMatch(/from ["']\.\/index(?:\.js)?["']/);
       if (table === "usuarios") expect(source.indexOf("export const rolUsuarioEnum")).toBeLessThan(tableOffset);
   });
@@ -78,7 +73,7 @@ describe("Flat schema organization (offline)", () => {
     expect(entry[`${table}Relations`].config(createTableRelationsHelpers(entry[table]))).toBeDefined();
   });
 
-  it("preserves all 36 runtime exports and the relation graph", async () => {
+  it("preserves the intended runtime exports and the relation graph", async () => {
     const schema = await import("../src/db/schema/index.js");
     expect(Object.keys(schema).sort()).toEqual([
       ...Object.values(modules).flatMap((table) => [table, `${table}Relations`]), "rolUsuarioEnum", "columnasProfesorSinRut",
@@ -104,7 +99,7 @@ describe("Flat schema organization (offline)", () => {
     const latest = journal.entries.at(-1);
     const previous = JSON.parse(readFileSync(new URL(`../src/db/migrations/meta/${String(latest.idx).padStart(4, "0")}_snapshot.json`, import.meta.url), "utf8"));
     const current = generateDrizzleJson(schema, previous.id);
-    expect(Object.keys(current.tables)).toHaveLength(17);
+    expect(Object.keys(current.tables)).toHaveLength(16);
     expect(await generateMigration(previous, current)).toEqual([]);
   });
 });

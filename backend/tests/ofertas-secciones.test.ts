@@ -23,9 +23,10 @@ vi.mock("../src/config/db.js", async () => {
 });
 import { ofertasRepository } from "../src/repositories/ofertas.repository.js";
 import { ofertasService } from "../src/services/ofertas.service.js";
+import { planificacionesSemestresService } from "../src/services/planificaciones-semestres.service.js";
 
-const datos = { asignaturaCodigo: "INF100", profesorId: 7, semestreId: 3, seccion: 1, cupos: 0 };
-const oferta = { id: 9, ...datos };
+const datos = { asignaturaCodigo: "INF100", profesorId: 7, planificacionSemestreId: 3, seccion: 1, cupos: 0 };
+const oferta = { id: 9, ...datos, planificacionSemestre: { carreraId: 1 }, horarios: [] };
 const alcance: AlcanceCarrera = {
   carreraId: 1, asignaturasCodigos: [datos.asignaturaCodigo], profesoresIds: [7, 8],
   departamentosIds: [4, 5], departamentosGestionadosIds: [4], ofertasIds: [9],
@@ -63,11 +64,17 @@ describe("Secciones de ofertas (sin base de datos)", () => {
   });
 });
 
+function simularGuardiaBorrado() {
+  const filaOferta = [9, "INF100", 7, 3, 1, 0];
+  const planificacion = [3, 1, "2027-1", true, "preparacion"];
+  respuestas.push([filaOferta], [planificacion], [[1]], [planificacion], [filaOferta]);
+}
+
 function simularOferta() {
   vi.spyOn(ofertasRepository, "findById").mockResolvedValue(oferta as any);
   vi.spyOn(ofertasRepository, "checkAsignaturaExists").mockResolvedValue(true);
   vi.spyOn(ofertasRepository, "checkProfesorExists").mockResolvedValue(true);
-  vi.spyOn(ofertasRepository, "checkSemestreExists").mockResolvedValue(true);
+  vi.spyOn(planificacionesSemestresService, "exigirAsignatura").mockResolvedValue({ id: 3, carreraId: 1 } as never);
   vi.spyOn(ofertasRepository, "findByUniqueConstraint").mockResolvedValue(undefined);
 }
 
@@ -78,7 +85,7 @@ describe("Reglas del servicio de ofertas", () => {
     const actualizar = vi.spyOn(ofertasRepository, "update");
     vi.mocked(ofertasRepository.findByUniqueConstraint).mockResolvedValue({ ...oferta, id: 10 });
     await expect(ofertasService.createOferta(datos, alcance)).rejects.toMatchObject({ statusCode: 409 });
-    await expect(ofertasService.updateOferta(9, { seccion: 2 }, alcance)).rejects.toThrow("Ya existe una oferta");
+    await expect(ofertasService.updateOferta(9, { seccion: 2 }, alcance)).rejects.toThrow("Ya existe esta sección");
     expect(ofertasRepository.findByUniqueConstraint).toHaveBeenLastCalledWith("INF100", 3, 2);
     expect(crear).not.toHaveBeenCalled();
     expect(actualizar).not.toHaveBeenCalled();
@@ -88,13 +95,13 @@ describe("Reglas del servicio de ofertas", () => {
     simularOferta();
     const crear = vi.spyOn(ofertasRepository, "create").mockResolvedValue(oferta);
     const actualizar = vi.spyOn(ofertasRepository, "update").mockResolvedValue(oferta);
-    await ofertasService.createOferta({ ...datos, semestreId: 4 }, alcance);
+    await ofertasService.createOferta({ ...datos, planificacionSemestreId: 4 }, alcance);
     expect(ofertasRepository.findByUniqueConstraint).toHaveBeenCalledWith("INF100", 4, 1);
-    expect(crear).toHaveBeenCalledWith({ ...datos, semestreId: 4 });
+    expect(crear).toHaveBeenCalledWith({ ...datos, planificacionSemestreId: 4 });
     vi.mocked(ofertasRepository.findByUniqueConstraint).mockClear();
     await ofertasService.updateOferta(9, { cupos: 10 }, alcance);
-    expect(ofertasRepository.findByUniqueConstraint).not.toHaveBeenCalled();
-    expect(actualizar).toHaveBeenCalledWith(9, { cupos: 10 });
+    expect(ofertasRepository.findByUniqueConstraint).toHaveBeenCalledWith("INF100", 3, 1);
+    expect(actualizar).toHaveBeenCalledWith(9, { cupos: 10 }, 3);
   });
 
   it("permite cualquier profesor existente fuera de los departamentos de la carrera", async () => {
@@ -105,7 +112,7 @@ describe("Reglas del servicio de ofertas", () => {
     await ofertasService.updateOferta(9, { profesorId: 99 }, alcance);
     expect(ofertasRepository.checkProfesorExists).toHaveBeenCalledWith(99);
     expect(crear).toHaveBeenCalledWith({ ...datos, profesorId: 99 });
-    expect(actualizar).toHaveBeenCalledWith(9, { profesorId: 99 });
+    expect(actualizar).toHaveBeenCalledWith(9, { profesorId: 99 }, 3);
   });
 
   it("conserva rechazo de asignaturas fuera del alcance sin escribir", async () => {
@@ -113,11 +120,12 @@ describe("Reglas del servicio de ofertas", () => {
     const crear = vi.spyOn(ofertasRepository, "create");
     const actualizar = vi.spyOn(ofertasRepository, "update");
     const eliminar = vi.spyOn(ofertasRepository, "delete");
+    vi.mocked(planificacionesSemestresService.exigirAsignatura).mockRejectedValue(Object.assign(new Error("Asignatura fuera de la carrera"), { statusCode: 403 }));
     await expect(ofertasService.createOferta({ ...datos, asignaturaCodigo: "OTRA" }, alcance))
       .rejects.toMatchObject({ statusCode: 403 });
     await expect(ofertasService.updateOferta(9, { asignaturaCodigo: "OTRA" }, alcance))
       .rejects.toMatchObject({ statusCode: 403 });
-    const sinAsignaturas = { ...alcance, asignaturasCodigos: [] };
+    const sinAsignaturas = { ...alcance, carreraId: 2, asignaturasCodigos: [] };
     await expect(ofertasService.updateOferta(9, {}, sinAsignaturas)).rejects.toMatchObject({ statusCode: 404 });
     await expect(ofertasService.deleteOferta(9, sinAsignaturas)).rejects.toMatchObject({ statusCode: 404 });
     expect(crear).not.toHaveBeenCalled();
@@ -147,12 +155,12 @@ describe("Reglas del servicio de ofertas", () => {
     await expect(ofertasService.getOfertaById(9, alcance)).resolves.toEqual(externa);
     await ofertasService.updateOferta(9, { cupos: 10 }, alcance);
     await ofertasService.deleteOferta(9, alcance);
-    expect(actualizar).toHaveBeenCalledWith(9, { cupos: 10 });
-    expect(eliminar).toHaveBeenCalledWith(9);
+    expect(actualizar).toHaveBeenCalledWith(9, { cupos: 10 }, 3);
+    expect(eliminar).toHaveBeenCalledWith(9, 3);
 
     actualizar.mockClear();
     eliminar.mockClear();
-    const otraCarrera = { ...alcance, asignaturasCodigos: [] };
+    const otraCarrera = { ...alcance, carreraId: 2, asignaturasCodigos: [] };
     await expect(ofertasService.getOfertaById(9, otraCarrera)).rejects.toMatchObject({ statusCode: 404 });
     await expect(ofertasService.updateOferta(9, { cupos: 10 }, otraCarrera)).rejects.toMatchObject({ statusCode: 404 });
     await expect(ofertasService.deleteOferta(9, otraCarrera)).rejects.toMatchObject({ statusCode: 404 });
@@ -162,6 +170,7 @@ describe("Reglas del servicio de ofertas", () => {
 
   it("propaga conflicto de borrado como error de dominio 409", async () => {
     simularOferta();
+    simularGuardiaBorrado();
     respuestas.push([[9]], [[20]]);
     await expect(ofertasService.deleteOferta(9, alcance)).rejects.toBeInstanceOf(ConflictError);
     expect(consultas.some(({ sql }) => /delete/i.test(sql))).toBe(false);
@@ -169,6 +178,7 @@ describe("Reglas del servicio de ofertas", () => {
 
   it("permite borrar una oferta vacía autorizada y rechaza una inexistente", async () => {
     simularOferta();
+    simularGuardiaBorrado();
     respuestas.push([[9]], [], [[9]]);
     await expect(ofertasService.deleteOferta(9, alcance)).resolves.toBeUndefined();
     expect(consultas.at(-1)?.sql).toContain('delete from "ofertas_asignaturas"');
@@ -181,36 +191,40 @@ describe("Reglas del servicio de ofertas", () => {
 
 describe("Contrato SQL de borrado seguro", () => {
   it("bloquea la oferta antes de comprobar horarios y rechaza sin ejecutar DELETE", async () => {
+    simularGuardiaBorrado();
     respuestas.push([[9]], [[20]]);
     await expect(ofertasRepository.delete(9)).rejects.toMatchObject({ statusCode: 409 });
     expect(transaccion).toHaveBeenCalledTimes(1);
     expect(transaccion.mock.calls[0][1]).toEqual({ isolationLevel: "read committed" });
-    expect(consultas).toHaveLength(2);
-    expect(consultas[0].sql).toContain('from "ofertas_asignaturas"');
-    expect(consultas[0].sql).toContain("for update");
-    expect(consultas[0].parametros).toContain(9);
-    expect(consultas[1].sql).toContain('from "horarios_asignaturas"');
-    expect(consultas[1].sql).toContain('"horarios_asignaturas"."oferta_id" = $1');
-    expect(consultas[1].parametros).toContain(9);
+    expect(consultas).toHaveLength(7);
+    expect(consultas[2].sql).toContain('from "carreras"');
+    expect(consultas[2].sql).toContain("for update");
+    expect(consultas[5].sql).toContain('from "ofertas_asignaturas"');
+    expect(consultas[5].sql).toContain("for update");
+    expect(consultas[5].parametros).toContain(9);
+    expect(consultas[6].sql).toContain('from "horarios_asignaturas"');
+    expect(consultas[6].sql).toContain('"horarios_asignaturas"."oferta_id" = $1');
+    expect(consultas[6].parametros).toContain(9);
     expect(consultas.some(({ sql }) => /delete/i.test(sql))).toBe(false);
   });
 
   it("elimina una oferta sin horarios dentro de la misma transacción", async () => {
+    simularGuardiaBorrado();
     respuestas.push([[9]], [], [[9]]);
     expect(await ofertasRepository.delete(9)).toBe(true);
     expect(transaccion).toHaveBeenCalledTimes(1);
-    expect(consultas).toHaveLength(3);
-    expect(consultas[0].sql).toContain("for update");
-    expect(consultas[1].sql).toContain('from "horarios_asignaturas"');
-    expect(consultas[2].sql).toContain('delete from "ofertas_asignaturas"');
-    expect(consultas[2].parametros).toEqual([9]);
+    expect(consultas).toHaveLength(8);
+    expect(consultas[5].sql).toContain("for update");
+    expect(consultas[6].sql).toContain('from "horarios_asignaturas"');
+    expect(consultas[7].sql).toContain('delete from "ofertas_asignaturas"');
+    expect(consultas[7].parametros).toEqual([9]);
   });
 
   it("no consulta dependencias ni borra si la oferta ya no existe", async () => {
     respuestas.push([]);
-    expect(await ofertasRepository.delete(404)).toBe(false);
+    await expect(ofertasRepository.delete(404)).rejects.toMatchObject({ statusCode: 404 });
     expect(consultas).toHaveLength(1);
-    expect(consultas[0].sql).toContain("for update");
+    expect(consultas[0].sql).toContain('from "ofertas_asignaturas"');
   });
 
   it("propaga fallos de consulta sin continuar al borrado", async () => {

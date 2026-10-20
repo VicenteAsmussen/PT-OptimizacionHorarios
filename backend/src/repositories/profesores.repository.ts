@@ -7,6 +7,7 @@ import { usuarios, type NuevoUsuario } from "../db/schema/usuarios.schema.js";
 import { ofertasAsignaturas } from "../db/schema/ofertas-asignaturas.schema.js";
 import { disponibilidadProfesores } from "../db/schema/disponibilidad-profesores.schema.js";
 import { horariosAsignaturas } from "../db/schema/horarios-asignaturas.schema.js";
+import { planificacionesSemestresRepository } from "./planificaciones-semestres.repository.js";
 
 export const profesoresRepository = {
   async findSeleccion() {
@@ -26,8 +27,8 @@ export const profesoresRepository = {
       with: {
         departamento: true,
         usuario: true,
-        disponibilidades: true,
-        ofertas: alcance ? { where: inArray(ofertasAsignaturas.asignaturaCodigo, alcance.asignaturasCodigos) } : true,
+        disponibilidades: alcance ? { where: inArray(disponibilidadProfesores.planificacionSemestreId, planificacionesSemestresRepository.idsEnCarrera(alcance)) } : true,
+        ofertas: alcance ? { where: inArray(ofertasAsignaturas.planificacionSemestreId, planificacionesSemestresRepository.idsEnCarrera(alcance)) } : true,
       },
     });
   },
@@ -38,8 +39,8 @@ export const profesoresRepository = {
       with: {
         departamento: true,
         usuario: true,
-        disponibilidades: true,
-        ofertas: alcance ? { where: inArray(ofertasAsignaturas.asignaturaCodigo, alcance.asignaturasCodigos) } : true,
+        disponibilidades: alcance ? { where: inArray(disponibilidadProfesores.planificacionSemestreId, planificacionesSemestresRepository.idsEnCarrera(alcance)) } : true,
+        ofertas: alcance ? { where: inArray(ofertasAsignaturas.planificacionSemestreId, planificacionesSemestresRepository.idsEnCarrera(alcance)) } : true,
       },
     });
   },

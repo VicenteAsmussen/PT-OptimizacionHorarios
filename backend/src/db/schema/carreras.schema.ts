@@ -3,6 +3,7 @@ import { relations } from "drizzle-orm";
 import { carreraDepartamento } from "./carrera-departamento.schema.js";
 import { carreraAsignatura } from "./carrera-asignatura.schema.js";
 import { secretarias } from "./secretarias.schema.js";
+import { planificacionesSemestres } from "./planificaciones-semestres.schema.js";
 
 export const carreras = pgTable("carreras", {
   id: serial("id").primaryKey(),
@@ -13,6 +14,7 @@ export const carrerasRelations = relations(carreras, ({ many }) => ({
   carreraDepartamentos: many(carreraDepartamento),
   carreraAsignaturas: many(carreraAsignatura),
   secretarias: many(secretarias),
+  planificacionesSemestres: many(planificacionesSemestres),
 }));
 
 export type Carrera = typeof carreras.$inferSelect;

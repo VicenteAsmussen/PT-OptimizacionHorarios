@@ -29,6 +29,14 @@ export const datosBloques = dias.flatMap((dia) =>
   }))
 );
 
+// El dueño de INF100 compartida es explícito en cada fixture, nunca inferido por código.
+// profesorOrdinal elige un docente del catálogo ordenado por id; no crea ni elimina personas.
+export const datosPlanificacionHorarios = [
+  { carrera: "Ingeniería Civil en Informática", periodo: "2026-1", asignaturaCodigo: "INF100", profesorOrdinal: 0, seccion: 1, cupos: 30, dia: "Lunes", numeroBloque: 1, tipoHora: "Teórica", sala: "Sala A-101", publicado: true },
+  { carrera: "Ingeniería Civil en Informática", periodo: "2026-2", asignaturaCodigo: "INF100", profesorOrdinal: 0, seccion: 1, cupos: 30, dia: "Lunes", numeroBloque: 1, tipoHora: "Teórica", sala: "Sala A-101", publicado: false },
+  { carrera: "Ingeniería de Ejecución en Computación e Informática", periodo: "2026-2", asignaturaCodigo: "INF100", profesorOrdinal: 0, seccion: 1, cupos: 25, dia: "Martes", numeroBloque: 1, tipoHora: "Teórica", sala: "Sala A-102", publicado: false },
+] as const;
+
 export const datosSalas = [
   { nombre: "Sala A-101", capacidad: 45, tipo: "Sala" },
   { nombre: "Sala A-102", capacidad: 40, tipo: "Sala" },

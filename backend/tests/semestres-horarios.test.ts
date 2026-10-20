@@ -1,17 +1,14 @@
-import { describe, it, expect, beforeEach, vi } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { getTableConfig } from "drizzle-orm/pg-core";
 import { readFileSync } from "node:fs";
 import * as schema from "../src/db/schema/index.js";
-import { datosSemestres } from "../src/db/seeds/data/academico.js";
 import { createHorarioValidation, updateHorarioValidation } from "../src/validations/horarios.validation.js";
-import { createSemestreValidation, updateSemestreValidation } from "../src/validations/semestres.validation.js";
+import { createPlanificacionSemestreValidation, updatePlanificacionSemestreValidation } from "../src/validations/planificaciones-semestres.validation.js";
 
 const { statements, responses, transaction } = vi.hoisted(() => ({
   statements: [] as { sql: string; params: unknown[] }[],
-  responses: [] as (unknown[][] | Error)[],
-  transaction: vi.fn(),
+  responses: [] as (unknown[][] | Error)[], transaction: vi.fn(),
 }));
-// Real SQL construction, scripted results: no configured driver or PostgreSQL execution.
 vi.mock("../src/config/db.js", async () => {
   const { drizzle } = await import("drizzle-orm/pg-proxy");
   const schema = await import("../src/db/schema/index.js");
@@ -21,128 +18,145 @@ vi.mock("../src/config/db.js", async () => {
     if (response instanceof Error) throw response;
     return { rows: response };
   }, { schema });
-  db.transaction = transaction.mockImplementation(async (fn) => fn(db));
+  db.transaction = transaction.mockImplementation(async fn => fn(db));
   return { db };
 });
-import { semestresRepository } from "../src/repositories/semestres.repository.js";
+import { planificacionesSemestresRepository } from "../src/repositories/planificaciones-semestres.repository.js";
+import { planificacionesSemestresService } from "../src/services/planificaciones-semestres.service.js";
 import { horariosRepository } from "../src/repositories/horarios.repository.js";
 import { horariosService } from "../src/services/horarios.service.js";
 
-const entry = { ofertaId: 2, salaId: null, bloqueId: 3, tipoHoraId: 4, semestreId: 7 };
+const entry = { ofertaId: 2, salaId: null, bloqueId: 3, tipoHoraId: 4, planificacionSemestreId: 7 };
 const entryRow = [12, 2, null, 3, 4, 7];
+beforeEach(() => { statements.length = 0; responses.length = 0; transaction.mockClear(); });
+afterEach(() => vi.restoreAllMocks());
+function simularGuardia(lecturas: unknown[][][], ids = [7]) {
+  const planificaciones = ids.map(id => [id, 1, "2027-1", true, "preparacion"]);
+  responses.push(...lecturas, ...planificaciones.map(fila => [fila]), [[1]], ...planificaciones.map(fila => [fila]), ...lecturas);
+}
+const ofertaRow = [2, "INF100", 7, 7, 1, 30];
 
-describe("Direct entry publication contract (offline)", () => {
-  beforeEach(() => {
-    statements.length = 0;
-    responses.length = 0;
-    transaction.mockClear();
+describe("Publicación única por planificación (offline)", () => {
+  it("no exporta entidad legacy ni agregado ni publicación por entrada", () => {
+    for (const nombre of ["semestres", "semestresHorarios", "horarios"]) expect(schema).not.toHaveProperty(nombre);
+    const entradas = getTableConfig(schema.horariosAsignaturas);
+    expect(entradas.columns.map(c => c.name)).not.toContain("horario_publicado");
+    expect(entradas.columns.find(c => c.name === "sala_id")?.notNull).toBe(false);
+    expect(entradas.columns.find(c => c.name === "planificacion_semestre_id")?.notNull).toBe(true);
+    expect(schema.planificacionesSemestres.estadoPlanificacion.default).toBe("preparacion");
   });
-
-  it("has no aggregate and enforces unique entry ownership with cascading updates/deletes", () => {
-    expect(schema).not.toHaveProperty("horarios");
-    const entries = getTableConfig(schema.horariosAsignaturas);
-    expect(entries.columns.map((c) => c.name)).not.toContain("horario_id");
-    expect(entries.columns.find((c) => c.name === "sala_id")?.notNull).toBe(false);
-    expect(entries.columns.find((c) => c.name === "semestre_id")?.notNull).toBe(true);
-    expect(entries.uniqueConstraints.some((u) => u.columns.map((c) => c.name).join(",") === "id,semestre_id")).toBe(true);
-    const relation = getTableConfig(schema.semestresHorarios);
-    expect(relation.columns.find((c) => c.name === "horario_asignatura_id")?.primary).toBe(true);
-    expect(relation.columns.find((c) => c.name === "horario_publicado")?.default).toBe(false);
-    expect(relation.foreignKeys.some((fk) => {
-      const ref = fk.reference();
-      return ref.foreignTable === schema.horariosAsignaturas
-        && ref.foreignColumns.map((c) => c.name).join(",") === "id,semestre_id"
-        && fk.onDelete === "cascade" && fk.onUpdate === "cascade";
-    })).toBe(true);
-    expect(getTableConfig(schema.semestres).columns.map((c) => c.name)).not.toContain("horario_publicado");
-  });
-
-  it("moves the API boolean from semesters to entries without readiness rules", () => {
-    expect(createHorarioValidation.parse(entry)).toHaveProperty("horarioPublicado", false);
-    expect(createHorarioValidation.parse({ ...entry, horarioPublicado: true }).horarioPublicado).toBe(true);
-    expect(updateHorarioValidation.parse({ horarioPublicado: false })).toEqual({ horarioPublicado: false });
+  it("rechaza publicación en CRUD y estados en PATCH genérico", () => {
+    expect(createHorarioValidation.parse(entry)).toEqual(entry);
+    for (const horarioPublicado of [true, false, "true"]) {
+      expect(createHorarioValidation.safeParse({ ...entry, horarioPublicado }).success).toBe(false);
+      expect(updateHorarioValidation.safeParse({ horarioPublicado }).success).toBe(false);
+    }
     expect(updateHorarioValidation.parse({})).toEqual({});
-    expect(updateHorarioValidation.safeParse({ horarioPublicado: "true" }).success).toBe(false);
-    expect(createSemestreValidation.parse({ codigo: "2027-1", anio: 2027, horarioPublicado: true })).not.toHaveProperty("horarioPublicado");
-    expect(updateSemestreValidation.parse({ horarioPublicado: true })).not.toHaveProperty("horarioPublicado");
-  });
-
-  it.each([undefined, false, true])("creates entry and publication=%s transactionally, preserving null sala", async (published) => {
-    responses.push([entryRow], []);
-    const result = await horariosRepository.create({ ...entry, ...(published !== undefined ? { horarioPublicado: published } : {}) });
-    expect(result).toEqual({ id: 12, ...entry, horarioPublicado: published ?? false });
-    expect(transaction).toHaveBeenCalledTimes(1);
-    expect(statements[0].sql).toContain('insert into "horarios_asignaturas"');
-    expect(statements[0].sql).not.toContain("horario_publicado");
-    expect(statements[0].params).toEqual([2, null, 3, 4, 7]);
-    expect(statements[1].sql).toContain('insert into "semestres_horarios"');
-    expect(statements[1].params).toContain(published ?? false);
-    expect(statements[1].params).toContain(12);
-  });
-
-  it("propagates relation failures instead of reporting successful creation", async () => {
-    responses.push([entryRow], new Error("relation failure"));
-    await expect(horariosRepository.create(entry)).rejects.toThrow();
-    expect(statements[1].sql).toContain('insert into "semestres_horarios"');
-    expect(transaction).toHaveBeenCalledTimes(1);
-  });
-
-  it.each([false, true])("updates publication=%s together with semester reassignment", async (published) => {
-    responses.push([[12, 2, null, 3, 4, 8]], [[8, 12, published]]);
-    const result = await horariosRepository.update(12, { semestreId: 8, salaId: null, horarioPublicado: published });
-    expect(result).toEqual({ id: 12, ...entry, semestreId: 8, horarioPublicado: published });
-    expect(transaction).toHaveBeenCalledTimes(1);
-    expect(statements[0].sql).toContain('update "horarios_asignaturas"');
-    expect(statements[0].sql).not.toContain("horario_publicado");
-    expect(statements[1].sql).toContain('update "semestres_horarios"');
-    expect(statements[1].params).toEqual([published, 12]);
-  });
-
-  it("supports publication-only updates and preserves publication when omitted", async () => {
-    responses.push([entryRow], [[7, 12, true]]);
-    expect((await horariosRepository.update(12, { horarioPublicado: true }))?.horarioPublicado).toBe(true);
-    expect(statements[0].sql).toContain("for update");
-    expect(statements.some(({ sql }) => sql.includes('update "horarios_asignaturas"'))).toBe(false);
-    statements.length = 0;
-    responses.push([entryRow], [[7, 12, true]]);
-    expect((await horariosRepository.update(12, { salaId: null }))?.horarioPublicado).toBe(true);
-    expect(statements[1].sql).toContain('from "semestres_horarios"');
-  });
-
-  it("does not write publication for a missing entry", async () => {
-    responses.push([]);
-    expect(await horariosRepository.update(404, { horarioPublicado: true })).toBeUndefined();
-    expect(statements).toHaveLength(1);
-  });
-
-  it("reads publication at entry level, never on nested semesters", async () => {
-    await horariosRepository.findAll({ semestreId: 7 });
-    await horariosRepository.findById(12);
-    for (const { sql } of statements) {
-      expect(sql).toContain("sh.horario_asignatura_id");
-      expect(sql).toContain("sh.horario_publicado");
-      expect(sql).not.toContain("sh.semestre_id =");
+    expect(createHorarioValidation.safeParse({ ...entry, semestreId: 7 }).success).toBe(false);
+    for (const estadoPlanificacion of ["preparacion", "propuesta", "publicado"]) {
+      expect(createPlanificacionSemestreValidation.safeParse({ carreraId: 1, codigo: "2027-1", estadoPlanificacion }).success).toBe(false);
+      expect(updatePlanificacionSemestreValidation.safeParse({ estadoPlanificacion }).success).toBe(false);
     }
   });
-
-  it("creates empty semesters without phantom entries or publication", async () => {
-    responses.push([[7, "2027-1", 2027, false]]);
-    expect(await semestresRepository.create({ codigo: "2027-1", anio: 2027 })).toEqual({ id: 7, codigo: "2027-1", anio: 2027, actual: false });
-    expect(statements).toHaveLength(1);
-    expect(statements[0].sql).toContain('insert into "semestres"');
+  it("crea entrada con sala null sin relación secundaria", async () => {
+    simularGuardia([[ofertaRow]]);
+    responses.push([entryRow]);
+    expect(await horariosRepository.create(entry)).toEqual({ id: 12, ...entry });
+    expect(statements.at(-1)!.sql).toContain('insert into "horarios_asignaturas"');
+    expect(statements.at(-1)!.params).toEqual([2, null, 3, 4, 7]);
+    expect(transaction).toHaveBeenCalledOnce();
   });
-
-  it("uses ordinary entry deletion and database cascades for relation cleanup", async () => {
+  it("propaga fallo de inserción", async () => {
+    simularGuardia([[ofertaRow]]);
+    responses.push(new Error("fallo entrada"));
+    await expect(horariosRepository.create(entry)).rejects.toMatchObject({ cause: { message: "fallo entrada" } });
+  });
+  it("actualiza contexto y sala sin escribir publicación", async () => {
+    simularGuardia([[entryRow], [[...ofertaRow.slice(0, 3), 8, 1, 30]]], [7, 8]);
+    responses.push([[12, 2, null, 3, 4, 8]]);
+    expect(await horariosRepository.update(12, { planificacionSemestreId: 8, salaId: null })).toEqual({ id: 12, ...entry, planificacionSemestreId: 8 });
+    expect(statements.at(-1)!.sql).toContain('update "horarios_asignaturas"');
+    expect(statements.every(({ sql }) => !sql.includes("horario_publicado"))).toBe(true);
+  });
+  it("rechaza actualizar entrada inexistente sin escribir", async () => {
+    await expect(horariosRepository.update(404, { salaId: null })).rejects.toMatchObject({ statusCode: 404 });
+    expect(statements).toHaveLength(1);
+  });
+  it("lee estado a través de planificación, sin proyección legacy", async () => {
+    await horariosRepository.findAll({ planificacionSemestreId: 7 });
+    await horariosRepository.findById(12);
+    for (const { sql } of statements) {
+      expect(sql).toContain("estado_planificacion");
+      expect(sql).not.toContain("semestres_horarios");
+      expect(sql).not.toContain("horario_publicado");
+    }
+  });
+  it("crea planificación vacía sin horarios y conserva preparacion", async () => {
+    responses.push([[1]], [[7, 1, "2027-1", false, "preparacion"]]);
+    expect(await planificacionesSemestresRepository.create({ carreraId: 1, codigo: "2027-1" })).toEqual({ id: 7, carreraId: 1, codigo: "2027-1", actual: false, estadoPlanificacion: "preparacion" });
+    expect(transaction).toHaveBeenCalledOnce();
+    expect(statements).toHaveLength(2);
+    expect(statements[0].sql).toContain("for update");
+    expect(statements[1].sql).toContain('insert into "planificaciones_semestres"');
+  });
+  it("borrar entrada no reabre la planificación", async () => {
+    simularGuardia([[entryRow]]);
     responses.push([entryRow]);
     expect(await horariosRepository.delete(12)).toBe(true);
-    expect(statements[0].sql).toContain('delete from "horarios_asignaturas"');
+    expect(statements.at(-1)!.sql).toContain('delete from "horarios_asignaturas"');
+    expect(statements.some(({ sql }) => sql.startsWith('update "planificaciones_semestres"'))).toBe(false);
   });
-
-  it("guards unrepresentable true semesters before destructive SQL and backfills every entry", () => {
+  it("limita el reset de desarrollo de 0013 y elimina solo las tablas obsoletas", () => {
+    const dir = new URL("../src/db/migrations/", import.meta.url);
+    const journal = JSON.parse(readFileSync(new URL("meta/_journal.json", dir), "utf8"));
+    const migration = journal.entries.find((entrada: { idx: number }) => entrada.idx === 13);
+    expect(migration).toBeDefined();
+    const sql = readFileSync(new URL(`${migration.tag}.sql`, dir), "utf8");
+    const sentencias = sql.replace(/--[^\n]*/g, "").split(";").map(texto => texto.trim()).filter(Boolean);
+    const tablasReset = ["semestres_horarios", "horarios_asignaturas", "ofertas_asignaturas", "disponibilidad_profesores"];
+    expect(sentencias.slice(0, 4)).toEqual(tablasReset.map(nombre => `DELETE FROM "${nombre}"`));
+    expect(sentencias.filter(texto => /^DELETE\b/i.test(texto))).toEqual(sentencias.slice(0, 4));
+    expect(sql).not.toMatch(/\bTRUNCATE\b|\bDROP\s+(?:DATABASE|SCHEMA)\b|\bRENAME\b/i);
+    expect(sentencias.filter(texto => /^DROP TABLE\b/i.test(texto))).toEqual([
+      'DROP TABLE "semestres_horarios"', 'DROP TABLE "semestres"',
+    ]);
+    expect(sql).not.toMatch(/DROP TABLE[^;]*\bCASCADE\b/i);
+    expect(sentencias.filter(texto => /DROP COLUMN/.test(texto)).sort()).toEqual([
+      'ALTER TABLE "disponibilidad_profesores" DROP COLUMN "semestre_id"',
+      'ALTER TABLE "horarios_asignaturas" DROP COLUMN "semestre_id"',
+      'ALTER TABLE "ofertas_asignaturas" DROP COLUMN "semestre_id"',
+    ]);
+    const indiceUnicaOferta = sentencias.findIndex(texto => texto.includes('ADD CONSTRAINT "uq_ofertas_id_planificacion"'));
+    const indiceFkOferta = sentencias.findIndex(texto => texto.includes('ADD CONSTRAINT "fk_horarios_oferta_planificacion"'));
+    expect(indiceUnicaOferta).toBeGreaterThan(3);
+    expect(indiceFkOferta).toBeGreaterThan(indiceUnicaOferta);
+    expect(sentencias.indexOf('DROP TABLE "semestres_horarios"')).toBeLessThan(
+      sentencias.indexOf('ALTER TABLE "horarios_asignaturas" DROP CONSTRAINT "uq_horarios_asignaturas_id_semestre"'),
+    );
+    expect(sql).toMatch(/desarrollo/i);
+    expect(sql).toMatch(/seed/i);
+    const indiceBorrado = sentencias.indexOf('DROP TABLE "semestres"');
+    for (const tabla of ["ofertas_asignaturas", "horarios_asignaturas", "disponibilidad_profesores"]) {
+      const anterior = JSON.parse(readFileSync(new URL("meta/0012_snapshot.json", dir), "utf8"));
+      for (const fk of Object.values(anterior.tables[`public.${tabla}`].foreignKeys) as { name: string; tableTo: string }[]) {
+        if (fk.tableTo === "semestres") {
+          const indice = sentencias.indexOf(`ALTER TABLE "${tabla}" DROP CONSTRAINT "${fk.name}"`);
+          expect(indice).toBeGreaterThanOrEqual(4);
+          expect(indice).toBeLessThan(indiceBorrado);
+        }
+      }
+    }
+    const anterior = JSON.parse(readFileSync(new URL("meta/0012_snapshot.json", dir), "utf8"));
+    const actual = JSON.parse(readFileSync(new URL("meta/0013_snapshot.json", dir), "utf8"));
+    expect(actual.prevId).toBe(anterior.id);
+    expect(actual.tables).not.toHaveProperty("public.semestres");
+    expect(actual.tables).not.toHaveProperty("public.semestres_horarios");
+    expect(actual.tables["public.planificaciones_semestres"]).toEqual(anterior.tables["public.planificaciones_semestres"]);
+  });
+  it("preserva migración histórica 0006 y su snapshot", () => {
     const dir = new URL("../src/db/migrations/", import.meta.url);
     const journal = JSON.parse(readFileSync(new URL("meta/_journal.json", dir), "utf8"));
     const migration = journal.entries.find((entry: { idx: number }) => entry.idx === 6);
-    expect(migration).toBeDefined();
     const sql = readFileSync(new URL(`${migration.tag}.sql`, dir), "utf8");
     expect(sql).toContain("RAISE EXCEPTION");
     expect(sql).toContain("NOT EXISTS");
@@ -169,84 +183,50 @@ describe("Direct entry publication contract (offline)", () => {
     expect(ownership.columnsTo).toEqual(["id", "semestre_id"]);
     expect(ownership.onUpdate).toBe("cascade");
   });
-
-  it("keeps seed semesters ordinary and creates no aggregate", () => {
-    const leer = (ruta: string) => readFileSync(new URL(ruta, import.meta.url), "utf8");
-    const entrada = leer("../src/db/seed.ts");
-    const academico = leer("../src/db/seeds/academico.ts");
-    expect(entrada).toContain("await sembrarAcademico(baseDatos)");
-    expect(academico).toContain('from "./data/academico.js"');
-    expect(academico).toContain("for (const semestre of datosSemestres)");
-    expect(academico).toContain("await asegurarSemestre(baseDatos, semestre)");
-    expect(academico).toContain("insert(esquema.semestres).values(semestre)");
-    expect(datosSemestres).toEqual([
-      { codigo: "2026-1", anio: 2026, actual: false },
-      { codigo: "2026-2", anio: 2026, actual: true },
-    ]);
-    for (const semestre of datosSemestres) {
-      expect(createSemestreValidation.parse(semestre)).not.toHaveProperty("horarioPublicado");
-    }
-    // Follow all executable seed helpers, not only the orchestration entrypoint.
-    for (const fuente of [entrada, academico, leer("../src/db/seeds/horarios.ts"), leer("../src/db/seeds/usuarios.ts")]) {
-      expect(fuente).not.toMatch(/canonical|canónico|(?:schema|esquema)\.horarios\b/);
-      expect(fuente).not.toMatch(/\.insert\((?:schema|esquema)\.(?:horariosAsignaturas|semestresHorarios)\)/);
-    }
-  });
 });
 
-describe("Nullable room behavior", () => {
-  it("forwards publication on creation without requiring a room", async () => {
-    const created = { id: 12, ...entry, horarioPublicado: true };
-    vi.spyOn(horariosRepository, "findOfertaWithDetails").mockResolvedValue({ semestreId: 7, profesorId: 5 } as any);
-    vi.spyOn(horariosRepository, "checkSemestreExists").mockResolvedValue(true);
+describe("Sala nullable y consistencia de planificación", () => {
+  function preparar() {
+    const creada = { id: 12, ...entry };
+    vi.spyOn(planificacionesSemestresService, "getById").mockResolvedValue({ id: 7, carreraId: 1 } as any);
+    vi.spyOn(horariosRepository, "findOfertaWithDetails").mockResolvedValue({ planificacionSemestreId: 7, profesorId: 5 } as any);
     vi.spyOn(horariosRepository, "checkBloqueExists").mockResolvedValue(true);
     vi.spyOn(horariosRepository, "checkTipoHoraExists").mockResolvedValue(true);
-    const salaCheck = vi.spyOn(horariosRepository, "checkSalaExists");
     vi.spyOn(horariosRepository, "findByOfertaBloque").mockResolvedValue(undefined);
-    vi.spyOn(horariosRepository, "findByProfesorBloqueSemestre").mockResolvedValue(undefined);
-    const create = vi.spyOn(horariosRepository, "create").mockResolvedValue(created);
-    vi.spyOn(horariosRepository, "findById").mockResolvedValue(created as any);
-    try {
-      expect(await horariosService.createHorario({ ...entry, horarioPublicado: true })).toEqual(created);
-      expect(create).toHaveBeenCalledWith({ ...entry, horarioPublicado: true });
-      expect(salaCheck).not.toHaveBeenCalled();
-    } finally {
-      vi.restoreAllMocks();
-    }
+    vi.spyOn(horariosRepository, "findByProfesorBloquePlanificacion").mockResolvedValue(undefined);
+    vi.spyOn(horariosRepository, "findById").mockResolvedValue(creada as any);
+    return creada;
+  }
+  it("crea sin exigir sala", async () => {
+    const creada = preparar();
+    const sala = vi.spyOn(horariosRepository, "checkSalaExists");
+    const crear = vi.spyOn(horariosRepository, "create").mockResolvedValue(creada);
+    expect(await horariosService.createHorario(entry)).toEqual(creada);
+    expect(crear).toHaveBeenCalledWith(entry);
+    expect(sala).not.toHaveBeenCalled();
   });
-
-  it("forwards publication updates on entries without rooms", async () => {
-    const existing = { id: 12, ...entry, horarioPublicado: false };
-    vi.spyOn(horariosRepository, "findById").mockResolvedValue(existing as any);
-    vi.spyOn(horariosRepository, "findOfertaWithDetails").mockResolvedValue({ semestreId: 7, profesorId: 5 } as any);
-    const conflict = vi.spyOn(horariosRepository, "findBySalaBloqueSemestre");
-    vi.spyOn(horariosRepository, "findByOfertaBloque").mockResolvedValue(undefined);
-    vi.spyOn(horariosRepository, "findByProfesorBloqueSemestre").mockResolvedValue(undefined);
-    const update = vi.spyOn(horariosRepository, "update").mockResolvedValue({ ...existing, horarioPublicado: true });
-    try {
-      await horariosService.updateHorario(12, { horarioPublicado: true });
-      expect(update).toHaveBeenCalledWith(12, { horarioPublicado: true, semestreId: 7 });
-      expect(conflict).not.toHaveBeenCalled();
-    } finally {
-      vi.restoreAllMocks();
-    }
+  it("rechaza entrada para otra planificación antes de insertar", async () => {
+    preparar();
+    const crear = vi.spyOn(horariosRepository, "create");
+    await expect(horariosService.createHorario({ ...entry, planificacionSemestreId: 8 })).rejects.toThrow(/no coincide/);
+    expect(crear).not.toHaveBeenCalled();
   });
-
-  it("clears a room without checking conflicts for the previous room", async () => {
-    const existing = { id: 12, ...entry, salaId: 9, horarioPublicado: false };
-    const reads = vi.spyOn(horariosRepository, "findById").mockResolvedValue(existing as any);
-    vi.spyOn(horariosRepository, "findOfertaWithDetails").mockResolvedValue({ semestreId: 7, profesorId: 5 } as any);
-    const conflict = vi.spyOn(horariosRepository, "findBySalaBloqueSemestre").mockResolvedValue({ id: 99 } as any);
-    vi.spyOn(horariosRepository, "findByOfertaBloque").mockResolvedValue(undefined);
-    vi.spyOn(horariosRepository, "findByProfesorBloqueSemestre").mockResolvedValue(undefined);
-    const update = vi.spyOn(horariosRepository, "update").mockResolvedValue({ ...existing, salaId: null });
-    try {
-      await horariosService.updateHorario(12, { salaId: null });
-      expect(conflict).not.toHaveBeenCalled();
-      expect(update).toHaveBeenCalledWith(12, { salaId: null, semestreId: 7 });
-      expect(reads).toHaveBeenCalledTimes(2);
-    } finally {
-      vi.restoreAllMocks();
-    }
+  it("actualiza entrada sin sala sin revisar conflictos de sala", async () => {
+    const creada = preparar();
+    const conflicto = vi.spyOn(horariosRepository, "findBySalaBloquePlanificacion");
+    const actualizar = vi.spyOn(horariosRepository, "update").mockResolvedValue(creada);
+    await horariosService.updateHorario(12, { tipoHoraId: 4 });
+    expect(actualizar).toHaveBeenCalledWith(12, entry, 7);
+    expect(conflicto).not.toHaveBeenCalled();
+  });
+  it("libera sala anterior sin tratarla como ocupada", async () => {
+    preparar();
+    const lecturas = vi.spyOn(horariosRepository, "findById").mockResolvedValue({ id: 12, ...entry, salaId: 9 } as any);
+    const conflicto = vi.spyOn(horariosRepository, "findBySalaBloquePlanificacion");
+    const actualizar = vi.spyOn(horariosRepository, "update").mockResolvedValue({ id: 12, ...entry });
+    await horariosService.updateHorario(12, { salaId: null });
+    expect(actualizar).toHaveBeenCalledWith(12, entry, 7);
+    expect(conflicto).not.toHaveBeenCalled();
+    expect(lecturas).toHaveBeenCalledTimes(2);
   });
 });

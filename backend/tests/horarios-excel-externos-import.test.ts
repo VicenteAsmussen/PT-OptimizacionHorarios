@@ -4,7 +4,7 @@ import { horariosService } from "../src/services/horarios.service.js";
 import { horariosRepository } from "../src/repositories/horarios.repository.js";
 import { encabezadosExcelSalas } from "../src/utils/excel-salas.js";
 vi.mock("../src/repositories/horarios.repository.js", () => ({ horariosRepository: {
-  findCarreraSecretariaByUsuarioId: vi.fn(), checkSemestreExists: vi.fn(), findContextoExternos: vi.fn(), crearExternosEnTransaccion: vi.fn(),
+  findCarreraSecretariaByUsuarioId: vi.fn(), findPlanificacionById: vi.fn(), checkPlanificacionExists: vi.fn(), findContextoExternos: vi.fn(), crearExternosEnTransaccion: vi.fn(),
 } }));
 const encabezados = ["Código Asig.", "Nombre Asignatura", "Sección", "Cupos", "RUT Profesor", "Profesor",
   ...[1, 2, 3, 4, 5].flatMap((numero) => [`Tipo Hora ${numero}`, `Día ${numero}`, `Horario ${numero}`, `Sala ${numero}`])];
@@ -26,7 +26,8 @@ async function archivo(cambio: Record<number, string | number> = {}, duplicada =
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(horariosRepository.findCarreraSecretariaByUsuarioId).mockResolvedValue({ carreraId: 3 });
-  vi.mocked(horariosRepository.checkSemestreExists).mockResolvedValue(true);
+  vi.mocked(horariosRepository.checkPlanificacionExists).mockResolvedValue(true);
+  vi.mocked(horariosRepository.findPlanificacionById).mockResolvedValue({ id: 9, carreraId: 3, codigo: "2099-1", actual: true, estadoPlanificacion: "preparacion" });
   vi.mocked(horariosRepository.findContextoExternos).mockResolvedValue(contexto() as never);
 });
 it.each(["t", "teo", "teórica", "teorica"])("acepta alias %s e ignora Sala N", async (tipo) => {
@@ -93,6 +94,17 @@ it("admin no necesita perfil de secretaria", async () => {
   expect((await horariosService.importarExcelExternos(9, 4, await archivo({ 9: "" }), { id: 1, rol: "admin" })).errores).toEqual([]);
   expect(horariosRepository.findCarreraSecretariaByUsuarioId).not.toHaveBeenCalled();
   expect(horariosRepository.findContextoExternos).toHaveBeenCalledWith(9, 4, undefined);
+});
+it.each([undefined, { id: 9, carreraId: 99, codigo: "2099-1", actual: true, estadoPlanificacion: "preparacion" as const }])("rechaza planificación ausente o de otra carrera antes de leer externos", async (planificacion) => {
+  vi.mocked(horariosRepository.findPlanificacionById).mockResolvedValue(planificacion);
+  await expect(horariosService.importarExcelExternos(9, 4, await archivo(), usuario)).rejects.toMatchObject({ statusCode: 403, message: "La planificación no pertenece a su carrera" });
+  expect(horariosRepository.findContextoExternos).not.toHaveBeenCalled();
+  expect(horariosRepository.crearExternosEnTransaccion).not.toHaveBeenCalled();
+});
+it("profesor no puede importar externos", async () => {
+  await expect(horariosService.importarExcelExternos(9, 4, await archivo(), { id: 1, rol: "profesor" })).rejects.toMatchObject({ statusCode: 403 });
+  expect(horariosRepository.findPlanificacionById).not.toHaveBeenCalled();
+  expect(horariosRepository.crearExternosEnTransaccion).not.toHaveBeenCalled();
 });
 it("rechaza encabezados antiguos sin cambiar los de salas", async () => {
   expect(encabezadosExcelSalas).toHaveLength(25);

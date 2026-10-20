@@ -15,7 +15,7 @@ export const horariosController = {
       return;
     }
     try {
-      const resultado = await horariosService.importarExcelExternos(consulta.data.semestreId, consulta.data.departamentoId, req.file.buffer, { id: req.user!.id, rol: req.user!.rol });
+      const resultado = await horariosService.importarExcelExternos(consulta.data.planificacionSemestreId, consulta.data.departamentoId, req.file.buffer, { id: req.user!.id, rol: req.user!.rol });
       if (resultado.errores.length) res.status(400).json({ status: "error", errores: resultado.errores });
       else res.status(201).json({ status: "success", data: resultado });
     } catch (error) { next(error); }
@@ -24,7 +24,7 @@ export const horariosController = {
   async importarExcelSalas(req: Request, res: Response, next: NextFunction): Promise<void> {
     const consulta = excelSalasQueryValidation.safeParse(req.query);
     if (!consulta.success) {
-      res.status(400).json({ status: "error", errores: consulta.error.issues.map((problema) => ({ fila: 1, columna: "semestreId", mensaje: problema.message })) });
+      res.status(400).json({ status: "error", errores: consulta.error.issues.map((problema) => ({ fila: 1, columna: "planificacionSemestreId", mensaje: problema.message })) });
       return;
     }
     if (!req.file || !req.file.originalname.toLowerCase().endsWith(".xlsx")) {
@@ -32,7 +32,7 @@ export const horariosController = {
       return;
     }
     try {
-      const resultado = await horariosService.importarExcelSalas(consulta.data.semestreId, req.file.buffer, { id: req.user!.id, rol: req.user!.rol });
+      const resultado = await horariosService.importarExcelSalas(consulta.data.planificacionSemestreId, req.file.buffer, { id: req.user!.id, rol: req.user!.rol });
       if (resultado.errores.length) res.status(400).json({ status: "error", errores: resultado.errores });
       else res.status(200).json({ status: "success", data: resultado });
     } catch (error) { next(error); }
@@ -40,8 +40,8 @@ export const horariosController = {
 
   async exportarExcelSalas(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const { semestreId } = req.query as unknown as ExcelSalasQueryDTO;
-      const { buffer, nombreArchivo } = await horariosService.exportarExcelSalas(semestreId, { id: req.user!.id, rol: req.user!.rol });
+      const { planificacionSemestreId } = req.query as unknown as ExcelSalasQueryDTO;
+      const { buffer, nombreArchivo } = await horariosService.exportarExcelSalas(planificacionSemestreId, { id: req.user!.id, rol: req.user!.rol });
       res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
       res.setHeader("Content-Disposition", `attachment; filename="${nombreArchivo}"`);
       res.status(200).send(buffer);

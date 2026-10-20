@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import * as esquema from "../schema/index.js";
 import type { BaseDatosSeed, CatalogosAcademicosSeed } from "./contexto.js";
 import {
@@ -29,20 +29,6 @@ async function asegurarCarrera(baseDatos: BaseDatosSeed, carrera: typeof datosCa
   if (existente) return existente;
   const [insertada] = await baseDatos.insert(esquema.carreras).values(carrera).returning();
   return insertada;
-}
-
-async function asegurarSemestre(baseDatos: BaseDatosSeed, semestre: typeof datosSemestres[number]) {
-  const [existente] = await baseDatos.select().from(esquema.semestres).where(eq(esquema.semestres.codigo, semestre.codigo)).limit(1);
-  if (existente) {
-    const [actualizado] = await baseDatos
-      .update(esquema.semestres)
-      .set({ anio: semestre.anio, actual: semestre.actual })
-      .where(eq(esquema.semestres.id, existente.id))
-      .returning();
-    return actualizado;
-  }
-  const [insertado] = await baseDatos.insert(esquema.semestres).values(semestre).returning();
-  return insertado;
 }
 
 export async function sembrarAcademico(baseDatos: BaseDatosSeed): Promise<CatalogosAcademicosSeed> {
@@ -88,9 +74,20 @@ export async function sembrarAcademico(baseDatos: BaseDatosSeed): Promise<Catalo
   }
   console.log(`✓ Aseguradas ${datosAsignaturas.length} asignaturas con departamento explícito`);
 
-  const semestresAsegurados: (typeof esquema.semestres.$inferSelect)[] = [];
-  for (const semestre of datosSemestres) semestresAsegurados.push(await asegurarSemestre(baseDatos, semestre));
-  console.log(`✓ Asegurados ${semestresAsegurados.length} semestres`);
+  for (const carrera of carrerasAseguradas) {
+    const [planificacionActual] = await baseDatos.select().from(esquema.planificacionesSemestres)
+      .where(and(eq(esquema.planificacionesSemestres.carreraId, carrera.id), eq(esquema.planificacionesSemestres.actual, true)))
+      .limit(1);
+    // No reemplazar otro periodo actual ni reactivar planificaciones existentes.
+    await baseDatos.insert(esquema.planificacionesSemestres).values(datosSemestres.map((semestre) => ({
+      carreraId: carrera.id,
+      codigo: semestre.codigo,
+      actual: semestre.actual && !planificacionActual,
+    }))).onConflictDoNothing({
+      target: [esquema.planificacionesSemestres.carreraId, esquema.planificacionesSemestres.codigo],
+    });
+  }
+  console.log(`✓ Aseguradas planificaciones para ${carrerasAseguradas.length} carreras`);
 
   return { carreras: carrerasAseguradas, departamentos: departamentosAsegurados };
 }

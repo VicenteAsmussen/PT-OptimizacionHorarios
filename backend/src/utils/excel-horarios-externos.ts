@@ -13,7 +13,7 @@ export const encabezadosExcelExternos = [
 ] as const;
 
 /** Valida todo el archivo antes de escribir. Sala N es visual: se ignora incluso no vacía. */
-export async function importarHorariosExternos(semestreId: number, departamentoId: number, archivo: Buffer, carreraId?: number) {
+export async function importarHorariosExternos(planificacionSemestreId: number, departamentoId: number, archivo: Buffer, carreraId?: number) {
   const errores: { fila: number; columna: string; mensaje: string }[] = [];
   const advertencias: { fila: number; columna: string; mensaje: string }[] = [];
   const error = (fila: number, columna: string, mensaje: string) => errores.push({ fila, columna, mensaje });
@@ -28,8 +28,8 @@ export async function importarHorariosExternos(semestreId: number, departamentoI
   });
   if (hoja.columnCount > encabezadosExcelExternos.length) error(1, "archivo", "Hay columnas adicionales.");
   if (errores.length) return rechazado();
-  if (!await horariosRepository.checkSemestreExists(semestreId)) { error(1, "semestreId", "El semestre no existe."); return rechazado(); }
-  const contexto = await horariosRepository.findContextoExternos(semestreId, departamentoId, carreraId);
+  if (!await horariosRepository.checkPlanificacionExists(planificacionSemestreId)) { error(1, "planificacionSemestreId", "La planificación no existe."); return rechazado(); }
+  const contexto = await horariosRepository.findContextoExternos(planificacionSemestreId, departamentoId, carreraId);
   if (!contexto.departamentoValido) throw new ForbiddenError("Departamento inexistente o no externo para la carrera de la secretaria");
   const propuestas: Parameters<typeof horariosRepository.crearExternosEnTransaccion>[1] = [];
   const claves = new Set<string>();
@@ -84,6 +84,6 @@ export async function importarHorariosExternos(semestreId: number, departamentoI
   });
   if (!propuestas.length) error(2, "archivo", "Incluya al menos una oferta.");
   if (errores.length) return rechazado();
-  await horariosRepository.crearExternosEnTransaccion(semestreId, propuestas);
+  await horariosRepository.crearExternosEnTransaccion(planificacionSemestreId, propuestas);
   return { ofertasCreadas: propuestas.length, horariosCreados: propuestas.reduce((total, fila) => total + fila.sesiones.length, 0), errores, advertencias };
 }

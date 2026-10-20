@@ -1,7 +1,8 @@
 import ExcelJS from "exceljs";
-import { exigirEnAlcance, type AlcanceCarrera } from "../utils/alcance-carrera.js";
+import { type AlcanceCarrera } from "../utils/alcance-carrera.js";
 import { analizarHorario, normalizarDia, normalizarCodigoSala, normalizarTextoCelda, agruparBloquesEnSesiones, encabezadosExcelSalas, formatearHorario, maximoSesionesExcelSalas, type BloqueExcelSala } from "../utils/excel-salas.js";
 import { horariosRepository } from "../repositories/horarios.repository.js";
+import { planificacionesSemestresService } from "./planificaciones-semestres.service.js";
 import {
   type CreateHorarioDTO,
   type UpdateHorarioDTO,
@@ -24,12 +25,16 @@ async function resolverCarreraExcel(usuario: UsuarioExcelSalas): Promise<number 
 }
 
 export const horariosService = {
-  async importarExcelExternos(semestreId: number, departamentoId: number, archivo: Buffer, usuario: UsuarioExcelSalas) {
+  async importarExcelExternos(planificacionSemestreId: number, departamentoId: number, archivo: Buffer, usuario: UsuarioExcelSalas) {
     const carreraId = await resolverCarreraExcel(usuario);
-    return importarHorariosExternos(semestreId, departamentoId, archivo, carreraId);
+    const planificacion = await horariosRepository.findPlanificacionById(planificacionSemestreId);
+    if (!planificacion || (carreraId !== undefined && planificacion.carreraId !== carreraId)) throw new ForbiddenError("La planificación no pertenece a su carrera");
+    return importarHorariosExternos(planificacionSemestreId, departamentoId, archivo, carreraId);
   },
-  async importarExcelSalas(semestreId: number, archivo: Buffer, usuario: UsuarioExcelSalas) {
+  async importarExcelSalas(planificacionSemestreId: number, archivo: Buffer, usuario: UsuarioExcelSalas) {
     const carreraId = await resolverCarreraExcel(usuario);
+    const planificacion = await horariosRepository.findPlanificacionById(planificacionSemestreId);
+    if (!planificacion || (carreraId !== undefined && planificacion.carreraId !== carreraId)) throw new ForbiddenError("La planificación no pertenece a su carrera");
     const errores: { fila: number; columna: string; mensaje: string }[] = [];
     const error = (fila: number, columna: string, mensaje: string) => errores.push({ fila, columna, mensaje });
     const rechazado = () => ({ actualizadas: 0, pendientes: 0, errores });
@@ -48,8 +53,8 @@ export const horariosService = {
     if (hoja.columnCount > encabezadosExcelSalas.length) error(1, "archivo", "Hay columnas adicionales. Use únicamente las columnas del archivo exportado.");
     if (errores.length) return rechazado();
     const { entradas, salas, entradasParaConflictos = entradas } = carreraId === undefined
-      ? await horariosRepository.findParaImportarSalas(semestreId)
-      : await horariosRepository.findParaImportarSalas(semestreId, carreraId);
+      ? await horariosRepository.findParaImportarSalas(planificacionSemestreId)
+      : await horariosRepository.findParaImportarSalas(planificacionSemestreId, carreraId);
     type Entrada = typeof entradas[number];
     const grupos = new Map<string, Entrada[]>();
     for (const entrada of entradas) {
@@ -133,19 +138,20 @@ export const horariosService = {
     if (errores.length) return rechazado();
     if (propuestas.size) {
       const cambios = [...propuestas.values()].map(({ id, salaId }) => ({ id, salaId }));
-      if (carreraId === undefined) await horariosRepository.actualizarSalasEnTransaccion(semestreId, cambios);
-      else await horariosRepository.actualizarSalasEnTransaccion(semestreId, cambios, carreraId);
+      if (carreraId === undefined) await horariosRepository.actualizarSalasEnTransaccion(planificacionSemestreId, cambios);
+      else await horariosRepository.actualizarSalasEnTransaccion(planificacionSemestreId, cambios, carreraId);
     }
     return { actualizadas, pendientes, errores };
   },
 
-  async exportarExcelSalas(semestreId: number, usuario: UsuarioExcelSalas): Promise<{ buffer: Buffer; nombreArchivo: string }> {
+  async exportarExcelSalas(planificacionSemestreId: number, usuario: UsuarioExcelSalas): Promise<{ buffer: Buffer; nombreArchivo: string }> {
     const carreraId = await resolverCarreraExcel(usuario);
-    const semestre = await horariosRepository.findSemestreById(semestreId);
-    if (!semestre) throw new NotFoundError(`Semestre con ID ${semestreId} no encontrado`);
+    const planificacion = await horariosRepository.findPlanificacionById(planificacionSemestreId);
+    if (!planificacion) throw new NotFoundError(`Planificación con ID ${planificacionSemestreId} no encontrada`);
+    if (carreraId !== undefined && planificacion.carreraId !== carreraId) throw new ForbiddenError("La planificación no pertenece a su carrera");
     const entradas = carreraId === undefined
-      ? await horariosRepository.findParaExportarSalas(semestreId)
-      : await horariosRepository.findParaExportarSalas(semestreId, carreraId);
+      ? await horariosRepository.findParaExportarSalas(planificacionSemestreId)
+      : await horariosRepository.findParaExportarSalas(planificacionSemestreId, carreraId);
     const grupos = new Map<string, { entrada: typeof entradas[number]; bloques: BloqueExcelSala[] }>();
     for (const entrada of entradas) {
       const tipo = normalizarTipoHora(entrada.tipoHora.tipo);
@@ -189,226 +195,80 @@ export const horariosService = {
     }
     return {
       buffer: Buffer.from(await libro.xlsx.writeBuffer()),
-      nombreArchivo: `Resumen Malla (${semestre.codigo}).xlsx`,
+      nombreArchivo: `Resumen Malla (${planificacion.codigo}).xlsx`,
     };
   },
 
-  async getAllHorarios(filter?: HorarioQueryDTO, alcance?: AlcanceCarrera) {
-    return await horariosRepository.findAll(filter, alcance);
+  async getAllHorarios(filtro?: HorarioQueryDTO, alcance?: AlcanceCarrera) {
+    if (filtro?.planificacionSemestreId) await planificacionesSemestresService.getById(filtro.planificacionSemestreId, alcance);
+    return horariosRepository.findAll(filtro, alcance);
   },
 
   async getHorarioById(id: number, alcance?: AlcanceCarrera) {
     const horario = await horariosRepository.findById(id);
-    if (!horario || (alcance && !alcance.ofertasIds.includes(horario.ofertaId))) {
-      throw new NotFoundError(`Horario con ID ${id} no encontrado`);
-    }
+    if (!horario || (alcance && horario.planificacionSemestre.carreraId !== alcance.carreraId)) throw new NotFoundError(`Horario con ID ${id} no encontrado`);
     return horario;
   },
 
-  async createHorario(dto: CreateHorarioDTO, alcance?: AlcanceCarrera) {
-    exigirEnAlcance(alcance?.ofertasIds, dto.ofertaId);
-    const oferta = await horariosRepository.findOfertaWithDetails(dto.ofertaId);
-    if (!oferta) {
-      throw new BadRequestError(`La oferta de asignatura con ID ${dto.ofertaId} no existe`);
+  async validarEntrada(datos: CreateHorarioDTO, alcance?: AlcanceCarrera, id?: number) {
+    const oferta = await horariosRepository.findOfertaWithDetails(datos.ofertaId);
+    if (!oferta) throw new BadRequestError("La oferta no existe");
+    await planificacionesSemestresService.getById(oferta.planificacionSemestreId, alcance);
+    const planificacionSemestreId = datos.planificacionSemestreId ?? oferta.planificacionSemestreId;
+    await planificacionesSemestresService.getById(planificacionSemestreId, alcance);
+    if (planificacionSemestreId !== oferta.planificacionSemestreId) throw new BadRequestError("La planificación indicada no coincide con la planificación de la oferta");
+    if (!await horariosRepository.checkBloqueExists(datos.bloqueId)) throw new BadRequestError("El bloque horario no existe");
+    if (!await horariosRepository.checkTipoHoraExists(datos.tipoHoraId)) throw new BadRequestError("El tipo de hora no existe");
+    if (datos.salaId) {
+      if (!await horariosRepository.checkSalaExists(datos.salaId)) throw new BadRequestError("La sala no existe");
+      const conflicto = await horariosRepository.findBySalaBloquePlanificacion(datos.salaId, datos.bloqueId, planificacionSemestreId);
+      if (conflicto && conflicto.id !== id) throw new ConflictError("Conflicto de horario: sala ocupada en esta planificación");
     }
-
-    const semestreId = dto.semestreId ?? oferta.semestreId;
-    if (dto.semestreId && dto.semestreId !== oferta.semestreId) {
-      throw new BadRequestError(
-        `El semestre indicado (${dto.semestreId}) no coincide con el semestre de la oferta (${oferta.semestreId})`
-      );
-    }
-
-    const semExists = await horariosRepository.checkSemestreExists(semestreId);
-    if (!semExists) {
-      throw new BadRequestError(`El semestre con ID ${semestreId} no existe`);
-    }
-
-    const bloqueExists = await horariosRepository.checkBloqueExists(dto.bloqueId);
-    if (!bloqueExists) {
-      throw new BadRequestError(`El bloque horario con ID ${dto.bloqueId} no existe`);
-    }
-
-    const thExists = await horariosRepository.checkTipoHoraExists(dto.tipoHoraId);
-    if (!thExists) {
-      throw new BadRequestError(`El tipo de hora con ID ${dto.tipoHoraId} no existe`);
-    }
-
-    if (dto.salaId) {
-      const salaExists = await horariosRepository.checkSalaExists(dto.salaId);
-      if (!salaExists) {
-        throw new BadRequestError(`La sala con ID ${dto.salaId} no existe`);
-      }
-
-      // Hard Constraint 1: Choque de sala en el mismo bloque y semestre
-      const salaConflict = await horariosRepository.findBySalaBloqueSemestre(
-        dto.salaId,
-        dto.bloqueId,
-        semestreId
-      );
-      if (salaConflict) {
-        throw new ConflictError(
-          `Conflicto de horario: La sala ya se encuentra ocupada en este bloque para el semestre indicado`
-        );
-      }
-    }
-
-    // Hard Constraint 2: Choque de la misma oferta en el mismo bloque
-    const ofertaConflict = await horariosRepository.findByOfertaBloque(
-      dto.ofertaId,
-      dto.bloqueId
-    );
-    if (ofertaConflict) {
-      throw new ConflictError(
-        `Conflicto de horario: Esta sección de asignatura ya tiene una clase asignada en el bloque indicado`
-      );
-    }
-
-    // Hard Constraint 3: Choque de profesor en el mismo bloque y semestre
-    const profConflict = await horariosRepository.findByProfesorBloqueSemestre(
-      oferta.profesorId,
-      dto.bloqueId,
-      semestreId
-    );
-    if (profConflict) {
-      throw new ConflictError(
-        `Conflicto de horario: El docente '${oferta.profesor.nombre}' ya tiene otra clase asignada en este bloque horario`
-      );
-    }
-
-    const created = await horariosRepository.create({
-      ...dto,
-      semestreId,
-    });
-
-    return await this.getHorarioById(created.id);
+    const conflictoOferta = await horariosRepository.findByOfertaBloque(datos.ofertaId, datos.bloqueId);
+    if (conflictoOferta && conflictoOferta.id !== id) throw new ConflictError("Conflicto de horario: sección ocupada en este bloque");
+    const conflictoProfesor = await horariosRepository.findByProfesorBloquePlanificacion(oferta.profesorId, datos.bloqueId, planificacionSemestreId);
+    if (conflictoProfesor && conflictoProfesor.id !== id) throw new ConflictError("Conflicto de horario: profesor ocupado en esta planificación");
+    return { ...datos, planificacionSemestreId };
   },
 
-  async updateHorario(id: number, dto: UpdateHorarioDTO, alcance?: AlcanceCarrera) {
-    const existing = await this.getHorarioById(id, alcance);
+  async createHorario(datos: CreateHorarioDTO, alcance?: AlcanceCarrera) {
+    const entrada = await this.validarEntrada(datos, alcance);
+    const creada = await horariosRepository.create(entrada);
+    return this.getHorarioById(creada.id, alcance);
+  },
 
-    const targetOfertaId = dto.ofertaId ?? existing.ofertaId;
-    exigirEnAlcance(alcance?.ofertasIds, targetOfertaId);
-    const targetSalaId = dto.salaId !== undefined ? dto.salaId : existing.salaId;
-    const targetBloqueId = dto.bloqueId ?? existing.bloqueId;
-    const targetTipoHoraId = dto.tipoHoraId ?? existing.tipoHoraId;
-    const targetSemestreId = dto.semestreId ?? existing.semestreId;
-
-    const oferta = await horariosRepository.findOfertaWithDetails(targetOfertaId);
-    if (!oferta) {
-      throw new BadRequestError(`La oferta de asignatura con ID ${targetOfertaId} no existe`);
-    }
-
-    if (targetSemestreId !== oferta.semestreId) {
-      throw new BadRequestError(
-        `El semestre indicado (${targetSemestreId}) no coincide con el semestre de la oferta (${oferta.semestreId})`
-      );
-    }
-
-    if (dto.salaId) {
-      const salaExists = await horariosRepository.checkSalaExists(dto.salaId);
-      if (!salaExists) {
-        throw new BadRequestError(`La sala con ID ${dto.salaId} no existe`);
-      }
-    }
-
-    if (dto.bloqueId) {
-      const bloqueExists = await horariosRepository.checkBloqueExists(dto.bloqueId);
-      if (!bloqueExists) {
-        throw new BadRequestError(`El bloque horario con ID ${dto.bloqueId} no existe`);
-      }
-    }
-
-    if (dto.tipoHoraId) {
-      const thExists = await horariosRepository.checkTipoHoraExists(dto.tipoHoraId);
-      if (!thExists) {
-        throw new BadRequestError(`El tipo de hora con ID ${dto.tipoHoraId} no existe`);
-      }
-    }
-
-    if (dto.semestreId) {
-      const semExists = await horariosRepository.checkSemestreExists(dto.semestreId);
-      if (!semExists) {
-        throw new BadRequestError(`El semestre con ID ${dto.semestreId} no existe`);
-      }
-    }
-
-    // Validar Choque de Sala
-    if (targetSalaId) {
-      const salaConflict = await horariosRepository.findBySalaBloqueSemestre(
-        targetSalaId,
-        targetBloqueId,
-        targetSemestreId
-      );
-      if (salaConflict && salaConflict.id !== id) {
-        throw new ConflictError(
-          `Conflicto de horario: La sala ya se encuentra ocupada en este bloque para el semestre indicado`
-        );
-      }
-    }
-
-    // Validar Choque de Oferta
-    const ofertaConflict = await horariosRepository.findByOfertaBloque(
-      targetOfertaId,
-      targetBloqueId
-    );
-    if (ofertaConflict && ofertaConflict.id !== id) {
-      throw new ConflictError(
-        `Conflicto de horario: Esta sección de asignatura ya tiene una clase asignada en el bloque indicado`
-      );
-    }
-
-    // Validar Choque de Profesor
-    const profConflict = await horariosRepository.findByProfesorBloqueSemestre(
-      oferta.profesorId,
-      targetBloqueId,
-      targetSemestreId
-    );
-    if (profConflict && profConflict.id !== id) {
-      throw new ConflictError(
-        `Conflicto de horario: El docente '${oferta.profesor.nombre}' ya tiene otra clase asignada en este bloque horario`
-      );
-    }
-
-    await horariosRepository.update(id, {
-      ...dto,
-      semestreId: targetSemestreId,
-    });
-
-    return await this.getHorarioById(id);
+  async updateHorario(id: number, datos: UpdateHorarioDTO, alcance?: AlcanceCarrera) {
+    const existente = await this.getHorarioById(id, alcance);
+    const entrada = await this.validarEntrada({
+      ofertaId: datos.ofertaId ?? existente.ofertaId,
+      salaId: datos.salaId === undefined ? existente.salaId : datos.salaId,
+      bloqueId: datos.bloqueId ?? existente.bloqueId,
+      tipoHoraId: datos.tipoHoraId ?? existente.tipoHoraId,
+      planificacionSemestreId: datos.planificacionSemestreId ?? existente.planificacionSemestreId,
+    }, alcance, id);
+    await horariosRepository.update(id, entrada, existente.planificacionSemestreId);
+    return this.getHorarioById(id, alcance);
   },
 
   async deleteHorario(id: number, alcance?: AlcanceCarrera) {
-    await this.getHorarioById(id, alcance);
-    await horariosRepository.delete(id);
+    const existente = await this.getHorarioById(id, alcance);
+    await horariosRepository.delete(id, existente.planificacionSemestreId);
   },
 
   async deleteHorariosByOferta(ofertaId: number, alcance?: AlcanceCarrera) {
-    exigirEnAlcance(alcance?.ofertasIds, ofertaId);
     const oferta = await horariosRepository.findOfertaWithDetails(ofertaId);
-    if (!oferta) {
-      throw new NotFoundError(`Oferta de asignatura con ID ${ofertaId} no encontrada`);
-    }
-    return await horariosRepository.deleteByOferta(ofertaId);
+    if (!oferta) throw new NotFoundError("Oferta no encontrada");
+    await planificacionesSemestresService.getById(oferta.planificacionSemestreId, alcance);
+    return horariosRepository.deleteByOferta(ofertaId, oferta.planificacionSemestreId);
   },
 
-  async getMiHorario(usuarioId: number, query?: MiHorarioQueryDTO) {
+  async getMiHorario(usuarioId: number, consulta?: MiHorarioQueryDTO) {
     const profesor = await horariosRepository.findProfesorByUsuarioId(usuarioId);
-    if (!profesor) {
-      throw new ForbiddenError("El usuario autenticado no tiene un perfil de profesor asociado");
-    }
-
-    let semestreId = query?.semestreId;
-    if (!semestreId) {
-      const semestreActual = await horariosRepository.findActualSemestre();
-      if (semestreActual) {
-        semestreId = semestreActual.id;
-      }
-    }
-
-    return await horariosRepository.findAll({
-      semestreId,
-      profesorId: profesor.id,
-    });
+    if (!profesor) throw new ForbiddenError("El usuario autenticado no tiene un perfil de profesor asociado");
+    const usuario = { id: usuarioId, rol: "profesor" };
+    if (consulta?.planificacionSemestreId) await planificacionesSemestresService.getById(consulta.planificacionSemestreId, undefined, usuario);
+    const permitidas = new Set((await planificacionesSemestresService.getAll(undefined, undefined, usuario)).map(fila => fila.id));
+    return (await horariosRepository.findAll({ planificacionSemestreId: consulta?.planificacionSemestreId, profesorId: profesor.id }))
+      .filter(fila => permitidas.has(fila.planificacionSemestreId));
   },
 };

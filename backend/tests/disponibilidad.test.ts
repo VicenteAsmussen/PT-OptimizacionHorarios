@@ -1,152 +1,115 @@
-import { describe, it, expect, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import request from "supertest";
+import { eq } from "drizzle-orm";
 import { app } from "../src/app.js";
 import { db } from "../src/config/db.js";
+import { planificacionesSemestres } from "../src/db/schema/planificaciones-semestres.schema.js";
 
 describe("Módulo Disponibilidad Docente (/api/disponibilidad-profesores)", () => {
   let profesorCookie: string[];
   let secretariaCookie: string[];
   let profesorId: number;
-  let semestreId: number;
+  let planificacionSemestreId: number;
+  let planificacionActualAnterior: number | undefined;
   let bloqueId1: number;
   let bloqueId2: number;
-
   beforeAll(async () => {
-    // 1. Iniciar sesión como profesor y secretaria
-    const profRes = await request(app)
-      .post("/api/auth/login")
-      .send({ correo: "profesor@ubiobio.cl", clave: "123456" });
-    profesorCookie = profRes.headers["set-cookie"];
-
-    const secRes = await request(app)
-      .post("/api/auth/login")
-      .send({ correo: "secretaria@ubiobio.cl", clave: "123456" });
-    secretariaCookie = secRes.headers["set-cookie"];
-
-    // 2. Obtener IDs reales
-    const prof = await db.query.profesores.findFirst();
-    profesorId = prof!.id;
-
-    const sem = await db.query.semestres.findFirst();
-    semestreId = sem!.id;
-
+    const profesor = await request(app).post("/api/auth/login").send({ correo: "profesor@ubiobio.cl", clave: "123456" });
+    profesorCookie = profesor.headers["set-cookie"];
+    const secretaria = await request(app).post("/api/auth/login").send({ correo: "secretaria@ubiobio.cl", clave: "123456" });
+    secretariaCookie = secretaria.headers["set-cookie"];
+    const usuario = await db.query.usuarios.findFirst({ where: (tabla, { eq }) => eq(tabla.correo, "profesor@ubiobio.cl") });
+    const perfilProfesor = await db.query.profesores.findFirst({ where: (tabla, { eq }) => eq(tabla.usuarioId, usuario!.id) });
+    profesorId = perfilProfesor!.id;
+    const perfil = await db.query.secretarias.findFirst();
+    const anterior = await db.query.planificacionesSemestres.findFirst({
+      where: (tabla, { and, eq }) => and(eq(tabla.carreraId, perfil!.carreraId), eq(tabla.actual, true)),
+    });
+    planificacionActualAnterior = anterior?.id;
+    const planificacion = await db.transaction(async (tx) => {
+      await tx.update(planificacionesSemestres).set({ actual: false }).where(eq(planificacionesSemestres.carreraId, perfil!.carreraId));
+      const [propia] = await tx.insert(planificacionesSemestres).values({ carreraId: perfil!.carreraId, codigo: "2091-1", actual: true, estadoPlanificacion: "preparacion" }).returning();
+      return propia;
+    });
+    planificacionSemestreId = planificacion.id;
     const bloques = await db.query.bloquesHorarios.findMany({ limit: 2 });
     bloqueId1 = bloques[0].id;
     bloqueId2 = bloques[1].id;
   });
-
-  it("Debe sincronizar atómicamente la grilla de disponibilidad con 2 bloques (200)", async () => {
-    const res = await request(app)
-      .post("/api/disponibilidad-profesores/sincronizar")
-      .set("Cookie", profesorCookie)
-      .send({
-        profesorId,
-        semestreId,
-        bloquesIds: [bloqueId1, bloqueId2],
-      });
-
-    expect(res.status).toBe(200);
-    expect(res.body.status).toBe("success");
-    expect(res.body.data).toHaveLength(2);
+  afterAll(async () => {
+    await db.transaction(async (tx) => {
+      await tx.delete(planificacionesSemestres).where(eq(planificacionesSemestres.id, planificacionSemestreId));
+      if (planificacionActualAnterior !== undefined) await tx.update(planificacionesSemestres).set({ actual: true }).where(eq(planificacionesSemestres.id, planificacionActualAnterior));
+    });
   });
-
-  it("Secretaria puede consultar la disponibilidad del profesor (200)", async () => {
-    const res = await request(app)
-      .get(`/api/disponibilidad-profesores?profesorId=${profesorId}&semestreId=${semestreId}`)
-      .set("Cookie", secretariaCookie);
-
-    expect(res.status).toBe(200);
-    expect(res.body.status).toBe("success");
-    expect(res.body.data).toHaveLength(2);
+  it("sincroniza atómicamente dos bloques (200)", async () => {
+    const respuesta = await request(app).post("/api/disponibilidad-profesores/sincronizar").set("Cookie", profesorCookie)
+      .send({ profesorId, planificacionSemestreId, bloquesIds: [bloqueId1, bloqueId2] });
+    expect(respuesta.status).toBe(200);
+    expect(respuesta.body.data).toHaveLength(2);
   });
-
-  it("Debe limpiar la grilla al sincronizar con un arreglo vacío [] (200)", async () => {
-    const res = await request(app)
-      .post("/api/disponibilidad-profesores/sincronizar")
-      .set("Cookie", profesorCookie)
-      .send({
-        profesorId,
-        semestreId,
-        bloquesIds: [],
-      });
-
-    expect(res.status).toBe(200);
-    expect(res.body.status).toBe("success");
-    expect(res.body.data).toHaveLength(0);
+  it("secretaria consulta disponibilidad de su planificación (200)", async () => {
+    const respuesta = await request(app).get(`/api/disponibilidad-profesores?profesorId=${profesorId}&planificacionSemestreId=${planificacionSemestreId}`).set("Cookie", secretariaCookie);
+    expect(respuesta.status).toBe(200);
+    expect(respuesta.body.data).toHaveLength(2);
   });
-
-  it("Debe rechazar la sincronización si se envían bloques inexistentes (400)", async () => {
-    const res = await request(app)
-      .post("/api/disponibilidad-profesores/sincronizar")
-      .set("Cookie", profesorCookie)
-      .send({
-        profesorId,
-        semestreId,
-        bloquesIds: [99999],
-      });
-
-    expect(res.status).toBe(400);
-    expect(res.body.status).toBe("error");
+  it("sincronizar arreglo vacío limpia solo esta planificación (200)", async () => {
+    const respuesta = await request(app).post("/api/disponibilidad-profesores/sincronizar").set("Cookie", profesorCookie)
+      .send({ profesorId, planificacionSemestreId, bloquesIds: [] });
+    expect(respuesta.status).toBe(200);
+    expect(respuesta.body.data).toHaveLength(0);
   });
-
-  it("Debe bloquear la edición de disponibilidad si ya existen propuestas/horarios creados para el semestre (403 Forbidden)", async () => {
-    // 1. Obtener datos base y crear oferta temporal
-    const asignatura = await db.query.asignaturas.findFirst();
-    const tipoHora = await db.query.tiposHora.findFirst();
-
-    const seccionTemporal = 9000 + Math.floor(Math.random() * 1000);
-    const ofertaRes = await request(app)
-      .post("/api/ofertas-asignaturas")
-      .set("Cookie", secretariaCookie)
-      .send({
-        asignaturaCodigo: asignatura!.codigo,
-        profesorId,
-        semestreId,
-        seccion: seccionTemporal,
-        cupos: 20,
-      });
-    expect(ofertaRes.status).toBe(201);
-    const ofertaId = ofertaRes.body.data.id;
-    let tempHorarioId: number | undefined;
-
+  it.each([
+    { actual: false, estadoPlanificacion: "preparacion" as const },
+    { actual: true, estadoPlanificacion: "propuesta" as const },
+    { actual: true, estadoPlanificacion: "publicado" as const },
+  ])("rechaza sincronizar planificación no editable $actual/$estadoPlanificacion sin mutar", async (estado) => {
+    const ruta = `/api/disponibilidad-profesores?profesorId=${profesorId}&planificacionSemestreId=${planificacionSemestreId}`;
     try {
-      // Crear horario de propuesta para el semestre
-      const horarioRes = await request(app)
-        .post("/api/horarios-asignaturas")
-        .set("Cookie", secretariaCookie)
-        .send({
-          ofertaId,
-          bloqueId: bloqueId1,
-          tipoHoraId: tipoHora!.id,
-          semestreId,
-        });
-      expect(horarioRes.status).toBe(201);
-      tempHorarioId = horarioRes.body.data.id;
-
-      // 2. Intentar sincronizar disponibilidad para ese semestre -> Debe ser rechazado con 403
-      const syncRes = await request(app)
-        .post("/api/disponibilidad-profesores/sincronizar")
-        .set("Cookie", profesorCookie)
-        .send({
-          profesorId,
-          semestreId,
-          bloquesIds: [bloqueId1],
-        });
-
-      expect(syncRes.status).toBe(403);
-      expect(syncRes.body.status).toBe("error");
-      expect(syncRes.body.message).toContain("ya existe una propuesta de horarios");
+      await db.update(planificacionesSemestres).set(estado).where(eq(planificacionesSemestres.id, planificacionSemestreId));
+      const antes = await request(app).get(ruta).set("Cookie", profesorCookie);
+      expect(antes.status).toBe(200);
+      const respuesta = await request(app).post("/api/disponibilidad-profesores/sincronizar").set("Cookie", profesorCookie)
+        .send({ profesorId, planificacionSemestreId, bloquesIds: [bloqueId1] });
+      expect(respuesta.status).toBe(403);
+      expect(respuesta.body.message).toBe("Solo se puede modificar disponibilidad en una planificación actual en preparación");
+      const despues = await request(app).get(ruta).set("Cookie", profesorCookie);
+      expect(despues.status).toBe(200);
+      expect(despues.body.data).toEqual(antes.body.data);
     } finally {
-      // 3. Limpiar horario y oferta de prueba
-      if (tempHorarioId) {
-        await request(app)
-          .delete(`/api/horarios-asignaturas/${tempHorarioId}`)
-          .set("Cookie", secretariaCookie);
-      }
-
-      await request(app)
-        .delete(`/api/ofertas-asignaturas/${ofertaId}`)
-        .set("Cookie", secretariaCookie);
+      await db.update(planificacionesSemestres).set({ actual: true, estadoPlanificacion: "preparacion" }).where(eq(planificacionesSemestres.id, planificacionSemestreId));
+    }
+  });
+  it("rechaza bloques inexistentes (400)", async () => {
+    const respuesta = await request(app).post("/api/disponibilidad-profesores/sincronizar").set("Cookie", profesorCookie)
+      .send({ profesorId, planificacionSemestreId, bloquesIds: [99999] });
+    expect(respuesta.status).toBe(400);
+  });
+  it("bloquea disponibilidad en propuesta con horarios de esa planificación (403)", async () => {
+    // El dueño se obtiene explícitamente de la planificación, nunca del código.
+    const planificacion = await db.query.planificacionesSemestres.findFirst({ where: eq(planificacionesSemestres.id, planificacionSemestreId) });
+    const asignacion = await db.query.carreraAsignatura.findFirst({ where: (tabla, { eq }) => eq(tabla.carreraId, planificacion!.carreraId) });
+    const tipoHora = await db.query.tiposHora.findFirst();
+    const oferta = await request(app).post("/api/ofertas-asignaturas").set("Cookie", secretariaCookie)
+      .send({ asignaturaCodigo: asignacion!.asignaturaCodigo, profesorId, planificacionSemestreId, seccion: 1, cupos: 20 });
+    expect(oferta.status).toBe(201);
+    let horarioId: number | undefined;
+    try {
+      const horario = await request(app).post("/api/horarios-asignaturas").set("Cookie", secretariaCookie)
+        .send({ ofertaId: oferta.body.data.id, bloqueId: bloqueId1, tipoHoraId: tipoHora!.id, planificacionSemestreId });
+      expect(horario.status).toBe(201);
+      horarioId = horario.body.data.id;
+      // Crear una fila no genera propuesta: el guard depende del estado explícito.
+      await db.update(planificacionesSemestres).set({ estadoPlanificacion: "propuesta" }).where(eq(planificacionesSemestres.id, planificacionSemestreId));
+      const respuesta = await request(app).post("/api/disponibilidad-profesores/sincronizar").set("Cookie", profesorCookie)
+        .send({ profesorId, planificacionSemestreId, bloquesIds: [bloqueId1] });
+      expect(respuesta.status).toBe(403);
+      expect(respuesta.body.message).toBe("Solo se puede modificar disponibilidad en una planificación actual en preparación");
+    } finally {
+      // Solo se restaura nuestra planificación; nunca se reabre una del seed.
+      await db.update(planificacionesSemestres).set({ estadoPlanificacion: "preparacion" }).where(eq(planificacionesSemestres.id, planificacionSemestreId));
+      if (horarioId) await request(app).delete(`/api/horarios-asignaturas/${horarioId}`).set("Cookie", secretariaCookie);
+      await request(app).delete(`/api/ofertas-asignaturas/${oferta.body.data.id}`).set("Cookie", secretariaCookie);
     }
   });
 });

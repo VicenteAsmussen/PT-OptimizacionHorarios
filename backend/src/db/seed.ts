@@ -3,7 +3,7 @@ import postgres from "postgres";
 import { env } from "../config/env.js";
 import * as esquema from "./schema/index.js";
 import { sembrarAcademico } from "./seeds/academico.js";
-import { sembrarHorarios } from "./seeds/horarios.js";
+import { sembrarHorarios, sembrarPlanificacionHorarios } from "./seeds/horarios.js";
 import { sembrarUsuarios } from "./seeds/usuarios.js";
 
 async function seed() {
@@ -15,6 +15,7 @@ async function seed() {
   const catalogos = await sembrarAcademico(baseDatos);
   await sembrarHorarios(baseDatos);
   await sembrarUsuarios(baseDatos, catalogos);
+  await sembrarPlanificacionHorarios(baseDatos);
 
   console.log("\nSeed completado con éxito.");
   await cliente.end();

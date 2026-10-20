@@ -1,0 +1,2 @@
+ALTER TABLE "planificaciones_semestres" DROP COLUMN "anio";--> statement-breakpoint
+ALTER TABLE "planificaciones_semestres" ADD CONSTRAINT "planificaciones_semestres_codigo_check" CHECK (char_length("planificaciones_semestres"."codigo") = 6 and "planificaciones_semestres"."codigo" ~ '^[0-9]{4}-[12]$');

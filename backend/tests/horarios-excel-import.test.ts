@@ -8,13 +8,14 @@ import { horariosService as servicioHorarios } from "../src/services/horarios.se
 
 // Los casos de formato existentes usan el alcance global de un administrador.
 const horariosService = {
-  importarExcelSalas: (semestreId: number, archivo: Buffer, usuario = { id: 1, rol: "admin" }) =>
-    servicioHorarios.importarExcelSalas(semestreId, archivo, usuario),
+  importarExcelSalas: (planificacionSemestreId: number, archivo: Buffer, usuario = { id: 1, rol: "admin" }) =>
+    servicioHorarios.importarExcelSalas(planificacionSemestreId, archivo, usuario),
 };
 import { encabezadosExcelSalas } from "../src/utils/excel-salas.js";
 vi.mock("../src/repositories/horarios.repository.js", () => ({ horariosRepository: {
-  findParaImportarSalas: vi.fn(), actualizarSalasEnTransaccion: vi.fn(), findCarreraSecretariaByUsuarioId: vi.fn(),
+  findParaImportarSalas: vi.fn(), actualizarSalasEnTransaccion: vi.fn(), findCarreraSecretariaByUsuarioId: vi.fn(), findPlanificacionById: vi.fn(),
 } }));
+vi.mock("../src/config/db.js", () => ({ db: {} }));
 vi.mock("../src/middlewares/auth.middleware.js", () => ({ authenticate: (req: Request, res: Response, next: NextFunction) => {
   const rol = req.header("x-rol-prueba");
   if (!rol) { res.sendStatus(401); return; }
@@ -24,7 +25,7 @@ const aplicacion = express();
 aplicacion.use("/horarios", horariosRouter);
 aplicacion.use((error: { statusCode?: number }, _req: Request, res: Response, _next: NextFunction) => res.sendStatus(error.statusCode ?? 500));
 function entrada(id = 1, codigo = "INF100", salaId: number | null = null) {
-  return { id, ofertaId: id, bloqueId: 10, salaId, semestreId: 9, tipoHoraId: 1,
+  return { id, ofertaId: id, bloqueId: 10, salaId, planificacionSemestreId: 9, tipoHoraId: 1,
     oferta: { seccion: 2, profesorId: 7, profesor: { nombre: "Ana Pérez" },
       asignatura: { codigo, nombre: "Programación", semestreMalla: 3 } },
     bloque: { dia: "Lunes", numeroBloque: 1, horaInicio: "08:10", horaTermino: "08:50" }, tipoHora: { tipo: "Teórica" } };
@@ -37,12 +38,13 @@ async function archivo(filas: (string | number)[][] = [fila()], encabezados: rea
 }
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(horariosRepository.findPlanificacionById).mockResolvedValue({ id: 9, carreraId: 3, codigo: "2026-1" } as never);
   vi.mocked(horariosRepository.findCarreraSecretariaByUsuarioId).mockResolvedValue({ carreraId: 3 });
   vi.mocked(horariosRepository.findParaImportarSalas).mockResolvedValue({ entradas: [entrada()], salas: [{ id: 4, nombre: "101-AA" }] } as never);
 });
 describe("Importación Excel todo-o-nada", () => {
   it("usa la carrera autenticada e ignora filtros enviados para importar", async () => {
-    const respuesta = await request(aplicacion).post("/horarios/excel/salas/importar?semestreId=9&carreraId=99&departamentoId=99")
+    const respuesta = await request(aplicacion).post("/horarios/excel/salas/importar?planificacionSemestreId=9&carreraId=99&departamentoId=99")
       .set("x-rol-prueba", "secretaria").attach("archivo", await archivo(), "salas.xlsx");
     expect(respuesta.status).toBe(200);
     expect(horariosRepository.findCarreraSecretariaByUsuarioId).toHaveBeenCalledWith(1);
@@ -51,7 +53,7 @@ describe("Importación Excel todo-o-nada", () => {
   });
   it("rechaza secretaria sin perfil antes de consultar o modificar horarios", async () => {
     vi.mocked(horariosRepository.findCarreraSecretariaByUsuarioId).mockResolvedValue(undefined);
-    const respuesta = await request(aplicacion).post("/horarios/excel/salas/importar?semestreId=9")
+    const respuesta = await request(aplicacion).post("/horarios/excel/salas/importar?planificacionSemestreId=9")
       .set("x-rol-prueba", "secretaria").attach("archivo", await archivo(), "salas.xlsx");
     expect(respuesta.status).toBe(403);
     expect(horariosRepository.findParaImportarSalas).not.toHaveBeenCalled();
@@ -143,13 +145,13 @@ describe("Importación Excel todo-o-nada", () => {
   });
   it("HTTP conserva los errores de negocio", async () => {
     const datos = fila(); datos[8] = "inexistente";
-    const respuesta = await request(aplicacion).post("/horarios/excel/salas/importar?semestreId=9").set("x-rol-prueba", "secretaria").attach("archivo", await archivo([datos]), "salas.xlsx");
+    const respuesta = await request(aplicacion).post("/horarios/excel/salas/importar?planificacionSemestreId=9").set("x-rol-prueba", "secretaria").attach("archivo", await archivo([datos]), "salas.xlsx");
     expect(respuesta.status).toBe(400);
     expect(respuesta.body.errores[0]).toMatchObject({ fila: 2, columna: "Sala 1" });
     expect(horariosRepository.actualizarSalasEnTransaccion).not.toHaveBeenCalled();
   });
   it.each(["admin", "secretaria"])("upload HTTP para %s", async (rol) => {
-    const respuesta = await request(aplicacion).post("/horarios/excel/salas/importar?semestreId=9").set("x-rol-prueba", rol).attach("archivo", await archivo(), "salas.xlsx");
+    const respuesta = await request(aplicacion).post("/horarios/excel/salas/importar?planificacionSemestreId=9").set("x-rol-prueba", rol).attach("archivo", await archivo(), "salas.xlsx");
     expect(respuesta.status).toBe(200); expect(respuesta.body.data.actualizadas).toBe(1);
     if (rol === "admin") {
       expect(horariosRepository.findCarreraSecretariaByUsuarioId).not.toHaveBeenCalled();
@@ -158,18 +160,18 @@ describe("Importación Excel todo-o-nada", () => {
     }
   });
   it("HTTP devuelve detalles para query, archivo ausente, upload incorrecto y formato inválido", async () => {
-    for (const consulta of ["", "?semestreId=0", "?semestreId=9"]) {
+    for (const consulta of ["", "?planificacionSemestreId=0", "?planificacionSemestreId=9"]) {
       const respuesta = await request(aplicacion).post(`/horarios/excel/salas/importar${consulta}`).set("x-rol-prueba", "admin");
       expect(respuesta.status).toBe(400); expect(respuesta.body.errores.length).toBeGreaterThan(0);
     }
     for (const campo of ["archivo", "otro"]) {
-      const respuesta = await request(aplicacion).post("/horarios/excel/salas/importar?semestreId=9").set("x-rol-prueba", "admin").attach(campo, Buffer.from("inválido"), "salas.xlsx");
+      const respuesta = await request(aplicacion).post("/horarios/excel/salas/importar?planificacionSemestreId=9").set("x-rol-prueba", "admin").attach(campo, Buffer.from("inválido"), "salas.xlsx");
       expect(respuesta.status).toBe(400); expect(respuesta.body.errores.length).toBeGreaterThan(0);
     }
   });
   it("HTTP exige autenticación y rol administrativo", async () => {
-    expect((await request(aplicacion).post("/horarios/excel/salas/importar?semestreId=9")).status).toBe(401);
-    expect((await request(aplicacion).post("/horarios/excel/salas/importar?semestreId=9").set("x-rol-prueba", "profesor")).status).toBe(403);
+    expect((await request(aplicacion).post("/horarios/excel/salas/importar?planificacionSemestreId=9")).status).toBe(401);
+    expect((await request(aplicacion).post("/horarios/excel/salas/importar?planificacionSemestreId=9").set("x-rol-prueba", "profesor")).status).toBe(403);
     expect(horariosRepository.findParaImportarSalas).not.toHaveBeenCalled();
   });
 });
