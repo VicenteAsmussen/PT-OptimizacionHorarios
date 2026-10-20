@@ -51,12 +51,18 @@ export async function sembrarPlanificacionHorarios(baseDatos: BaseDatosSeed) {
       const [sala] = await tx.select().from(esquema.salas).where(eq(esquema.salas.nombre, fixture.sala)).limit(1);
       if (!asignacion || !profesor || !bloque || !tipoHora || !sala) throw new Error("Catálogo incompleto para el seed de planificación");
       const claveOferta = and(eq(esquema.ofertasAsignaturas.planificacionSemestreId, planificacion.id), eq(esquema.ofertasAsignaturas.asignaturaCodigo, fixture.asignaturaCodigo), eq(esquema.ofertasAsignaturas.seccion, fixture.seccion));
-      await tx.insert(esquema.ofertasAsignaturas).values({ planificacionSemestreId: planificacion.id, asignaturaCodigo: fixture.asignaturaCodigo, profesorId: profesor.id, seccion: fixture.seccion, cupos: fixture.cupos }).onConflictDoNothing();
-      const [oferta] = await tx.select().from(esquema.ofertasAsignaturas).where(claveOferta).limit(1);
+      let [oferta] = await tx.select().from(esquema.ofertasAsignaturas).where(claveOferta).limit(1);
+      if (!oferta) {
+        await tx.insert(esquema.ofertasAsignaturas).values({ planificacionSemestreId: planificacion.id, asignaturaCodigo: fixture.asignaturaCodigo, profesorId: profesor.id, seccion: fixture.seccion, cupos: fixture.cupos }).onConflictDoNothing();
+        [oferta] = await tx.select().from(esquema.ofertasAsignaturas).where(claveOferta).limit(1);
+      }
       const [horario] = await tx.select({ id: esquema.horariosAsignaturas.id }).from(esquema.horariosAsignaturas).where(and(eq(esquema.horariosAsignaturas.ofertaId, oferta.id), eq(esquema.horariosAsignaturas.bloqueId, bloque.id))).limit(1);
       if (!horario) await tx.insert(esquema.horariosAsignaturas).values({ ofertaId: oferta.id, planificacionSemestreId: planificacion.id, bloqueId: bloque.id, tipoHoraId: tipoHora.id, salaId: sala.id });
-      await tx.insert(esquema.disponibilidadProfesores).values({ profesorId: oferta.profesorId, planificacionSemestreId: planificacion.id, bloqueId: bloque.id }).onConflictDoNothing();
-      await tx.update(esquema.planificacionesSemestres).set({ estadoPlanificacion: fixture.publicado ? "publicado" : "propuesta" }).where(eq(esquema.planificacionesSemestres.id, planificacion.id));
+      const [disponibilidad] = await tx.select({ id: esquema.disponibilidadProfesores.id }).from(esquema.disponibilidadProfesores).where(and(eq(esquema.disponibilidadProfesores.profesorId, oferta.profesorId), eq(esquema.disponibilidadProfesores.planificacionSemestreId, planificacion.id), eq(esquema.disponibilidadProfesores.bloqueId, bloque.id))).limit(1);
+      if (!disponibilidad) await tx.insert(esquema.disponibilidadProfesores).values({ profesorId: oferta.profesorId, planificacionSemestreId: planificacion.id, bloqueId: bloque.id }).onConflictDoNothing();
+      if (planificacion.estadoPlanificacion !== fixture.estadoPlanificacion) {
+        await tx.update(esquema.planificacionesSemestres).set({ estadoPlanificacion: fixture.estadoPlanificacion }).where(eq(esquema.planificacionesSemestres.id, planificacion.id));
+      }
     });
   }
 }
