@@ -14,9 +14,9 @@
 
 ## 📌 Descripción del Proyecto
 
-Aplicación web integral diseñada para apoyar la planificación de horarios semestrales en carreras universitarias, con enfoque aplicado al contexto de Ingeniería Civil en Informática de la UBB y su coordinación académica.
+Aplicación web integral para apoyar la planificación de horarios semestrales en carreras universitarias, con enfoque aplicado al contexto de Ingeniería Civil en Informática de la UBB y su coordinación académica.
 
-El sistema aborda un problema combinatorio de alta complejidad (*Timetabling Problem*) mediante un flujo que combina gestión académica, disponibilidad docente, exportación/importación Excel y, como objetivo del proyecto, un motor de optimización matemática que considere disponibilidad docente, capacidades de salas, topes de asignaturas y cargas horarias.
+El sistema aborda un problema combinatorio de alta complejidad (*Timetabling Problem*) mediante un flujo que combina gestión académica, disponibilidad docente, intercambio de planillas Excel y, como objetivo del proyecto, un motor de optimización matemática que considere disponibilidad docente, capacidades de salas, topes de asignaturas y cargas horarias.
 
 > Este repositorio corresponde a un prototipo de Proyecto de Título. No está pensado como plataforma institucional productiva general, sino como una implementación funcional y reproducible para el contexto académico definido.
 
@@ -31,16 +31,16 @@ flowchart TD
     C --> D["4. Ejecución del Modelo: Generación de Propuesta (Sin Salas)"]
     D -->|Bloqueo automático de disponibilidad docente| E["5. Exportación Excel: Solicitud de Salas para Ramos Gestionados"]
     E --> F["6. Importación Excel: Asignación de Salas Aprobadas"]
-    F --> G["7. Revisión Secretaría y Publicación Oficial (horario_publicado = true)"]
+    F --> G["7. Revisión Secretaría y Publicación Oficial"]
 ```
 
-1. **Gestión Académica**: La secretaría/coordinación habilita la oferta de asignaturas del semestre y asigna la carga correspondiente a cada docente dentro del alcance de su carrera.
-2. **Disponibilidad Docente**: Los profesores ingresan sus bloques de disponibilidad horaria mientras el semestre está en fase de recepción.
-3. **Horarios Externos Pre-modelo**: La importación Excel crea ofertas y horarios de departamentos externos antes del modelo. Las salas del archivo se ignoran; los horarios quedan sin sala y sin publicar.
-4. **Optimización Automática (Propuesta sin Sala)**: El sistema ejecuta el modelo matemático/solver que asigna bloques horarios minimizando choques de asignaturas y preferencias docentes. Los bloques se registran con `sala_id = null`. Al existir horarios generados para el semestre, la disponibilidad docente queda **bloqueada automáticamente**.
-5. **Solicitud de Infraestructura (Exportación Excel)**: Se exporta la propuesta de horarios a formato Excel detallando necesidades de cupos, bloques y tipos de sala para enviarlo a la unidad universitaria encargada de la administración central de aulas.
-6. **Carga de Salas Aprobadas (Importación Excel)**: Tras la respuesta de la unidad de salas, se importa la planilla para asociar cada bloque de clase con su `sala_id` definitiva.
-7. **Ajuste y Publicación Oficial**: La secretaría realiza ajustes manuales de última hora si se requiere y activa la publicación oficial del horario (`horario_publicado = true`) para consulta de toda la comunidad universitaria.
+1. **Gestión Académica**: la secretaría habilita la oferta de asignaturas del semestre y asigna la carga de cada docente dentro del alcance de su carrera.
+2. **Disponibilidad Docente**: los profesores ingresan sus bloques de disponibilidad mientras el semestre está en fase de recepción.
+3. **Horarios Externos Pre-modelo**: la importación Excel incorpora ofertas y horarios de departamentos externos antes del modelo; quedan sin sala y sin publicar.
+4. **Optimización Automática**: el motor asigna bloques horarios minimizando choques de asignaturas y respetando preferencias docentes. Al existir horarios generados, la disponibilidad docente queda bloqueada.
+5. **Solicitud de Infraestructura**: se exporta la propuesta a Excel para que la unidad central de aulas asigne salas.
+6. **Carga de Salas Aprobadas**: se importa la planilla de respuesta para asociar cada bloque con su sala definitiva.
+7. **Ajuste y Publicación Oficial**: la secretaría ajusta lo necesario y publica el horario para consulta de la comunidad universitaria.
 
 ---
 
@@ -52,8 +52,8 @@ flowchart TD
 | **Base de Datos** | **PostgreSQL** | Motor relacional robusto y ACID para persistencia de datos. |
 | **ORM / DAL** | **Drizzle ORM + Drizzle Kit** | Tipado TypeScript nativo de extremo a extremo y control de migraciones. |
 | **Validación** | **Zod** | Validación de esquemas y DTOs en tiempo de ejecución con mensajes en español. |
-| **Frontend** | **React + TypeScript** *(en desarrollo)* | Interfaz moderna, reactiva e intuitiva para secretaría y docentes. |
-| **Package Manager** | **pnpm** | Gestión estricta y eficiente de dependencias monorepo/multi-paquete. |
+| **Frontend** | **React + TypeScript** *(en desarrollo)* | Interfaz para secretaría y docentes sobre la API existente. |
+| **Package Manager** | **pnpm** | Gestión estricta y eficiente de dependencias. |
 
 ---
 
@@ -68,14 +68,14 @@ backend/src/
 ├── db/
 │   ├── schema/      # Definición de tablas y relaciones con Drizzle ORM
 │   ├── migrations/  # Migraciones SQL generadas por Drizzle Kit
-│   ├── seeds/       # Datos base y módulos de carga del seed único no destructivo
-│   └── seed.ts      # Entrypoint del seed: asegura catálogos, relaciones y usuarios iniciales
+│   ├── seeds/       # Datos base y módulos de carga del seed
+│   └── seed.ts      # Entrypoint del seed
 ├── middlewares/     # Manejador global de errores y validación Zod
-├── repositories/    # Capa de acceso a datos (consultas SQL y transacciones atómicas)
+├── repositories/    # Capa de acceso a datos (consultas SQL y transacciones)
 ├── routes/          # Definición y mapeo de endpoints REST
 ├── services/        # Lógica de negocio, reglas de dominio y errores tipados
 ├── utils/           # Helpers puros, manejo de errores y constantes
-└── validations/     # Esquemas Zod para validación de DTOs y parámetros con mensajes en español
+└── validations/     # Esquemas Zod para validación de DTOs y parámetros
 ```
 
 ---
@@ -88,17 +88,15 @@ El sistema modela el alcance operativo de secretaría desde la carrera asociada 
 usuarios → secretarias.usuario_id → secretarias.carrera_id
 ```
 
-La relación `carrera_departamento` indica que un departamento presta servicios a una carrera. Además, el campo `es_gestionado` distingue si ese departamento es gestionado operativamente por la carrera/secretaría.
+La relación `carrera_departamento` indica que un departamento presta servicios a una carrera, y `es_gestionado` distingue si ese departamento es gestionado operativamente por la carrera.
 
 | Concepto | Significado |
 | :--- | :--- |
 | Fila en `carrera_departamento` | El departamento presta servicios a la carrera. |
-| `es_gestionado = true` | La secretaría/carrera gestiona operativamente ramos, profesores, disponibilidad y accesos de ese departamento. |
-| `es_gestionado = false` | El departamento presta servicios, pero sus horarios deben coordinarse como externos y sus accesos no son administrados por la secretaría de la carrera. |
+| `es_gestionado = true` | La secretaría gestiona ramos, profesores, disponibilidad y accesos de ese departamento. |
+| `es_gestionado = false` | Presta servicios, pero sus horarios se coordinan como externos y sus accesos no los administra la secretaría. |
 
-En reglas de dominio, **alcance** significa todos los departamentos relacionados con la carrera, mientras que **gestión** significa solo los departamentos con `es_gestionado=true`. Para profesores, los tipos válidos son `planta` y `part time`: secretaría puede crear profesores `part time` dentro de todo su alcance, incluidos departamentos externos cuando los necesita para horarios de la carrera, pero solo puede crear/editar/quitar acceso al sistema para profesores `part time` de departamentos gestionados. Si falta un profesor `planta`, debe ingresarlo previamente un administrador. Un profesor `part time` gestionado o externo solo se elimina si nunca participó en horarios; si ya tiene historial horario, se conserva el registro académico y solo se quita el acceso eliminando su usuario asociado. El nombre de `usuarios` se considera derivado y debe mantenerse sincronizado con el nombre de la entidad `profesores` o `secretarias`; los formularios de acceso solicitan correo y contraseña inicial, no nombre.
-
-Diseño pendiente de frontend para `/app/profesores`: tarjeta superior con título, descripción, buscador, filtros por departamento, tipo y `Acceso al sistema`, además del botón `Crear profesor` arriba a la derecha. La tabla debe mostrar `Nombre`, `Departamento`, `Tipo`, `Acceso al sistema` y separar acciones de profesor (`Ver`, `Editar`, `Eliminar profesor`) de acciones de acceso (`Crear acceso`, `Editar acceso`, `Quitar acceso`). No se agrega columna `Gestión`, porque se infiere por el departamento.
+En reglas de dominio, **alcance** son todos los departamentos relacionados con la carrera y **gestión** son solo los marcados con `es_gestionado=true`. Los profesores se clasifican en `planta` y `part time`.
 
 Departamentos gestionados inicialmente para el prototipo:
 
@@ -106,63 +104,26 @@ Departamentos gestionados inicialmente para el prototipo:
 - Economía y Finanzas
 - Administración y Auditoría
 
-Este diseño permite separar tres necesidades:
-
-1. vistas y edición de secretaría limitadas a su carrera;
-2. exportación Excel de salas para ramos gestionados;
-3. importación Excel pre-modelo para horarios de ramos externos.
+Este modelo separa tres necesidades: vistas de secretaría limitadas a su carrera, exportación Excel de salas para ramos gestionados e importación Excel pre-modelo para horarios de ramos externos.
 
 ---
 
-### Departamento docente de cada asignatura
+## 🌱 Datos del Prototipo
 
-Cada asignatura requiere un único `departamentoId` existente; un departamento imparte muchas asignaturas. La pertenencia a carreras mediante `carrera_asignatura` permanece independiente: el departamento no concede acceso a asignaturas de otras carreras.
-
-- `POST /api/asignaturas`: agregar `departamentoId` (entero positivo obligatorio) junto a `codigo`, `nombre`, `semestreMalla` y las relaciones opcionales existentes.
-- `PUT /api/asignaturas/:codigo`: permite reemplazar `departamentoId`, pero no quitarlo ni asignar uno inexistente (400).
-- Listado, detalle, creación y actualización incluyen `departamentoId` y el objeto `departamento`. `GET /api/asignaturas?departamentoId=1` combina el filtro opcional con el alcance de carrera de secretaría; el filtro inválido devuelve 400.
-- Eliminar un departamento con asignaturas devuelve 409; PostgreSQL también lo impide mediante FK `RESTRICT`.
-
-**Migración `0011_flaky_ghost_rider.sql`:** agrega una columna obligatoria sin valor predeterminado ni backfill. Requiere la tabla de asignaturas vacía o una preparación manual explícita y autorizada de los datos históricos antes de imponer `NOT NULL` y la FK. No deduce departamentos desde profesores ni carreras. Con asignaturas existentes, la migración generada falla: no basta ejecutar el seed antes o después para resolverlo. Planificar esa transición por separado, con respaldo y verificación en una base aislada; no borrar ni resetear datos para aplicar esta instrucción.
-
-En una base nueva, local y descartable, aplicar el historial con `pnpm run db:migrate` desde `backend` y después `pnpm run db:seed`. El seed asegura 15 asignaturas de los dos primeros años de Ingeniería Civil en Informática, con departamentos, semestres de malla y tipos de hora explícitos en `seeds/data/academico.ts`; al repetirlo no duplica relaciones ni sobrescribe asignaturas existentes. No es una herramienta de backfill histórico.
-
-## 🌱 Seed del Proyecto
-
-El proyecto mantiene un **seed único real**, no separado entre `base` y `dev`, porque el despliegue corresponde a un prototipo de tesis con datos controlados.
+El proyecto mantiene un **seed único**, no separado entre `base` y `dev`, porque el despliegue corresponde a un prototipo con datos controlados.
 
 ```bash
 cd backend
 pnpm run db:seed
 ```
 
-El seed:
+El seed no ejecuta `TRUNCATE` ni borra datos existentes: asegura catálogos académicos, bloques horarios, salas, departamentos, profesores y usuarios iniciales. Su fuente es `OptimizacionHorarios_v3.xlsx` y los datos académicos viven en `backend/src/db/seeds/data/`.
 
-- conserva `backend/src/db/seed.ts` como entrypoint;
-- organiza datos y carga en `backend/src/db/seeds/`;
-- no ejecuta `TRUNCATE` ni borra datos existentes;
-- asegura datos necesarios creando o actualizando registros;
-- carga catálogos académicos, bloques horarios, salas y usuarios iniciales del prototipo.
+Incluye siete departamentos y 22 profesores `planta` con correos sintéticos `@ubb.cl`, RUT ficticios válidos y la contraseña inicial `123456` almacenada mediante hash. Al repetir la carga se conservan IDs y contraseñas existentes.
 
-La fuente es `OptimizacionHorarios_v3.xlsx`: se incluyen A1–A19 excepto A3, A4, A13 y A14, sin asignación ni tipos de hora este semestre. Los valores de horas conservan los bloques académicos de 40 minutos del Excel.
+> Las credenciales iniciales son parte del contexto del prototipo y no representan una política de seguridad productiva. No deben usarse fuera de un entorno local.
 
-Se crean siete departamentos y 22 profesores, todos `planta`, con afiliaciones confirmadas, correos sintéticos `inicial+apellido@ubb.cl` y RUT ficticios válidos y únicos. Por ejemplo, Christian Vidal usa `cvidal@ubb.cl`. Los datos completos están en `seeds/data/usuarios.ts`. La contraseña inicial es `123456`, almacenada mediante hash, no en texto plano. No deben usarse estas credenciales fuera del prototipo local.
-
-Al repetir la carga normal, se conservan IDs y contraseñas existentes. Se mantienen las cuentas iniciales de administración y secretaría. Solo Sistemas de Información queda gestionado; los otros departamentos permiten preparar la carga externa de horarios. No se generan ofertas, horarios, disponibilidades ni estados de publicación de demostración. La oferta admite un profesor por sección: no se inventan asignaciones para las secciones que tienen profesores diferentes por tipo de hora.
-
-### Reemplazar los datos académicos locales
-
-**Esta operación borra las asignaturas y profesores anteriores**, sus cuentas con rol `profesor`, ofertas, horarios y disponibilidades dependientes. Antes, respaldar la base local. No elimina salas, bloques, carreras, departamentos previos, planificaciones ni cuentas administrativas.
-
-```bash
-docker compose exec -T backend pnpm run db:seed --reemplazar-academico
-```
-
-El argumento explícito solo acepta `NODE_ENV=development`, la base `horarios_db` y un destino local (`localhost`, `127.0.0.1`, `::1` o el servicio Compose `postgres`). Verificar que se ejecuta contra el Compose local del proyecto, no un contexto Docker remoto. La eliminación y la carga se ejecutan en una transacción: cualquier error revierte ambas. El reemplazo recrea las cuentas docentes con la contraseña inicial, pero no cambia las cuentas de administración/secretaría, su carrera, contraseñas ni los estados de las planificaciones. La carga normal sin ese argumento sigue sin borrar registros.
-
-**Antes de ejecutar `pnpm run db:seed` desde `backend`, confirma que el destino sea la base de desarrollo prevista.** El comando escribe datos y también asegura los demás catálogos y bloques del prototipo; no es una carga exclusiva de profesores.
-
-Los usuarios y contraseñas iniciales son parte del contexto del prototipo y no representan una política de seguridad productiva institucional.
+Para reemplazar los datos académicos locales existe `pnpm run db:seed --reemplazar-academico`, que **borra asignaturas, profesores y sus dependencias** dentro de una transacción y solo opera en un entorno de desarrollo local. Antes de usarlo, respaldar la base.
 
 ---
 
@@ -170,87 +131,65 @@ Los usuarios y contraseñas iniciales son parte del contexto del prototipo y no 
 
 ### Implementado
 
-- [x] **Backend Express + TypeScript + Drizzle ORM** con arquitectura limpia en capas.
-- [x] **Control de Bloqueo de Disponibilidad Docente**: Regla de negocio implementada en `disponibilidad.service.ts` para congelar automáticamente la edición/sincronización de disponibilidad docente una vez generadas propuestas de horarios para el semestre.
-- [x] **Publicación por Entrada de Horario**: `semestres_horarios` relaciona directamente `semestre_id` y `horario_asignatura_id`, con un único registro por entrada y `horario_publicado=false` por defecto. No existe una tabla agregada `horarios` ni un `horario_id` adicional en las entradas. La clave foránea compuesta garantiza que el semestre coincida con el de la entrada; las actualizaciones y eliminaciones de esta última se propagan por cascada. `sala_id` sigue siendo opcional/nullable, independientemente de la publicación.
-  - **API existente**: `horarioPublicado` se lee y escribe en `/api/horarios-asignaturas`, no en la API de semestres ni en sus respuestas anidadas. Se conserva `semestreId`. Crear o actualizar una entrada gestiona su publicación en la misma transacción. No hay nuevos endpoints, versiones ni requisitos para publicar; crear un semestre vacío no genera entradas ficticias.
-  - **Migración**: `0006_youthful_tigra.sql` copia el booleano original del semestre a cada entrada antes de retirar la columna antigua. No cambia IDs existentes ni salas. Si existe un semestre publicado sin entradas, aborta con una excepción antes de cambiar el esquema: ese estado no puede preservarse en una relación por entrada y requiere resolución explícita. Los semestres vacíos no publicados no generan relaciones. Aplicarla requiere respaldo y validación previa en PostgreSQL aislado y descartable.
-- [x] **Excel de Asignación Externa de Salas**:
-  - Exportación de propuesta de horarios a `.xlsx` con salas vacías para completar externamente.
-  - Importación todo-o-nada del mismo formato para vincular salas aprobadas a `horarios_asignaturas`.
-  - Nombre de archivo `Resumen Malla ({codigoSemestre}).xlsx` y hoja `Resumen Malla`.
-  - Validaciones con errores corregibles por fila/columna.
-- [x] **Alcance Carrera-Departamento**: `carrera_departamento.es_gestionado` diferencia departamentos que prestan servicios de departamentos gestionados por la secretaría/carrera.
-- [x] **Seed Único No Destructivo**: `db:seed` asegura datos base del prototipo sin borrar datos existentes.
+- [x] Backend Express + TypeScript + Drizzle ORM con arquitectura limpia en capas.
+- [x] Control de bloqueo de disponibilidad docente al generar propuestas de horario.
+- [x] Publicación de horarios por entrada (`semestres_horarios`), con `sala_id` opcional.
+- [x] Exportación e importación Excel de asignación de salas.
+- [x] Importación Excel pre-modelo de horarios de departamentos externos.
+- [x] Alcance carrera-departamento mediante `carrera_departamento.es_gestionado`.
+- [x] Seed único no destructivo con datos base del prototipo.
+- [x] Validación y normalización de RUT en la API de profesores.
 
 ### Pendiente
 
-- [ ] **Filtro transversal por secretaría/carrera**: limitar vistas y acciones de secretaría a ramos de su carrera mediante `secretarias.usuario_id → carrera_id` y `carrera_asignatura`.
-- [x] **Alcance Excel de salas**: exportación, importación y actualización de secretaría incluyen solo asignaturas de su carrera cuyo departamento esté marcado con `es_gestionado=true` para esa misma carrera. El departamento del profesor no determina este alcance; admin no tiene restricción de carrera. Los conflictos de salas se validan globalmente en el semestre.
-### Excel estandarizado y pre-modelo externo
+- [ ] Filtro transversal por secretaría/carrera en vistas y acciones.
+- [ ] Integración del solver/modelo de optimización en el backend.
+- [ ] Frontend React para secretaría y docentes.
 
-Los formatos son independientes: **salas conserva sus 25 columnas**, con `Código Asig.`, `Nombre Asignatura`, `Sección`, `Cupos`, `Profesor`, seguidos por cinco grupos `Tipo Hora N`, `Día N`, `Horario N`, `Sala N` (N de 1 a 5). **Externos exige 26 columnas**, agregando `RUT Profesor` inmediatamente antes de `Profesor`, sin combinar RUT y nombre en una celda. Encabezados exactos y en este orden:
-
-```text
-Código Asig. | Nombre Asignatura | Sección | Cupos | RUT Profesor | Profesor | Tipo Hora 1 | Día 1 | Horario 1 | Sala 1 | Tipo Hora 2 | Día 2 | Horario 2 | Sala 2 | Tipo Hora 3 | Día 3 | Horario 3 | Sala 3 | Tipo Hora 4 | Día 4 | Horario 4 | Sala 4 | Tipo Hora 5 | Día 5 | Horario 5 | Sala 5
-```
-
-Externos rechaza el formato antiguo sin RUT; el formato con `Sem` y horas agregadas tampoco se acepta. Los horarios usan `HH:MM-HH:MM` y deben coincidir exactamente con bloques institucionales (incluida su pausa entre pares).
-
-- **Salas**: `GET /api/horarios-asignaturas/excel/salas?semestreId=...` exporta sesiones existentes con salas vacías; `POST /api/horarios-asignaturas/excel/salas/importar?semestreId=...` actualiza sus salas, sin crear ofertas. Tipo Hora desambigua las sesiones. Se mantiene la exclusión de laboratorios de este flujo.
-- **Externos, solo importación**: `POST /api/horarios-asignaturas/excel/externos/importar?semestreId=...&departamentoId=...`, multipart `archivo` (`.xlsx`, máximo 10 MB). No se guarda ni exporta el archivo. `Sala N` puede estar vacía o contener texto: se ignora siempre y se persiste `sala_id=null`, con publicación inicial desactivada.
-- En externos, tanto para admin como para secretaría, la asignatura debe pertenecer al `departamentoId` solicitado. Secretaría requiere además carrera vinculada a su usuario, asignaturas de esa carrera y departamento relacionado con `es_gestionado=false` para esa misma carrera. Admin no necesita perfil de secretaría ni restringe por carrera o por `es_gestionado`, pero mantiene el filtro de departamento de la asignatura y la validación del profesor en ese departamento.
-- En externos, **RUT Profesor es la única identidad autoritativa** dentro del departamento indicado. Se valida el dígito verificador módulo 11 y se aceptan formas convencionales como `12.345.678-5`, `12345678-5` y `123456785` (DV `K` o `k`); se normalizan sin puntos, con guion y DV mayúscula. RUT ausente, inválido, desconocido, ambiguo/duplicado en el contexto o fuera del departamento autorizado produce error por fila en `RUT Profesor` y rechaza todo el archivo sin escrituras. Nunca se busca por nombre como alternativa ni se crean profesores automáticamente.
-- El encabezado exacto `Profesor` sigue siendo obligatorio, pero su contenido es solo informativo: puede estar vacío, contener solo espacios o un nombre coincidente o diferente, sin errores ni advertencias. No se usa para identificar al profesor ni actualizar su nombre registrado. La respuesta exitosa externa conserva `data.advertencias: []` por compatibilidad, además de los contadores y `errores`; los rechazos HTTP 400 conservan su contrato `errores`.
-- Tipos aceptan aliases `teorica/teórica/teo/t`, `practica/práctica/pract/pra/p` y `laboratorio/laboratory/lab/l`, resueltos contra el catálogo existente.
-- Se rechazan ofertas existentes por semestre + código + sección, duplicados, sesiones inválidas y choques de profesor. Errores de validación devuelven HTTP 400 con `errores: [{fila, columna, mensaje}]` y no escriben nada. Las ofertas, horarios y relaciones de publicación se crean en una sola transacción; éxito externo devuelve HTTP 201 con contadores.
-- **API de profesores y requisito operativo**: crear profesores requiere `rut` válido y único; actualizarlo también exige validez y unicidad. Se conserva el ID numérico y sus relaciones. Antes de aplicar `0009_marvelous_beast.sql`, resolver manualmente cualquier profesor histórico sin RUT real: agregar la columna `NOT NULL` falla si la tabla ya está poblada. La migración no inventa RUT ni rellena datos históricos. La remediación debe planificarse y autorizarse por separado; cualquier reset/borrado destructivo requiere confirmación explícita independiente. Esta iteración no aplica migraciones ni ejecuta seeds/reset. **Frontend intencionalmente pendiente**: sus formularios de creación aún deben incorporar RUT y su planilla externa debe adoptar las 26 columnas; no se relaja el contrato obligatorio del backend.
-- `GET /api/profesores?departamentoId=...` permite filtrar profesores. Secretaría conserva lectura y creación de profesores `part time` dentro de su alcance; solo gestiona acceso en departamentos con `es_gestionado=true`. La eliminación de profesores `part time` se bloquea si ya participaron en horarios.
-
-- [ ] **Integración del solver/modelo de optimización**: generar propuestas horarias desde el backend.
-- [ ] **Frontend React**: construir la interfaz de secretaría y docentes sobre la API existente.
+Los contratos de API, formatos de planilla y detalles de migraciones se documentan en el código y en el historial de cambios del repositorio.
 
 ---
 
 ## 🚀 Puesta en Marcha (Backend)
 
 ### Requisitos Previos
-* [Node.js](https://nodejs.org/) (v20 o superior; v22 recomendado)
-* [pnpm](https://pnpm.io/) (`npm install -g pnpm`)
-* [Docker & Docker Compose](https://www.docker.com/)
+
+- [Node.js](https://nodejs.org/) (v20 o superior; v22 recomendado)
+- [pnpm](https://pnpm.io/) (`npm install -g pnpm`)
+- [Docker & Docker Compose](https://www.docker.com/)
 
 ### Instalación y Ejecución
 
-1. **Iniciar Base de Datos con Docker**:
+1. **Iniciar base de datos con Docker**:
+
    ```bash
    docker compose up -d postgres pgadmin
    ```
 
 2. **Instalar dependencias e iniciar desarrollo**:
+
    ```bash
    cd backend
    pnpm install
    pnpm dev
    ```
 
-3. **Comandos de Base de Datos**:
+3. **Comandos de base de datos**:
+
    ```bash
    pnpm run db:generate   # Generar nuevas migraciones SQL
    pnpm run db:migrate    # Aplicar migraciones a PostgreSQL
-   pnpm run db:seed       # Asegurar datos base del prototipo sin borrar datos existentes
+   pnpm run db:seed       # Asegurar datos base sin borrar datos existentes
    pnpm run db:studio     # Abrir visor web Drizzle Studio
    ```
 
-### Verificación recomendada
+### Verificación
 
 ```bash
 cd backend
 pnpm run build
 pnpm exec tsc --noEmit
-pnpm exec vitest run tests/schema-organization.test.ts
-pnpm exec vitest run tests/semestres.test.ts tests/horarios.test.ts tests/semestres-horarios.test.ts
+pnpm exec vitest run tests/schema-organization.test.ts tests/departamento-asignaturas.test.ts tests/alcance-secretaria.test.ts
 ```
 
-`pnpm exec vitest run tests/departamento-asignaturas.test.ts tests/alcance-secretaria.test.ts` verifica el contrato de asignaturas sin base de datos. Las suites `asignaturas.test.ts` y `departamentos.test.ts` requieren `RUN_ISOLATED_DATABASE_TESTS=true` y una base aislada, migrada y sembrada; sin esa habilitación se omiten por seguridad.
-
-Los checks de esquema, migración y SQL son independientes de la base configurada. Las suites de integración que ejercitan comportamiento real de PostgreSQL requieren una base local disponible y aislada. No ejecutar la suite completa contra una base compartida o con datos importantes.
+Las suites de integración que ejercitan PostgreSQL requieren `RUN_ISOLATED_DATABASE_TESTS=true` y una base aislada, migrada y sembrada; sin esa habilitación se omiten por seguridad. No ejecutar la suite completa contra una base compartida o con datos importantes.
