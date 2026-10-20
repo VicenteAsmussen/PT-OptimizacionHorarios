@@ -2,11 +2,12 @@ import { eq } from "drizzle-orm";
 import * as esquema from "../schema/index.js";
 import { hashPassword } from "../../utils/password.js";
 import type { BaseDatosSeed, CatalogosAcademicosSeed } from "./contexto.js";
-import { claveInicial, datosUsuarios, datosProfesores, departamentoProfesoresIniciales } from "./data/usuarios.js";
+import { claveInicial, datosUsuarios, datosProfesores } from "./data/usuarios.js";
 
 async function asegurarUsuario(baseDatos: BaseDatosSeed, usuario: typeof datosUsuarios[number]) {
   const [existente] = await baseDatos.select().from(esquema.usuarios).where(eq(esquema.usuarios.correo, usuario.correo)).limit(1);
   if (existente) {
+    if (existente.rol !== usuario.rol) throw new Error(`Rol incompatible para usuario del seed: ${usuario.correo}`);
     const [actualizado] = await baseDatos
       .update(esquema.usuarios)
       .set({ nombre: usuario.nombre, rol: usuario.rol })
@@ -19,9 +20,11 @@ async function asegurarUsuario(baseDatos: BaseDatosSeed, usuario: typeof datosUs
   return insertado;
 }
 
-export async function sembrarUsuarios(baseDatos: BaseDatosSeed, catalogos: CatalogosAcademicosSeed) {
+export async function sembrarUsuarios(baseDatos: BaseDatosSeed, catalogos: CatalogosAcademicosSeed, soloProfesores = false) {
   const usuariosAsegurados = [];
-  for (const usuario of datosUsuarios) usuariosAsegurados.push(await asegurarUsuario(baseDatos, usuario));
+  for (const usuario of datosUsuarios.filter(usuario => !soloProfesores || usuario.rol === "profesor")) {
+    usuariosAsegurados.push(await asegurarUsuario(baseDatos, usuario));
+  }
   console.log(`✓ Asegurados ${usuariosAsegurados.length} usuarios base`);
 
   const usuarioSecretaria = usuariosAsegurados.find((usuario) => usuario.rol === "secretaria");
@@ -36,10 +39,10 @@ export async function sembrarUsuarios(baseDatos: BaseDatosSeed, catalogos: Catal
     console.log("✓ Asegurado perfil de secretaria asociado a la carrera");
   }
 
-  const departamento = catalogos.departamentos.find((departamento) => departamento.nombre === departamentoProfesoresIniciales);
   for (const datosProfesor of datosProfesores) {
+    const departamento = catalogos.departamentos.find((departamento) => departamento.nombre === datosProfesor.departamento);
     const usuarioProfesor = usuariosAsegurados.find((usuario) => usuario.correo === datosProfesor.correo);
-    if (!usuarioProfesor || !departamento) continue;
+    if (!usuarioProfesor || !departamento) throw new Error(`Catálogo incompleto para profesor del seed: ${datosProfesor.correo}`);
     const [profesorExistente] = await baseDatos
       .select()
       .from(esquema.profesores)

@@ -23,7 +23,7 @@ describe.skipIf(!runDatabaseTests)("Gestión de Horarios y Choques (/api/horario
   beforeAll(async () => {
     const secretaria = await request(app).post("/api/auth/login").send({ correo: "secretaria@ubiobio.cl", clave: "123456" });
     secretariaCookie = secretaria.headers["set-cookie"];
-    const profesor = await request(app).post("/api/auth/login").send({ correo: "profesor@ubiobio.cl", clave: "123456" });
+    const profesor = await request(app).post("/api/auth/login").send({ correo: "cvidal@ubb.cl", clave: "123456" });
     profesorCookie = profesor.headers["set-cookie"];
     const perfil = await db.query.profesores.findFirst();
     profesorId = perfil!.id;

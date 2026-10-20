@@ -6,6 +6,8 @@ import type { BaseDatosSeed, CatalogosAcademicosSeed } from "../src/db/seeds/con
 import { sembrarUsuarios } from "../src/db/seeds/usuarios.js";
 import { hashPassword } from "../src/utils/password.js";
 import { normalizarRut } from "../src/utils/rut.js";
+import { datosProfesores } from "../src/db/seeds/data/usuarios.js";
+import { datosDepartamentos } from "../src/db/seeds/data/academico.js";
 
 vi.mock("../src/utils/password.js", () => ({ hashPassword: vi.fn(async () => "hash-simulado") }));
 
@@ -15,7 +17,7 @@ function crearBaseSimulada(conExistentes = false) {
   const usuarios: Fila[] = conExistentes ? [
     { id: 11, nombre: "Admin", correo: "admin@ubiobio.cl", rol: "admin", clave: "admin-conservada" },
     { id: 12, nombre: "Secretaria", correo: "secretaria@ubiobio.cl", rol: "secretaria", clave: "secretaria-conservada" },
-    { id: 13, nombre: "Profesor Docente", correo: "profesor@ubiobio.cl", rol: "profesor", clave: "profesor-conservada" },
+    { id: 13, nombre: "Christian Lautaro Vidal Castro", correo: "cvidal@ubb.cl", rol: "profesor", clave: "profesor-conservada" },
   ] : [];
   const profesores: Fila[] = conExistentes ? [
     { id: 71, nombre: "Profesor Docente", usuarioId: 13, departamentoId: 5, tipo: "Jornada Completa" },
@@ -64,17 +66,17 @@ function crearBaseSimulada(conExistentes = false) {
 // El departamento objetivo no va primero: no depender del orden del catálogo.
 const catalogos = {
   carreras: [{ id: 10, nombre: "Carrera" }],
-  departamentos: [{ id: 99, nombre: "Otro" }, { id: 5, nombre: "Sistemas de Información" }],
+  departamentos: [{ id: 99, nombre: "Otro" }, ...datosDepartamentos.map((departamento, indice) => ({ id: indice + 5, ...departamento }))],
 } as CatalogosAcademicosSeed;
 
 function comprobarProfesores(usuarios: Fila[], profesores: Fila[]) {
-  expect(profesores).toHaveLength(2);
-  expect(new Set(profesores.map((fila) => fila.rut)).size).toBe(2);
-  for (const [correo, tipo, rut] of [["profesor@ubiobio.cl", "planta", "90000000-6"], ["profesor.parttime@ubiobio.cl", "part time", "90000001-4"]]) {
+  expect(profesores).toHaveLength(22);
+  expect(new Set(profesores.map((fila) => fila.rut)).size).toBe(22);
+  for (const { correo, tipo, rut, departamento } of datosProfesores) {
     const usuario = usuarios.find((fila) => fila.correo === correo);
     expect(usuario).toMatchObject({ rol: "profesor" });
     expect(profesores.find((fila) => fila.usuarioId === usuario?.id)).toMatchObject({
-      nombre: usuario?.nombre, departamentoId: 5, tipo, rut,
+      nombre: usuario?.nombre, departamentoId: catalogos.departamentos.find(dato => dato.nombre === departamento)!.id, tipo, rut,
     });
     expect(normalizarRut(rut)).toBe(rut);
   }
@@ -86,7 +88,7 @@ describe("seed de usuarios sin conexión a DB", () => {
     const { baseDatos, usuarios, profesores, secretarias } = crearBaseSimulada();
     await sembrarUsuarios(baseDatos, catalogos);
     comprobarProfesores(usuarios, profesores);
-    expect(usuarios).toHaveLength(4);
+    expect(usuarios).toHaveLength(24);
     expect(usuarios.every((usuario) => usuario.clave === "hash-simulado")).toBe(true);
     expect(secretarias).toHaveLength(1);
     const estado = structuredClone({ usuarios, profesores, secretarias });

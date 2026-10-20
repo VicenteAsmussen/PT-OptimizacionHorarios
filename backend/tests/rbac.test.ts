@@ -45,7 +45,7 @@ describe("Control de Acceso y Roles (RBAC)", () => {
 
     const profRes = await request(app)
       .post("/api/auth/login")
-      .send({ correo: "profesor@ubiobio.cl", clave: "123456" });
+      .send({ correo: "cvidal@ubb.cl", clave: "123456" });
     expect(profRes.status).toBe(200);
     profesorCookie = profRes.headers["set-cookie"];
   });
@@ -119,7 +119,7 @@ describe("Control de Acceso y Roles (RBAC)", () => {
 
     it("Secretaria sincroniza profesor gestionado pero no profesor ajeno, sin efectos fuera de alcance", async () => {
       const secretaria = await db.query.usuarios.findFirst({ where: (tabla, { eq }) => eq(tabla.correo, "secretaria@ubiobio.cl") });
-      const docente = await db.query.usuarios.findFirst({ where: (tabla, { eq }) => eq(tabla.correo, "profesor@ubiobio.cl") });
+      const docente = await db.query.usuarios.findFirst({ where: (tabla, { eq }) => eq(tabla.correo, "cvidal@ubb.cl") });
       expect(secretaria).toBeDefined();
       expect(docente).toBeDefined();
       const profesor = await db.query.profesores.findFirst({ where: eq(profesores.usuarioId, docente!.id) });
@@ -163,7 +163,7 @@ describe("Control de Acceso y Roles (RBAC)", () => {
     });
 
     it("Profesor sincroniza su disponibilidad en un semestre propio de la prueba (200)", async () => {
-      const usuario = await db.query.usuarios.findFirst({ where: (tabla, { eq }) => eq(tabla.correo, "profesor@ubiobio.cl") });
+      const usuario = await db.query.usuarios.findFirst({ where: (tabla, { eq }) => eq(tabla.correo, "cvidal@ubb.cl") });
       expect(usuario).toBeDefined();
       const profesor = await db.query.profesores.findFirst({ where: eq(profesores.usuarioId, usuario!.id) });
       expect(profesor).toBeDefined();

@@ -14,11 +14,11 @@ describe("Módulo Disponibilidad Docente (/api/disponibilidad-profesores)", () =
   let bloqueId1: number;
   let bloqueId2: number;
   beforeAll(async () => {
-    const profesor = await request(app).post("/api/auth/login").send({ correo: "profesor@ubiobio.cl", clave: "123456" });
+    const profesor = await request(app).post("/api/auth/login").send({ correo: "cvidal@ubb.cl", clave: "123456" });
     profesorCookie = profesor.headers["set-cookie"];
     const secretaria = await request(app).post("/api/auth/login").send({ correo: "secretaria@ubiobio.cl", clave: "123456" });
     secretariaCookie = secretaria.headers["set-cookie"];
-    const usuario = await db.query.usuarios.findFirst({ where: (tabla, { eq }) => eq(tabla.correo, "profesor@ubiobio.cl") });
+    const usuario = await db.query.usuarios.findFirst({ where: (tabla, { eq }) => eq(tabla.correo, "cvidal@ubb.cl") });
     const perfilProfesor = await db.query.profesores.findFirst({ where: (tabla, { eq }) => eq(tabla.usuarioId, usuario!.id) });
     profesorId = perfilProfesor!.id;
     const perfil = await db.query.secretarias.findFirst();
@@ -88,7 +88,7 @@ describe("Módulo Disponibilidad Docente (/api/disponibilidad-profesores)", () =
   it("bloquea disponibilidad en propuesta con horarios de esa planificación (403)", async () => {
     // El dueño se obtiene explícitamente de la planificación, nunca del código.
     const planificacion = await db.query.planificacionesSemestres.findFirst({ where: eq(planificacionesSemestres.id, planificacionSemestreId) });
-    const asignacion = await db.query.carreraAsignatura.findFirst({ where: (tabla, { eq }) => eq(tabla.carreraId, planificacion!.carreraId) });
+    const asignacion = await db.query.carreraAsignatura.findFirst({ where: (tabla, { and, eq }) => and(eq(tabla.carreraId, planificacion!.carreraId), eq(tabla.asignaturaCodigo, "620431")) });
     const tipoHora = await db.query.tiposHora.findFirst();
     const oferta = await request(app).post("/api/ofertas-asignaturas").set("Cookie", secretariaCookie)
       .send({ asignaturaCodigo: asignacion!.asignaturaCodigo, profesorId, planificacionSemestreId, seccion: 1, cupos: 20 });

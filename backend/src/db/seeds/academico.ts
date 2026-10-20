@@ -62,10 +62,16 @@ export async function sembrarAcademico(baseDatos: BaseDatosSeed): Promise<Catalo
   }
   console.log(`✓ Aseguradas ${relacionesCarreraDepartamento.length} relaciones entre carreras y departamentos`);
 
-  for (const { departamento, carreras, ...asignatura } of datosAsignaturas) {
+  for (const { departamento, carreras, horas, ...asignatura } of datosAsignaturas) {
     const departamentoAsignado = departamentosAsegurados.find((dato) => dato.nombre === departamento);
     if (!departamentoAsignado) throw new Error(`Departamento del seed no encontrado: ${departamento}`);
     await baseDatos.insert(esquema.asignaturas).values({ ...asignatura, departamentoId: departamentoAsignado.id }).onConflictDoNothing();
+    for (const [indice, cantidad] of horas.entries()) {
+      if (cantidad === 0) continue;
+      await baseDatos.insert(esquema.asignaturaTipoHora).values({
+        asignaturaCodigo: asignatura.codigo, tipoHoraId: tiposHoraAsegurados[indice]!.id, horas: cantidad,
+      }).onConflictDoNothing();
+    }
     for (const nombreCarrera of carreras) {
       const carrera = carrerasAseguradas.find((dato) => dato.nombre === nombreCarrera);
       if (!carrera) throw new Error(`Carrera del seed no encontrada: ${nombreCarrera}`);
