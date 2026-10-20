@@ -125,7 +125,7 @@ Cada asignatura requiere un único `departamentoId` existente; un departamento i
 
 **Migración `0011_flaky_ghost_rider.sql`:** agrega una columna obligatoria sin valor predeterminado ni backfill. Requiere la tabla de asignaturas vacía o una preparación manual explícita y autorizada de los datos históricos antes de imponer `NOT NULL` y la FK. No deduce departamentos desde profesores ni carreras. Con asignaturas existentes, la migración generada falla: no basta ejecutar el seed antes o después para resolverlo. Planificar esa transición por separado, con respaldo y verificación en una base aislada; no borrar ni resetear datos para aplicar esta instrucción.
 
-En una base nueva, local y descartable, aplicar el historial con `pnpm run db:migrate` desde `backend` y después `pnpm run db:seed`. El seed asegura tres asignaturas de ejemplo (`INF100`, `ECO100`, `ADM100`) con departamentos y carreras explícitos en `seeds/data/academico.ts`; al repetirlo no duplica relaciones ni sobrescribe asignaturas existentes. No es una herramienta de backfill histórico.
+En una base nueva, local y descartable, aplicar el historial con `pnpm run db:migrate` desde `backend` y después `pnpm run db:seed`. El seed asegura 15 asignaturas de los dos primeros años de Ingeniería Civil en Informática, con departamentos, semestres de malla y tipos de hora explícitos en `seeds/data/academico.ts`; al repetirlo no duplica relaciones ni sobrescribe asignaturas existentes. No es una herramienta de backfill histórico.
 
 ## 🌱 Seed del Proyecto
 
@@ -144,14 +144,21 @@ El seed:
 - asegura datos necesarios creando o actualizando registros;
 - carga catálogos académicos, bloques horarios, salas y usuarios iniciales del prototipo.
 
-Profesores de prueba en **Sistemas de Información**, departamento gestionado por la carrera de la secretaría inicial:
+La fuente es `OptimizacionHorarios_v3.xlsx`: se incluyen A1–A19 excepto A3, A4, A13 y A14, sin asignación ni tipos de hora este semestre. Los valores de horas conservan los bloques académicos de 40 minutos del Excel.
 
-| Nombre | Correo | Tipo |
-| :--- | :--- | :--- |
-| Profesor Docente | `profesor@ubiobio.cl` | `planta` |
-| Profesor Part Time | `profesor.parttime@ubiobio.cl` | `part time` |
+Se crean siete departamentos y 22 profesores, todos `planta`, con afiliaciones confirmadas, correos sintéticos `inicial+apellido@ubb.cl` y RUT ficticios válidos y únicos. Por ejemplo, Christian Vidal usa `cvidal@ubb.cl`. Los datos completos están en `seeds/data/usuarios.ts`. La contraseña inicial es `123456`, almacenada mediante hash, no en texto plano. No deben usarse estas credenciales fuera del prototipo local.
 
-Al repetir el seed, el profesor existente se reclasifica como `planta` conservando sus IDs y vínculos; el segundo perfil se asegura sin duplicarlo. Las contraseñas iniciales solo se asignan al crear usuarios: no se restablecen las existentes. Se mantienen las cuentas iniciales de administración y secretaría.
+Al repetir la carga normal, se conservan IDs y contraseñas existentes. Se mantienen las cuentas iniciales de administración y secretaría. Solo Sistemas de Información queda gestionado; los otros departamentos permiten preparar la carga externa de horarios. No se generan ofertas, horarios, disponibilidades ni estados de publicación de demostración. La oferta admite un profesor por sección: no se inventan asignaciones para las secciones que tienen profesores diferentes por tipo de hora.
+
+### Reemplazar los datos académicos locales
+
+**Esta operación borra las asignaturas y profesores anteriores**, sus cuentas con rol `profesor`, ofertas, horarios y disponibilidades dependientes. Antes, respaldar la base local. No elimina salas, bloques, carreras, departamentos previos, planificaciones ni cuentas administrativas.
+
+```bash
+docker compose exec -T backend pnpm run db:seed --reemplazar-academico
+```
+
+El argumento explícito solo acepta `NODE_ENV=development`, la base `horarios_db` y un destino local (`localhost`, `127.0.0.1`, `::1` o el servicio Compose `postgres`). Verificar que se ejecuta contra el Compose local del proyecto, no un contexto Docker remoto. La eliminación y la carga se ejecutan en una transacción: cualquier error revierte ambas. El reemplazo recrea las cuentas docentes con la contraseña inicial, pero no cambia las cuentas de administración/secretaría, su carrera, contraseñas ni los estados de las planificaciones. La carga normal sin ese argumento sigue sin borrar registros.
 
 **Antes de ejecutar `pnpm run db:seed` desde `backend`, confirma que el destino sea la base de desarrollo prevista.** El comando escribe datos y también asegura los demás catálogos y bloques del prototipo; no es una carga exclusiva de profesores.
 

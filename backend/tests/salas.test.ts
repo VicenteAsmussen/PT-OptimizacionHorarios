@@ -13,7 +13,7 @@ describe("Módulo Salas (/api/salas)", () => {
     expect(secretaria.status).toBe(200);
     secretariaCookie = secretaria.headers["set-cookie"];
     const profesor = await request(app).post("/api/auth/login")
-      .send({ correo: "profesor@ubiobio.cl", clave: "123456" });
+      .send({ correo: "cvidal@ubb.cl", clave: "123456" });
     expect(profesor.status).toBe(200);
     profesorCookie = profesor.headers["set-cookie"];
   });
