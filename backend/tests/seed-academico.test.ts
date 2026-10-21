@@ -22,8 +22,14 @@ describe("workbook academic seed", () => {
       ["Matemática", 4, 2, 0], ["Sistemas de Información", 4, 2, 0], ["Estudios Generales", 4, 0, 0],
     ];
     expect(datosAsignaturas.map(asignatura => [asignatura.departamento.replace("Departamento de ", ""), ...asignatura.horas])).toEqual(esperado);
-    expect(datosDepartamentos).toHaveLength(7);
-    expect([...departamentosGestionados]).toEqual(["Departamento de Sistemas de Información"]);
+    expect(datosDepartamentos).toHaveLength(9);
+    expect(datosDepartamentos.every(departamento => departamento.nombre.startsWith("Departamento de "))).toBe(true);
+    expect([...departamentosGestionados]).toEqual([
+      "Departamento de Sistemas de Información",
+      "Departamento de Administración y Auditoría",
+      "Departamento de Economía y Finanzas",
+    ]);
+    expect([...departamentosGestionados].every(nombre => datosDepartamentos.some(departamento => departamento.nombre === nombre))).toBe(true);
   });
 
   it("creates 22 plant teachers with unique synthetic identities and the requested initial password", () => {

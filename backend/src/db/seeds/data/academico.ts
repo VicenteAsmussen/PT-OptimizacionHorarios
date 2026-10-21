@@ -6,6 +6,8 @@ export const datosTiposHora = [
 
 export const datosDepartamentos = [
   { nombre: "Departamento de Sistemas de Información" },
+  { nombre: "Departamento de Administración y Auditoría" },
+  { nombre: "Departamento de Economía y Finanzas" },
   { nombre: "Departamento de Matemática" },
   { nombre: "Departamento de Física" },
   { nombre: "Departamento de Química" },
@@ -22,6 +24,8 @@ export const datosCarreras = [
 // La relación indica prestación de servicios; esGestionado añade gestión operativa.
 export const departamentosGestionados = new Set([
   "Departamento de Sistemas de Información",
+  "Departamento de Administración y Auditoría",
+  "Departamento de Economía y Finanzas",
 ]);
 
 // OptimizacionHorarios_v3.xlsx: Asignaturas + Malla, A1–A19 except A3/A4/A13/A14.
