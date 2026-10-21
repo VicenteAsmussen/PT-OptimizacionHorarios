@@ -12,6 +12,7 @@
     "db:seed": "tsx src/db/seed.ts",
     "db:studio": "drizzle-kit studio",
     "test": "vitest run",
+    "test:excel-externos:integracion": "vitest run tests/base-pruebas.test.ts tests/integracion/horarios-externos.postgres.test.ts",
     "test:watch": "vitest"
   },
   "keywords": [],
