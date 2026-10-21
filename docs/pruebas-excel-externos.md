@@ -10,6 +10,7 @@ El comando usa el servicio PostgreSQL del `docker-compose.yml` habitual y crea, 
 
 ## Qué comprueba
 
+- Identificación de asignaturas por código y profesores por RUT, dentro del alcance autorizado. Sus nombres en el Excel son informativos: pueden estar vacíos o diferir, sin modificar los nombres del catálogo. Las columnas de nombres siguen formando parte del formato común.
 - Reemplazo de secciones, cambio de profesor y cupos, creación de ofertas nuevas y eliminación de secciones ausentes.
 - Conservación del identificador de las ofertas existentes y de los datos de otras carreras, departamentos y planificaciones.
 - Reimportación sin duplicados y aceptación de ofertas de distinta paridad de semestre de malla.

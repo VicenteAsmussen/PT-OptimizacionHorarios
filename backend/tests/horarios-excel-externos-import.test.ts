@@ -37,7 +37,7 @@ it.each(["t", "teo", "teórica", "teorica"])("acepta alias %s e ignora Sala N", 
   expect(horariosRepository.findContextoExternos).toHaveBeenCalledWith(9, 4, 3);
   expect(horariosRepository.sincronizarExternosEnTransaccion).toHaveBeenCalledWith(9, 4, [{ asignaturaCodigo: "INF100", profesorId: 7, seccion: 2, cupos: 40, sesiones: [{ bloqueId: 10, tipoHoraId: 1 }] }], 3);
 });
-it.each([[1, "Otra asignatura", "Nombre Asignatura"], [6, "Otro", "Tipo Hora 1"], [7, "Otro", "Día 1"], [8, "08:15-08:50", "Horario 1"], [3, -1, "Cupos"], [4, "", "RUT Profesor"], [4, "12345678-9", "RUT Profesor"], [4, "11111111-1", "RUT Profesor"]])("rechaza columna %s sin escribir", async (indice, valor, columna) => {
+it.each([[6, "Otro", "Tipo Hora 1"], [7, "Otro", "Día 1"], [8, "08:15-08:50", "Horario 1"], [3, -1, "Cupos"], [4, "", "RUT Profesor"], [4, "12345678-9", "RUT Profesor"], [4, "11111111-1", "RUT Profesor"]])("rechaza columna %s sin escribir", async (indice, valor, columna) => {
   const resultado = await horariosService.importarExcelExternos(9, 4, await archivo({ [Number(indice)]: valor }), usuario);
   expect(resultado.errores).toEqual(expect.arrayContaining([expect.objectContaining({ fila: 2, columna })]));
   expect(resultado.ofertasCreadas).toBe(0);
@@ -62,6 +62,16 @@ it.each(["", "   ", "Otra Persona", "Ana Pérez"])("acepta nombre informativo %j
   expect(resultado).toMatchObject({ ofertasCreadas: 1, horariosCreados: 1, errores: [], advertencias: [] });
   // La propuesta exacta solo contiene el ID numérico existente, nunca un nombre a actualizar.
   expect(horariosRepository.sincronizarExternosEnTransaccion).toHaveBeenCalledWith(9, 4, [{ asignaturaCodigo: "INF100", profesorId: 7, seccion: 2, cupos: 40, sesiones: [{ bloqueId: 10, tipoHoraId: 1 }] }], 3);
+  expect(datos).toEqual(originales);
+});
+it.each(["", "   ", "Prog.", "Otra asignatura", "programacion", "Programación"])("identifica por código con nombre informativo %j sin modificar el catálogo", async nombre => {
+  const datos = contexto(); const originales = contexto();
+  vi.mocked(horariosRepository.findContextoExternos).mockResolvedValue(datos as never);
+  const resultado = await horariosService.importarExcelExternos(9, 4, await archivo({ 1: nombre }), usuario);
+  expect(resultado).toMatchObject({ ofertasCreadas: 1, horariosCreados: 1, errores: [], advertencias: [],
+    asignaturasCargadas: [{ codigo: "INF100", nombre: "Programación", secciones: [2] }] });
+  expect(horariosRepository.sincronizarExternosEnTransaccion).toHaveBeenCalledWith(9, 4,
+    [{ asignaturaCodigo: "INF100", profesorId: 7, seccion: 2, cupos: 40, sesiones: [{ bloqueId: 10, tipoHoraId: 1 }] }], 3);
   expect(datos).toEqual(originales);
 });
 it.each(["ausente", "invalido", "desconocido", "duplicado", "ajeno"].flatMap((caso) =>

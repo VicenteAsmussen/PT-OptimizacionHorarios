@@ -2,7 +2,7 @@ import ExcelJS from "exceljs";
 import { horariosRepository } from "../repositories/horarios.repository.js";
 import { ForbiddenError } from "./errors.js";
 import { normalizarTextoCelda, normalizarDia, analizarHorario, agruparBloquesEnSesiones, formatearHorario } from "./excel-salas.js";
-import { normalizarNombreExcel, normalizarTipoHoraExcel } from "./excel-comun.js";
+import { normalizarTipoHoraExcel } from "./excel-comun.js";
 
 import { normalizarRut } from "./rut.js";
 
@@ -48,7 +48,7 @@ export async function importarHorariosExternos(planificacionSemestreId: number, 
     };
     if (!codigo) { error(numeroFila, "Código Asig.", "Indique el código de la asignatura."); return; }
     if (!asignatura) return;
-    if (asignatura && normalizarNombreExcel(texto(2)) !== normalizarNombreExcel(asignatura.nombre)) error(numeroFila, "Nombre Asignatura", `Indique «${asignatura.nombre}».`);
+    // Course names are informational; only the authorized code identifies the course.
     if (!texto(3) || !Number.isSafeInteger(seccion) || seccion < 1 || seccion > 2147483647) error(numeroFila, "Sección", "Indique un entero positivo.");
     if (!texto(4) || !Number.isSafeInteger(cupos) || cupos < 0 || cupos > 2147483647) error(numeroFila, "Cupos", "Indique un entero no negativo.");
     const rut = normalizarRut(texto(5));
