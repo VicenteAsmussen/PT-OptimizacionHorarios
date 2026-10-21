@@ -199,11 +199,18 @@ Los contratos de API, formatos de planilla y detalles de migraciones se document
 
 ### Verificación
 
-```bash
-cd backend
-pnpm run build
-pnpm exec tsc --noEmit
-pnpm exec vitest run tests/schema-organization.test.ts tests/departamento-asignaturas.test.ts tests/alcance-secretaria.test.ts
+Desde la raíz del repositorio, mediante Docker:
+
+```powershell
+docker compose run --rm --no-deps backend sh -c "pnpm run build && pnpm exec tsc --noEmit && pnpm exec vitest run tests/schema-organization.test.ts tests/departamento-asignaturas.test.ts tests/alcance-secretaria.test.ts"
 ```
 
 Las suites de integración que ejercitan PostgreSQL requieren `RUN_ISOLATED_DATABASE_TESTS=true` y una base aislada, migrada y sembrada; sin esa habilitación se omiten por seguridad. No ejecutar la suite completa contra una base compartida o con datos importantes.
+
+Para verificar la importación Excel usando una base `horarios_test` separada en el PostgreSQL habitual:
+
+```powershell
+powershell -NoProfile -File scripts/probar-excel-externos.ps1
+```
+
+Ver [alcance, aislamiento y resultados de la prueba](docs/pruebas-excel-externos.md).
