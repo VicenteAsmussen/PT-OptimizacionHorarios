@@ -106,6 +106,20 @@ Departamentos gestionados inicialmente para el prototipo:
 
 Este modelo separa tres necesidades: vistas de secretaría limitadas a su carrera, exportación Excel de salas para ramos gestionados e importación Excel pre-modelo para horarios de ramos externos.
 
+### Importación de horarios externos
+
+`POST /api/horarios-asignaturas/excel/externos/importar?planificacionSemestreId=…&departamentoId=…`
+recibe un archivo `.xlsx` en el campo multipart `archivo` (máximo 10 MB), con el formato común de una hoja y los encabezados definidos en `backend/src/utils/excel-horarios-externos.ts`.
+
+- El archivo contiene la carga completa del departamento, incluso asignaturas de otras carreras. Se seleccionan por código únicamente las asignaturas ya registradas en la malla de la carrera de la planificación y pertenecientes al departamento externo elegido. No se requiere columna `Carrera` ni se crean asignaturas.
+- Las filas con códigos no coincidentes se ignoran antes de validar sus demás datos. Una fila no vacía sin código es un error. Un archivo sin ofertas pertinentes no modifica ni vacía la carga anterior.
+- El archivo reemplaza las ofertas y horarios de ese departamento en esa planificación: actualiza las secciones existentes conservando sus identificadores, crea las nuevas y elimina las secciones ausentes, incluso las de asignaturas omitidas del archivo. No modifica otros departamentos ni planificaciones.
+- Solo se permite importar en la planificación actual en preparación. Toda la carga se valida antes de escribir y se aplica en una transacción; cualquier error conserva el estado anterior. El profesor debe estar registrado en el departamento y se identifica por RUT. Las columnas `Sala N` se ignoran.
+- Los errores de filas pertinentes incluyen `fila`, `columna`, `mensaje`, `codigoAsignatura`, `nombreAsignatura` y `valor`. Los errores generales del archivo no necesariamente tienen una asignatura asociada.
+- La respuesta exitosa incluye `ofertasCreadas`, `ofertasActualizadas`, `ofertasEliminadas`, `horariosCreados` y `asignaturasCargadas` (código, nombre, semestre de malla y secciones). `horariosCreados` cuenta los bloques guardados tras reemplazar los anteriores. Reimportar el mismo archivo no duplica ofertas ni bloques.
+
+La consulta visual de cobertura por semestre de malla queda pendiente para la página de importación. El importador acepta ofertas de ambas paridades; no rechaza asignaturas por su semestre de malla ni exige que el archivo cubra toda la paridad del período.
+
 ---
 
 ## 🌱 Datos del Prototipo

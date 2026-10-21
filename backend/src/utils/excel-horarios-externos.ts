@@ -14,7 +14,7 @@ export const encabezadosExcelExternos = [
 
 /** Valida todo el archivo antes de escribir. Sala N es visual: se ignora incluso no vacía. */
 export async function importarHorariosExternos(planificacionSemestreId: number, departamentoId: number, archivo: Buffer, carreraId?: number) {
-  const errores: { fila: number; columna: string; mensaje: string }[] = [];
+  const errores: { fila: number; columna: string; mensaje: string; codigoAsignatura?: string; nombreAsignatura?: string; valor?: string }[] = [];
   const advertencias: { fila: number; columna: string; mensaje: string }[] = [];
   const error = (fila: number, columna: string, mensaje: string) => errores.push({ fila, columna, mensaje });
   const rechazado = () => ({ ofertasCreadas: 0, horariosCreados: 0, errores, advertencias });
@@ -33,14 +33,21 @@ export async function importarHorariosExternos(planificacionSemestreId: number, 
   if (!contexto.departamentoValido) throw new ForbiddenError("Departamento inexistente o no externo para la carrera de la secretaria");
   const propuestas: Parameters<typeof horariosRepository.crearExternosEnTransaccion>[1] = [];
   const claves = new Set<string>();
-  const ocupaciones = new Set(contexto.ocupaciones.map((ocupacion) => `${ocupacion.profesorId}:${ocupacion.bloqueId}`));
+  const codigos = new Set(contexto.asignaturas.map(asignatura => asignatura.codigo));
+  const ofertasReemplazadas = new Set(contexto.ofertas.filter(oferta => codigos.has(oferta.asignaturaCodigo)).map(oferta => oferta.id));
+  const ocupaciones = new Set(contexto.ocupaciones.filter(ocupacion => !ofertasReemplazadas.has(ocupacion.ofertaId)).map((ocupacion) => `${ocupacion.profesorId}:${ocupacion.bloqueId}`));
   hoja.eachRow((fila, numeroFila) => {
     if (numeroFila === 1) return;
     const texto = (columna: number) => normalizarTextoCelda(fila.getCell(columna).value);
     if (!Array.from({ length: encabezadosExcelExternos.length }, (_, indice) => texto(indice + 1)).some(Boolean)) return;
     const codigo = texto(1); const seccion = Number(texto(3)); const cupos = Number(texto(4));
     const asignatura = contexto.asignaturas.find((candidata) => candidata.codigo === codigo);
-    if (!asignatura) error(numeroFila, "Código Asig.", "Asignatura inexistente o fuera de la carrera autorizada.");
+    const error = (fila: number, columna: string, mensaje: string) => {
+      const indice = encabezadosExcelExternos.indexOf(columna);
+      errores.push({ fila, columna, mensaje, codigoAsignatura: codigo, nombreAsignatura: asignatura?.nombre ?? texto(2), valor: indice >= 0 ? texto(indice + 1) : "" });
+    };
+    if (!codigo) { error(numeroFila, "Código Asig.", "Indique el código de la asignatura."); return; }
+    if (!asignatura) return;
     if (asignatura && normalizarNombreExcel(texto(2)) !== normalizarNombreExcel(asignatura.nombre)) error(numeroFila, "Nombre Asignatura", `Indique «${asignatura.nombre}».`);
     if (!texto(3) || !Number.isSafeInteger(seccion) || seccion < 1 || seccion > 2147483647) error(numeroFila, "Sección", "Indique un entero positivo.");
     if (!texto(4) || !Number.isSafeInteger(cupos) || cupos < 0 || cupos > 2147483647) error(numeroFila, "Cupos", "Indique un entero no negativo.");
@@ -50,7 +57,7 @@ export async function importarHorariosExternos(planificacionSemestreId: number, 
     if (!rut) error(numeroFila, "RUT Profesor", "Indique un RUT válido con dígito verificador.");
     else if (!profesor) error(numeroFila, "RUT Profesor", "Profesor inexistente, ambiguo o fuera del departamento autorizado. Registre el profesor antes de importar.");
     const clave = JSON.stringify([codigo, seccion]);
-    if (claves.has(clave) || contexto.ofertas.some((oferta) => oferta.asignaturaCodigo === codigo && oferta.seccion === seccion)) error(numeroFila, "Sección", "La oferta ya existe o está repetida en el archivo.");
+    if (claves.has(clave)) error(numeroFila, "Sección", "La asignatura/sección está repetida en el archivo.");
     claves.add(clave);
     const sesiones: { bloqueId: number; tipoHoraId: number }[] = [];
     const bloquesUsados = new Set<number>();
@@ -82,8 +89,12 @@ export async function importarHorariosExternos(planificacionSemestreId: number, 
     if (!sesiones.length) error(numeroFila, "Horario 1", "Incluya al menos una sesión válida.");
     propuestas.push({ asignaturaCodigo: codigo, profesorId: profesor?.id ?? 0, seccion, cupos, sesiones });
   });
-  if (!propuestas.length) error(2, "archivo", "Incluya al menos una oferta.");
+  if (!propuestas.length) error(2, "archivo", "El archivo no contiene ofertas de asignaturas de esta carrera y departamento. No se modificó la carga anterior.");
   if (errores.length) return rechazado();
-  await horariosRepository.crearExternosEnTransaccion(planificacionSemestreId, propuestas);
-  return { ofertasCreadas: propuestas.length, horariosCreados: propuestas.reduce((total, fila) => total + fila.sesiones.length, 0), errores, advertencias };
+  const resumen = await horariosRepository.sincronizarExternosEnTransaccion(planificacionSemestreId, departamentoId, propuestas, carreraId);
+  const asignaturasCargadas = contexto.asignaturas.filter(asignatura => propuestas.some(fila => fila.asignaturaCodigo === asignatura.codigo)).map(asignatura => ({
+    codigo: asignatura.codigo, nombre: asignatura.nombre, semestreMalla: asignatura.semestreMalla,
+    secciones: propuestas.filter(fila => fila.asignaturaCodigo === asignatura.codigo).map(fila => fila.seccion).sort((a, b) => a - b),
+  }));
+  return { ...resumen, horariosCreados: propuestas.reduce((total, fila) => total + fila.sesiones.length, 0), asignaturasCargadas, errores, advertencias };
 }

@@ -14,6 +14,7 @@ const dialecto = new PgDialect();
 let tablas: Record<string, Fila[]>;
 let eventos: string[];
 let alBloquear: (() => void) | undefined;
+let alEscribir: ((tabla: string, operacion: string) => void) | undefined;
 function parametros(condicion?: SQL): unknown[] { return condicion ? dialecto.sqlToQuery(condicion).params : []; }
 function buscar(tabla: string, condicion?: SQL) {
   const valores = parametros(condicion);
@@ -41,25 +42,31 @@ function baseSimulada() {
     };
     return cadena;
   } });
-  const nombres = { planificacionesSemestres: "planificaciones_semestres", ofertasAsignaturas: "ofertas_asignaturas", horariosAsignaturas: "horarios_asignaturas", disponibilidadProfesores: "disponibilidad_profesores" };
+  const nombres = { planificacionesSemestres: "planificaciones_semestres", ofertasAsignaturas: "ofertas_asignaturas", horariosAsignaturas: "horarios_asignaturas", disponibilidadProfesores: "disponibilidad_profesores", carreraDepartamento: "carrera_departamento", carreraAsignatura: "carrera_asignatura", asignaturas: "asignaturas", profesores: "profesores" };
   base.query = Object.fromEntries(Object.entries(nombres).map(([clave, nombre]) => [clave, {
     findFirst: async ({ where }: { where: SQL }) => {
       eventos.push(`lectura:${nombre}`);
       return buscar(nombre, where)[0];
     },
-    findMany: async () => tablas[nombre],
+    findMany: async ({ where }: { where?: SQL } = {}) => buscar(nombre, where),
   }]));
   for (const operacion of ["insert", "update", "delete"]) base[operacion] = (tabla: never) => {
     const nombre = getTableName(tabla);
     let datos: Fila = {};
+    let condicion: SQL | undefined;
     const ejecutar = async () => {
       eventos.push(`escritura:${nombre}:${operacion}`);
-      const filas = (Array.isArray(datos) ? datos : [datos]).map(fila => ({ id: 10, ...fila }));
+      alEscribir?.(nombre, operacion);
+      const afectadas = buscar(nombre, condicion);
+      const siguienteId = Math.max(9, ...tablas[nombre].map(fila => Number(fila.id) || 0)) + 1;
+      const filas = operacion === "insert" ? (Array.isArray(datos) ? datos : [datos]).map((fila, indice) => ({ id: siguienteId + indice, ...fila })) : afectadas;
       if (operacion === "insert") tablas[nombre].push(...filas);
+      if (operacion === "update") afectadas.forEach(fila => Object.assign(fila, datos));
+      if (operacion === "delete") tablas[nombre] = tablas[nombre].filter(fila => !afectadas.includes(fila));
       return filas;
     };
-    const cadena = { values: (valor: Fila) => { datos = valor; return cadena; }, set: (valor: Fila) => { datos = valor; return cadena; }, where: () => cadena,
-      returning: ejecutar, then: (resolver: (filas: Fila[]) => unknown) => ejecutar().then(resolver) };
+    const cadena = { values: (valor: Fila) => { datos = valor; return cadena; }, set: (valor: Fila) => { datos = valor; return cadena; }, where: (valor: SQL) => { condicion = valor; return cadena; },
+      returning: ejecutar, then: (resolver: (filas: Fila[]) => unknown, rechazar: (error: unknown) => unknown) => ejecutar().then(resolver, rechazar) };
     return cadena;
   };
   base.execute = async () => { eventos.push("bloqueo-global"); };
@@ -74,6 +81,7 @@ function baseSimulada() {
 beforeEach(() => {
   eventos = [];
   alBloquear = undefined;
+  alEscribir = undefined;
   tablas = {
     carreras: [{ id: 1 }, { id: 2 }],
     planificaciones_semestres: [
@@ -83,6 +91,10 @@ beforeEach(() => {
     ofertas_asignaturas: [{ id: 10, planificacionSemestreId: 1 }],
     horarios_asignaturas: [{ id: 20, ofertaId: 10, planificacionSemestreId: 1 }],
     disponibilidad_profesores: [{ id: 30, planificacionSemestreId: 1 }],
+    carrera_departamento: [{ carreraId: 2, departamentoId: 4, esGestionado: false }],
+    carrera_asignatura: [{ carreraId: 2, asignaturaCodigo: "MAT100" }, { carreraId: 2, asignaturaCodigo: "MAT200" }],
+    asignaturas: [{ codigo: "MAT100", departamentoId: 4 }, { codigo: "MAT200", departamentoId: 4 }, { codigo: "OTRA", departamentoId: 5 }],
+    profesores: [{ id: 7, departamentoId: 4 }],
   };
   contexto.base = baseSimulada();
 });
@@ -111,6 +123,7 @@ const mutaciones = [
   ["eliminar horario", () => horariosRepository.delete(20)],
   ["eliminar horarios de oferta", () => horariosRepository.deleteByOferta(10)],
   ["importar externos", () => horariosRepository.crearExternosEnTransaccion(1, [{ ...oferta, sesiones: [{ bloqueId: 1, tipoHoraId: 1 }] }])],
+  ["reemplazar externos", () => horariosRepository.sincronizarExternosEnTransaccion(1, 4, [{ ...oferta, asignaturaCodigo: "MAT100", sesiones: [{ bloqueId: 1, tipoHoraId: 1 }] }], 2)],
   ["importar salas", () => horariosRepository.actualizarSalasEnTransaccion(1, [{ id: 20, salaId: 2 }])],
 ] as const;
 describe.each([
@@ -228,4 +241,55 @@ it("propaga un conflicto tardío de Excel y revierte el lote en la transacción 
   expect(eventos).toContain("escritura:ofertas_asignaturas:insert");
   expect(eventos.at(-1)).toBe("rollback");
   expect(tablas).toEqual(anteriores);
+});
+
+function prepararReemplazo() {
+  tablas.ofertas_asignaturas = [
+    { id: 10, planificacionSemestreId: 1, asignaturaCodigo: "MAT100", seccion: 1, profesorId: 7, cupos: 20 },
+    { id: 11, planificacionSemestreId: 1, asignaturaCodigo: "MAT100", seccion: 2, profesorId: 7, cupos: 20 },
+    { id: 12, planificacionSemestreId: 1, asignaturaCodigo: "MAT200", seccion: 1, profesorId: 7, cupos: 20 },
+    { id: 13, planificacionSemestreId: 1, asignaturaCodigo: "OTRA", seccion: 1, profesorId: 8 },
+    { id: 14, planificacionSemestreId: 2, asignaturaCodigo: "MAT100", seccion: 1, profesorId: 7 },
+  ];
+  tablas.horarios_asignaturas = tablas.ofertas_asignaturas.map(oferta => ({ id: Number(oferta.id) + 20, ofertaId: oferta.id, planificacionSemestreId: oferta.planificacionSemestreId, bloqueId: 1 }));
+}
+const filasReemplazo = () => [{ asignaturaCodigo: "MAT100", seccion: 1, profesorId: 7, cupos: 45, sesiones: [{ bloqueId: 1, tipoHoraId: 1 }] }];
+it("sincroniza el departamento completo preservando IDs y otros ámbitos, y admite reimportación", async () => {
+  prepararReemplazo();
+  const ajenas = structuredClone(tablas.ofertas_asignaturas.slice(3));
+  const horariosAjenos = structuredClone(tablas.horarios_asignaturas.slice(3));
+  expect(await horariosRepository.sincronizarExternosEnTransaccion(1, 4, filasReemplazo(), 2)).toEqual({ ofertasCreadas: 0, ofertasActualizadas: 1, ofertasEliminadas: 2 });
+  expect(tablas.ofertas_asignaturas).toEqual([{ id: 10, planificacionSemestreId: 1, asignaturaCodigo: "MAT100", seccion: 1, profesorId: 7, cupos: 45 }, ...ajenas]);
+  expect(tablas.horarios_asignaturas.filter(fila => fila.ofertaId !== 10)).toEqual(horariosAjenos);
+  expect(tablas.horarios_asignaturas.filter(fila => fila.ofertaId === 10)).toEqual([expect.objectContaining({ bloqueId: 1, salaId: null })]);
+  expect(await horariosRepository.sincronizarExternosEnTransaccion(1, 4, filasReemplazo(), 2)).toEqual({ ofertasCreadas: 0, ofertasActualizadas: 1, ofertasEliminadas: 0 });
+  expect(tablas.ofertas_asignaturas).toHaveLength(3);
+  expect(tablas.horarios_asignaturas).toHaveLength(3);
+});
+it("crea secciones nuevas y actualiza docente, cupos y sesiones", async () => {
+  prepararReemplazo(); tablas.profesores.push({ id: 9, departamentoId: 4 });
+  const filas = filasReemplazo(); filas[0]!.profesorId = 9; filas[0]!.sesiones[0]!.bloqueId = 2;
+  filas.push({ ...filas[0]!, seccion: 3, sesiones: [{ bloqueId: 3, tipoHoraId: 1 }] });
+  expect(await horariosRepository.sincronizarExternosEnTransaccion(1, 4, filas, 2)).toEqual({ ofertasCreadas: 1, ofertasActualizadas: 1, ofertasEliminadas: 2 });
+  expect(tablas.ofertas_asignaturas.find(fila => fila.id === 10)).toMatchObject({ profesorId: 9, cupos: 45 });
+  expect(tablas.horarios_asignaturas.find(fila => fila.ofertaId === 10)).toMatchObject({ bloqueId: 2 });
+});
+it("revierte eliminaciones y actualizaciones si falla la escritura final de sesiones", async () => {
+  prepararReemplazo(); const anteriores = structuredClone(tablas);
+  alEscribir = (tabla, operacion) => { if (tabla === "horarios_asignaturas" && operacion === "insert") throw new Error("fallo simulado"); };
+  await expect(horariosRepository.sincronizarExternosEnTransaccion(1, 4, filasReemplazo(), 2)).rejects.toThrow("fallo simulado");
+  expect(eventos).toContain("escritura:ofertas_asignaturas:delete");
+  expect(eventos).toContain("escritura:ofertas_asignaturas:update");
+  expect(tablas).toEqual(anteriores);
+});
+it.each(["carrera", "departamento", "malla", "profesor", "ocupacion", "vacio"])("revalida %s sin modificar datos", async caso => {
+  prepararReemplazo();
+  if (caso === "departamento") tablas.carrera_departamento[0]!.esGestionado = true;
+  if (caso === "malla") tablas.carrera_asignatura = [];
+  if (caso === "profesor") tablas.profesores = [];
+  if (caso === "ocupacion") tablas.ofertas_asignaturas[3]!.profesorId = 7;
+  const anteriores = structuredClone(tablas);
+  await expect(horariosRepository.sincronizarExternosEnTransaccion(1, 4, caso === "vacio" ? [] : filasReemplazo(), caso === "carrera" ? 99 : 2)).rejects.toThrow();
+  expect(tablas).toEqual(anteriores);
+  expect(eventos.some(evento => evento.startsWith("escritura:"))).toBe(false);
 });

@@ -61,7 +61,7 @@ export const horariosRepository = {
       tipos: await db.select().from(tiposHora),
       bloques: await db.select().from(bloquesHorarios),
       ofertas: await db.select().from(ofertasAsignaturas).where(eq(ofertasAsignaturas.planificacionSemestreId, planificacionSemestreId)),
-      ocupaciones: await db.select({ profesorId: ofertasAsignaturas.profesorId, bloqueId: horariosAsignaturas.bloqueId }).from(horariosAsignaturas)
+      ocupaciones: await db.select({ ofertaId: ofertasAsignaturas.id, profesorId: ofertasAsignaturas.profesorId, bloqueId: horariosAsignaturas.bloqueId }).from(horariosAsignaturas)
         .innerJoin(ofertasAsignaturas, eq(ofertasAsignaturas.id, horariosAsignaturas.ofertaId)).where(eq(horariosAsignaturas.planificacionSemestreId, planificacionSemestreId)),
     };
   },
@@ -74,6 +74,60 @@ export const horariosRepository = {
         const [creada] = await tx.insert(ofertasAsignaturas).values({ ...oferta, planificacionSemestreId }).returning();
         for (const sesion of sesiones) await tx.insert(horariosAsignaturas).values({ ...sesion, ofertaId: creada.id, planificacionSemestreId, salaId: null });
       }
+    });
+  },
+  async sincronizarExternosEnTransaccion(planificacionSemestreId: number, departamentoId: number, filas: { asignaturaCodigo: string; profesorId: number; seccion: number; cupos: number; sesiones: { bloqueId: number; tipoHoraId: number }[] }[], carreraId?: number) {
+    return conPlanificacionesEditables(async () => [planificacionSemestreId], async tx => {
+      const planificacion = await tx.query.planificacionesSemestres.findFirst({ where: eq(planificacionesSemestres.id, planificacionSemestreId) });
+      if (!planificacion || (carreraId !== undefined && planificacion.carreraId !== carreraId)) throw new ConflictError("La planificación cambió de carrera; no se modificó la carga anterior.");
+      const relacion = await tx.query.carreraDepartamento.findFirst({ where: and(eq(carreraDepartamento.carreraId, planificacion.carreraId), eq(carreraDepartamento.departamentoId, departamentoId), eq(carreraDepartamento.esGestionado, false)) });
+      if (!relacion) throw new ConflictError("El departamento ya no es externo para esta carrera; no se modificó la carga anterior.");
+      const malla = await tx.query.carreraAsignatura.findMany({ where: eq(carreraAsignatura.carreraId, planificacion.carreraId) });
+      const codigosMalla = new Set(malla.map(vinculo => vinculo.asignaturaCodigo));
+      const asignaturasDepartamento = await tx.query.asignaturas.findMany({ where: eq(asignaturas.departamentoId, departamentoId) });
+      const codigos = new Set(asignaturasDepartamento.filter(asignatura => codigosMalla.has(asignatura.codigo)).map(asignatura => asignatura.codigo));
+      if (!filas.length || filas.some(fila => !codigos.has(fila.asignaturaCodigo))) throw new ConflictError("La carga no coincide con las asignaturas autorizadas; no se modificó la carga anterior.");
+      const profesoresDepartamento = await tx.query.profesores.findMany({ where: eq(profesores.departamentoId, departamentoId) });
+      const profesoresValidos = new Set(profesoresDepartamento.map(profesor => profesor.id));
+      const ofertas = await tx.query.ofertasAsignaturas.findMany({ where: eq(ofertasAsignaturas.planificacionSemestreId, planificacionSemestreId) });
+      const reemplazadas = ofertas.filter(oferta => codigos.has(oferta.asignaturaCodigo));
+      const idsReemplazados = new Set(reemplazadas.map(oferta => oferta.id));
+      const profesoresPorOferta = new Map(ofertas.map(oferta => [oferta.id, oferta.profesorId]));
+      const horarios = await tx.query.horariosAsignaturas.findMany({ where: eq(horariosAsignaturas.planificacionSemestreId, planificacionSemestreId) });
+      const ocupaciones = new Set(horarios.filter(horario => !idsReemplazados.has(horario.ofertaId)).map(horario => `${profesoresPorOferta.get(horario.ofertaId)}:${horario.bloqueId}`));
+      const claves = new Set<string>();
+      for (const fila of filas) {
+        const clave = JSON.stringify([fila.asignaturaCodigo, fila.seccion]);
+        if (claves.has(clave) || !profesoresValidos.has(fila.profesorId)) throw new ConflictError(`Revise la sección o el profesor de ${fila.asignaturaCodigo}; no se modificó la carga anterior.`);
+        claves.add(clave);
+        for (const sesion of fila.sesiones) {
+          const ocupacion = `${fila.profesorId}:${sesion.bloqueId}`;
+          if (ocupaciones.has(ocupacion)) throw new ConflictError(`El profesor de ${fila.asignaturaCodigo}, sección ${fila.seccion}, está ocupado en el bloque ${sesion.bloqueId}; no se modificó la carga anterior.`);
+          ocupaciones.add(ocupacion);
+        }
+      }
+      let ofertasCreadas = 0; let ofertasActualizadas = 0; let ofertasEliminadas = 0;
+      for (const oferta of reemplazadas) {
+        await tx.delete(horariosAsignaturas).where(and(eq(horariosAsignaturas.ofertaId, oferta.id), eq(horariosAsignaturas.planificacionSemestreId, planificacionSemestreId)));
+        if (!claves.has(JSON.stringify([oferta.asignaturaCodigo, oferta.seccion]))) {
+          await tx.delete(ofertasAsignaturas).where(and(eq(ofertasAsignaturas.id, oferta.id), eq(ofertasAsignaturas.planificacionSemestreId, planificacionSemestreId)));
+          ofertasEliminadas++;
+        }
+      }
+      for (const fila of filas) {
+        const existente = reemplazadas.find(oferta => oferta.asignaturaCodigo === fila.asignaturaCodigo && oferta.seccion === fila.seccion);
+        let ofertaId: number;
+        if (existente) {
+          await tx.update(ofertasAsignaturas).set({ profesorId: fila.profesorId, cupos: fila.cupos }).where(eq(ofertasAsignaturas.id, existente.id));
+          ofertaId = existente.id; ofertasActualizadas++;
+        } else {
+          const { sesiones: _, ...oferta } = fila;
+          const [creada] = await tx.insert(ofertasAsignaturas).values({ ...oferta, planificacionSemestreId }).returning();
+          ofertaId = creada.id; ofertasCreadas++;
+        }
+        for (const sesion of fila.sesiones) await tx.insert(horariosAsignaturas).values({ ...sesion, ofertaId, planificacionSemestreId, salaId: null });
+      }
+      return { ofertasCreadas, ofertasActualizadas, ofertasEliminadas };
     });
   },
   async findCarreraSecretariaByUsuarioId(usuarioId: number) {
