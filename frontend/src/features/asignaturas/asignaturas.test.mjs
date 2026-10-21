@@ -2,6 +2,22 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 const cargar = () => import('./datos.ts');
+test('subjects sort by numeric curriculum semester, then name, without mutating input', async () => {
+  const { filtrarAsignaturas } = await cargar();
+  const asignaturas = Object.freeze([
+    { codigo: 'INF-10', nombre: 'A', departamentoId: 1, semestreMalla: 10 },
+    { codigo: 'INF-2B', nombre: 'Z', departamentoId: 1, semestreMalla: 2 },
+    { codigo: 'INF-14', nombre: 'B', departamentoId: 2, semestreMalla: 14 },
+    { codigo: 'INF-1', nombre: 'Z', departamentoId: 1, semestreMalla: 1 },
+    { codigo: 'INF-2A', nombre: 'A', departamentoId: 1, semestreMalla: 2 },
+  ].map(Object.freeze));
+  const originales = [...asignaturas];
+  assert.deepEqual(filtrarAsignaturas(asignaturas).map(a => a.codigo),
+    ['INF-1', 'INF-2A', 'INF-2B', 'INF-10', 'INF-14']);
+  assert.deepEqual(filtrarAsignaturas(asignaturas, 'inf', '1', '2').map(a => a.codigo),
+    ['INF-2A', 'INF-2B']);
+  assert.deepEqual(asignaturas, originales);
+});
 const profesores = [
   { id: 1, nombre: 'Ana Pérez', rut: '12.345.678-5', departamento: { nombre: 'A' } },
   { id: 2, nombre: 'Berta', rut: '6000000-K', departamento: { nombre: 'B' } },

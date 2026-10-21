@@ -106,7 +106,7 @@ export default function AsignaturasPage() {
         setSeleccion(null);
         setPlanificacionSemestreId(e.target.value ? Number(e.target.value) : null);
       }}>
-        <option value="">Selecciona carrera y semestre</option>
+        {planificacionSemestreId === null && <option value="" disabled hidden>Selecciona carrera y semestre</option>}
         {datos?.planificaciones.map(p => <option key={p.id} value={p.id}>{p.carrera.nombre} · {p.codigo}{p.actual ? ' (actual)' : ''}</option>)}
       </select></label>
       <div className={estilos.acciones}><button type="button" className="boton boton--gris" onClick={restablecerFiltros}>Limpiar filtros</button></div>

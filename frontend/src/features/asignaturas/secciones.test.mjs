@@ -4,6 +4,30 @@ import { readFile } from 'node:fs/promises';
 
 const fuente = ruta => readFile(new URL(ruta, import.meta.url), 'utf8');
 
+test('semester selector cannot clear the current selection', async () => {
+  const ts = await import('typescript');
+  const React = await import('react');
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const pagina = await fuente('./AsignaturasPage.tsx');
+  const selector = pagina.match(/<label>Semestre para secciones<select[^]*?<\/select><\/label>/)?.[0];
+  assert.ok(selector);
+  const codigo = ts.transpileModule(`return (${selector});`, {
+    compilerOptions: { jsx: ts.JsxEmit.React, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  const renderizar = new Function('React', 'cargando', 'planificacionSemestreId', 'datos', 'setSeleccion', 'setPlanificacionSemestreId', codigo);
+  const datos = { planificaciones: [{ id: 7, actual: true, codigo: '2026-2', carrera: { nombre: 'Informatica' } }] };
+  const seleccionado = renderizar(React, false, 7, datos, () => {}, () => {});
+  const html = renderToStaticMarkup(seleccionado);
+  assert.doesNotMatch(html, /<option value=""/);
+  assert.match(html, /<option value="7" selected=""/);
+  const pendiente = renderizar(React, false, null, datos, () => {}, () => {});
+  const select = React.Children.toArray(pendiente.props.children).find(elemento => elemento.type === 'select');
+  const opciones = React.Children.toArray(select.props.children);
+  const vacia = opciones.find(opcion => opcion.props.value === '');
+  assert.ok(vacia?.props.disabled);
+  assert.ok(vacia?.props.hidden);
+});
+
 // Ejecuta los handlers reales con dobles controlados, igual que el callback de conteos.
 async function handlers(contexto) {
   const ts = await import('typescript');
