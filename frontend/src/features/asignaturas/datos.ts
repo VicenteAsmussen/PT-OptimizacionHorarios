@@ -6,7 +6,8 @@ export function filtrarAsignaturas(asignaturas: readonly Asignatura[], busqueda 
   return asignaturas.filter(a => (!departamento || a.departamentoId === Number(departamento))
     && (!malla || a.semestreMalla === Number(malla))
     && (normalizar(a.nombre).includes(consulta) || normalizar(a.codigo).includes(consulta)))
-    .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
+    .sort((a, b) => a.semestreMalla - b.semestreMalla
+      || a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
 }
 export function limpiarFiltros<T extends { busqueda: string; departamento: string; malla: string }>(filtros: T): T {
   return { ...filtros, busqueda: '', departamento: '', malla: '' };
