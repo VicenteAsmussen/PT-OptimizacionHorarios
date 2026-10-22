@@ -2,6 +2,7 @@ import { pgTable, serial, varchar } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { horariosAsignaturas } from "./horarios-asignaturas.schema.js";
 import { asignaturaTipoHora } from "./asignatura-tipo-hora.schema.js";
+import { ofertaTipoHora } from "./oferta-tipo-hora.schema.js";
 
 export const tiposHora = pgTable("tipos_hora", {
   id: serial("id").primaryKey(),
@@ -11,6 +12,7 @@ export const tiposHora = pgTable("tipos_hora", {
 export const tiposHoraRelations = relations(tiposHora, ({ many }) => ({
   horarios: many(horariosAsignaturas),
   asignaturas: many(asignaturaTipoHora),
+  asignaciones: many(ofertaTipoHora),
 }));
 
 export type TipoHora = typeof tiposHora.$inferSelect;

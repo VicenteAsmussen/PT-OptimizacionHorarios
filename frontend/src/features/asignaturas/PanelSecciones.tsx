@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react';
 import { asignaturasApi } from './asignaturas.api';
-import { estadoSecciones, ofertasDePlanificacion, prepararOferta, seccionesLibres } from './datos';
+import { estadoSecciones, ofertasDePlanificacion, prepararOferta, seccionesLibres, tiposPendientes } from './datos';
 import type { Asignatura, Oferta, ProfesorSeccion, PlanificacionSemestre } from './types';
 import { useMutacion } from './useMutacion';
 import PanelAsignatura from './PanelAsignatura';
@@ -11,6 +11,38 @@ type Accion = { tipo: 'editar'; oferta: Oferta } | { tipo: 'crear' } | { tipo: '
 type Propiedades = {
   asignatura: Asignatura; semestre: PlanificacionSemestre; alCerrar: () => void; alCambiarOfertas: () => void;
 };
+type Asignaciones = { tipoHoraId: number; profesorId: number | null }[];
+
+export function EditorAsignaciones({ asignatura, profesores, asignaciones, alCambiar }: {
+  asignatura: Asignatura; profesores: ProfesorSeccion[]; asignaciones: Asignaciones; alCambiar: (valor: Asignaciones) => void;
+}) {
+  const tipos = (asignatura.tiposHora ?? []).filter(t => t.horas > 0 || asignaciones.some(a => a.tipoHoraId === t.tipoHoraId));
+  function seleccionar(tipoHoraId: number, profesorId: number | null) {
+    let nuevas = [...asignaciones.filter(a => a.tipoHoraId !== tipoHoraId), { tipoHoraId, profesorId }];
+    if (profesorId !== null && tipoHoraId === tipos[0]?.tipoHoraId) {
+      for (const tipo of tipos.slice(1)) if (nuevas.find(a => a.tipoHoraId === tipo.tipoHoraId)?.profesorId == null) {
+        nuevas = [...nuevas.filter(a => a.tipoHoraId !== tipo.tipoHoraId), { tipoHoraId: tipo.tipoHoraId, profesorId }];
+      }
+    }
+    alCambiar(nuevas);
+  }
+  return <>
+    <div className={estilos.tablaContenedor}>
+      <table className={estilos.tablaAsignaciones}>
+        <caption>Profesores por tipo de hora</caption>
+        <thead><tr><th scope="col">Tipo de hora</th><th scope="col">Horas</th><th scope="col">Profesor</th></tr></thead>
+        <tbody>{tipos.map(tipo => <tr key={tipo.tipoHoraId}>
+          <th scope="row">{tipo.tipoHora.tipo}</th><td>{tipo.horas}</td>
+          <td><SelectorProfesor profesores={profesores} contexto={tipo.tipoHora.tipo}
+            profesorId={asignaciones.find(a => a.tipoHoraId === tipo.tipoHoraId)?.profesorId ?? null}
+             alSeleccionar={profesorId => seleccionar(tipo.tipoHoraId, profesorId)} /></td>
+        </tr>)}</tbody>
+      </table>
+    </div>
+    {!tipos.length && <p>No hay tipos de hora con carga para asignar profesores.</p>}
+    {tipos.length > 1 && <p>Al elegir al profesor del primer tipo se completan los demás tipos sin asignar. Puedes cambiarlos antes de guardar.</p>}
+  </>;
+}
 export default function PanelSecciones(propiedades: Propiedades) {
   const { asignatura, semestre } = propiedades;
   // Cambiar de contexto desmonta formularios y silencia las mutaciones tardías.
@@ -31,7 +63,7 @@ function ContenidoSecciones({ asignatura, semestre, alCerrar, alCambiarOfertas }
   const [accion, setAccion] = useState<Accion | null>(null);
   const [seccion, setSeccion] = useState('');
   const [cupos, setCupos] = useState('0');
-  const [profesorId, setProfesorId] = useState<number | null>(null);
+  const [asignaciones, setAsignaciones] = useState<Asignaciones>([]);
   const solicitud = useRef(0);
   const contenido = useRef<HTMLHeadingElement>(null);
   const { ocupado, error, ejecutar } = useMutacion();
@@ -68,7 +100,7 @@ function ContenidoSecciones({ asignatura, semestre, alCerrar, alCambiarOfertas }
     setAccion(nueva);
     setSeccion(String(nueva.tipo === 'crear' ? libres[0] : nueva.oferta.seccion));
     setCupos(String(nueva.tipo === 'crear' ? 0 : nueva.oferta.cupos));
-    setProfesorId(nueva.tipo === 'crear' ? null : nueva.oferta.profesorId);
+    setAsignaciones(nueva.tipo === 'crear' ? [] : nueva.oferta.asignaciones.map(({ tipoHoraId, profesorId }) => ({ tipoHoraId, profesorId })));
   }
   function completar() {
     if (!vigente.current) return;
@@ -86,7 +118,7 @@ function ContenidoSecciones({ asignatura, semestre, alCerrar, alCambiarOfertas }
       if (accion.tipo === 'eliminar') {
         await asignaturasApi.eliminarOferta(accion.oferta.id);
       } else {
-        const payload = prepararOferta({ seccion, cupos, profesorId }, datos.profesores, libres);
+        const payload = prepararOferta({ seccion, cupos, asignaciones }, datos.profesores, libres);
         if (accion.tipo === 'crear') await asignaturasApi.crearOferta(asignatura.codigo, semestre.id, payload);
         else await asignaturasApi.editarOferta(accion.oferta.id, payload);
       }
@@ -110,7 +142,9 @@ function ContenidoSecciones({ asignatura, semestre, alCerrar, alCambiarOfertas }
       <button type="button" className="boton boton--crear" disabled={!puedeEditar || !libres.length} aria-describedby={motivo ? 'motivo-secciones' : undefined} onClick={() => abrir({ tipo: 'crear' })}>Agregar sección</button>
       {!datos.ofertas.length && <p>No hay secciones para esta asignatura en el semestre seleccionado.</p>}
       <ul className={estilos.secciones}>{datos.ofertas.map(o => <li key={o.id}>
-        <h4>Sección {o.seccion}</h4><p>{o.profesor.nombre} · {o.cupos} cupos</p>
+        <h4>Sección {o.seccion}</h4><p>{o.cupos} cupos</p>
+        <ul>{o.asignaciones.map(a => <li key={a.tipoHoraId}>{a.tipoHora.tipo}: {a.profesor.nombre}</li>)}</ul>
+        {tiposPendientes(asignatura, o).length > 0 && <p role="status">Falta asignar profesor: {tiposPendientes(asignatura, o).map(t => t.tipoHora.tipo).join(', ')}.</p>}
         <div className={estilos.acciones}>
           <button type="button" className="boton boton--azul" disabled={!puedeEditar} aria-describedby={motivo ? 'motivo-secciones' : undefined} onClick={() => abrir({ tipo: 'editar', oferta: o })}>Editar sección {o.seccion}</button>
           <button type="button" className="boton boton--eliminar" disabled={!puedeEditar || Boolean(o.horarios?.length)}
@@ -127,8 +161,9 @@ function ContenidoSecciones({ asignatura, semestre, alCerrar, alCambiarOfertas }
             {libres.map(n => <option key={n} value={n}>{n}</option>)}
           </select></label>
           <label>Cupos<input type="number" min="0" step="1" required value={cupos} onChange={e => setCupos(e.target.value)} /></label>
-          <SelectorProfesor key={`${accion.tipo}-${accion.tipo === 'editar' ? accion.oferta.id : 'nueva'}`}
-            profesores={datos.profesores} profesorId={profesorId} alSeleccionar={setProfesorId} />
+          <p>Puedes guardar la sección con profesores pendientes. Cada tipo de hora admite un profesor.</p>
+          <EditorAsignaciones key={`${accion.tipo}-${accion.tipo === 'editar' ? accion.oferta.id : 'nueva'}`}
+            asignatura={asignatura} profesores={datos.profesores} asignaciones={asignaciones} alCambiar={setAsignaciones} />
         </>}
         <div className={estilos.acciones}>
           <button type="button" className="boton boton--gris" onClick={() => setAccion(null)}>Cancelar</button>

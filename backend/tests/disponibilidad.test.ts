@@ -89,9 +89,10 @@ describe("Módulo Disponibilidad Docente (/api/disponibilidad-profesores)", () =
     // El dueño se obtiene explícitamente de la planificación, nunca del código.
     const planificacion = await db.query.planificacionesSemestres.findFirst({ where: eq(planificacionesSemestres.id, planificacionSemestreId) });
     const asignacion = await db.query.carreraAsignatura.findFirst({ where: (tabla, { and, eq }) => and(eq(tabla.carreraId, planificacion!.carreraId), eq(tabla.asignaturaCodigo, "620431")) });
-    const tipoHora = await db.query.tiposHora.findFirst();
+    const carga = await db.query.asignaturaTipoHora.findFirst({ where: (tabla, { eq }) => eq(tabla.asignaturaCodigo, asignacion!.asignaturaCodigo), with: { tipoHora: true } });
+    const tipoHora = carga!.tipoHora;
     const oferta = await request(app).post("/api/ofertas-asignaturas").set("Cookie", secretariaCookie)
-      .send({ asignaturaCodigo: asignacion!.asignaturaCodigo, profesorId, planificacionSemestreId, seccion: 1, cupos: 20 });
+      .send({ asignaturaCodigo: asignacion!.asignaturaCodigo, asignaciones: [{ tipoHoraId: tipoHora.id, profesorId }], planificacionSemestreId, seccion: 1, cupos: 20 });
     expect(oferta.status).toBe(201);
     let horarioId: number | undefined;
     try {

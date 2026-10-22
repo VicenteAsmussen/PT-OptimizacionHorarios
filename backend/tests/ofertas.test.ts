@@ -10,6 +10,7 @@ describe("Módulo Ofertas de Asignaturas (/api/ofertas-asignaturas)", () => {
   let adminCookie: string[];
   const asignaturaCodigo = `OF${Date.now()}`.slice(0, 15);
   let profesorId: number;
+  let tipoHoraId: number;
   let planificacionSemestreId: number;
   let planificacionActualAnterior: number | undefined;
   let ofertaId1: number;
@@ -24,6 +25,7 @@ describe("Módulo Ofertas de Asignaturas (/api/ofertas-asignaturas)", () => {
     adminCookie = admin.headers["set-cookie"];
     const profesor = await db.query.profesores.findFirst();
     profesorId = profesor!.id;
+    tipoHoraId = (await db.query.tiposHora.findFirst())!.id;
     const perfil = await db.query.secretarias.findFirst();
     const anterior = await db.query.planificacionesSemestres.findFirst({
       where: (tabla, { and, eq }) => and(eq(tabla.carreraId, perfil!.carreraId), eq(tabla.actual, true)),
@@ -38,6 +40,7 @@ describe("Módulo Ofertas de Asignaturas (/api/ofertas-asignaturas)", () => {
     const creacion = await request(app).post("/api/asignaturas").set("Cookie", secretariaCookie).send({
       codigo: asignaturaCodigo, nombre: "Base de Datos I", semestreMalla: 4,
       departamentoId: profesor!.departamentoId, carrerasIds: [perfil!.carreraId],
+      tiposHora: [{ tipoHoraId, horas: 4 }],
     });
     expect(creacion.status).toBe(201);
   });
@@ -50,34 +53,34 @@ describe("Módulo Ofertas de Asignaturas (/api/ofertas-asignaturas)", () => {
   });
   it("crea sección 1 (201)", async () => {
     const respuesta = await request(app).post("/api/ofertas-asignaturas").set("Cookie", secretariaCookie)
-      .send({ asignaturaCodigo, profesorId, planificacionSemestreId, seccion: 1, cupos: 35 });
+      .send({ asignaturaCodigo, asignaciones: [{ tipoHoraId, profesorId }], planificacionSemestreId, seccion: 1, cupos: 35 });
     expect(respuesta.status).toBe(201);
     expect(respuesta.body.data).toMatchObject({ asignaturaCodigo, planificacionSemestreId, seccion: 1, cupos: 35 });
     ofertaId1 = respuesta.body.data.id;
   });
   it("rechaza sección duplicada en la misma planificación (409)", async () => {
     const respuesta = await request(app).post("/api/ofertas-asignaturas").set("Cookie", secretariaCookie)
-      .send({ asignaturaCodigo, profesorId, planificacionSemestreId, seccion: 1, cupos: 20 });
+      .send({ asignaturaCodigo, asignaciones: [{ tipoHoraId, profesorId }], planificacionSemestreId, seccion: 1, cupos: 20 });
     expect(respuesta.status).toBe(409);
     expect(respuesta.body.message).toContain("Ya existe esta sección");
   });
   it("crea sección 2 de la misma asignatura (201)", async () => {
     const respuesta = await request(app).post("/api/ofertas-asignaturas").set("Cookie", secretariaCookie)
-      .send({ asignaturaCodigo, profesorId, planificacionSemestreId, seccion: 2, cupos: 30 });
+      .send({ asignaturaCodigo, asignaciones: [], planificacionSemestreId, seccion: 2, cupos: 30 });
     expect(respuesta.status).toBe(201);
     expect(respuesta.body.data.seccion).toBe(2);
     ofertaId2 = respuesta.body.data.id;
   });
   it("admin rechaza profesor inexistente (400)", async () => {
     const respuesta = await request(app).post("/api/ofertas-asignaturas").set("Cookie", adminCookie)
-      .send({ asignaturaCodigo, profesorId: 99999, planificacionSemestreId, seccion: 3 });
+      .send({ asignaturaCodigo, asignaciones: [{ tipoHoraId, profesorId: 99999 }], planificacionSemestreId, seccion: 3 });
     expect(respuesta.status).toBe(400);
   });
   it("secretaria también valida existencia, sin restringir selección global ni insertar", async () => {
     const ruta = `/api/ofertas-asignaturas?planificacionSemestreId=${planificacionSemestreId}&asignaturaCodigo=${asignaturaCodigo}`;
     const antes = await request(app).get(ruta).set("Cookie", adminCookie);
     const respuesta = await request(app).post("/api/ofertas-asignaturas").set("Cookie", secretariaCookie)
-      .send({ asignaturaCodigo, profesorId: 99999, planificacionSemestreId, seccion: 3 });
+      .send({ asignaturaCodigo, asignaciones: [{ tipoHoraId, profesorId: 99999 }], planificacionSemestreId, seccion: 3 });
     expect(respuesta.status).toBe(400);
     const despues = await request(app).get(ruta).set("Cookie", adminCookie);
     expect(despues.body.data).toEqual(antes.body.data);
@@ -103,7 +106,7 @@ describe("Módulo Ofertas de Asignaturas (/api/ofertas-asignaturas)", () => {
       const antes = await request(app).get(ruta).set("Cookie", adminCookie);
       expect(antes.status).toBe(200);
       const respuesta = await request(app).post("/api/ofertas-asignaturas").set("Cookie", secretariaCookie)
-        .send({ asignaturaCodigo, profesorId, planificacionSemestreId, seccion: 3, cupos: 30 });
+        .send({ asignaturaCodigo, asignaciones: [{ tipoHoraId, profesorId }], planificacionSemestreId, seccion: 3, cupos: 30 });
       expect(respuesta.status).toBe(409);
       expect(respuesta.body.message).toContain("actual en preparación");
       const despues = await request(app).get(ruta).set("Cookie", adminCookie);

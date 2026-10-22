@@ -202,7 +202,7 @@ it("impide quitar la carrera propia y cambiar relaciones hacia recursos ajenos",
   await expect(asignaturasService.updateAsignatura("LOCAL", { carrerasIds: [1, 2] }, alcance)).rejects.toMatchObject({ statusCode: 400 });
   vi.mocked(profesoresRepository.findById).mockResolvedValue({ id: 7, departamentoId: 4 } as never);
   await expect(profesoresService.updateProfesor(7, { departamentoId: 5 }, alcance)).rejects.toMatchObject({ statusCode: 403 });
-  vi.mocked(ofertasRepository.findById).mockResolvedValue({ id: 9, asignaturaCodigo: "LOCAL", profesorId: 7, planificacionSemestreId: 1, planificacionSemestre: { carreraId: 1 }, horarios: [] } as never);
+  vi.mocked(ofertasRepository.findById).mockResolvedValue({ id: 9, asignaturaCodigo: "LOCAL", asignaciones: [], planificacionSemestreId: 1, planificacionSemestre: { carreraId: 1 }, horarios: [] } as never);
   await expect(ofertasService.updateOferta(9, { asignaturaCodigo: "OTRA" }, alcance)).rejects.toMatchObject({ statusCode: 400 });
   await expect(ofertasService.updateOferta(9, { planificacionSemestreId: 2 }, alcance)).rejects.toMatchObject({ statusCode: 404 });
   vi.mocked(horariosRepository.findById).mockResolvedValue({ id: 20, ofertaId: 9, planificacionSemestreId: 1, planificacionSemestre: { carreraId: 1 } } as never);

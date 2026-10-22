@@ -62,8 +62,8 @@ it("admin sin alcance conserva consulta global", async () => {
 it.each(["findById", "findAll"] as const)("%s filtra ofertas y disponibilidad anidadas por carrera, no por código compartido", async metodo => {
   if (metodo === "findById") await profesoresRepository.findById(7, alcance);
   else await profesoresRepository.findAll(undefined, alcance);
-  const llamada = (metodo === "findById" ? vi.mocked(db.query.profesores.findFirst).mock.calls[0]![0] : vi.mocked(db.query.profesores.findMany).mock.calls[0]![0]) as unknown as { with: { ofertas: { where: SQL }; disponibilidades: { where: SQL } } };
-  for (const relacion of [llamada.with.ofertas, llamada.with.disponibilidades]) {
+  const llamada = (metodo === "findById" ? vi.mocked(db.query.profesores.findFirst).mock.calls[0]![0] : vi.mocked(db.query.profesores.findMany).mock.calls[0]![0]) as unknown as { with: { asignaciones: { where: SQL }; disponibilidades: { where: SQL } } };
+  for (const relacion of [llamada.with.asignaciones, llamada.with.disponibilidades]) {
     const consulta = dialecto.sqlToQuery(relacion.where);
     expect(consulta.sql).toContain("planificaciones_semestres"); expect(consulta.sql).toContain("carrera_id"); expect(consulta.params).toEqual([1]);
   }

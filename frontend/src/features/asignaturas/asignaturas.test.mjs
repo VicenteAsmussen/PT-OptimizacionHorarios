@@ -64,12 +64,13 @@ test('aislamiento y conteos por asignatura/semestre; números libres sin renumer
   assert.deepEqual(seccionesLibres(propias.filter(o => o.id !== 1)), [1, 2, 4, 5]);
   assert.deepEqual(ofertasDePlanificacion(ofertas, 'A', null), []);
 });
-test('payload exige profesor seleccionado existente, sección única 1..5 y cupos enteros no negativos', async () => {
+test('payload allows pending teachers and validates typed assignments, section and capacity', async () => {
   const { prepararOferta } = await cargar();
-  const entrada = { seccion: '2', cupos: '0', profesorId: 1 };
-  assert.deepEqual(prepararOferta(entrada, profesores, [1, 2]), { seccion: 2, cupos: 0, profesorId: 1 });
-  for (const profesorId of [null, '', 'Ana', '1', 999]) {
-    assert.throws(() => prepararOferta({ ...entrada, profesorId }, profesores, [2]), /profesor/i);
+  const entrada = { seccion: '2', cupos: '0', asignaciones: [{ tipoHoraId: 1, profesorId: 1 }] };
+  assert.deepEqual(prepararOferta(entrada, profesores, [1, 2]), { seccion: 2, cupos: 0, asignaciones: entrada.asignaciones });
+  assert.deepEqual(prepararOferta({ ...entrada, asignaciones: [{ tipoHoraId: 1, profesorId: null }] }, profesores, [2]), { seccion: 2, cupos: 0, asignaciones: [] });
+  for (const profesorId of ['', 'Ana', '1', 999]) {
+    assert.throws(() => prepararOferta({ ...entrada, asignaciones: [{ tipoHoraId: 1, profesorId }] }, profesores, [2]), /profesor/i);
   }
   for (const seccion of ['', '0', '6', '1.5', '1']) {
     assert.throws(() => prepararOferta({ ...entrada, seccion }, profesores, [2]), /sección/i);
@@ -77,4 +78,16 @@ test('payload exige profesor seleccionado existente, sección única 1..5 y cupo
   for (const cupos of ['', '-1', '1.5', 'NaN', 'Infinity']) {
     assert.throws(() => prepararOferta({ ...entrada, cupos }, profesores, [2]), /cupos/i);
   }
+});
+test('pending indicators compare curriculum types to saved teacher assignments', async () => {
+  const { tiposPendientes, prepararOferta } = await cargar();
+  const asignatura = { tiposHora: [1, 2, 3].map(tipoHoraId => ({ tipoHoraId, horas: 2, tipoHora: { tipo: `Type ${tipoHoraId}` } })) };
+  const oferta = { asignaciones: [{ tipoHoraId: 1, profesorId: 1 }] };
+  assert.deepEqual(tiposPendientes(asignatura, oferta).map(t => t.tipoHoraId), [2, 3]);
+  const asignaciones = [1, 2, 3].map(tipoHoraId => ({ tipoHoraId, profesorId: 1 }));
+  assert.deepEqual(prepararOferta({ seccion: '1', cupos: '0', asignaciones }, profesores, [1]).asignaciones, asignaciones);
+  assert.deepEqual(tiposPendientes(asignatura, { asignaciones }), []);
+  const conTipoSinHoras = { tiposHora: [...asignatura.tiposHora, { tipoHoraId: 4, horas: 0 }] };
+  assert.deepEqual(tiposPendientes(conTipoSinHoras, { asignaciones: [] }).map(t => t.tipoHoraId), [1, 2, 3]);
+  assert.throws(() => prepararOferta({ seccion: '1', cupos: '0', asignaciones: [asignaciones[0], asignaciones[0]] }, profesores, [1]), /tipo/i);
 });

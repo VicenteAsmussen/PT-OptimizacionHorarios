@@ -15,6 +15,7 @@ const modules = {
   "disponibilidad-profesores": "disponibilidadProfesores",
   "horarios-asignaturas": "horariosAsignaturas",
   "ofertas-asignaturas": "ofertasAsignaturas",
+  "oferta-tipo-hora": "ofertaTipoHora",
   "profesores": "profesores",
   "planificaciones-semestres": "planificacionesSemestres",
   "salas": "salas",
@@ -34,13 +35,14 @@ const graph = {
   carreras: { carreraDepartamentos: "Many:carrera_departamento", carreraAsignaturas: "Many:carrera_asignatura", secretarias: "Many:secretarias", planificacionesSemestres: "Many:planificaciones_semestres" },
   departamentos: { asignaturas: "Many:asignaturas", profesores: "Many:profesores", carreraDepartamentos: "Many:carrera_departamento" },
   disponibilidadProfesores: { profesor: "One:profesores", planificacionSemestre: "One:planificaciones_semestres", bloque: "One:bloques_horarios" },
-  horariosAsignaturas: { oferta: "One:ofertas_asignaturas", sala: "One:salas", bloque: "One:bloques_horarios", tipoHora: "One:tipos_hora", planificacionSemestre: "One:planificaciones_semestres" },
-  ofertasAsignaturas: { asignatura: "One:asignaturas", profesor: "One:profesores", planificacionSemestre: "One:planificaciones_semestres", horarios: "Many:horarios_asignaturas" },
+  horariosAsignaturas: { oferta: "One:ofertas_asignaturas", asignacion: "One:oferta_tipo_hora", sala: "One:salas", bloque: "One:bloques_horarios", tipoHora: "One:tipos_hora", planificacionSemestre: "One:planificaciones_semestres" },
+  ofertasAsignaturas: { asignatura: "One:asignaturas", asignaciones: "Many:oferta_tipo_hora", planificacionSemestre: "One:planificaciones_semestres", horarios: "Many:horarios_asignaturas" },
+  ofertaTipoHora: { oferta: "One:ofertas_asignaturas", profesor: "One:profesores", tipoHora: "One:tipos_hora", horarios: "Many:horarios_asignaturas" },
   planificacionesSemestres: { carrera: "One:carreras", ofertas: "Many:ofertas_asignaturas", horarios: "Many:horarios_asignaturas", disponibilidades: "Many:disponibilidad_profesores" },
-  profesores: { usuario: "One:usuarios", departamento: "One:departamentos", ofertas: "Many:ofertas_asignaturas", disponibilidades: "Many:disponibilidad_profesores" },
+  profesores: { usuario: "One:usuarios", departamento: "One:departamentos", asignaciones: "Many:oferta_tipo_hora", disponibilidades: "Many:disponibilidad_profesores" },
   salas: { horarios: "Many:horarios_asignaturas" },
   secretarias: { usuario: "One:usuarios", carrera: "One:carreras" },
-  tiposHora: { horarios: "Many:horarios_asignaturas", asignaturas: "Many:asignatura_tipo_hora" },
+  tiposHora: { horarios: "Many:horarios_asignaturas", asignaturas: "Many:asignatura_tipo_hora", asignaciones: "Many:oferta_tipo_hora" },
   usuarios: { profesor: "One:profesores", secretaria: "One:secretarias" },
 };
 
@@ -99,7 +101,7 @@ describe("Flat schema organization (offline)", () => {
     const latest = journal.entries.at(-1);
     const previous = JSON.parse(readFileSync(new URL(`../src/db/migrations/meta/${String(latest.idx).padStart(4, "0")}_snapshot.json`, import.meta.url), "utf8"));
     const current = generateDrizzleJson(schema, previous.id);
-    expect(Object.keys(current.tables)).toHaveLength(16);
+    expect(Object.keys(current.tables)).toHaveLength(17);
     expect(await generateMigration(previous, current)).toEqual([]);
   });
 });

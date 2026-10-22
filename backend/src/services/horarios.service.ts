@@ -71,7 +71,7 @@ export const horariosService = {
     for (const entrada of entradas) {
       const tipo = normalizarTipoHora(entrada.tipoHora.tipo);
       if (tipo === "laboratorio" || tipo === "laboratory") continue;
-      const clave = JSON.stringify([entrada.oferta.asignatura.codigo, entrada.oferta.seccion, entrada.oferta.profesorId, tipo]);
+      const clave = JSON.stringify([entrada.oferta.asignatura.codigo, entrada.oferta.seccion, entrada.asignacion.profesorId, tipo]);
       const grupo = grupos.get(clave) ?? []; grupo.push(entrada); grupos.set(clave, grupo);
     }
     const sesiones: { entradas: Entrada[]; dia: string; horario: string }[] = [];
@@ -121,7 +121,8 @@ export const horariosService = {
         }
         const sesion = coincidencias[0]!; const oferta = sesion.entradas[0]!.oferta;
         if (texto(2) && texto(2) !== normalizarTextoCelda(oferta.asignatura.nombre)) error(numeroFila, "Nombre Asignatura", `El nombre esperado es «${oferta.asignatura.nombre}».`);
-        if (texto(5) && texto(5) !== normalizarTextoCelda(oferta.profesor.nombre)) error(numeroFila, "Profesor", `El profesor esperado es «${oferta.profesor.nombre}».`);
+        const profesor = sesion.entradas[0]!.asignacion.profesor;
+        if (texto(5) && texto(5) !== normalizarTextoCelda(profesor.nombre)) error(numeroFila, "Profesor", `El profesor esperado es «${profesor.nombre}».`);
         if (sesion.entradas.some((entrada) => propuestas.has(entrada.id))) {
           error(numeroFila, `Horario ${numero}`, "La sesión está repetida en el archivo. Inclúyala solo una vez."); continue;
         }
@@ -168,7 +169,7 @@ export const horariosService = {
       const tipo = normalizarTipoHora(entrada.tipoHora.tipo);
       if (tipo === "laboratorio" || tipo === "laboratory") continue;
       const clave = JSON.stringify([
-        entrada.oferta.asignatura.codigo, entrada.oferta.seccion, entrada.oferta.profesorId, tipo,
+        entrada.oferta.asignatura.codigo, entrada.oferta.seccion, entrada.asignacion.profesorId, tipo,
       ]);
       const grupo = grupos.get(clave);
       if (grupo) grupo.bloques.push(entrada.bloque);
@@ -186,16 +187,16 @@ export const horariosService = {
     hoja.views = [{ state: "frozen", ySplit: 1 }];
     // Orden estable independiente del orden de las entradas devueltas por la BD.
     for (const [, grupo] of [...grupos.entries()].sort(([primera], [segunda]) => primera.localeCompare(segunda))) {
-      const { oferta, tipoHora } = grupo.entrada;
+      const { oferta, tipoHora, asignacion } = grupo.entrada;
       const asignatura = oferta.asignatura;
-      const referencia = `${asignatura.codigo}, sección ${oferta.seccion}, profesor ${oferta.profesor.nombre}, tipo ${tipoHora.tipo}`;
+      const referencia = `${asignatura.codigo}, sección ${oferta.seccion}, profesor ${asignacion.profesor.nombre}, tipo ${tipoHora.tipo}`;
       const resultado = agruparBloquesEnSesiones(grupo.bloques);
       if (!resultado.exito) throw new BadRequestError(`${referencia}: ${resultado.error} Revise los bloques del horario antes de exportar.`);
       if (resultado.valor.length > maximoSesionesExcelSalas) {
         throw new BadRequestError(`${referencia}: tiene ${resultado.valor.length} sesiones; el máximo es ${maximoSesionesExcelSalas}. Revise la distribución de bloques antes de exportar.`);
       }
       const celdas: (string | number)[] = [
-        asignatura.codigo, asignatura.nombre, oferta.seccion, oferta.cupos, oferta.profesor.nombre,
+        asignatura.codigo, asignatura.nombre, oferta.seccion, oferta.cupos, asignacion.profesor.nombre,
       ];
       for (let numeroSesion = 0; numeroSesion < maximoSesionesExcelSalas; numeroSesion++) {
         const sesion = resultado.valor[numeroSesion];
@@ -237,7 +238,9 @@ export const horariosService = {
     }
     const conflictoOferta = await horariosRepository.findByOfertaBloque(datos.ofertaId, datos.bloqueId);
     if (conflictoOferta && conflictoOferta.id !== id) throw new ConflictError("Conflicto de horario: sección ocupada en este bloque");
-    const conflictoProfesor = await horariosRepository.findByProfesorBloquePlanificacion(oferta.profesorId, datos.bloqueId, planificacionSemestreId);
+    const asignacion = oferta.asignaciones.find(a => a.tipoHoraId === datos.tipoHoraId);
+    if (!asignacion) throw new BadRequestError("El tipo de hora no tiene profesor asignado en esta oferta");
+    const conflictoProfesor = await horariosRepository.findByProfesorBloquePlanificacion(asignacion.profesorId, datos.bloqueId, planificacionSemestreId);
     if (conflictoProfesor && conflictoProfesor.id !== id) throw new ConflictError("Conflicto de horario: profesor ocupado en esta planificación");
     return { ...datos, planificacionSemestreId };
   },

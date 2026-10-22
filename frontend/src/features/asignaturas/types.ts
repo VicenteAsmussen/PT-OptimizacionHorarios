@@ -6,6 +6,7 @@ export interface Asignatura {
   departamento: Departamento;
   semestreMalla: number;
   esCritica: boolean;
+  tiposHora: { tipoHoraId: number; horas: number; tipoHora: { id: number; tipo: string } }[];
 }
 export interface PlanificacionSemestre {
   id: number; carreraId: number; carrera: { id: number; nombre: string };
@@ -22,10 +23,9 @@ export interface Oferta {
   asignaturaCodigo: string;
   planificacionSemestreId: number;
   seccion: number;
-  profesorId: number;
+  asignaciones: { tipoHoraId: number; profesorId: number; tipoHora: { tipo: string }; profesor: { nombre: string } }[];
   cupos: number;
-  profesor: { nombre: string };
   horarios: { id: number }[];
 }
-export interface DatosOferta { seccion: number; profesorId: number; cupos: number }
+export interface DatosOferta { seccion: number; asignaciones: { tipoHoraId: number; profesorId: number }[]; cupos: number }
 export type CambiosAsignatura = Pick<Asignatura, 'nombre' | 'departamentoId' | 'semestreMalla' | 'esCritica'>;

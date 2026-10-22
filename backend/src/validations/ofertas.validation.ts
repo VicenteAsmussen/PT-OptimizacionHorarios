@@ -1,13 +1,20 @@
 import { z } from "zod";
 
+const asignacionesValidation = z.array(z.object({
+  tipoHoraId: z.number().int().positive(),
+  profesorId: z.number().int().positive(),
+}).strict()).refine(asignaciones => new Set(asignaciones.map(a => a.tipoHoraId)).size === asignaciones.length,
+  "No se puede asignar más de un profesor al mismo tipo de hora");
+
 export const createOfertaValidation = z.object({
   asignaturaCodigo: z.string().trim().min(1).max(20),
-  profesorId: z.number().int().positive(),
+  asignaciones: asignacionesValidation.default([]),
   planificacionSemestreId: z.number().int().positive(),
   seccion: z.number().int().positive().max(5).default(1),
   cupos: z.number().int().nonnegative().default(0),
 }).strict();
 export const updateOfertaValidation = createOfertaValidation.partial().extend({
+  asignaciones: asignacionesValidation.optional(),
   seccion: z.number().int().positive().max(5).optional(),
   cupos: z.number().int().nonnegative().optional(),
 });

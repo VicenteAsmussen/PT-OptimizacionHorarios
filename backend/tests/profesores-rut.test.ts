@@ -58,7 +58,7 @@ describe("proyecciones anidadas sin nueva exposición de RUT", () => {
     await ofertasRepository.findAll();
     await ofertasRepository.findById(1);
     for (const consulta of [db.query.ofertasAsignaturas.findMany, db.query.ofertasAsignaturas.findFirst]) {
-      expect(vi.mocked(consulta).mock.calls[0]?.[0]?.with?.profesor).toEqual({ columns: columnasAnteriores, with: { departamento: true } });
+      expect(vi.mocked(consulta).mock.calls[0]?.[0]?.with?.asignaciones?.with?.profesor).toEqual({ columns: columnasAnteriores, with: { departamento: true } });
     }
   });
   it("horarios conserva departamento y campos anteriores", async () => {
@@ -67,10 +67,10 @@ describe("proyecciones anidadas sin nueva exposición de RUT", () => {
     await horariosRepository.findAll();
     await horariosRepository.findById(1);
     for (const consulta of [db.query.horariosAsignaturas.findMany, db.query.horariosAsignaturas.findFirst]) {
-      expect(vi.mocked(consulta).mock.calls[0]?.[0]?.with?.oferta).toMatchObject({ with: { profesor: { columns: columnasAnteriores, with: { departamento: true } } } });
+      expect(vi.mocked(consulta).mock.calls[0]?.[0]?.with?.asignacion).toMatchObject({ with: { profesor: { columns: columnasAnteriores, with: { departamento: true } } } });
     }
     await horariosRepository.findOfertaWithDetails(1);
-    expect(vi.mocked(db.query.ofertasAsignaturas.findFirst).mock.calls[0]?.[0]?.with?.profesor).toEqual({ columns: columnasAnteriores });
+    expect(vi.mocked(db.query.ofertasAsignaturas.findFirst).mock.calls[0]?.[0]?.with?.asignaciones?.with?.profesor).toEqual({ columns: columnasAnteriores });
   });
   it("usuarios conserva los campos anteriores del perfil", async () => {
     const { db } = await import("../src/config/db.js");

@@ -53,13 +53,18 @@ export async function sembrarPlanificacionHorarios(baseDatos: BaseDatosSeed) {
       const claveOferta = and(eq(esquema.ofertasAsignaturas.planificacionSemestreId, planificacion.id), eq(esquema.ofertasAsignaturas.asignaturaCodigo, fixture.asignaturaCodigo), eq(esquema.ofertasAsignaturas.seccion, fixture.seccion));
       let [oferta] = await tx.select().from(esquema.ofertasAsignaturas).where(claveOferta).limit(1);
       if (!oferta) {
-        await tx.insert(esquema.ofertasAsignaturas).values({ planificacionSemestreId: planificacion.id, asignaturaCodigo: fixture.asignaturaCodigo, profesorId: profesor.id, seccion: fixture.seccion, cupos: fixture.cupos }).onConflictDoNothing();
+        await tx.insert(esquema.ofertasAsignaturas).values({ planificacionSemestreId: planificacion.id, asignaturaCodigo: fixture.asignaturaCodigo, seccion: fixture.seccion, cupos: fixture.cupos }).onConflictDoNothing();
         [oferta] = await tx.select().from(esquema.ofertasAsignaturas).where(claveOferta).limit(1);
+      }
+      let [docenteAsignado] = await tx.select().from(esquema.ofertaTipoHora).where(and(eq(esquema.ofertaTipoHora.ofertaId, oferta.id), eq(esquema.ofertaTipoHora.tipoHoraId, tipoHora.id)));
+      if (!docenteAsignado) {
+        await tx.insert(esquema.ofertaTipoHora).values({ ofertaId: oferta.id, tipoHoraId: tipoHora.id, profesorId: profesor.id }).onConflictDoNothing();
+        [docenteAsignado] = await tx.select().from(esquema.ofertaTipoHora).where(and(eq(esquema.ofertaTipoHora.ofertaId, oferta.id), eq(esquema.ofertaTipoHora.tipoHoraId, tipoHora.id)));
       }
       const [horario] = await tx.select({ id: esquema.horariosAsignaturas.id }).from(esquema.horariosAsignaturas).where(and(eq(esquema.horariosAsignaturas.ofertaId, oferta.id), eq(esquema.horariosAsignaturas.bloqueId, bloque.id))).limit(1);
       if (!horario) await tx.insert(esquema.horariosAsignaturas).values({ ofertaId: oferta.id, planificacionSemestreId: planificacion.id, bloqueId: bloque.id, tipoHoraId: tipoHora.id, salaId: sala.id });
-      const [disponibilidad] = await tx.select({ id: esquema.disponibilidadProfesores.id }).from(esquema.disponibilidadProfesores).where(and(eq(esquema.disponibilidadProfesores.profesorId, oferta.profesorId), eq(esquema.disponibilidadProfesores.planificacionSemestreId, planificacion.id), eq(esquema.disponibilidadProfesores.bloqueId, bloque.id))).limit(1);
-      if (!disponibilidad) await tx.insert(esquema.disponibilidadProfesores).values({ profesorId: oferta.profesorId, planificacionSemestreId: planificacion.id, bloqueId: bloque.id }).onConflictDoNothing();
+      const [disponibilidad] = await tx.select({ id: esquema.disponibilidadProfesores.id }).from(esquema.disponibilidadProfesores).where(and(eq(esquema.disponibilidadProfesores.profesorId, docenteAsignado.profesorId), eq(esquema.disponibilidadProfesores.planificacionSemestreId, planificacion.id), eq(esquema.disponibilidadProfesores.bloqueId, bloque.id))).limit(1);
+      if (!disponibilidad) await tx.insert(esquema.disponibilidadProfesores).values({ profesorId: docenteAsignado.profesorId, planificacionSemestreId: planificacion.id, bloqueId: bloque.id }).onConflictDoNothing();
       if (planificacion.estadoPlanificacion !== fixture.estadoPlanificacion) {
         await tx.update(esquema.planificacionesSemestres).set({ estadoPlanificacion: fixture.estadoPlanificacion }).where(eq(esquema.planificacionesSemestres.id, planificacion.id));
       }

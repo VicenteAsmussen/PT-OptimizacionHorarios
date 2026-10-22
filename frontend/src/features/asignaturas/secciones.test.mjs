@@ -48,15 +48,15 @@ test('handlers impiden crear, editar y eliminar bloqueados; cierre ignora result
       let terminar;
       let guardar;
       const vigente = { current: true };
-      const accion = { tipo, oferta: { id: 9, seccion: 1, cupos: 0, profesorId: 1 } };
+      const accion = { tipo, oferta: { id: 9, seccion: 1, cupos: 0, asignaciones: [{ tipoHoraId: 1, profesorId: 1 }] } };
       const contexto = {
         vigente, puedeEditar: estadoSecciones({ actual, estadoPlanificacion }).puedeEditar, ocupado: false,
-        accion, datos: { profesores: [] }, libres: [1], seccion: '1', cupos: '0', profesorId: 1,
+        accion, datos: { profesores: [] }, libres: [1], seccion: '1', cupos: '0', asignaciones: [{ tipoHoraId: 1, profesorId: 1 }],
         asignatura: { codigo: 'A' }, semestre: { id: 2 }, contenido: { current: null },
-        setAccion: valor => llamadas.push(['accion', valor]), setSeccion() {}, setCupos() {}, setProfesorId() {},
+        setAccion: valor => llamadas.push(['accion', valor]), setSeccion() {}, setCupos() {}, setAsignaciones() {},
         setGuardado: () => llamadas.push(['guardado']), cargar: () => llamadas.push(['cargar']),
         alCambiarOfertas: () => llamadas.push(['conteos']),
-        prepararOferta: () => ({ seccion: 1, cupos: 0, profesorId: 1 }),
+        prepararOferta: () => ({ seccion: 1, cupos: 0, asignaciones: [{ tipoHoraId: 1, profesorId: 1 }] }),
         asignaturasApi: Object.fromEntries(['crearOferta', 'editarOferta', 'eliminarOferta'].map(nombre => [nombre, async (...args) => llamadas.push([nombre, ...args])])),
         ejecutar: (operacion, completar) => { guardar = operacion; terminar = completar; },
       };
@@ -241,4 +241,156 @@ test('mutaciones notifican al padre sin recargar catálogo ni desmontar panel', 
   assert.match(pagina, /numero === solicitudConteos\.current/);
   assert.match(pagina, /return \(\) => \{ solicitudConteos\.current\+\+; \}/);
   assert.match(pagina, /conteos\?\.usuarioId === usuario\?\.id && conteos\?\.planificacionSemestreId === planificacionSemestreId/);
+});
+
+// Exercise the component's real event handlers with deterministic hook state.
+async function componenteConEstado(ruta, nombre = 'default') {
+  const ts = await import('typescript');
+  const React = await import('react');
+  const datos = await import('./datos.ts');
+  const estados = [];
+  let cursor = 0;
+  const react = { ...React,
+    useState(inicial) {
+      const indice = cursor++;
+      if (!(indice in estados)) estados[indice] = typeof inicial === 'function' ? inicial() : inicial;
+      return [estados[indice], valor => { estados[indice] = typeof valor === 'function' ? valor(estados[indice]) : valor; }];
+    },
+    useId: () => 'selector-prueba', useEffect() {}, useRef: valor => ({ current: valor }),
+  };
+  const exportaciones = {};
+  const requerir = modulo => {
+    if (modulo === 'react') return react;
+    if (modulo === './datos') return datos;
+    if (modulo === './useMutacion') return { useMutacion: () => ({ ocupado: false, error: '', ejecutar() {} }) };
+    if (modulo === './asignaturas.api') return { asignaturasApi: {} };
+    if (modulo === './PanelAsignatura') return { __esModule: true, default: ({ children }) => React.createElement('div', null, children) };
+    if (modulo === './SelectorProfesor') return { __esModule: true, default: () => null };
+    if (modulo.endsWith('.css')) return {};
+    throw new Error(modulo);
+  };
+  const codigo = ts.transpileModule(`import React from 'react';\n${await fuente(ruta)}`, {
+    compilerOptions: { jsx: ts.JsxEmit.React, module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, esModuleInterop: true },
+  }).outputText;
+  new Function('require', 'exports', codigo)(requerir, exportaciones);
+  return propiedades => { cursor = 0; return exportaciones[nombre](propiedades); };
+}
+function elementos(arbol, condicion) {
+  if (!arbol || typeof arbol !== 'object') return [];
+  const hijos = Array.isArray(arbol.props?.children) ? arbol.props.children.flat(Infinity) : [arbol.props?.children];
+  return [...(condicion(arbol) ? [arbol] : []), ...hijos.flatMap(hijo => elementos(hijo, condicion))];
+}
+function textoElemento(elemento) {
+  if (elemento == null || typeof elemento === 'boolean') return '';
+  if (Array.isArray(elemento)) return elemento.map(textoElemento).join('');
+  return typeof elemento === 'object' ? textoElemento(elemento.props?.children) : String(elemento);
+}
+const botonConTexto = (arbol, texto) => elementos(arbol, e => e.type === 'button' && textoElemento(e) === texto)[0];
+
+test('editing a subject displays its hour breakdown without adding editable hour controls', async () => {
+  const renderizar = await componenteConEstado('./EditarAsignatura.tsx');
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const asignatura = { codigo: 'A', nombre: 'Álgebra', departamentoId: 1, semestreMalla: 2, esCritica: false,
+    tiposHora: [{ tipoHoraId: 1, horas: 4, tipoHora: { tipo: 'Teoría' } }, { tipoHoraId: 2, horas: 2, tipoHora: { tipo: 'Práctica' } }] };
+  const arbol = renderizar({ asignatura, departamentos: [{ id: 1, nombre: 'Departamento' }], alCerrar() {}, alCompletar() {} });
+  const html = renderToStaticMarkup(arbol);
+  assert.match(html, /Horas por tipo/);
+  assert.match(html, /Teoría/); assert.match(html, /4 h/);
+  assert.match(html, /Práctica/); assert.match(html, /2 h/);
+  assert.equal(elementos(arbol, e => e.type === 'input' && e.props.type === 'number').length, 1, 'only curriculum semester is editable');
+  const vacia = renderToStaticMarkup(renderizar({ asignatura: { ...asignatura, tiposHora: [] }, departamentos: [], alCerrar() {}, alCompletar() {} }));
+  assert.match(vacia, /Sin tipos de hora registrados/);
+});
+
+test('teacher autocomplete selects a suggestion and can be cleared and rewritten directly', async () => {
+  const renderizar = await componenteConEstado('./SelectorProfesor.tsx');
+  const profesores = [{ id: 1, nombre: 'Ana', rut: '1-9', departamento: { nombre: 'A' } },
+    { id: 2, nombre: 'Pedro', rut: '2-7', departamento: { nombre: 'B' } }];
+  const cambios = [];
+  let profesorId = 1;
+  const dibujar = () => renderizar({ profesores, profesorId, contexto: 'Teoría', alSeleccionar: valor => { cambios.push(valor); profesorId = valor; } });
+  let arbol = dibujar();
+  let entrada = elementos(arbol, e => e.type === 'input')[0];
+  assert.equal(entrada.props.value, 'Ana');
+  assert.equal(elementos(arbol, e => e.type === 'button').length, 0, 'no extra assign/change/remove controls');
+  const etiqueta = elementos(arbol, e => e.type === 'label' && e.props.htmlFor === entrada.props.id)[0];
+  assert.match(textoElemento(etiqueta), /Teoría/);
+  entrada.props.onChange({ target: { value: 'Pedro' } });
+  assert.deepEqual(cambios, [null], 'editing makes the field pending until a suggestion is selected');
+  arbol = dibujar();
+  assert.equal(elementos(arbol, e => e.type === 'input')[0].props.value, 'Pedro');
+  const pedro = elementos(arbol, e => e.type === 'button' && textoElemento(e).includes('Pedro'))[0];
+  assert.match(textoElemento(pedro), /2-7/); assert.match(textoElemento(pedro), /B/);
+  pedro.props.onClick();
+  assert.deepEqual(cambios, [null, 2]);
+  arbol = dibujar();
+  entrada = elementos(arbol, e => e.type === 'input')[0];
+  assert.equal(entrada.props.value, 'Pedro');
+  assert.equal(entrada.props['aria-expanded'], false);
+  entrada.props.onChange({ target: { value: '' } });
+  assert.deepEqual(cambios, [null, 2, null]);
+  arbol = dibujar();
+  assert.equal(elementos(arbol, e => e.type === 'input')[0].props.value, '');
+  assert.equal(elementos(arbol, e => e.props?.role === 'listbox').length, 0);
+  profesorId = 1;
+  assert.equal(elementos(dibujar(), e => e.type === 'input')[0].props.value, 'Ana', 'parent autofill is reflected in the input');
+});
+
+test('the first typed selection fills only empty lower rows and each remains independently editable', async () => {
+  const renderizar = await componenteConEstado('./PanelSecciones.tsx', 'EditorAsignaciones');
+  const tiposHora = ['Teoría', 'Práctica', 'Laboratorio'].map((tipo, indice) => ({ tipoHoraId: indice + 1, horas: 2, tipoHora: { tipo } }));
+  const profesores = [{ id: 1, nombre: 'Ana' }, { id: 2, nombre: 'Pedro' }];
+  let asignaciones = [{ tipoHoraId: 2, profesorId: 1 }, { tipoHoraId: 3, profesorId: null }];
+  const cambios = [];
+  const dibujar = () => renderizar({ asignatura: { tiposHora }, profesores, asignaciones,
+    alCambiar: valor => { asignaciones = valor; cambios.push(valor); } });
+  let arbol = dibujar();
+  const teoria = elementos(arbol, e => e.props?.contexto === 'Teoría')[0];
+  teoria.props.alSeleccionar(2);
+  assert.deepEqual([...asignaciones].sort((a,b) => a.tipoHoraId-b.tipoHoraId), [{ tipoHoraId: 1, profesorId: 2 }, { tipoHoraId: 2, profesorId: 1 }, { tipoHoraId: 3, profesorId: 2 }]);
+  arbol = dibujar();
+  assert.equal(elementos(arbol, e => e.props?.contexto === 'Práctica')[0].props.profesorId, 1);
+  elementos(arbol, e => e.props?.contexto === 'Práctica')[0].props.alSeleccionar(null);
+  arbol = dibujar();
+  assert.equal(elementos(arbol, e => e.props?.contexto === 'Práctica')[0].props.profesorId, null);
+  assert.equal(elementos(arbol, e => e.props?.contexto === 'Laboratorio')[0].props.profesorId, 2);
+  elementos(arbol, e => e.props?.contexto === 'Práctica')[0].props.alSeleccionar(1);
+  assert.equal(asignaciones.find(a => a.tipoHoraId === 3).profesorId, 2);
+  asignaciones = [];
+  arbol = dibujar();
+  elementos(arbol, e => e.props?.contexto === 'Teoría')[0].props.alSeleccionar(2);
+  assert.deepEqual([...asignaciones].sort((a,b) => a.tipoHoraId-b.tipoHoraId), tiposHora.map(t => ({ tipoHoraId: t.tipoHoraId, profesorId: 2 })));
+  assert.equal(elementos(dibujar(), e => e.type === 'details' || (e.type === 'input' && e.props.type === 'checkbox')).length, 0);
+  elementos(dibujar(), e => e.props?.contexto === 'Teoría')[0].props.alSeleccionar(null);
+  assert.equal(asignaciones.find(a => a.tipoHoraId === 2).profesorId, 2, 'clearing first row does not erase lower rows');
+});
+
+test('autocomplete supports keyboard choice and never assigns unmatched text', async () => {
+  const renderizar = await componenteConEstado('./SelectorProfesor.tsx');
+  const profesores = [{ id: 1, nombre: 'Ana', rut: '1-9', departamento: { nombre: 'A' } },
+    { id: 2, nombre: 'Pedro', rut: '2-7', departamento: { nombre: 'B' } }];
+  let profesorId = null;
+  const cambios = [];
+  const dibujar = () => renderizar({ profesores, profesorId, contexto: 'Práctica', alSeleccionar: valor => { profesorId = valor; cambios.push(valor); } });
+  const entrada = () => elementos(dibujar(), e => e.type === 'input')[0];
+  entrada().props.onChange({ target: { value: 'desconocido' } });
+  let prevenido = false;
+  entrada().props.onKeyDown({ key: 'Enter', preventDefault() { prevenido = true; } });
+  assert.equal(prevenido, true); assert.deepEqual(cambios, []);
+  assert.match(textoElemento(dibujar()), /No hay profesores/);
+  entrada().props.onChange({ target: { value: '2-7' } });
+  const listado = elementos(dibujar(), e => e.props?.role === 'listbox')[0];
+  assert.equal(entrada().props['aria-controls'], listado.props.id);
+  entrada().props.onKeyDown({ key: 'ArrowDown', preventDefault() {} });
+  entrada().props.onKeyDown({ key: 'Enter', preventDefault() {} });
+  assert.deepEqual(cambios, [2]);
+  assert.equal(entrada().props.value, 'Pedro');
+  entrada().props.onChange({ target: { value: 'Ana' } });
+  entrada().props.onKeyDown({ key: 'Escape' });
+  assert.equal(entrada().props['aria-expanded'], false);
+  assert.deepEqual(cambios, [2, null]);
+  entrada().props.onFocus();
+  assert.equal(entrada().props['aria-expanded'], true);
+  entrada().props.onBlur();
+  assert.equal(entrada().props['aria-expanded'], false);
 });

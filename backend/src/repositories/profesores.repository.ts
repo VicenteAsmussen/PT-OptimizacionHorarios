@@ -5,6 +5,7 @@ import { profesores, type Profesor, type NuevoProfesor } from "../db/schema/prof
 import { departamentos } from "../db/schema/departamentos.schema.js";
 import { usuarios, type NuevoUsuario } from "../db/schema/usuarios.schema.js";
 import { ofertasAsignaturas } from "../db/schema/ofertas-asignaturas.schema.js";
+import { ofertaTipoHora } from "../db/schema/oferta-tipo-hora.schema.js";
 import { disponibilidadProfesores } from "../db/schema/disponibilidad-profesores.schema.js";
 import { horariosAsignaturas } from "../db/schema/horarios-asignaturas.schema.js";
 import { planificacionesSemestresRepository } from "./planificaciones-semestres.repository.js";
@@ -28,7 +29,7 @@ export const profesoresRepository = {
         departamento: true,
         usuario: true,
         disponibilidades: alcance ? { where: inArray(disponibilidadProfesores.planificacionSemestreId, planificacionesSemestresRepository.idsEnCarrera(alcance)) } : true,
-        ofertas: alcance ? { where: inArray(ofertasAsignaturas.planificacionSemestreId, planificacionesSemestresRepository.idsEnCarrera(alcance)) } : true,
+        asignaciones: { where: alcance ? inArray(ofertaTipoHora.ofertaId, db.select({ id: ofertasAsignaturas.id }).from(ofertasAsignaturas).where(inArray(ofertasAsignaturas.planificacionSemestreId, planificacionesSemestresRepository.idsEnCarrera(alcance)))) : undefined, with: { oferta: true, tipoHora: true } },
       },
     });
   },
@@ -40,7 +41,7 @@ export const profesoresRepository = {
         departamento: true,
         usuario: true,
         disponibilidades: alcance ? { where: inArray(disponibilidadProfesores.planificacionSemestreId, planificacionesSemestresRepository.idsEnCarrera(alcance)) } : true,
-        ofertas: alcance ? { where: inArray(ofertasAsignaturas.planificacionSemestreId, planificacionesSemestresRepository.idsEnCarrera(alcance)) } : true,
+        asignaciones: { where: alcance ? inArray(ofertaTipoHora.ofertaId, db.select({ id: ofertasAsignaturas.id }).from(ofertasAsignaturas).where(inArray(ofertasAsignaturas.planificacionSemestreId, planificacionesSemestresRepository.idsEnCarrera(alcance)))) : undefined, with: { oferta: true, tipoHora: true } },
       },
     });
   },
@@ -88,8 +89,8 @@ export const profesoresRepository = {
     const [horario] = await db
       .select({ id: horariosAsignaturas.id })
       .from(horariosAsignaturas)
-      .innerJoin(ofertasAsignaturas, eq(horariosAsignaturas.ofertaId, ofertasAsignaturas.id))
-      .where(eq(ofertasAsignaturas.profesorId, id))
+       .innerJoin(ofertaTipoHora, and(eq(horariosAsignaturas.ofertaId, ofertaTipoHora.ofertaId), eq(horariosAsignaturas.tipoHoraId, ofertaTipoHora.tipoHoraId)))
+       .where(eq(ofertaTipoHora.profesorId, id))
       .limit(1);
     return !!horario;
   },
@@ -177,7 +178,7 @@ export const profesoresRepository = {
   async deleteWithDependencias(id: number, usuarioId?: number | null): Promise<boolean> {
     return await db.transaction(async (tx) => {
       await tx.delete(disponibilidadProfesores).where(eq(disponibilidadProfesores.profesorId, id));
-      await tx.delete(ofertasAsignaturas).where(eq(ofertasAsignaturas.profesorId, id));
+      await tx.delete(ofertaTipoHora).where(eq(ofertaTipoHora.profesorId, id));
       if (usuarioId) {
         await tx.update(profesores).set({ usuarioId: null }).where(eq(profesores.id, id));
         await tx.delete(usuarios).where(eq(usuarios.id, usuarioId));
