@@ -4,6 +4,18 @@ import { horariosService } from "../services/horarios.service.js";
 import { excelExternosQueryValidation, excelSalasQueryValidation, type HorarioQueryDTO, type MiHorarioQueryDTO, type ExcelSalasQueryDTO } from "../validations/horarios.validation.js";
 
 export const horariosController = {
+  async coberturaExcelExternos(req: Request, res: Response, next: NextFunction): Promise<void> {
+    const consulta = excelExternosQueryValidation.safeParse(req.query);
+    if (!consulta.success) {
+      res.status(400).json({ status: "error", message: "Seleccione una planificación y un departamento válidos." });
+      return;
+    }
+    try {
+      const data = await horariosService.coberturaExcelExternos(consulta.data.planificacionSemestreId, consulta.data.departamentoId,
+        { id: req.user!.id, rol: req.user!.rol });
+      res.status(200).json({ status: "success", data });
+    } catch (error) { next(error); }
+  },
   async importarExcelExternos(req: Request, res: Response, next: NextFunction): Promise<void> {
     const consulta = excelExternosQueryValidation.safeParse(req.query);
     if (!consulta.success) {
@@ -16,7 +28,7 @@ export const horariosController = {
     }
     try {
       const resultado = await horariosService.importarExcelExternos(consulta.data.planificacionSemestreId, consulta.data.departamentoId, req.file.buffer, { id: req.user!.id, rol: req.user!.rol });
-      if (resultado.errores.length) res.status(400).json({ status: "error", errores: resultado.errores });
+      if (resultado.errores.length) res.status(400).json({ status: "error", errores: resultado.errores, data: resultado });
       else res.status(201).json({ status: "success", data: resultado });
     } catch (error) { next(error); }
   },

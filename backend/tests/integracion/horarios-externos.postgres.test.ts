@@ -75,6 +75,7 @@ describe.skipIf(!habilitado)("External Excel import on isolated PostgreSQL", () 
   const filasValidas = () => [
     ["EXT100", "Linear Algebra", 1, 45, "11111111-1", "Replacement teacher", "t", "Lunes", "08:10-08:50"],
     ["EXT300", "Statistics", 3, 30, "11111111-1", "Replacement teacher", "t", "Martes", "08:10-08:50"],
+    ["EXT200", "Calculus", 1, 30, "11111111-1", "Replacement teacher", "t", "Miércoles", "08:10-08:50"],
   ];
   const importar = async (filas = filasValidas()) => servicio.importarExcelExternos(1, 1, await archivo(filas), usuario);
   const ofertas = () => cliente`select * from ofertas_asignaturas order by id`;
@@ -96,27 +97,29 @@ describe.skipIf(!habilitado)("External Excel import on isolated PostgreSQL", () 
     const catalogoAnterior = await cliente`select * from asignaturas order by codigo`;
     const filas = filasValidas(); filas[0]![1] = "Algebra abreviada"; filas[1]![1] = "";
     const resultado = await importar([...filas, ["EXT900", "Ignored", "invalid"], ["INT100", "Ignored", "invalid"]]);
-    expect(resultado).toMatchObject({ ofertasCreadas: 1, ofertasActualizadas: 1, ofertasEliminadas: 2, horariosCreados: 2, errores: [],
+    expect(resultado).toMatchObject({ ofertasCreadas: 1, ofertasActualizadas: 2, ofertasEliminadas: 1, horariosCreados: 3, errores: [],
       asignaturasCargadas: [
         { codigo: "EXT100", nombre: "Linear Algebra", semestreMalla: 2, secciones: [1] },
+        { codigo: "EXT200", nombre: "Calculus", semestreMalla: 4, secciones: [1] },
         { codigo: "EXT300", nombre: "Statistics", semestreMalla: 3, secciones: [3] },
       ] });
     const actuales = await ofertas();
     expect(actuales.filter(oferta => oferta.id >= 103)).toEqual(ofertasAjenas);
     expect((await horarios()).filter(horario => horario.oferta_id >= 103)).toEqual(horariosAjenos);
     expect(actuales.find(oferta => oferta.id === 100)).toMatchObject({ profesor_id: 2, cupos: 45 });
-    expect(actuales.some(oferta => [101, 102].includes(oferta.id))).toBe(false);
-    expect(actuales).toHaveLength(6);
+    expect(actuales.some(oferta => oferta.id === 101)).toBe(false);
+    expect(actuales.find(oferta => oferta.id === 102)).toMatchObject({ cupos: 30, profesor_id: 2 });
+    expect(actuales).toHaveLength(7);
     expect(await cliente`select * from asignaturas order by codigo`).toEqual(catalogoAnterior);
     expect((await horarios()).filter(horario => ![103,104,105,106].includes(horario.oferta_id)))
-      .toEqual([expect.objectContaining({ oferta_id: 100, bloque_id: 1, sala_id: null }), expect.objectContaining({ bloque_id: 2, sala_id: null })]);
+      .toEqual([expect.objectContaining({ oferta_id: 100, bloque_id: 1, sala_id: null }), expect.objectContaining({ bloque_id: 2, sala_id: null }), expect.objectContaining({ oferta_id: 102, bloque_id: 3, sala_id: null })]);
   });
 
   it("reimports without duplicate sections or schedule blocks", async () => {
     await importar(); const anteriores = await ofertas();
     const asociaciones = (filas: postgres.RowList<postgres.Row[]>) => filas.map(({ id: _, ...fila }) => JSON.stringify(fila)).sort();
     const horariosAnteriores = asociaciones(await horarios());
-    expect(await importar()).toMatchObject({ ofertasCreadas: 0, ofertasActualizadas: 2, ofertasEliminadas: 0, errores: [] });
+    expect(await importar()).toMatchObject({ ofertasCreadas: 0, ofertasActualizadas: 3, ofertasEliminadas: 0, errores: [] });
     expect(await ofertas()).toEqual(anteriores);
     expect(asociaciones(await horarios())).toEqual(horariosAnteriores);
   });
@@ -145,7 +148,8 @@ describe.skipIf(!habilitado)("External Excel import on isolated PostgreSQL", () 
     await cliente.unsafe(`create function fallar_excel_integracion() returns trigger language plpgsql as $$
       begin
         if new.bloque_id = 2 and exists (select 1 from ofertas_asignaturas where id=100 and cupos=45)
-          and not exists (select 1 from ofertas_asignaturas where id in (101,102))
+          and not exists (select 1 from ofertas_asignaturas where id=101)
+          and not exists (select 1 from horarios_asignaturas where oferta_id=102)
           and exists (select 1 from horarios_asignaturas where oferta_id=100 and bloque_id=1) then
           raise exception 'forced external Excel failure after persisted changes';
         end if;
@@ -160,5 +164,23 @@ describe.skipIf(!habilitado)("External Excel import on isolated PostgreSQL", () 
       await cliente.unsafe("drop trigger fallar_excel_integracion on horarios_asignaturas");
       await cliente.unsafe("drop function fallar_excel_integracion()");
     }
+  });
+  it.each([['2099-2', 'EXT200'], ['2099-1', 'EXT300']])('rejects missing mandatory courses in %s with identical persisted data', async (periodo, codigo) => {
+    await cliente`update planificaciones_semestres set codigo='2098-1' where id=2`;
+    await cliente`update planificaciones_semestres set codigo=${periodo} where id=1`;
+    const anterior = await huella();
+    const resultado = await importar(filasValidas().filter(fila => fila[0] !== codigo));
+    expect(resultado.errores).toContainEqual(expect.objectContaining({ columna: 'Cobertura', codigoAsignatura: codigo }));
+    expect(await huella()).toBe(anterior);
+  });
+  it('reads persisted scoped coverage and accepts missing optional courses', async () => {
+    const antes = await servicio.coberturaExcelExternos(1, 1, usuario);
+    expect(antes.cobertura.map(asignatura => asignatura.codigo).sort()).toEqual(['EXT100', 'EXT200', 'EXT300']);
+    expect(antes.cobertura.find(asignatura => asignatura.codigo === 'EXT300')).toMatchObject({ estado: 'faltante_opcional' });
+    const resultado = await importar(filasValidas().filter(fila => fila[0] !== 'EXT300'));
+    expect(resultado.errores).toEqual([]);
+    const despues = await servicio.coberturaExcelExternos(1, 1, usuario);
+    expect(despues.cobertura.filter(asignatura => asignatura.estado === 'cargada')).toHaveLength(2);
+    await expect(servicio.coberturaExcelExternos(3, 1, usuario)).rejects.toThrow(/carrera/);
   });
 });

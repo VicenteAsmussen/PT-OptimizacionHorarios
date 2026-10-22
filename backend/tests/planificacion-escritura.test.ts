@@ -85,15 +85,15 @@ beforeEach(() => {
   tablas = {
     carreras: [{ id: 1 }, { id: 2 }],
     planificaciones_semestres: [
-      { id: 1, carreraId: 2, actual: true, estadoPlanificacion: "preparacion" },
-      { id: 2, carreraId: 1, actual: true, estadoPlanificacion: "preparacion" },
+      { id: 1, carreraId: 2, codigo: "2026-2", actual: true, estadoPlanificacion: "preparacion" },
+      { id: 2, carreraId: 1, codigo: "2026-1", actual: true, estadoPlanificacion: "preparacion" },
     ],
     ofertas_asignaturas: [{ id: 10, planificacionSemestreId: 1 }],
     horarios_asignaturas: [{ id: 20, ofertaId: 10, planificacionSemestreId: 1 }],
     disponibilidad_profesores: [{ id: 30, planificacionSemestreId: 1 }],
     carrera_departamento: [{ carreraId: 2, departamentoId: 4, esGestionado: false }],
     carrera_asignatura: [{ carreraId: 2, asignaturaCodigo: "MAT100" }, { carreraId: 2, asignaturaCodigo: "MAT200" }],
-    asignaturas: [{ codigo: "MAT100", departamentoId: 4 }, { codigo: "MAT200", departamentoId: 4 }, { codigo: "OTRA", departamentoId: 5 }],
+    asignaturas: [{ codigo: "MAT100", departamentoId: 4, semestreMalla: 2 }, { codigo: "MAT200", departamentoId: 4, semestreMalla: 3 }, { codigo: "OTRA", departamentoId: 5, semestreMalla: 2 }],
     profesores: [{ id: 7, departamentoId: 4 }],
   };
   contexto.base = baseSimulada();
@@ -282,12 +282,13 @@ it("revierte eliminaciones y actualizaciones si falla la escritura final de sesi
   expect(eventos).toContain("escritura:ofertas_asignaturas:update");
   expect(tablas).toEqual(anteriores);
 });
-it.each(["carrera", "departamento", "malla", "profesor", "ocupacion", "vacio"])("revalida %s sin modificar datos", async caso => {
+it.each(["carrera", "departamento", "malla", "profesor", "ocupacion", "vacio", "cobertura"])("revalida %s sin modificar datos", async caso => {
   prepararReemplazo();
   if (caso === "departamento") tablas.carrera_departamento[0]!.esGestionado = true;
   if (caso === "malla") tablas.carrera_asignatura = [];
   if (caso === "profesor") tablas.profesores = [];
   if (caso === "ocupacion") tablas.ofertas_asignaturas[3]!.profesorId = 7;
+  if (caso === "cobertura") tablas.asignaturas[1]!.semestreMalla = 4;
   const anteriores = structuredClone(tablas);
   await expect(horariosRepository.sincronizarExternosEnTransaccion(1, 4, caso === "vacio" ? [] : filasReemplazo(), caso === "carrera" ? 99 : 2)).rejects.toThrow();
   expect(tablas).toEqual(anteriores);

@@ -13,6 +13,7 @@ import { NotFoundError, ConflictError, BadRequestError, ForbiddenError } from ".
 
 import { normalizarTipoHoraExcel as normalizarTipoHora } from "../utils/excel-comun.js";
 import { importarHorariosExternos } from "../utils/excel-horarios-externos.js";
+import { calcularCoberturaExterna } from "../utils/cobertura-externos.js";
 
 type UsuarioExcelSalas = { id: number; rol: string };
 
@@ -25,6 +26,16 @@ async function resolverCarreraExcel(usuario: UsuarioExcelSalas): Promise<number 
 }
 
 export const horariosService = {
+  async coberturaExcelExternos(planificacionSemestreId: number, departamentoId: number, usuario: UsuarioExcelSalas) {
+    const carreraId = await resolverCarreraExcel(usuario);
+    const planificacion = await horariosRepository.findPlanificacionById(planificacionSemestreId);
+    if (!planificacion || (carreraId !== undefined && planificacion.carreraId !== carreraId)) throw new ForbiddenError("La planificación no pertenece a su carrera");
+    const contexto = await horariosRepository.findContextoExternos(planificacionSemestreId, departamentoId, carreraId);
+    if (!contexto.departamentoValido) throw new ForbiddenError("El departamento no es externo para la carrera seleccionada");
+    const conHorario = new Set(contexto.ocupaciones.map(ocupacion => ocupacion.ofertaId));
+    return { codigoPeriodo: planificacion.codigo,
+      cobertura: calcularCoberturaExterna(contexto.asignaturas, planificacion.codigo, contexto.ofertas.filter(oferta => conHorario.has(oferta.id))) };
+  },
   async importarExcelExternos(planificacionSemestreId: number, departamentoId: number, archivo: Buffer, usuario: UsuarioExcelSalas) {
     const carreraId = await resolverCarreraExcel(usuario);
     const planificacion = await horariosRepository.findPlanificacionById(planificacionSemestreId);

@@ -9,7 +9,7 @@ vi.mock("../src/repositories/horarios.repository.js", () => ({ horariosRepositor
 const encabezados = ["Código Asig.", "Nombre Asignatura", "Sección", "Cupos", "RUT Profesor", "Profesor",
   ...[1, 2, 3, 4, 5].flatMap((numero) => [`Tipo Hora ${numero}`, `Día ${numero}`, `Horario ${numero}`, `Sala ${numero}`])];
 const usuario = { id: 1, rol: "secretaria" };
-const contexto = () => ({ departamentoValido: true, asignaturas: [{ codigo: "INF100", nombre: "Programación" }], profesores: [{ id: 7, rut: "12345678-5", nombre: "Ana Pérez", departamentoId: 4 }], tipos: [{ id: 1, tipo: "Teórica" }], bloques: [{ id: 10, dia: "Lunes", numeroBloque: 1, horaInicio: "08:10", horaTermino: "08:50" }], ofertas: [] as { asignaturaCodigo: string; seccion: number }[], ocupaciones: [] as { profesorId: number; bloqueId: number }[] });
+const contexto = () => ({ codigoPeriodo: "2099-1", departamentoValido: true, asignaturas: [{ codigo: "INF100", nombre: "Programación", semestreMalla: 1 }], profesores: [{ id: 7, rut: "12345678-5", nombre: "Ana Pérez", departamentoId: 4 }], tipos: [{ id: 1, tipo: "Teórica" }], bloques: [{ id: 10, dia: "Lunes", numeroBloque: 1, horaInicio: "08:10", horaTermino: "08:50" }], ofertas: [] as { asignaturaCodigo: string; seccion: number }[], ocupaciones: [] as { profesorId: number; bloqueId: number }[] });
 const filaBase = () => ["INF100", "Programación", 2, 40, "12345678-5", " ANA   PEREZ ", "t", "Lunes", "08:10-08:50", "Sala inexistente ignorada"];
 async function libroConFilas(filas: (string | number)[][], titulos: readonly string[] = encabezados) {
   const libro = new ExcelJS.Workbook();
