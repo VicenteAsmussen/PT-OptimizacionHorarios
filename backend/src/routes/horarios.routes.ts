@@ -59,6 +59,8 @@ router.post(
   horariosController.importarExcelSalas
 );
 
+router.get("/excel/externos/cobertura", authorizeRoles("admin", "secretaria"), horariosController.coberturaExcelExternos);
+
 router.post(
   "/excel/externos/importar",
   authorizeRoles("admin", "secretaria"),

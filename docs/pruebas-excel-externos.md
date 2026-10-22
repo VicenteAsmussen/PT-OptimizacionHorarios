@@ -14,6 +14,7 @@ El comando usa el servicio PostgreSQL del `docker-compose.yml` habitual y crea, 
 - Reemplazo de secciones, cambio de profesor y cupos, creación de ofertas nuevas y eliminación de secciones ausentes.
 - Conservación del identificador de las ofertas existentes y de los datos de otras carreras, departamentos y planificaciones.
 - Reimportación sin duplicados y aceptación de ofertas de distinta paridad de semestre de malla.
+- Cobertura obligatoria según el período seleccionado: niveles impares en `-1` y pares en `-2`. La ausencia de niveles opcionales se permite; los obligatorios faltantes rechazan el archivo sin modificar datos. Consulta de cobertura persistida dentro del alcance autorizado.
 - Errores con asignatura, columna y valor, sin modificar datos cuando el archivo es inválido o no tiene asignaturas pertinentes.
 - Rechazo de una planificación publicada.
 - Reversión real en PostgreSQL: un trigger de prueba provoca un fallo después de eliminaciones, actualizaciones e inserciones. La huella de todas las filas de las tablas públicas debe quedar idéntica. Las secuencias no se comparan porque PostgreSQL no revierte `nextval`.
@@ -29,10 +30,10 @@ No hay otro archivo Compose por funcionalidad. Para preparar esta misma base par
 
 ## Resultado y limpieza
 
-Una ejecución correcta muestra `19 passed` y termina con código `0`. Durante la prueba de reversión es normal que PostgreSQL registre el error deliberado `forced external Excel failure after persisted changes`; la suite debe terminar aprobada. Los errores de preparación o de pruebas devuelven código distinto de cero.
+Una ejecución correcta muestra las pruebas aprobadas y termina con código `0`. Durante la prueba de reversión es normal que PostgreSQL registre el error deliberado `forced external Excel failure after persisted changes`; la suite debe terminar aprobada. Los errores de preparación o de pruebas devuelven código distinto de cero.
 
 Docker elimina el contenedor temporal del backend al terminar. PostgreSQL, el backend habitual, pgAdmin y sus volúmenes siguen funcionando. Los fixtures de la última prueba permanecen en `horarios_test` hasta la próxima ejecución; no se borra la base ni se usa `docker compose down -v`.
 
 Esta prueba llama al servicio real de importación y consulta PostgreSQL sin mocks. No sustituye una prueba HTTP multipart, de interfaz gráfica ni de concurrencia entre procesos.
 
-La suite normal omite estas seis pruebas PostgreSQL cuando no se solicita este entorno explícito mediante `BASE_PRUEBAS_REINICIABLE=yes`. El comando dedicado nunca debe omitirlas ni ejecutarse contra `horarios_db`.
+La suite normal omite las pruebas PostgreSQL cuando no se solicita este entorno explícito mediante `BASE_PRUEBAS_REINICIABLE=yes`. El comando dedicado nunca debe omitirlas ni ejecutarse contra `horarios_db`.

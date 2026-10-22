@@ -16,6 +16,7 @@ import { planificacionesSemestresRepository } from "./planificaciones-semestres.
 import { secretarias } from "../db/schema/secretarias.schema.js";
 import { carreraAsignatura } from "../db/schema/carrera-asignatura.schema.js";
 import { carreraDepartamento } from "../db/schema/carrera-departamento.schema.js";
+import { esObligatoriaExterna } from "../utils/cobertura-externos.js";
 
 async function leerOferta(tx: TransaccionPlanificacion, id: number) {
   const oferta = await tx.query.ofertasAsignaturas.findFirst({ where: eq(ofertasAsignaturas.id, id) });
@@ -52,6 +53,7 @@ export const horariosRepository = {
       where: and(eq(carreraDepartamento.carreraId, carreraContexto), eq(carreraDepartamento.departamentoId, departamentoId), eq(carreraDepartamento.esGestionado, false)),
     });
     return {
+      codigoPeriodo: planificacion?.codigo,
       departamentoValido: !!departamento && !!relacion && (carreraId === undefined || carreraId === carreraContexto),
       asignaturas: carreraContexto === undefined ? [] : await db.select().from(asignaturas).where(and(
         eq(asignaturas.departamentoId, departamentoId),
@@ -86,6 +88,11 @@ export const horariosRepository = {
       const codigosMalla = new Set(malla.map(vinculo => vinculo.asignaturaCodigo));
       const asignaturasDepartamento = await tx.query.asignaturas.findMany({ where: eq(asignaturas.departamentoId, departamentoId) });
       const codigos = new Set(asignaturasDepartamento.filter(asignatura => codigosMalla.has(asignatura.codigo)).map(asignatura => asignatura.codigo));
+      const cubiertas = new Set(filas.filter(fila => fila.sesiones.length > 0).map(fila => fila.asignaturaCodigo));
+      if (asignaturasDepartamento.some(asignatura => codigos.has(asignatura.codigo)
+        && esObligatoriaExterna(asignatura.semestreMalla, planificacion.codigo) && !cubiertas.has(asignatura.codigo))) {
+        throw new ConflictError("Faltan horarios obligatorios para el período seleccionado; no se modificó la carga anterior.");
+      }
       if (!filas.length || filas.some(fila => !codigos.has(fila.asignaturaCodigo))) throw new ConflictError("La carga no coincide con las asignaturas autorizadas; no se modificó la carga anterior.");
       const profesoresDepartamento = await tx.query.profesores.findMany({ where: eq(profesores.departamentoId, departamentoId) });
       const profesoresValidos = new Set(profesoresDepartamento.map(profesor => profesor.id));

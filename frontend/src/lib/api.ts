@@ -1,7 +1,7 @@
-const baseUrl = import.meta.env.VITE_API_URL ?? "http://localhost:3000/api";
+const baseUrl = import.meta.env?.VITE_API_URL ?? "http://localhost:3000/api";
 
 export class ApiError extends Error {
-  constructor(message: string, public readonly status: number) {
+  constructor(message: string, public readonly status: number, public readonly detalle?: unknown) {
     super(message);
     this.name = "ApiError";
   }
@@ -10,7 +10,8 @@ export class ApiError extends Error {
 export async function api<T>(ruta: string, opciones: RequestInit = {}): Promise<T> {
   const headers = new Headers(opciones.headers);
   headers.set("Accept", "application/json");
-  if (opciones.body !== undefined) headers.set("Content-Type", "application/json");
+  if (opciones.body instanceof FormData) headers.delete("Content-Type");
+  else if (opciones.body !== undefined) headers.set("Content-Type", "application/json");
 
   const respuesta = await fetch(`${baseUrl.replace(/\/$/, "")}/${ruta.replace(/^\//, "")}`, {
     ...opciones,
@@ -24,7 +25,7 @@ export async function api<T>(ruta: string, opciones: RequestInit = {}): Promise<
       && typeof error.message === "string"
       ? error.message
       : "No se pudo completar la solicitud.";
-    throw new ApiError(mensaje, respuesta.status);
+    throw new ApiError(mensaje, respuesta.status, error);
   }
 
   if (respuesta.status === 204) return undefined as T;

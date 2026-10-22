@@ -109,6 +109,11 @@ export default function AppLayout() {
             Profesores
           </NavLink>
         )}
+        {puedeGestionarAsignaturas(usuario?.rol) && (
+          <NavLink to="/app/horarios-externos" onClick={() => setNavegacionAbierta(false)}>
+            Horarios departamentos externos
+          </NavLink>
+        )}
       </nav>
     </>
   );

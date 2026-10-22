@@ -8,7 +8,7 @@ vi.mock("../src/repositories/horarios.repository.js", () => ({ horariosRepositor
 } }));
 const asignatura = { codigo: "MAT100", nombre: "Álgebra", semestreMalla: 2 };
 const fila = () => ["MAT100", "Álgebra", 1, 35, "12345678-5", "Docente", "t", "Lunes", "08:10-08:50"];
-const contexto = () => ({ departamentoValido: true, asignaturas: [asignatura], profesores: [{ id: 7, rut: "12345678-5", departamentoId: 4 }],
+const contexto = () => ({ codigoPeriodo: "2026-2", departamentoValido: true, asignaturas: [asignatura], profesores: [{ id: 7, rut: "12345678-5", departamentoId: 4 }],
   tipos: [{ id: 1, tipo: "Teórica" }], bloques: [{ id: 10, dia: "Lunes", horaInicio: "08:10", horaTermino: "08:50", numeroBloque: 1 }],
   ofertas: [{ id: 20, asignaturaCodigo: "MAT100", seccion: 1 }], ocupaciones: [{ ofertaId: 20, profesorId: 7, bloqueId: 10 }] });
 async function archivo(filas: (string | number)[][]) {
