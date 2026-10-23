@@ -34,7 +34,7 @@ function simularGuardia(lecturas: unknown[][][], ids = [7]) {
   const planificaciones = ids.map(id => [id, 1, "2027-1", true, "preparacion"]);
   responses.push(...lecturas, ...planificaciones.map(fila => [fila]), [[1]], ...planificaciones.map(fila => [fila]), ...lecturas);
 }
-const ofertaRow = [2, "INF100", 7, 7, 1, 30];
+const ofertaRow = [2, "INF100", 7, 1, 30];
 
 describe("Publicación única por planificación (offline)", () => {
   it("no exporta entidad legacy ni agregado ni publicación por entrada", () => {
@@ -60,7 +60,7 @@ describe("Publicación única por planificación (offline)", () => {
   });
   it("crea entrada con sala null sin relación secundaria", async () => {
     simularGuardia([[ofertaRow]]);
-    responses.push([entryRow]);
+    responses.push([[2, 4, 5]], [], [entryRow]);
     expect(await horariosRepository.create(entry)).toEqual({ id: 12, ...entry });
     expect(statements.at(-1)!.sql).toContain('insert into "horarios_asignaturas"');
     expect(statements.at(-1)!.params).toEqual([2, null, 3, 4, 7]);
@@ -68,12 +68,12 @@ describe("Publicación única por planificación (offline)", () => {
   });
   it("propaga fallo de inserción", async () => {
     simularGuardia([[ofertaRow]]);
-    responses.push(new Error("fallo entrada"));
+    responses.push([[2, 4, 5]], [], new Error("fallo entrada"));
     await expect(horariosRepository.create(entry)).rejects.toMatchObject({ cause: { message: "fallo entrada" } });
   });
   it("actualiza contexto y sala sin escribir publicación", async () => {
-    simularGuardia([[entryRow], [[...ofertaRow.slice(0, 3), 8, 1, 30]]], [7, 8]);
-    responses.push([[12, 2, null, 3, 4, 8]]);
+    simularGuardia([[entryRow], [[2, "INF100", 8, 1, 30]]], [7, 8]);
+    responses.push([entryRow], [[2, 4, 5]], [], [[12, 2, null, 3, 4, 8]]);
     expect(await horariosRepository.update(12, { planificacionSemestreId: 8, salaId: null })).toEqual({ id: 12, ...entry, planificacionSemestreId: 8 });
     expect(statements.at(-1)!.sql).toContain('update "horarios_asignaturas"');
     expect(statements.every(({ sql }) => !sql.includes("horario_publicado"))).toBe(true);
@@ -189,7 +189,7 @@ describe("Sala nullable y consistencia de planificación", () => {
   function preparar() {
     const creada = { id: 12, ...entry };
     vi.spyOn(planificacionesSemestresService, "getById").mockResolvedValue({ id: 7, carreraId: 1 } as any);
-    vi.spyOn(horariosRepository, "findOfertaWithDetails").mockResolvedValue({ planificacionSemestreId: 7, profesorId: 5 } as any);
+    vi.spyOn(horariosRepository, "findOfertaWithDetails").mockResolvedValue({ planificacionSemestreId: 7, asignaciones: [{ tipoHoraId: 4, profesorId: 5 }] } as any);
     vi.spyOn(horariosRepository, "checkBloqueExists").mockResolvedValue(true);
     vi.spyOn(horariosRepository, "checkTipoHoraExists").mockResolvedValue(true);
     vi.spyOn(horariosRepository, "findByOfertaBloque").mockResolvedValue(undefined);

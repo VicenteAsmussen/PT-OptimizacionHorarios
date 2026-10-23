@@ -210,7 +210,7 @@ function crearSeedHorarios() {
     bloques_horarios: datosBloques.map((fila, indice) => ({ id: indice + 1, ...fila })),
     tipos_hora: datosTiposHora.map((fila, indice) => ({ id: indice + 1, ...fila })),
     salas: datosSalas.map((fila, indice) => ({ id: indice + 1, ...fila })),
-    ofertas_asignaturas: [], horarios_asignaturas: [], disponibilidad_profesores: [],
+    ofertas_asignaturas: [], oferta_tipo_hora: [], horarios_asignaturas: [], disponibilidad_profesores: [],
   };
   const mapa = Object.fromEntries(Object.values(esquema).filter(valor => {
     try { return !!getTableName(valor as never); } catch { return false; }
@@ -237,7 +237,7 @@ function crearSeedHorarios() {
         const parametro = valores[indice].match(/^\$(\d+)$/);
         if (parametro) fila[columna] = params[Number(parametro[1]) - 1];
       });
-      tablas[nombre].push(fila);
+      if (nombre !== "oferta_tipo_hora" || !tablas[nombre].some(a => a.ofertaId === fila.ofertaId && a.tipoHoraId === fila.tipoHoraId)) tablas[nombre].push(fila);
       return { rows: [] };
     }
     if (sql.startsWith("update")) {
@@ -277,7 +277,8 @@ describe("Seed de ofertas/horarios/disponibilidad por carrera (offline)", () => 
       const oferta = contexto.tablas.ofertas_asignaturas.find(fila => fila.planificacionSemestreId === planificacion.id)!;
       expect(oferta.asignaturaCodigo).toBe(fixture.asignaturaCodigo);
       expect(contexto.tablas.horarios_asignaturas.find(fila => fila.ofertaId === oferta.id)?.planificacionSemestreId).toBe(planificacion.id);
-      expect(contexto.tablas.disponibilidad_profesores.find(fila => fila.planificacionSemestreId === planificacion.id)?.profesorId).toBe(oferta.profesorId);
+      expect(contexto.tablas.disponibilidad_profesores.find(fila => fila.planificacionSemestreId === planificacion.id)?.profesorId)
+        .toBe(contexto.tablas.oferta_tipo_hora.find(fila => fila.ofertaId === oferta.id)?.profesorId);
     }
     expect(contexto.tablas.planificaciones_semestres.find(fila => fila.carreraId === 2 && fila.codigo === "2026-1")?.estadoPlanificacion).toBe("preparacion");
     const antes = structuredClone(contexto.tablas);

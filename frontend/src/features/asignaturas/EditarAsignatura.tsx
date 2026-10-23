@@ -24,6 +24,12 @@ export default function EditarAsignatura({ asignatura, departamentos, alCerrar, 
   }
   return <PanelAsignatura titulo="Editar asignatura" ocupado={ocupado} alCerrar={alCerrar}>
     <p>Código: <strong>{asignatura.codigo}</strong> (no modificable)</p>
+    <section aria-label="Horas por tipo" className={estilos.resumenHoras}>
+      <h3>Horas por tipo</h3>
+      {asignatura.tiposHora?.length ? <dl>{asignatura.tiposHora.map(tipo => <div key={tipo.tipoHoraId}>
+        <dt>{tipo.tipoHora.tipo}</dt><dd>{tipo.horas} h</dd>
+      </div>)}</dl> : <p>Sin tipos de hora registrados.</p>}
+    </section>
     <form onSubmit={enviar}>
       <fieldset disabled={ocupado} className={estilos.campos}>
         <label>Nombre<input required value={nombre} onChange={e => setNombre(e.target.value)} /></label>

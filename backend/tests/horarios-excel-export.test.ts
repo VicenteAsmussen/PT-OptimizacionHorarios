@@ -39,10 +39,11 @@ type EntradaExportacion = Awaited<ReturnType<typeof horariosRepository.findParaE
 function entrada(dia = "Lunes", numeroBloque = 1, horaInicio = "08:10", horaTermino = "08:50", tipo = "Teórica"): EntradaExportacion {
   return {
     oferta: {
-      seccion: 2, cupos: 40, profesorId: 7, profesor: { nombre: "Ana Pérez" },
+      seccion: 2, cupos: 40,
       asignatura: { codigo: "INF100", nombre: "Programación", semestreMalla: 3,
         tiposHora: [{ horas: 4, tipoHora: { tipo: "Teórica" } }, { horas: 2, tipoHora: { tipo: "Práctica" } }, { horas: 1, tipoHora: { tipo: "Laboratorio" } }] },
     },
+    asignacion: { profesorId: 7, profesor: { nombre: "Ana Pérez" } },
     bloque: { dia, numeroBloque, horaInicio, horaTermino },
     tipoHora: { tipo }, sala: { codigo: "101-AA" },
   } as EntradaExportacion;
@@ -113,7 +114,7 @@ describe("Exportación Excel de asignación de salas", () => {
 
   it("separa profesores, secciones y tipos de hora", async () => {
     const otraSeccion = entrada(); otraSeccion.oferta.seccion = 3;
-    const otroProfesor = entrada(); otroProfesor.oferta.profesorId = 8;
+    const otroProfesor = entrada(); otroProfesor.asignacion.profesorId = 8;
     vi.mocked(horariosRepository.findParaExportarSalas).mockResolvedValue([
       entrada(), otraSeccion, otroProfesor, entrada("Martes", 1, "08:10", "08:50", "Práctica"),
     ]);

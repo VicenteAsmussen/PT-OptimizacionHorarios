@@ -1,11 +1,12 @@
 import type { AlcanceCarrera } from "../utils/alcance-carrera.js";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, ne } from "drizzle-orm";
 import { db } from "../config/db.js";
 import { horariosAsignaturas, type NuevoHorarioAsignatura } from "../db/schema/horarios-asignaturas.schema.js";
 import { departamentos } from "../db/schema/departamentos.schema.js";
 import { BadRequestError, ConflictError, NotFoundError } from "../utils/errors.js";
 import { conPlanificacionesEditables, exigirVinculoEsperado, type TransaccionPlanificacion } from "./planificacion-escritura.js";
 import { ofertasAsignaturas } from "../db/schema/ofertas-asignaturas.schema.js";
+import { ofertaTipoHora } from "../db/schema/oferta-tipo-hora.schema.js";
 import { asignaturas } from "../db/schema/asignaturas.schema.js";
 import { profesores, columnasProfesorSinRut } from "../db/schema/profesores.schema.js";
 import { salas } from "../db/schema/salas.schema.js";
@@ -32,17 +33,31 @@ function exigirMismaPlanificacion(planificacionSemestreId: number, ofertaPlanifi
   if (planificacionSemestreId !== ofertaPlanificacionId) throw new BadRequestError("La planificación indicada no coincide con la planificación de la oferta");
 }
 
+async function exigirHorarioValido(tx: TransaccionPlanificacion, datos: NuevoHorarioAsignatura, id?: number) {
+  const asignacion = await tx.query.ofertaTipoHora.findFirst({ where: and(eq(ofertaTipoHora.ofertaId, datos.ofertaId), eq(ofertaTipoHora.tipoHoraId, datos.tipoHoraId)) });
+  if (!asignacion) throw new BadRequestError("El tipo de hora no tiene profesor asignado en esta oferta");
+  const entradas = await tx.select({ id: horariosAsignaturas.id, ofertaId: horariosAsignaturas.ofertaId,
+    salaId: horariosAsignaturas.salaId, profesorId: ofertaTipoHora.profesorId }).from(horariosAsignaturas)
+    .innerJoin(ofertaTipoHora, and(eq(ofertaTipoHora.ofertaId, horariosAsignaturas.ofertaId), eq(ofertaTipoHora.tipoHoraId, horariosAsignaturas.tipoHoraId)))
+    .where(and(eq(horariosAsignaturas.planificacionSemestreId, datos.planificacionSemestreId), eq(horariosAsignaturas.bloqueId, datos.bloqueId), id ? ne(horariosAsignaturas.id, id) : undefined));
+  if (entradas.some(e => e.ofertaId === datos.ofertaId)) throw new ConflictError("Conflicto de horario: sección ocupada en este bloque");
+  if (entradas.some(e => e.profesorId === asignacion.profesorId)) throw new ConflictError("Conflicto de horario: profesor ocupado en esta planificación");
+  if (datos.salaId && entradas.some(e => e.salaId === datos.salaId)) throw new ConflictError("Conflicto de horario: sala ocupada en esta planificación");
+}
+
 function condicionAlcanceExcel(carreraId?: number) {
   if (carreraId === undefined) return undefined;
   return inArray(horariosAsignaturas.planificacionSemestreId,
     db.select({ id: planificacionesSemestres.id }).from(planificacionesSemestres).where(eq(planificacionesSemestres.carreraId, carreraId)));
 }
 const relacionesEntrada = {
-  oferta: { with: { asignatura: true as const, profesor: { columns: columnasProfesorSinRut, with: { departamento: true as const } }, planificacionSemestre: true as const } },
+  oferta: { with: { asignatura: true as const, planificacionSemestre: true as const } },
+  asignacion: { with: { profesor: { columns: columnasProfesorSinRut, with: { departamento: true as const } } } },
   sala: true as const, bloque: true as const, tipoHora: true as const, planificacionSemestre: true as const,
 };
 const relacionesExcel = {
-  oferta: { with: { asignatura: true as const, profesor: { columns: columnasProfesorSinRut } } }, bloque: true as const, tipoHora: true as const,
+  oferta: { with: { asignatura: true as const } },
+  asignacion: { with: { profesor: { columns: columnasProfesorSinRut } } }, bloque: true as const, tipoHora: true as const,
 };
 export const horariosRepository = {
   async findContextoExternos(planificacionSemestreId: number, departamentoId: number, carreraId?: number) {
@@ -63,8 +78,8 @@ export const horariosRepository = {
       tipos: await db.select().from(tiposHora),
       bloques: await db.select().from(bloquesHorarios),
       ofertas: await db.select().from(ofertasAsignaturas).where(eq(ofertasAsignaturas.planificacionSemestreId, planificacionSemestreId)),
-      ocupaciones: await db.select({ ofertaId: ofertasAsignaturas.id, profesorId: ofertasAsignaturas.profesorId, bloqueId: horariosAsignaturas.bloqueId }).from(horariosAsignaturas)
-        .innerJoin(ofertasAsignaturas, eq(ofertasAsignaturas.id, horariosAsignaturas.ofertaId)).where(eq(horariosAsignaturas.planificacionSemestreId, planificacionSemestreId)),
+      ocupaciones: await db.select({ ofertaId: horariosAsignaturas.ofertaId, profesorId: ofertaTipoHora.profesorId, bloqueId: horariosAsignaturas.bloqueId }).from(horariosAsignaturas)
+        .innerJoin(ofertaTipoHora, and(eq(ofertaTipoHora.ofertaId, horariosAsignaturas.ofertaId), eq(ofertaTipoHora.tipoHoraId, horariosAsignaturas.tipoHoraId))).where(eq(horariosAsignaturas.planificacionSemestreId, planificacionSemestreId)),
     };
   },
   async crearExternosEnTransaccion(planificacionSemestreId: number, filas: { asignaturaCodigo: string; profesorId: number; seccion: number; cupos: number; sesiones: { bloqueId: number; tipoHoraId: number }[] }[]) {
@@ -72,8 +87,9 @@ export const horariosRepository = {
       for (const fila of filas) {
         const existente = await tx.query.ofertasAsignaturas.findFirst({ where: and(eq(ofertasAsignaturas.planificacionSemestreId, planificacionSemestreId), eq(ofertasAsignaturas.asignaturaCodigo, fila.asignaturaCodigo), eq(ofertasAsignaturas.seccion, fila.seccion)) });
         if (existente) throw new ConflictError("La oferta ya existe; no se importó ninguna fila.");
-        const { sesiones, ...oferta } = fila;
+        const { sesiones, profesorId, ...oferta } = fila;
         const [creada] = await tx.insert(ofertasAsignaturas).values({ ...oferta, planificacionSemestreId }).returning();
+        for (const tipoHoraId of new Set(sesiones.map(s => s.tipoHoraId))) await tx.insert(ofertaTipoHora).values({ ofertaId: creada.id, tipoHoraId, profesorId });
         for (const sesion of sesiones) await tx.insert(horariosAsignaturas).values({ ...sesion, ofertaId: creada.id, planificacionSemestreId, salaId: null });
       }
     });
@@ -99,9 +115,10 @@ export const horariosRepository = {
       const ofertas = await tx.query.ofertasAsignaturas.findMany({ where: eq(ofertasAsignaturas.planificacionSemestreId, planificacionSemestreId) });
       const reemplazadas = ofertas.filter(oferta => codigos.has(oferta.asignaturaCodigo));
       const idsReemplazados = new Set(reemplazadas.map(oferta => oferta.id));
-      const profesoresPorOferta = new Map(ofertas.map(oferta => [oferta.id, oferta.profesorId]));
+      const asignaciones = await tx.query.ofertaTipoHora.findMany({ where: inArray(ofertaTipoHora.ofertaId, ofertas.map(oferta => oferta.id)) });
+      const profesoresPorOfertaTipo = new Map(asignaciones.map(a => [`${a.ofertaId}:${a.tipoHoraId}`, a.profesorId]));
       const horarios = await tx.query.horariosAsignaturas.findMany({ where: eq(horariosAsignaturas.planificacionSemestreId, planificacionSemestreId) });
-      const ocupaciones = new Set(horarios.filter(horario => !idsReemplazados.has(horario.ofertaId)).map(horario => `${profesoresPorOferta.get(horario.ofertaId)}:${horario.bloqueId}`));
+      const ocupaciones = new Set(horarios.filter(horario => !idsReemplazados.has(horario.ofertaId)).map(horario => `${profesoresPorOfertaTipo.get(`${horario.ofertaId}:${horario.tipoHoraId}`)}:${horario.bloqueId}`));
       const claves = new Set<string>();
       for (const fila of filas) {
         const clave = JSON.stringify([fila.asignaturaCodigo, fila.seccion]);
@@ -116,6 +133,7 @@ export const horariosRepository = {
       let ofertasCreadas = 0; let ofertasActualizadas = 0; let ofertasEliminadas = 0;
       for (const oferta of reemplazadas) {
         await tx.delete(horariosAsignaturas).where(and(eq(horariosAsignaturas.ofertaId, oferta.id), eq(horariosAsignaturas.planificacionSemestreId, planificacionSemestreId)));
+        await tx.delete(ofertaTipoHora).where(eq(ofertaTipoHora.ofertaId, oferta.id));
         if (!claves.has(JSON.stringify([oferta.asignaturaCodigo, oferta.seccion]))) {
           await tx.delete(ofertasAsignaturas).where(and(eq(ofertasAsignaturas.id, oferta.id), eq(ofertasAsignaturas.planificacionSemestreId, planificacionSemestreId)));
           ofertasEliminadas++;
@@ -125,13 +143,14 @@ export const horariosRepository = {
         const existente = reemplazadas.find(oferta => oferta.asignaturaCodigo === fila.asignaturaCodigo && oferta.seccion === fila.seccion);
         let ofertaId: number;
         if (existente) {
-          await tx.update(ofertasAsignaturas).set({ profesorId: fila.profesorId, cupos: fila.cupos }).where(eq(ofertasAsignaturas.id, existente.id));
+          await tx.update(ofertasAsignaturas).set({ cupos: fila.cupos }).where(eq(ofertasAsignaturas.id, existente.id));
           ofertaId = existente.id; ofertasActualizadas++;
         } else {
-          const { sesiones: _, ...oferta } = fila;
+          const { sesiones: _, profesorId: __, ...oferta } = fila;
           const [creada] = await tx.insert(ofertasAsignaturas).values({ ...oferta, planificacionSemestreId }).returning();
           ofertaId = creada.id; ofertasCreadas++;
         }
+        for (const tipoHoraId of new Set(fila.sesiones.map(s => s.tipoHoraId))) await tx.insert(ofertaTipoHora).values({ ofertaId, tipoHoraId, profesorId: fila.profesorId });
         for (const sesion of fila.sesiones) await tx.insert(horariosAsignaturas).values({ ...sesion, ofertaId, planificacionSemestreId, salaId: null });
       }
       return { ofertasCreadas, ofertasActualizadas, ofertasEliminadas };
@@ -166,7 +185,7 @@ export const horariosRepository = {
   async findParaExportarSalas(planificacionSemestreId: number, carreraId?: number) {
     return db.query.horariosAsignaturas.findMany({
       where: and(eq(horariosAsignaturas.planificacionSemestreId, planificacionSemestreId), condicionAlcanceExcel(carreraId)),
-      with: { oferta: { with: { asignatura: { with: { tiposHora: { with: { tipoHora: true } } } }, profesor: { columns: columnasProfesorSinRut } } }, bloque: true, tipoHora: true, sala: true },
+      with: { ...relacionesExcel, oferta: { with: { asignatura: { with: { tiposHora: { with: { tipoHora: true } } } } } }, sala: true },
     });
   },
   async findAll(filtro?: { planificacionSemestreId?: number; ofertaId?: number; salaId?: number; bloqueId?: number; semestreMalla?: number; profesorId?: number }, alcance?: AlcanceCarrera) {
@@ -178,7 +197,9 @@ export const horariosRepository = {
         filtro?.salaId ? eq(horariosAsignaturas.salaId, filtro.salaId) : undefined,
         filtro?.bloqueId ? eq(horariosAsignaturas.bloqueId, filtro.bloqueId) : undefined,
         filtro?.semestreMalla ? inArray(horariosAsignaturas.ofertaId, db.select({ id: ofertasAsignaturas.id }).from(ofertasAsignaturas).innerJoin(asignaturas, eq(ofertasAsignaturas.asignaturaCodigo, asignaturas.codigo)).where(eq(asignaturas.semestreMalla, filtro.semestreMalla))) : undefined,
-        filtro?.profesorId ? inArray(horariosAsignaturas.ofertaId, db.select({ id: ofertasAsignaturas.id }).from(ofertasAsignaturas).where(eq(ofertasAsignaturas.profesorId, filtro.profesorId))) : undefined,
+        filtro?.profesorId ? inArray(horariosAsignaturas.id, db.select({ id: horariosAsignaturas.id }).from(horariosAsignaturas)
+          .innerJoin(ofertaTipoHora, and(eq(ofertaTipoHora.ofertaId, horariosAsignaturas.ofertaId), eq(ofertaTipoHora.tipoHoraId, horariosAsignaturas.tipoHoraId)))
+          .where(eq(ofertaTipoHora.profesorId, filtro.profesorId))) : undefined,
       ), with: relacionesEntrada,
     });
   },
@@ -193,12 +214,12 @@ export const horariosRepository = {
   },
   async findByProfesorBloquePlanificacion(profesorId: number, bloqueId: number, planificacionSemestreId: number) {
     const [resultado] = await db.select({ id: horariosAsignaturas.id, ofertaId: horariosAsignaturas.ofertaId }).from(horariosAsignaturas)
-      .innerJoin(ofertasAsignaturas, eq(horariosAsignaturas.ofertaId, ofertasAsignaturas.id))
-      .where(and(eq(ofertasAsignaturas.profesorId, profesorId), eq(horariosAsignaturas.bloqueId, bloqueId), eq(horariosAsignaturas.planificacionSemestreId, planificacionSemestreId))).limit(1);
+      .innerJoin(ofertaTipoHora, and(eq(horariosAsignaturas.ofertaId, ofertaTipoHora.ofertaId), eq(horariosAsignaturas.tipoHoraId, ofertaTipoHora.tipoHoraId)))
+      .where(and(eq(ofertaTipoHora.profesorId, profesorId), eq(horariosAsignaturas.bloqueId, bloqueId), eq(horariosAsignaturas.planificacionSemestreId, planificacionSemestreId))).limit(1);
     return resultado;
   },
   async findOfertaWithDetails(ofertaId: number) {
-    return db.query.ofertasAsignaturas.findFirst({ where: eq(ofertasAsignaturas.id, ofertaId), with: { asignatura: true, profesor: { columns: columnasProfesorSinRut }, planificacionSemestre: true } });
+    return db.query.ofertasAsignaturas.findFirst({ where: eq(ofertasAsignaturas.id, ofertaId), with: { asignatura: true, asignaciones: { with: { profesor: { columns: columnasProfesorSinRut } } }, planificacionSemestre: true } });
   },
   async checkSalaExists(id: number) { return !!await db.query.salas.findFirst({ where: eq(salas.id, id) }); },
   async checkBloqueExists(id: number) { return !!await db.query.bloquesHorarios.findFirst({ where: eq(bloquesHorarios.id, id) }); },
@@ -211,6 +232,7 @@ export const horariosRepository = {
       return [datos.planificacionSemestreId, ofertaPlanificacionId];
     }, async tx => {
       exigirMismaPlanificacion(datos.planificacionSemestreId, ofertaPlanificacionId);
+      await exigirHorarioValido(tx, datos);
       const [creada] = await tx.insert(horariosAsignaturas).values(datos).returning();
       return creada;
     });
@@ -226,6 +248,8 @@ export const horariosRepository = {
       return [origen.planificacionSemestreId, destino, ofertaPlanificacionId];
     }, async tx => {
       exigirMismaPlanificacion(destino, ofertaPlanificacionId);
+      const origen = await leerHorario(tx, id);
+      await exigirHorarioValido(tx, { ...origen, ...datos }, id);
       const [actualizada] = await tx.update(horariosAsignaturas).set(datos).where(eq(horariosAsignaturas.id, id)).returning();
       return actualizada;
     });

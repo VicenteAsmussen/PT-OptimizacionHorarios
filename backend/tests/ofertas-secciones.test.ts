@@ -25,7 +25,7 @@ import { ofertasRepository } from "../src/repositories/ofertas.repository.js";
 import { ofertasService } from "../src/services/ofertas.service.js";
 import { planificacionesSemestresService } from "../src/services/planificaciones-semestres.service.js";
 
-const datos = { asignaturaCodigo: "INF100", profesorId: 7, planificacionSemestreId: 3, seccion: 1, cupos: 0 };
+const datos = { asignaturaCodigo: "INF100", asignaciones: [{ tipoHoraId: 1, profesorId: 7 }], planificacionSemestreId: 3, seccion: 1, cupos: 0 };
 const oferta = { id: 9, ...datos, planificacionSemestre: { carreraId: 1 }, horarios: [] };
 const alcance: AlcanceCarrera = {
   carreraId: 1, asignaturasCodigos: [datos.asignaturaCodigo], profesoresIds: [7, 8],
@@ -50,14 +50,14 @@ describe("Secciones de ofertas (sin base de datos)", () => {
     expect(updateOfertaValidation.safeParse({ seccion }).success).toBe(false);
   });
 
-  it("conserva sección por defecto, actualización parcial, profesor obligatorio y cupos no negativos", () => {
-    const { seccion, profesorId, ...sinProfesor } = datos;
-    expect(createOfertaValidation.parse({ ...sinProfesor, profesorId }).seccion).toBe(1);
+  it("conserva sección por defecto, actualización parcial, asignaciones opcionales y cupos no negativos", () => {
+    const { seccion, asignaciones, ...sinProfesor } = datos;
+    expect(createOfertaValidation.parse({ ...sinProfesor, asignaciones }).seccion).toBe(1);
     expect(updateOfertaValidation.parse({ cupos: 5 })).toEqual({ cupos: 5 });
-    expect(createOfertaValidation.safeParse(sinProfesor).success).toBe(false);
+    expect(createOfertaValidation.parse(sinProfesor).asignaciones).toEqual([]);
     for (const valor of [null, 0, -1, 1.5]) {
-      expect(createOfertaValidation.safeParse({ ...datos, profesorId: valor }).success).toBe(false);
-      expect(updateOfertaValidation.safeParse({ profesorId: valor }).success).toBe(false);
+      expect(createOfertaValidation.safeParse({ ...datos, asignaciones: [{ tipoHoraId: 1, profesorId: valor }] }).success).toBe(false);
+      expect(updateOfertaValidation.safeParse({ asignaciones: [{ tipoHoraId: 1, profesorId: valor }] }).success).toBe(false);
     }
     expect(createOfertaValidation.safeParse({ ...datos, cupos: -1 }).success).toBe(false);
     expect(updateOfertaValidation.safeParse({ cupos: -1 }).success).toBe(false);
@@ -65,7 +65,7 @@ describe("Secciones de ofertas (sin base de datos)", () => {
 });
 
 function simularGuardiaBorrado() {
-  const filaOferta = [9, "INF100", 7, 3, 1, 0];
+  const filaOferta = [9, "INF100", 3, 1, 0];
   const planificacion = [3, 1, "2027-1", true, "preparacion"];
   respuestas.push([filaOferta], [planificacion], [[1]], [planificacion], [filaOferta]);
 }
@@ -74,6 +74,7 @@ function simularOferta() {
   vi.spyOn(ofertasRepository, "findById").mockResolvedValue(oferta as any);
   vi.spyOn(ofertasRepository, "checkAsignaturaExists").mockResolvedValue(true);
   vi.spyOn(ofertasRepository, "checkProfesorExists").mockResolvedValue(true);
+  vi.spyOn(ofertasRepository, "findTiposAsignatura").mockResolvedValue([{ asignaturaCodigo: "INF100", tipoHoraId: 1, horas: 4 }]);
   vi.spyOn(planificacionesSemestresService, "exigirAsignatura").mockResolvedValue({ id: 3, carreraId: 1 } as never);
   vi.spyOn(ofertasRepository, "findByUniqueConstraint").mockResolvedValue(undefined);
 }
@@ -108,11 +109,12 @@ describe("Reglas del servicio de ofertas", () => {
     simularOferta();
     const crear = vi.spyOn(ofertasRepository, "create").mockResolvedValue(oferta);
     const actualizar = vi.spyOn(ofertasRepository, "update").mockResolvedValue(oferta);
-    await ofertasService.createOferta({ ...datos, profesorId: 99 }, alcance);
-    await ofertasService.updateOferta(9, { profesorId: 99 }, alcance);
+    const asignaciones = [{ tipoHoraId: 1, profesorId: 99 }];
+    await ofertasService.createOferta({ ...datos, asignaciones }, alcance);
+    await ofertasService.updateOferta(9, { asignaciones }, alcance);
     expect(ofertasRepository.checkProfesorExists).toHaveBeenCalledWith(99);
-    expect(crear).toHaveBeenCalledWith({ ...datos, profesorId: 99 });
-    expect(actualizar).toHaveBeenCalledWith(9, { profesorId: 99 }, 3);
+    expect(crear).toHaveBeenCalledWith({ ...datos, asignaciones });
+    expect(actualizar).toHaveBeenCalledWith(9, { asignaciones }, 3);
   });
 
   it("conserva rechazo de asignaturas fuera del alcance sin escribir", async () => {
@@ -138,9 +140,9 @@ describe("Reglas del servicio de ofertas", () => {
     const crear = vi.spyOn(ofertasRepository, "create");
     const actualizar = vi.spyOn(ofertasRepository, "update");
     vi.mocked(ofertasRepository.checkProfesorExists).mockResolvedValue(false);
-    await expect(ofertasService.createOferta({ ...datos, profesorId: 99 }, alcanceUsuario))
+    await expect(ofertasService.createOferta({ ...datos, asignaciones: [{ tipoHoraId: 1, profesorId: 99 }] }, alcanceUsuario))
       .rejects.toMatchObject({ statusCode: 400 });
-    await expect(ofertasService.updateOferta(9, { profesorId: 99 }, alcanceUsuario))
+    await expect(ofertasService.updateOferta(9, { asignaciones: [{ tipoHoraId: 1, profesorId: 99 }] }, alcanceUsuario))
       .rejects.toMatchObject({ statusCode: 400 });
     expect(crear).not.toHaveBeenCalled();
     expect(actualizar).not.toHaveBeenCalled();
@@ -148,7 +150,7 @@ describe("Reglas del servicio de ofertas", () => {
 
   it("visibilidad, edición y borrado dependen de la asignatura, no del profesor externo", async () => {
     simularOferta();
-    const externa = { ...oferta, profesorId: 99 };
+    const externa = { ...oferta, asignaciones: [{ tipoHoraId: 1, profesorId: 99 }] };
     vi.mocked(ofertasRepository.findById).mockResolvedValue(externa as never);
     const actualizar = vi.spyOn(ofertasRepository, "update").mockResolvedValue(externa);
     const eliminar = vi.spyOn(ofertasRepository, "delete").mockResolvedValue(true);

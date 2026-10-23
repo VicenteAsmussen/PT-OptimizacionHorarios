@@ -26,7 +26,8 @@ aplicacion.use("/horarios", horariosRouter);
 aplicacion.use((error: { statusCode?: number }, _req: Request, res: Response, _next: NextFunction) => res.sendStatus(error.statusCode ?? 500));
 function entrada(id = 1, codigo = "INF100", salaId: number | null = null) {
   return { id, ofertaId: id, bloqueId: 10, salaId, planificacionSemestreId: 9, tipoHoraId: 1,
-    oferta: { seccion: 2, profesorId: 7, profesor: { nombre: "Ana Pérez" },
+    asignacion: { profesorId: 7, profesor: { nombre: "Ana Pérez" } },
+    oferta: { seccion: 2,
       asignatura: { codigo, nombre: "Programación", semestreMalla: 3 } },
     bloque: { dia: "Lunes", numeroBloque: 1, horaInicio: "08:10", horaTermino: "08:50" }, tipoHora: { tipo: "Teórica" } };
 }
@@ -138,7 +139,7 @@ describe("Importación Excel todo-o-nada", () => {
     expect((await horariosService.importarExcelSalas(9, await archivo([opcionales]))).errores).toEqual([]);
   });
   it("rechaza claves visibles ambiguas sin usar el profesor para desambiguar", async () => {
-    const otra = entrada(2); otra.oferta.profesorId = 8;
+    const otra = entrada(2); otra.asignacion.profesorId = 8;
     vi.mocked(horariosRepository.findParaImportarSalas).mockResolvedValue({ entradas: [entrada(), otra], salas: [{ id: 4, nombre: "101-AA" }] } as never);
     expect((await horariosService.importarExcelSalas(9, await archivo())).errores[0]).toMatchObject({ fila: 2, columna: "Horario 1" });
     expect(horariosRepository.actualizarSalasEnTransaccion).not.toHaveBeenCalled();

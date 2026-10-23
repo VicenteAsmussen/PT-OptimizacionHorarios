@@ -4,6 +4,18 @@ import { planificacionesSemestresService } from "./planificaciones-semestres.ser
 import type { CreateOfertaDTO, UpdateOfertaDTO, OfertaQueryDTO } from "../validations/ofertas.validation.js";
 import { NotFoundError, ConflictError, BadRequestError } from "../utils/errors.js";
 
+async function validarAsignaciones(codigo: string, asignaciones: CreateOfertaDTO["asignaciones"]) {
+  if (!asignaciones.length) return;
+  const tipos = await ofertasRepository.findTiposAsignatura(codigo);
+  if (new Set(asignaciones.map(a => a.tipoHoraId)).size !== asignaciones.length
+    || asignaciones.some(a => !tipos.some(t => t.tipoHoraId === a.tipoHoraId))) {
+    throw new BadRequestError("Las asignaciones deben tener tipos de hora únicos definidos para la asignatura");
+  }
+  for (const asignacion of asignaciones) if (!await ofertasRepository.checkProfesorExists(asignacion.profesorId)) {
+    throw new BadRequestError(`El profesor con ID ${asignacion.profesorId} no existe`);
+  }
+}
+
 export const ofertasService = {
   async getAllOfertas(filtro?: OfertaQueryDTO, alcance?: AlcanceCarrera) {
     if (filtro?.planificacionSemestreId) await planificacionesSemestresService.getById(filtro.planificacionSemestreId, alcance);
@@ -17,7 +29,7 @@ export const ofertasService = {
   async createOferta(datos: CreateOfertaDTO, alcance?: AlcanceCarrera) {
     await planificacionesSemestresService.exigirAsignatura(datos.planificacionSemestreId, datos.asignaturaCodigo, alcance);
     // La selección de profesores sigue siendo global, independiente de su departamento.
-    if (!await ofertasRepository.checkProfesorExists(datos.profesorId)) throw new BadRequestError(`El profesor con ID ${datos.profesorId} no existe`);
+    await validarAsignaciones(datos.asignaturaCodigo, datos.asignaciones ?? []);
     if (await ofertasRepository.findByUniqueConstraint(datos.asignaturaCodigo, datos.planificacionSemestreId, datos.seccion)) throw new ConflictError("Ya existe esta sección en la planificación");
     const creada = await ofertasRepository.create(datos);
     return this.getOfertaById(creada.id, alcance);
@@ -28,7 +40,7 @@ export const ofertasService = {
     const planificacionSemestreId = datos.planificacionSemestreId ?? existente.planificacionSemestreId;
     const seccion = datos.seccion ?? existente.seccion;
     await planificacionesSemestresService.exigirAsignatura(planificacionSemestreId, codigo, alcance);
-    if (datos.profesorId && !await ofertasRepository.checkProfesorExists(datos.profesorId)) throw new BadRequestError(`El profesor con ID ${datos.profesorId} no existe`);
+    await validarAsignaciones(codigo, datos.asignaciones ?? existente.asignaciones);
     const conflicto = await ofertasRepository.findByUniqueConstraint(codigo, planificacionSemestreId, seccion);
     if (conflicto && conflicto.id !== id) throw new ConflictError("Ya existe esta sección en la planificación");
     if (planificacionSemestreId !== existente.planificacionSemestreId && existente.horarios.length) throw new ConflictError("No se puede trasladar una oferta con horarios asociados");

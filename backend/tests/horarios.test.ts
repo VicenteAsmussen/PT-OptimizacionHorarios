@@ -37,13 +37,14 @@ describe.skipIf(!runDatabaseTests)("Gestión de Horarios y Choques (/api/horario
     tipoHoraId = (await db.query.tiposHora.findFirst())!.id;
     const asignatura = await request(app).post("/api/asignaturas").set("Cookie", secretariaCookie).send({
       codigo: asignaturaCodigo, nombre: "Estructuras de Datos Test", semestreMalla: 3,
-      departamentoId: perfil!.departamentoId, carrerasIds: [secretariaPerfil!.carreraId], esCritica: false,
+       departamentoId: perfil!.departamentoId, carrerasIds: [secretariaPerfil!.carreraId], esCritica: false,
+       tiposHora: [{ tipoHoraId, horas: 4 }],
     });
     expect(asignatura.status).toBe(201);
     const ofertas: number[] = [];
     for (const seccion of [1, 2]) {
       const respuesta = await request(app).post("/api/ofertas-asignaturas").set("Cookie", secretariaCookie)
-        .send({ asignaturaCodigo, profesorId, planificacionSemestreId, seccion, cupos: 30 });
+        .send({ asignaturaCodigo, asignaciones: [{ tipoHoraId, profesorId }], planificacionSemestreId, seccion, cupos: 30 });
       expect(respuesta.status).toBe(201);
       ofertas.push(respuesta.body.data.id);
     }
