@@ -6,10 +6,17 @@ import { profesores, columnasProfesorSinRut } from "../db/schema/profesores.sche
 import { bloquesHorarios } from "../db/schema/bloques-horarios.schema.js";
 import { horariosAsignaturas } from "../db/schema/horarios-asignaturas.schema.js";
 import { planificacionesSemestresRepository } from "./planificaciones-semestres.repository.js";
-import { conPlanificacionesEditables } from "./planificacion-escritura.js";
+import { conPlanificacionesEditables, type TransaccionPlanificacion } from "./planificacion-escritura.js";
 import { NotFoundError } from "../utils/errors.js";
 
 const relacionesDisponibilidad = { profesor: { columns: columnasProfesorSinRut }, planificacionSemestre: true as const, bloque: true as const };
+export async function reemplazarDisponibilidad(tx: TransaccionPlanificacion, profesorId: number, planificacionSemestreId: number, bloquesIds: number[]) {
+  const condicion = and(eq(disponibilidadProfesores.profesorId, profesorId), eq(disponibilidadProfesores.planificacionSemestreId, planificacionSemestreId));
+  const unicos = [...new Set(bloquesIds)];
+  await tx.delete(disponibilidadProfesores).where(condicion);
+  if (unicos.length) await tx.insert(disponibilidadProfesores).values(unicos.map(bloqueId => ({ profesorId, planificacionSemestreId, bloqueId })));
+  return tx.query.disponibilidadProfesores.findMany({ where: condicion, with: relacionesDisponibilidad });
+}
 export const disponibilidadRepository = {
   async findAll(filtro?: { profesorId?: number; planificacionSemestreId?: number }, alcance?: AlcanceCarrera) {
     return db.query.disponibilidadProfesores.findMany({
@@ -46,12 +53,7 @@ export const disponibilidadRepository = {
     });
   },
   async syncDisponibilidad(profesorId: number, planificacionSemestreId: number, bloquesIds: number[]) {
-    return conPlanificacionesEditables(async () => [planificacionSemestreId], async tx => {
-      const condicion = and(eq(disponibilidadProfesores.profesorId, profesorId), eq(disponibilidadProfesores.planificacionSemestreId, planificacionSemestreId));
-      await tx.delete(disponibilidadProfesores).where(condicion);
-      if (bloquesIds.length) await tx.insert(disponibilidadProfesores).values(bloquesIds.map(bloqueId => ({ profesorId, planificacionSemestreId, bloqueId })));
-      return tx.query.disponibilidadProfesores.findMany({ where: condicion, with: relacionesDisponibilidad });
-    });
+    return conPlanificacionesEditables(async () => [planificacionSemestreId], tx => reemplazarDisponibilidad(tx, profesorId, planificacionSemestreId, bloquesIds));
   },
   async delete(id: number) {
     return conPlanificacionesEditables(async tx => {

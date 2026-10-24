@@ -1,22 +1,22 @@
-# Teaching assignments by section and hour type
+# Asignación docente por sección y tipo de hora
 
-Each offer identifies a course section in a semester plan. Teachers are assigned through `oferta_tipo_hora`, not directly on `ofertas_asignaturas`.
+Cada oferta representa una sección de una asignatura en una planificación semestral. Sus profesores se asignan por tipo de hora mediante `oferta_tipo_hora`, no directamente en `ofertas_asignaturas`.
 
-## Section editing
+## Editar una sección
 
-In **Asignaturas → Secciones**, select a teacher separately for each curriculum hour type. The same teacher may cover multiple types and sections. A section can be saved without all teachers; the list identifies the hour types still awaiting assignment.
+En **Asignaturas > Secciones**, elige un profesor para cada tipo de hora. Un mismo docente puede cubrir varios tipos y secciones. Puedes guardar una sección incompleta, los tipos sin profesor quedan identificados como pendientes.
 
-The editor shows compact rows for hour type, hours and teacher. Type a name or RUT directly into a teacher field; suggestions show the name, RUT and department. Selecting a suggestion fills the field. Clearing or rewriting a selected field makes that type pending until another suggestion is selected; unmatched text never identifies a teacher. Suggestions also support arrow keys, Enter and Escape.
+Escribe el nombre o RUT y elige una sugerencia, que muestra nombre, RUT y departamento. También puedes usar las flechas, Enter y Escape. El texto escrito por sí solo no asigna un profesor. Si borras o cambias una selección, ese tipo queda pendiente hasta que elijas otra sugerencia.
 
-Selecting a teacher for the first displayed type fills only the other types that have no teacher. Existing assignments are never overwritten. Each lower field can then be cleared and assigned independently. There is no separate multiple-assignment control; changes are persisted only by **Guardar sección**.
+Elegir al docente del primer tipo completa los demás campos vacíos, sin reemplazar asignaciones existentes. Después puedes ajustar cada campo por separado. Los cambios se guardan únicamente con **Guardar sección**.
 
-**Editar asignatura** displays the curriculum hour breakdown as read-only information. Editing the subject's other fields does not modify that breakdown.
+**Editar asignatura** muestra las horas de la malla como información de solo lectura, editar otros datos no las modifica.
 
-Only current plans in `preparacion` can be edited. Existing career scope and the global teacher-selection catalog are unchanged.
+Solo se editan planificaciones actuales en `preparacion`. Se conserva el alcance por carrera y el catálogo global de profesores.
 
-## API contract
+## Datos de la API
 
-Offer creation and updates use `asignaciones` instead of the former singular `profesorId`:
+Al crear o actualizar una oferta, usa `asignaciones` en lugar del antiguo `profesorId`:
 
 ```json
 {
@@ -31,23 +31,21 @@ Offer creation and updates use `asignaciones` instead of the former singular `pr
 }
 ```
 
-- Creation without `asignaciones` creates an incomplete section.
-- On update, omitted `asignaciones` preserves existing assignments; a supplied array replaces the set. `[]` removes all assignments only when no schedules depend on them.
-- Each `(ofertaId, tipoHoraId)` admits exactly one teacher. Manual assignments must use hour types defined for that course.
-- A scheduled type must have an assignment. Removing its assignment is rejected while schedules exist; reassigning its teacher is rejected if it creates a schedule conflict.
-- Offer responses include `asignaciones` with their hour type and teacher. Schedule responses include `asignacion`; teacher schedule filters match both offer and hour type.
-- Nested teacher projections continue to exclude RUT. Professor management returns typed `asignaciones` rather than singular-teacher `ofertas`.
+- Al crear, omitir `asignaciones` deja la sección incompleta. Al actualizar, omitirlas conserva las existentes y enviar un arreglo las reemplaza. `[]` las elimina solo si no tienen horarios asociados.
+- Cada `(ofertaId, tipoHoraId)` admite un profesor y debe usar un tipo definido para la asignatura. No se puede quitar una asignación con horarios ni cambiar su docente si genera un conflicto.
+- Las ofertas devuelven `asignaciones` y los horarios, `asignacion`. El filtro por profesor considera oferta y tipo de hora. La gestión de profesores también devuelve `asignaciones`, no el antiguo campo `ofertas`.
+- Los datos anidados del profesor no incluyen su RUT.
 
-## Existing Excel files
+## Compatibilidad con Excel
 
-The [external department Excel format](horarios-externos.md) does not change. Each accepted row supplies one teacher and typed sessions. Import creates one assignment per distinct session type using that teacher, then stores its schedule blocks. Reimport replaces both the section's assignments and schedules within the existing transaction.
+El [formato de horarios externos](horarios-externos.md) no cambia. Cada fila aporta un profesor y sus sesiones, la importación crea una asignación por tipo de hora y guarda los bloques. Al reimportar, asignaciones y horarios se reemplazan juntos en una transacción.
 
-Existing duplicate-section rejection, coverage, scope, all-or-nothing behavior, diagnostics and counters remain unchanged. This format cannot represent different teachers for different types within one section. Room export/import retains its visible format and resolves the teacher from each scheduled type.
+Se mantienen las validaciones de duplicados, cobertura y alcance, junto con los errores y contadores. Este formato no permite distintos profesores por tipo dentro de una misma sección. El Excel de salas conserva su formato y obtiene al docente desde el tipo programado.
 
-## Migration and verification
+## Migración
 
-Migration `0015_asignacion_docente_por_tipo_hora.sql` creates the assignment table, copies the legacy teacher for existing scheduled types, links schedules to their assignment, and removes the old offer column. Offers without schedules remain incomplete; assignments for unscheduled types must be reviewed manually. No automatic database reset is required.
+La migración `0015_asignacion_docente_por_tipo_hora.sql` crea la relación, copia el profesor anterior para los tipos programados, vincula sus horarios y elimina la columna antigua de la oferta. Las ofertas sin horarios quedan incompletas y los tipos sin programación requieren revisión manual.
 
-Apply the migration only to the intended environment after reviewing the change. Existing data permission does not require resetting the development database. Run the documented [isolated PostgreSQL checks](pruebas-excel-externos.md) before applying it to a working database.
+Revisa el entorno antes de aplicarla y ejecuta las [pruebas aisladas de PostgreSQL](pruebas-excel-externos.md). **No es necesario reiniciar ni borrar la base de desarrollo.**
 
-Availability entry and workload-to-block conversion are outside this change.
+Para el cálculo de carga y el registro de bloques, consulta [Disponibilidad del profesor](disponibilidad-profesor.md).

@@ -1,5 +1,13 @@
 import { z } from "zod";
 
+export const miDisponibilidadQueryValidation = z.object({
+  planificacionSemestreId: z.coerce.number().int().positive().optional(),
+}).strict();
+export const miDisponibilidadValidation = z.object({
+  planificacionSemestreId: z.number().int().positive(),
+  bloquesIds: z.array(z.number().int().positive()),
+}).strict();
+
 export const createDisponibilidadValidation = z.object({
   profesorId: z.number().int().positive(),
   planificacionSemestreId: z.number().int().positive(),

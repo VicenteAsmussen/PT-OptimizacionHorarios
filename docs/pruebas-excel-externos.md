@@ -1,39 +1,38 @@
 # Verificar la importación Excel con PostgreSQL
 
-Desde la raíz del repositorio, con Docker Desktop iniciado en modo Linux:
+Con Docker Desktop en modo Linux, ejecuta desde la raíz del repositorio:
 
 ```powershell
 powershell -NoProfile -File scripts/probar-excel-externos.ps1
 ```
 
-El comando usa el servicio PostgreSQL del `docker-compose.yml` habitual y crea, si no existe, la base `horarios_test` con el usuario restringido `pruebas_horarios`. Espera a que PostgreSQL acepte conexiones TCP, con un máximo de 30 comprobaciones y pausas de un segundo; si no está listo, se detiene sin preparar la base. Después ejecuta las migraciones y pruebas en un contenedor temporal del backend. No requiere instalar Node.js ni pnpm en la máquina anfitriona. El backend debe tener su imagen construida; si todavía no existe, ejecutar primero `docker compose build backend`.
+No necesitas Node.js ni pnpm en tu equipo. Si aún no está construida la imagen del backend, ejecuta primero `docker compose build backend`.
+
+El script usa PostgreSQL del Compose habitual y prepara `horarios_test` con el usuario restringido `pruebas_horarios`. Espera conexiones TCP hasta 30 veces, con pausas de un segundo. Si el servidor no está listo, se detiene sin preparar la base. Después aplica migraciones y ejecuta las pruebas en un contenedor temporal.
 
 ## Qué comprueba
 
-- Identificación de asignaturas por código y profesores por RUT, dentro del alcance autorizado. Sus nombres en el Excel son informativos: pueden estar vacíos o diferir, sin modificar los nombres del catálogo. Las columnas de nombres siguen formando parte del formato común.
-- Reemplazo de secciones, cambio de profesor y cupos, creación de ofertas nuevas y eliminación de secciones ausentes.
-- Conservación del identificador de las ofertas existentes y de los datos de otras carreras, departamentos y planificaciones.
-- Reimportación sin duplicados y aceptación de ofertas de distinta paridad de semestre de malla.
-- Cobertura obligatoria según el período seleccionado: niveles impares en `-1` y pares en `-2`. La ausencia de niveles opcionales se permite; los obligatorios faltantes rechazan el archivo sin modificar datos. Consulta de cobertura persistida dentro del alcance autorizado.
-- Errores con asignatura, columna y valor, sin modificar datos cuando el archivo es inválido o no tiene asignaturas pertinentes.
-- Rechazo de una planificación publicada.
-- Reversión real en PostgreSQL: un trigger de prueba provoca un fallo después de eliminaciones, actualizaciones e inserciones. La huella de todas las filas de las tablas públicas debe quedar idéntica. Las secuencias no se comparan porque PostgreSQL no revierte `nextval`.
-- Rechazo de destinos distintos de la base desechable antes de importar la configuración de la aplicación o abrir conexiones.
+- Asignaturas por código y profesores por RUT, dentro del alcance autorizado. Las columnas de nombres siguen siendo necesarias, pero sus valores son informativos y no cambian el catálogo.
+- Creación, actualización y eliminación de secciones, incluidos profesor y cupos, sin duplicados al reimportar. Los identificadores existentes y los datos de otras carreras, departamentos y períodos se conservan.
+- Cobertura por período, con niveles impares obligatorios en `-1` y pares en `-2`. Se aceptan niveles de otra paridad y faltantes opcionales. Los obligatorios faltantes rechazan el archivo. También se comprueba la consulta de cobertura guardada.
+- Rechazo de archivos inválidos, sin asignaturas pertinentes o dirigidos a una planificación publicada, sin modificar datos. Los errores identifican asignatura, columna y valor.
+- Reversión real ante un fallo provocado después de insertar, actualizar y eliminar. La huella de todas las filas públicas debe conservarse. No se comparan secuencias, PostgreSQL no revierte `nextval`.
+- Rechazo de una base no autorizada antes de cargar la configuración o abrir conexiones.
 
 ## Base de pruebas reutilizable
 
-`horarios_db` sigue siendo la base de desarrollo. `horarios_test` es exclusivamente para pruebas automatizadas: sus tablas se vacían y se reconstruyen con fixtures sintéticos en cada prueba. Se conserva en el volumen PostgreSQL habitual para reutilizarla; no debe contener datos que se quieran mantener. El rol de pruebas no es superusuario, no crea bases ni roles y no hereda privilegios de otros roles.
+**Nunca uses `horarios_db` para estas pruebas.** `horarios_test` se conserva en el volumen habitual, pero sus tablas se vacían y cargan con datos sintéticos en cada caso. No guardes allí información que quieras conservar. Su usuario no es superusuario, no crea bases ni roles y no hereda privilegios.
 
-El preparador comprueba propietario, marca de administración y atributos del rol antes de reutilizar una base existente. No borra bases ni cambia contraseñas de roles existentes. Si encuentra una base `horarios_test` ajena o un rol con privilegios inesperados, se detiene sin reiniciar datos. La prueba valida destino y usuario antes de conectarse, comprueba la identidad real y toma un bloqueo exclusivo para impedir dos ejecuciones de este flujo a la vez.
+Antes de reutilizarla, el preparador verifica propietario, marca de administración y privilegios del rol. Si no coinciden, se detiene sin reiniciar datos. No borra bases ni cambia contraseñas existentes. La prueba valida destino y usuario antes de conectarse, confirma la identidad real y toma un bloqueo exclusivo.
 
-No hay otro archivo Compose por funcionalidad. Para preparar esta misma base para futuras pruebas de otros módulos puede usarse `powershell -NoProfile -File scripts/preparar-base-pruebas.ps1`; ese comando solo prepara la base y el rol, no aplica migraciones ni carga fixtures. Las futuras pruebas que la reinicien deben usar la misma protección y el bloqueo `(18874001, 1)`; las suites antiguas que requieren el seed normal no deben ejecutarse junto con los fixtures mínimos del Excel.
+Para preparar solo la base y el rol, sin migraciones ni datos, usa `powershell -NoProfile -File scripts/preparar-base-pruebas.ps1`. Otros módulos deben reutilizar esta protección y el bloqueo `(18874001, 1)`, no necesitan otro Compose. No ejecutes suites que requieren la carga inicial habitual junto con los datos mínimos de Excel.
 
 ## Resultado y limpieza
 
-Una ejecución correcta muestra las pruebas aprobadas y termina con código `0`. Durante la prueba de reversión es normal que PostgreSQL registre el error deliberado `forced external Excel failure after persisted changes`; la suite debe terminar aprobada. Los errores de preparación o de pruebas devuelven código distinto de cero.
+Una ejecución correcta termina con código `0`. El mensaje `forced external Excel failure after persisted changes` es esperado en la prueba de reversión, pero la prueba debe aprobar. Cualquier fallo de preparación o prueba devuelve otro código.
 
-Docker elimina el contenedor temporal del backend al terminar. PostgreSQL, el backend habitual, pgAdmin y sus volúmenes siguen funcionando. Los fixtures de la última prueba permanecen en `horarios_test` hasta la próxima ejecución; no se borra la base ni se usa `docker compose down -v`.
+Al terminar se elimina solo el contenedor temporal. Los servicios habituales y volúmenes siguen funcionando, y los datos de la última prueba quedan en `horarios_test` hasta la siguiente ejecución. No se borra la base ni se usa `docker compose down -v`.
 
-Esta prueba llama al servicio real de importación y consulta PostgreSQL sin mocks. No sustituye una prueba HTTP multipart, de interfaz gráfica ni de concurrencia entre procesos.
+Se comprueba el servicio real y PostgreSQL, sin simulaciones. Esto no prueba la carga HTTP multipart, la interfaz ni la concurrencia entre procesos.
 
-La suite normal omite las pruebas PostgreSQL cuando no se solicita este entorno explícito mediante `BASE_PRUEBAS_REINICIABLE=yes`. El comando dedicado nunca debe omitirlas ni ejecutarse contra `horarios_db`.
+Estas pruebas de Excel se omiten sin `BASE_PRUEBAS_REINICIABLE=yes`. El comando dedicado debe ejecutarlas siempre sobre la base de pruebas, nunca sobre `horarios_db`. Esto no implica que las demás pruebas de la suite estén aisladas de la base configurada.

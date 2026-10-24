@@ -9,12 +9,19 @@ import {
   disponibilidadQueryValidation,
   disponibilidadIdParamValidation,
   profesorPlanificacionParamValidation,
+  miDisponibilidadQueryValidation,
+  miDisponibilidadValidation,
 } from "../validations/disponibilidad.validation.js";
 
 const router = Router();
 
 // Todas las rutas de disponibilidad requieren estar autenticado
 router.use(authenticate);
+
+router.get("/mi-disponibilidad", authorizeRoles("profesor"),
+  validateRequest({ query: miDisponibilidadQueryValidation }), disponibilidadController.getMiDisponibilidad);
+router.post("/mi-disponibilidad", authorizeRoles("profesor"),
+  validateRequest({ body: miDisponibilidadValidation }), disponibilidadController.guardarMiDisponibilidad);
 
 // Consultar disponibilidad: permitido para admin, secretaria y profesor
 router.get(

@@ -4,6 +4,7 @@ import { planificacionesSemestresRepository } from "../repositories/planificacio
 import { planificacionesSemestresService, type UsuarioPlanificacion } from "./planificaciones-semestres.service.js";
 import type { CreateDisponibilidadDTO, SyncDisponibilidadDTO, DisponibilidadQueryDTO } from "../validations/disponibilidad.validation.js";
 import { NotFoundError, ConflictError, BadRequestError, ForbiddenError } from "../utils/errors.js";
+import { miDisponibilidadService } from "./mi-disponibilidad.service.js";
 
 async function exigirProfesorPropio(profesorId: number, usuario?: UsuarioPlanificacion) {
   if (usuario?.rol !== "profesor") return;
@@ -24,11 +25,10 @@ export const disponibilidadService = {
       const profesor = await planificacionesSemestresRepository.findProfesorByUsuarioId(usuario.id);
       if (!profesor) throw new ForbiddenError("No existe un perfil de profesor asociado");
       if (consulta?.profesorId && consulta.profesorId !== profesor.id) throw new ForbiddenError("Solo puede consultar su propia disponibilidad");
-      if (consulta?.planificacionSemestreId) await planificacionesSemestresService.getById(consulta.planificacionSemestreId, alcance, usuario);
+      const contexto = await miDisponibilidadService.get(usuario, consulta?.planificacionSemestreId, true);
       filtro = { ...consulta, profesorId: profesor.id };
-      const planificaciones = await planificacionesSemestresService.getAll(undefined, alcance, usuario);
-      const permitidas = new Set(planificaciones.map(fila => fila.id));
-      return (await disponibilidadRepository.findAll(filtro, alcance)).filter(fila => permitidas.has(fila.planificacionSemestreId));
+      const permitidas = new Set(contexto.planificaciones.map(fila => fila.id));
+      return (await disponibilidadRepository.findAll(filtro)).filter(fila => permitidas.has(fila.planificacionSemestreId));
     }
     if (consulta?.planificacionSemestreId) await planificacionesSemestresService.getById(consulta.planificacionSemestreId, alcance, usuario);
     return disponibilidadRepository.findAll(filtro, alcance);
@@ -37,10 +37,15 @@ export const disponibilidadService = {
     const registro = await disponibilidadRepository.findById(id);
     if (!registro) throw new NotFoundError(`Registro de disponibilidad con ID ${id} no encontrado`);
     await exigirProfesorPropio(registro.profesorId, usuario);
-    await planificacionesSemestresService.getById(registro.planificacionSemestreId, alcance, usuario);
+    if (usuario?.rol === "profesor") await miDisponibilidadService.get(usuario, registro.planificacionSemestreId, true);
+    else await planificacionesSemestresService.getById(registro.planificacionSemestreId, alcance, usuario);
     return registro;
   },
   async createSingle(datos: CreateDisponibilidadDTO, alcance?: AlcanceCarrera, usuario?: UsuarioPlanificacion) {
+    if (usuario?.rol === "profesor") {
+      const resultado = await miDisponibilidadService.modificar(usuario, datos.planificacionSemestreId, { agregar: datos.bloqueId }, datos.profesorId);
+      return resultado.filas.find(fila => fila.bloqueId === datos.bloqueId)!;
+    }
     exigirEnAlcance(alcance?.profesoresIds, datos.profesorId);
     await exigirProfesorPropio(datos.profesorId, usuario);
     await exigirEditable(datos.planificacionSemestreId, alcance, usuario);
@@ -51,6 +56,7 @@ export const disponibilidadService = {
     return this.getById(creada.id, alcance, usuario);
   },
   async syncGrid(datos: SyncDisponibilidadDTO, alcance?: AlcanceCarrera, usuario?: UsuarioPlanificacion) {
+    if (usuario?.rol === "profesor") return (await miDisponibilidadService.modificar(usuario, datos.planificacionSemestreId, { bloquesIds: datos.bloquesIds }, datos.profesorId)).filas;
     exigirEnAlcance(alcance?.profesoresIds, datos.profesorId);
     await exigirProfesorPropio(datos.profesorId, usuario);
     await exigirEditable(datos.planificacionSemestreId, alcance, usuario);
@@ -62,11 +68,16 @@ export const disponibilidadService = {
   },
   async deleteSingle(id: number, alcance?: AlcanceCarrera, usuario?: UsuarioPlanificacion) {
     const registro = await this.getById(id, alcance, usuario);
+    if (usuario?.rol === "profesor") {
+      await miDisponibilidadService.modificar(usuario, registro.planificacionSemestreId, { quitar: registro.bloqueId }, registro.profesorId);
+      return;
+    }
     exigirEnAlcance(alcance?.profesoresIds, registro.profesorId);
     await exigirEditable(registro.planificacionSemestreId, alcance, usuario);
     await disponibilidadRepository.delete(id);
   },
   async clearGrid(profesorId: number, planificacionSemestreId: number, alcance?: AlcanceCarrera, usuario?: UsuarioPlanificacion) {
+    if (usuario?.rol === "profesor") return miDisponibilidadService.modificar(usuario, planificacionSemestreId, { bloquesIds: [] }, profesorId);
     exigirEnAlcance(alcance?.profesoresIds, profesorId);
     await exigirProfesorPropio(profesorId, usuario);
     await exigirEditable(planificacionSemestreId, alcance, usuario);
