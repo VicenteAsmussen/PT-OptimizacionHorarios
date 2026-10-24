@@ -3,6 +3,7 @@ import { Link, NavLink, Outlet } from "react-router-dom";
 import { useAuth } from "../../hooks/useAuth";
 import { puedeGestionarProfesores } from "../../features/profesores/permisos";
 import { puedeGestionarAsignaturas } from "../../features/asignaturas/datos";
+import { puedeRegistrarDisponibilidad } from "../../features/disponibilidad/estado";
 import logoUBB from "../../assets/logos/LogoUBB.png";
 import iconoSalida from "../../assets/iconos/salida.svg";
 import iconoRetrato from "../../assets/iconos/retrato.svg";
@@ -112,6 +113,11 @@ export default function AppLayout() {
         {puedeGestionarAsignaturas(usuario?.rol) && (
           <NavLink to="/app/horarios-externos" onClick={() => setNavegacionAbierta(false)}>
             Horarios departamentos externos
+          </NavLink>
+        )}
+        {puedeRegistrarDisponibilidad(usuario?.rol) && (
+          <NavLink to="/app/disponibilidad" onClick={() => setNavegacionAbierta(false)}>
+            Mi disponibilidad
           </NavLink>
         )}
       </nav>

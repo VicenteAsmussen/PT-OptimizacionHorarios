@@ -1,11 +1,22 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import request from "supertest";
 import { app } from "../src/app.js";
-import { randomUUID } from "node:crypto";
+import { randomInt, randomUUID } from "node:crypto";
 import { eq, and } from "drizzle-orm";
 import { db } from "../src/config/db.js";
 import { departamentos, profesores, planificacionesSemestres, disponibilidadProfesores } from "../src/db/schema/index.js";
 import { carrerasRepository } from "../src/repositories/carreras.repository.js";
+import { normalizarRut } from "../src/utils/rut.js";
+
+async function rutDisponible() {
+  for (let intento = 0; intento < 20; intento++) {
+    const cuerpo = randomInt(80_000_000, 100_000_000);
+    const rut = [..."0123456789K"].map(digito => `${cuerpo}-${digito}`).find(candidato => normalizarRut(candidato) !== null)!;
+    const existente = await db.query.profesores.findFirst({ where: eq(profesores.rut, rut), columns: { id: true } });
+    if (!existente) return rut;
+  }
+  throw new Error("No se pudo obtener un RUT sintético libre para la prueba");
+}
 
 // Cada caso usa su propia preparación actual y devuelve la vigencia del seed sin cambiar su estado.
 async function crearPlanificacionActual(carreraId: number, codigo: string) {
@@ -135,7 +146,7 @@ describe("Control de Acceso y Roles (RBAC)", () => {
       try {
         const [departamento] = await db.insert(departamentos).values({ nombre: `RBAC ${randomUUID()}` }).returning();
         departamentoId = departamento.id;
-        const [ajeno] = await db.insert(profesores).values({ departamentoId, nombre: "Docente ajeno RBAC", rut: "11111111-1", tipo: "part time" }).returning();
+        const [ajeno] = await db.insert(profesores).values({ departamentoId, nombre: "Docente ajeno RBAC", rut: await rutDisponible(), tipo: "part time" }).returning();
         profesorAjenoId = ajeno.id;
         expect(alcance?.departamentosIds).not.toContain(departamentoId);
         expect(alcance?.profesoresIds).not.toContain(ajeno.id);
@@ -162,23 +173,28 @@ describe("Control de Acceso y Roles (RBAC)", () => {
       }
     });
 
-    it("Profesor sincroniza su disponibilidad en un semestre propio de la prueba (200)", async () => {
+    it("Profesor sin asignaciones no sincroniza ni altera disponibilidad guardada (403)", async () => {
       const usuario = await db.query.usuarios.findFirst({ where: (tabla, { eq }) => eq(tabla.correo, "cvidal@ubb.cl") });
       expect(usuario).toBeDefined();
       const profesor = await db.query.profesores.findFirst({ where: eq(profesores.usuarioId, usuario!.id) });
       expect(profesor).toBeDefined();
-      const bloque = await db.query.bloquesHorarios.findFirst();
-      expect(bloque).toBeDefined();
+      const bloques = await db.query.bloquesHorarios.findMany({ limit: 2 });
+      expect(bloques).toHaveLength(2);
       const relacion = await db.query.carreraDepartamento.findFirst({ where: (tabla, { eq }) => eq(tabla.departamentoId, profesor!.departamentoId) });
       expect(relacion).toBeDefined();
       const { planificacion, restaurar } = await crearPlanificacionActual(relacion!.carreraId, "2094-2");
       try {
-        const res = await request(app).post("/api/disponibilidad-profesores/sincronizar")
-          .set("Cookie", profesorCookie).send({ profesorId: profesor!.id, planificacionSemestreId: planificacion.id, bloquesIds: [bloque!.id] });
-        expect(res.status).toBe(200);
-        const guardada = await db.select().from(disponibilidadProfesores).where(and(
+        await db.insert(disponibilidadProfesores).values({ profesorId: profesor!.id, planificacionSemestreId: planificacion.id, bloqueId: bloques[0].id });
+        const leerGuardada = () => db.select().from(disponibilidadProfesores).where(and(
           eq(disponibilidadProfesores.profesorId, profesor!.id), eq(disponibilidadProfesores.planificacionSemestreId, planificacion.id)));
-        expect(guardada.map((fila) => fila.bloqueId)).toEqual([bloque!.id]);
+        const antes = await leerGuardada();
+        expect(await db.query.ofertasAsignaturas.findMany({ where: (tabla, { eq }) => eq(tabla.planificacionSemestreId, planificacion.id) })).toEqual([]);
+        const res = await request(app).post("/api/disponibilidad-profesores/sincronizar")
+          .set("Cookie", profesorCookie).send({ profesorId: profesor!.id, planificacionSemestreId: planificacion.id, bloquesIds: [bloques[1].id] });
+        expect(res.status).toBe(403);
+        expect(res.body).toEqual({ status: "error", statusCode: 403, message: "No tiene asignaciones en esta planificación actual" });
+        expect(await leerGuardada()).toEqual(antes);
+        expect(await db.query.planificacionesSemestres.findFirst({ where: eq(planificacionesSemestres.id, planificacion.id) })).toEqual(planificacion);
       } finally {
         await restaurar();
       }

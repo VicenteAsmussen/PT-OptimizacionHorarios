@@ -1,0 +1,29 @@
+.pagina { display: grid; gap: 1.25rem; }
+.tarjeta { min-width: 0; padding: 1.25rem; border: 1px solid var(--color-borde); border-radius: 0.75rem; background: var(--color-superficie); }
+.pagina h1 { margin: 0; font-size: var(--tamano-titulo-pagina); }
+.pagina h2 { font-size: var(--tamano-titulo-seccion); }
+.pagina p { margin: 0.5rem 0; }
+.distribucion { display: grid; grid-template-columns: minmax(0, 1fr) minmax(22rem, 30rem); align-items: start; gap: 1.5rem; }
+.panelGrilla { min-width: 0; display: grid; gap: 0.5rem; }
+.panelLateral { min-width: 0; display: grid; gap: 1rem; }
+.selector { display: grid; gap: 0.5rem; max-width: 36rem; font-weight: var(--peso-etiqueta); }
+.selector select { width: 100%; min-height: 2.75rem; padding: 0.5rem; border: 1px solid var(--color-borde-campo); border-radius: 0.25rem; background: var(--color-superficie); color: var(--color-texto); font: inherit; }
+.carga { border: 1px solid var(--color-borde); border-radius: 0.5rem; background: var(--color-superficie); }
+.carga summary { padding: 0.75rem 1rem; cursor: pointer; }
+.resumenCarga { display: inline-flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 0.25rem 1rem; width: calc(100% - 1.25rem); vertical-align: middle; }
+.detalleCarga { border-top: 1px solid var(--color-borde); padding: 0.75rem 1rem; }
+.carga li { margin: 0.5rem 0; }
+.desplazamiento { overflow-x: auto; max-width: 100%; }
+.grilla { border-collapse: collapse; width: auto; }
+.grilla th, .grilla td { border: 1px solid var(--color-borde); padding: 0.125rem; text-align: center; }
+.grilla thead th:not(:first-child), .grilla td { min-width: 7rem; }
+.grilla th { background: var(--color-gris-fondo); }
+.bloque { display: grid; place-items: center; width: 100%; min-height: 1.75rem; padding: 0.1875rem 0.375rem; border: 1px solid var(--color-borde); border-radius: 0.25rem; background: var(--color-superficie); color: var(--color-texto); font: inherit; font-size: 0.875rem; white-space: nowrap; cursor: pointer; }
+.marcado { background: var(--color-azul-hover); border-color: var(--color-azul-borde); color: var(--color-azul-texto); }
+.guardado { background: var(--color-primario); border-color: var(--color-azul-texto); color: var(--color-blanco); }
+.bloque:disabled { cursor: default; }
+.bloque:focus-visible, .selector select:focus-visible, .desplazamiento:focus-visible, .carga summary:focus-visible { outline: 3px solid var(--color-foco); outline-offset: 3px; }
+.acciones { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+@media (max-width: 64rem) {
+  .distribucion { grid-template-columns: minmax(0, 1fr); }
+}

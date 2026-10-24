@@ -1,8 +1,22 @@
 import type { Request, Response, NextFunction } from "express";
 import { resolverAlcanceCarrera } from "../utils/alcance-carrera.js";
 import { disponibilidadService } from "../services/disponibilidad.service.js";
+import { miDisponibilidadService } from "../services/mi-disponibilidad.service.js";
 
 export const disponibilidadController = {
+  async getMiDisponibilidad(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const id = req.query.planificacionSemestreId === undefined ? undefined : Number(req.query.planificacionSemestreId);
+      const data = await miDisponibilidadService.get(req.user!, id);
+      res.status(200).json({ status: "success", data });
+    } catch (error) { next(error); }
+  },
+  async guardarMiDisponibilidad(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const resultado = await miDisponibilidadService.modificar(req.user!, req.body.planificacionSemestreId, { bloquesIds: req.body.bloquesIds });
+      res.status(200).json({ status: "success", data: resultado.seleccion });
+    } catch (error) { next(error); }
+  },
   async get(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const data = await disponibilidadService.getDisponibilidad(req.query as any, await resolverAlcanceCarrera(req.user), req.user);
