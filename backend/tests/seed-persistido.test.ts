@@ -3,6 +3,7 @@ import postgres from "postgres";
 import bcrypt from "bcryptjs";
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
+import { datosProfesores } from "../src/db/seeds/data/usuarios.js";
 
 // Opt in only for a migrated, disposable PostgreSQL container on an ephemeral port.
 const habilitado = process.env.SEED_PROBE_DISPOSABLE === "yes" && !!process.env.SEED_PROBE_URL;
@@ -40,9 +41,9 @@ it.skipIf(!habilitado)("preserves protected rows and rolls back a failed academi
     expect(await protegidos()).toEqual(anterior);
     expect(Number((await cliente`select count(*) from asignaturas`)[0].count)).toBe(15);
     const profesores = await cliente`select p.tipo, u.correo, u.clave from profesores p join usuarios u on u.id=p.usuario_id`;
-    expect(profesores).toHaveLength(22);
+    expect(profesores).toHaveLength(43);
     for (const profesor of profesores) {
-      expect(profesor.tipo).toBe("planta");
+      expect(profesor.tipo).toBe(datosProfesores.find(dato => dato.correo === profesor.correo)!.tipo);
       expect(profesor.correo).toMatch(/^[a-z]+@ubb\.cl$/);
       expect(await bcrypt.compare("123456", profesor.clave)).toBe(true);
     }

@@ -14,6 +14,7 @@ export const datosDepartamentos = [
   { nombre: "Departamento de Estadística" },
   { nombre: "Departamento de Estudios Generales" },
   { nombre: "Departamento de Ingeniería Industrial" },
+  { nombre: "Departamento de Ingeniería Eléctrica y Electrónica" },
 ];
 
 export const datosCarreras = [
