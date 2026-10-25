@@ -7,6 +7,7 @@ import { GuestOnly, RequireAuth } from "./AuthGuards";
 import AsignaturasPage, { RequireGestionAsignaturas } from "../features/asignaturas/AsignaturasPage";
 import HorariosExternosPage from "../features/horarios-externos/HorariosExternosPage";
 import DisponibilidadPage, { RequireDisponibilidad } from "../features/disponibilidad/DisponibilidadPage";
+import SeguimientoDisponibilidadPage, { RequireSeguimientoDisponibilidad } from "../features/seguimiento-disponibilidad/SeguimientoDisponibilidadPage";
 
 export const router = createBrowserRouter([
   { path: "/", element: <Navigate to="/login" replace /> },
@@ -22,6 +23,9 @@ export const router = createBrowserRouter([
       children: [
         { index: true, element: <Navigate to="dashboard" replace /> },
         { path: "dashboard", element: <DashboardPage /> },
+        { element: <RequireSeguimientoDisponibilidad />, children: [
+          { path: "seguimiento-disponibilidad", element: <SeguimientoDisponibilidadPage /> },
+        ] },
         { element: <RequireDisponibilidad />, children: [
           { path: "disponibilidad", element: <DisponibilidadPage /> },
         ] },

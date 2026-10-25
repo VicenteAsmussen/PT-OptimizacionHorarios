@@ -7,6 +7,7 @@ import type { Asignatura, Departamento, PlanificacionSemestre } from './types';
 import EditarAsignatura from './EditarAsignatura';
 import PanelSecciones from './PanelSecciones';
 import estilos from './Asignaturas.module.css';
+import IconoActualizar from '../../components/IconoActualizar';
 
 export function RequireGestionAsignaturas() {
   const { usuario } = useAuth();
@@ -109,7 +110,7 @@ export default function AsignaturasPage() {
         {planificacionSemestreId === null && <option value="" disabled hidden>Selecciona carrera y semestre</option>}
         {datos?.planificaciones.map(p => <option key={p.id} value={p.id}>{p.carrera.nombre} · {p.codigo}{p.actual ? ' (actual)' : ''}</option>)}
       </select></label>
-      <div className={estilos.acciones}><button type="button" className="boton boton--gris" onClick={restablecerFiltros}>Limpiar filtros</button></div>
+      <div className={estilos.acciones}><button type="button" className="boton boton--gris" onClick={restablecerFiltros}><IconoActualizar />Limpiar filtros</button></div>
     </div>
     {cargando && <p role="status" className={estilos.estado}>Cargando asignaturas y planificaciones…</p>}
     {error && <div role="alert" className={estilos.error}><p>{error}</p>
