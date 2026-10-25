@@ -1,5 +1,9 @@
 import { z } from "zod";
 
+export const seguimientoDisponibilidadQueryValidation = z.object({
+  planificacionSemestreId: z.coerce.number().int().positive(),
+}).strict();
+
 export const miDisponibilidadQueryValidation = z.object({
   planificacionSemestreId: z.coerce.number().int().positive().optional(),
 }).strict();

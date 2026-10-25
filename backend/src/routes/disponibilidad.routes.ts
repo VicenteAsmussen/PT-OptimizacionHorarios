@@ -11,12 +11,16 @@ import {
   profesorPlanificacionParamValidation,
   miDisponibilidadQueryValidation,
   miDisponibilidadValidation,
+  seguimientoDisponibilidadQueryValidation,
 } from "../validations/disponibilidad.validation.js";
 
 const router = Router();
 
 // Todas las rutas de disponibilidad requieren estar autenticado
 router.use(authenticate);
+
+router.get("/seguimiento", authorizeRoles("secretaria"),
+  validateRequest({ query: seguimientoDisponibilidadQueryValidation }), disponibilidadController.getSeguimiento);
 
 router.get("/mi-disponibilidad", authorizeRoles("profesor"),
   validateRequest({ query: miDisponibilidadQueryValidation }), disponibilidadController.getMiDisponibilidad);

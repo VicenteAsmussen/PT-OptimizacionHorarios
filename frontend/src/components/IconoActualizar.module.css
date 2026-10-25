@@ -1,0 +1,13 @@
+.icono {
+  width: 1rem;
+  height: 1rem;
+  flex-shrink: 0;
+  margin-inline-end: 0.5rem;
+  background-color: currentColor;
+  mask-size: contain;
+  mask-position: center;
+  mask-repeat: no-repeat;
+  -webkit-mask-size: contain;
+  -webkit-mask-position: center;
+  -webkit-mask-repeat: no-repeat;
+}
