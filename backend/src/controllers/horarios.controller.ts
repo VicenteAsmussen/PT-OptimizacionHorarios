@@ -74,6 +74,15 @@ export const horariosController = {
     }
   },
 
+  async getContextoMiHorario(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      const data = await horariosService.getContextoMiHorario(req.user!.id);
+      res.status(200).json({ status: "success", data });
+    } catch (error) {
+      next(error);
+    }
+  },
+
   async getMiHorario(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const data = await horariosService.getMiHorario(
