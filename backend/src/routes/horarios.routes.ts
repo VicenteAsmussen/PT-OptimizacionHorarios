@@ -11,6 +11,7 @@ import {
   ofertaParamValidation,
   horarioQueryValidation,
   miHorarioQueryValidation,
+  contextoMiHorarioQueryValidation,
   excelSalasQueryValidation,
 } from "../validations/horarios.validation.js";
 
@@ -20,6 +21,13 @@ const router = Router();
 router.use(authenticate);
 
 // Consultar horario propio del docente autenticado (debe ir antes de /:id)
+router.get(
+  "/mi-horario/contexto",
+  authorizeRoles("profesor", "admin"),
+  validateRequest({ query: contextoMiHorarioQueryValidation }),
+  horariosController.getContextoMiHorario
+);
+
 router.get(
   "/mi-horario",
   authorizeRoles("profesor", "admin"),

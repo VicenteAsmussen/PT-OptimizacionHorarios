@@ -21,6 +21,7 @@ export const horarioQueryValidation = z.object({
 export const excelSalasQueryValidation = z.object({ planificacionSemestreId: z.coerce.number().int().positive() });
 export const excelExternosQueryValidation = excelSalasQueryValidation.extend({ departamentoId: z.coerce.number().int().positive() });
 export const miHorarioQueryValidation = z.object({ planificacionSemestreId: z.coerce.number().int().positive().optional() }).strict();
+export const contextoMiHorarioQueryValidation = z.object({}).strict();
 export type ExcelSalasQueryDTO = z.infer<typeof excelSalasQueryValidation>;
 export type CreateHorarioDTO = z.infer<typeof createHorarioValidation>;
 export type UpdateHorarioDTO = z.infer<typeof updateHorarioValidation>;

@@ -2,6 +2,7 @@ import ExcelJS from "exceljs";
 import { type AlcanceCarrera } from "../utils/alcance-carrera.js";
 import { analizarHorario, normalizarDia, normalizarCodigoSala, normalizarTextoCelda, agruparBloquesEnSesiones, encabezadosExcelSalas, formatearHorario, maximoSesionesExcelSalas, type BloqueExcelSala } from "../utils/excel-salas.js";
 import { horariosRepository } from "../repositories/horarios.repository.js";
+import { miHorarioRepository } from "../repositories/mi-horario.repository.js";
 import { planificacionesSemestresService } from "./planificaciones-semestres.service.js";
 import {
   type CreateHorarioDTO,
@@ -16,6 +17,14 @@ import { importarHorariosExternos } from "../utils/excel-horarios-externos.js";
 import { calcularCoberturaExterna } from "../utils/cobertura-externos.js";
 
 type UsuarioExcelSalas = { id: number; rol: string };
+
+async function contextoHorarioPropio(usuarioId: number) {
+  const profesor = await horariosRepository.findProfesorByUsuarioId(usuarioId);
+  if (!profesor) throw new ForbiddenError("El usuario autenticado no tiene un perfil de profesor asociado");
+  const planificaciones = (await miHorarioRepository.findPlanificaciones(profesor.id))
+    .filter(fila => fila.estadoPlanificacion === "propuesta" || fila.estadoPlanificacion === "publicado");
+  return { profesor, planificaciones };
+}
 
 async function resolverCarreraExcel(usuario: UsuarioExcelSalas): Promise<number | undefined> {
   if (usuario.rol === "admin") return undefined;
@@ -277,12 +286,18 @@ export const horariosService = {
   },
 
   async getMiHorario(usuarioId: number, consulta?: MiHorarioQueryDTO) {
-    const profesor = await horariosRepository.findProfesorByUsuarioId(usuarioId);
-    if (!profesor) throw new ForbiddenError("El usuario autenticado no tiene un perfil de profesor asociado");
-    const usuario = { id: usuarioId, rol: "profesor" };
-    if (consulta?.planificacionSemestreId) await planificacionesSemestresService.getById(consulta.planificacionSemestreId, undefined, usuario);
-    const permitidas = new Set((await planificacionesSemestresService.getAll(undefined, undefined, usuario)).map(fila => fila.id));
+    const { profesor, planificaciones } = await contextoHorarioPropio(usuarioId);
+    const permitidas = new Set(planificaciones.map(fila => fila.id));
+    if (consulta?.planificacionSemestreId && !permitidas.has(consulta.planificacionSemestreId)) {
+      throw new ForbiddenError("No tiene asignaciones en una planificación en Propuesta o Publicado");
+    }
+    if (permitidas.size === 0) return [];
     return (await horariosRepository.findAll({ planificacionSemestreId: consulta?.planificacionSemestreId, profesorId: profesor.id }))
       .filter(fila => permitidas.has(fila.planificacionSemestreId));
+  },
+
+  async getContextoMiHorario(usuarioId: number) {
+    const { planificaciones } = await contextoHorarioPropio(usuarioId);
+    return { planificaciones, bloques: await miHorarioRepository.findBloques() };
   },
 };

@@ -4,6 +4,7 @@ import { useAuth } from "../../hooks/useAuth";
 import { puedeGestionarProfesores } from "../../features/profesores/permisos";
 import { puedeGestionarAsignaturas } from "../../features/asignaturas/datos";
 import { puedeRegistrarDisponibilidad } from "../../features/disponibilidad/estado";
+import { puedeConsultarMiHorario } from "../../features/mi-horario/modelo";
 import { puedeVerSeguimiento } from "../../features/seguimiento-disponibilidad/estado";
 import logoUBB from "../../assets/logos/LogoUBB.png";
 import iconoSalida from "../../assets/iconos/salida.svg";
@@ -119,6 +120,11 @@ export default function AppLayout() {
         {puedeRegistrarDisponibilidad(usuario?.rol) && (
           <NavLink to="/app/disponibilidad" onClick={() => setNavegacionAbierta(false)}>
             Mi disponibilidad
+          </NavLink>
+        )}
+        {puedeConsultarMiHorario(usuario?.rol) && (
+          <NavLink to="/app/mi-horario" onClick={() => setNavegacionAbierta(false)}>
+            Mi horario
           </NavLink>
         )}
         {puedeVerSeguimiento(usuario?.rol) && (
