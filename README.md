@@ -133,11 +133,13 @@ pnpm run db:seed
 
 El seed no ejecuta `TRUNCATE` ni borra datos existentes: asegura catálogos académicos, bloques horarios, salas, departamentos, profesores y usuarios iniciales. Su fuente es `OptimizacionHorarios_v3.xlsx` y los datos académicos viven en `backend/src/db/seeds/data/`.
 
-Incluye diez departamentos y 43 profesores con departamento confirmado: 41 `planta` y dos `part time` (Erick Contreras, de Administración y Auditoría, y Freddy Banda, de Economía y Finanzas). Tienen correos sintéticos `@ubb.cl`, RUT ficticios válidos y la contraseña inicial `123456` almacenada mediante hash. Al repetir la carga se conservan IDs y contraseñas existentes. Cada profesor tiene un índice ficticio explícito para generar su RUT sin depender del orden del catálogo; los índices retirados no se reutilizan.
+Incluye diez departamentos y 46 profesores con departamento confirmado: 44 `planta` y dos `part time` (Erick Contreras, de Administración y Auditoría, y Freddy Banda, de Economía y Finanzas). Tienen correos sintéticos `@ubb.cl`, RUT ficticios válidos y la contraseña inicial `123456` almacenada mediante hash. Al repetir la carga se conservan IDs y contraseñas existentes. Cada profesor tiene un índice ficticio explícito para generar su RUT sin depender del orden del catálogo; los índices retirados no se reutilizan.
 
 Jorge Ruiz (P42) queda fuera de la seed porque ya no tiene secciones en Requerimientos del Excel actualizado; su índice ficticio 21 permanece reservado. Quitar un profesor de estos datos iniciales no elimina su cuenta ni su perfil de una base previamente poblada.
 
-Quedan fuera de la carga, pendientes de confirmar su departamento: Jaime Alfredo Hernández Moraga (P39) y Lilian Viviana Velásquez Zapata (P40). Morin Antonia Órdenes Escobar (P31) pertenece a Física e imparte Electromagnetismo (230034); la seed registra su perfil, sin crear asignaciones docentes ni horarios. Ariel Andia se incluye en Sistemas de Información como encargado de prácticas, sin crear horarios para estas.
+Jaime Alfredo Hernández Moraga y Lilian Viviana Velásquez Zapata se incluyen en Estudios Generales como docentes de Inglés, con afiliación confirmada aunque no figuren en el v3 actualizado. Oscar Alejandro Cornejo Zúñiga (P47), docente de Investigación de Operaciones (430183), se incluye en Ingeniería Industrial. No quedan profesores pendientes de departamento en este catálogo.
+
+Morin Antonia Órdenes Escobar (P31) pertenece a Física e imparte Electromagnetismo (230034); la seed registra su perfil, sin crear asignaciones docentes ni horarios. Ariel Andia se incluye en Sistemas de Información como encargado de prácticas, sin crear horarios para estas.
 
 Gabriel Rodolfo Lagos Aguayo (P35), docente de Sistemas Digitales en el Excel, pertenece al Departamento de Ingeniería Eléctrica y Electrónica (DIEE). Este departamento se vincula a las carreras como externo (`es_gestionado = false`) y utiliza la importación genérica de Excel de horarios externos, sin un importador especial.
 

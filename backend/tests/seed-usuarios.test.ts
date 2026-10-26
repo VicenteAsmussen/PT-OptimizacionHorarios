@@ -70,8 +70,8 @@ const catalogos = {
 } as CatalogosAcademicosSeed;
 
 function comprobarProfesores(usuarios: Fila[], profesores: Fila[]) {
-  expect(profesores).toHaveLength(43);
-  expect(new Set(profesores.map((fila) => fila.rut)).size).toBe(43);
+  expect(profesores).toHaveLength(46);
+  expect(new Set(profesores.map((fila) => fila.rut)).size).toBe(46);
   for (const { correo, tipo, rut, departamento } of datosProfesores) {
     const usuario = usuarios.find((fila) => fila.correo === correo);
     expect(usuario).toMatchObject({ rol: "profesor" });
@@ -88,7 +88,7 @@ describe("seed de usuarios sin conexión a DB", () => {
     const { baseDatos, usuarios, profesores, secretarias } = crearBaseSimulada();
     await sembrarUsuarios(baseDatos, catalogos);
     comprobarProfesores(usuarios, profesores);
-    expect(usuarios).toHaveLength(45);
+    expect(usuarios).toHaveLength(48);
     expect(usuarios.every((usuario) => usuario.clave === "hash-simulado")).toBe(true);
     expect(secretarias).toHaveLength(1);
     const estado = structuredClone({ usuarios, profesores, secretarias });

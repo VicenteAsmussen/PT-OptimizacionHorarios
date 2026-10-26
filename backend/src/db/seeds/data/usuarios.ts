@@ -54,6 +54,9 @@ const profesoresBase: [indiceRut: number, nombre: string, correo: string, depart
   [41, "Luis Emilio Cabrera Crot", "lcabrera", "Sistemas de Información"],
   [42, "Gabriel Rodolfo Lagos Aguayo", "glagos", "Ingeniería Eléctrica y Electrónica"],
   [43, "Morin Antonia Órdenes Escobar", "mordenes", "Física"],
+  [44, "Jaime Alfredo Hernández Moraga", "jhernandez", "Estudios Generales"],
+  [45, "Lilian Viviana Velásquez Zapata", "lvelasquez", "Estudios Generales"],
+  [46, "Oscar Alejandro Cornejo Zúñiga", "ocornejo", "Ingeniería Industrial"],
 ];
 
 export const datosProfesores = profesoresBase.map(([indiceRut, nombre, correo, departamento, tipo = "planta"]) => ({

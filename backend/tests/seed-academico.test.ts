@@ -32,11 +32,11 @@ describe("workbook academic seed", () => {
     expect([...departamentosGestionados].every(nombre => datosDepartamentos.some(departamento => departamento.nombre === nombre))).toBe(true);
   });
 
-  it("creates 43 confirmed teachers with unique synthetic identities and the requested initial password", () => {
+  it("creates 46 confirmed teachers with unique synthetic identities and the requested initial password", () => {
     expect(claveInicial).toBe("123456");
-    expect(datosProfesores).toHaveLength(43);
-    expect(new Set(datosProfesores.map(profesor => profesor.rut)).size).toBe(43);
-    expect(new Set(datosProfesores.map(profesor => profesor.correo)).size).toBe(43);
+    expect(datosProfesores).toHaveLength(46);
+    expect(new Set(datosProfesores.map(profesor => profesor.rut)).size).toBe(46);
+    expect(new Set(datosProfesores.map(profesor => profesor.correo)).size).toBe(46);
     for (const profesor of datosProfesores) {
       expect(["planta", "part time"]).toContain(profesor.tipo);
       expect(normalizarRut(profesor.rut)).toBe(profesor.rut);
@@ -73,6 +73,9 @@ describe("workbook academic seed", () => {
       ["Luis Emilio Cabrera Crot", "lcabrera@ubb.cl", "Sistemas de Información", "planta"],
       ["Gabriel Rodolfo Lagos Aguayo", "glagos@ubb.cl", "Ingeniería Eléctrica y Electrónica", "planta"],
       ["Morin Antonia Órdenes Escobar", "mordenes@ubb.cl", "Física", "planta"],
+      ["Jaime Alfredo Hernández Moraga", "jhernandez@ubb.cl", "Estudios Generales", "planta"],
+      ["Lilian Viviana Velásquez Zapata", "lvelasquez@ubb.cl", "Estudios Generales", "planta"],
+      ["Oscar Alejandro Cornejo Zúñiga", "ocornejo@ubb.cl", "Ingeniería Industrial", "planta"],
     ]);
     expect(datosProfesores.filter(profesor => profesor.tipo === "part time").map(profesor => profesor.correo))
       .toEqual(["econtreras@ubb.cl", "fbanda@ubb.cl"]);
@@ -107,7 +110,7 @@ describe("workbook academic seed", () => {
     expect(datosUsuarios.some(usuario => usuario.correo === "jruiz@ubb.cl")).toBe(false);
     expect(datosProfesores.map(profesor => Number(profesor.rut.split("-")[0]))).toEqual([
       ...Array.from({ length: 21 }, (_, indice) => 90000000 + indice),
-      ...Array.from({ length: 22 }, (_, indice) => 90000022 + indice),
+      ...Array.from({ length: 25 }, (_, indice) => 90000022 + indice),
     ]);
   });
 });
