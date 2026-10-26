@@ -74,6 +74,7 @@ function simularOferta() {
   vi.spyOn(ofertasRepository, "findById").mockResolvedValue(oferta as any);
   vi.spyOn(ofertasRepository, "checkAsignaturaExists").mockResolvedValue(true);
   vi.spyOn(ofertasRepository, "checkProfesorExists").mockResolvedValue(true);
+  vi.spyOn(ofertasRepository, "checkProfesorDepartamento").mockResolvedValue(true);
   vi.spyOn(ofertasRepository, "findTiposAsignatura").mockResolvedValue([{ asignaturaCodigo: "INF100", tipoHoraId: 1, horas: 4 }]);
   vi.spyOn(planificacionesSemestresService, "exigirAsignatura").mockResolvedValue({ id: 3, carreraId: 1 } as never);
   vi.spyOn(ofertasRepository, "findByUniqueConstraint").mockResolvedValue(undefined);
@@ -105,7 +106,7 @@ describe("Reglas del servicio de ofertas", () => {
     expect(actualizar).toHaveBeenCalledWith(9, { cupos: 10 }, 3);
   });
 
-  it("permite cualquier profesor existente fuera de los departamentos de la carrera", async () => {
+  it("permite profesores del departamento de la asignatura aunque no sean gestionados por la carrera", async () => {
     simularOferta();
     const crear = vi.spyOn(ofertasRepository, "create").mockResolvedValue(oferta);
     const actualizar = vi.spyOn(ofertasRepository, "update").mockResolvedValue(oferta);
@@ -113,8 +114,55 @@ describe("Reglas del servicio de ofertas", () => {
     await ofertasService.createOferta({ ...datos, asignaciones }, alcance);
     await ofertasService.updateOferta(9, { asignaciones }, alcance);
     expect(ofertasRepository.checkProfesorExists).toHaveBeenCalledWith(99);
+    expect(ofertasRepository.checkProfesorDepartamento).toHaveBeenCalledWith(99, datos.asignaturaCodigo);
     expect(crear).toHaveBeenCalledWith({ ...datos, asignaciones });
     expect(actualizar).toHaveBeenCalledWith(9, { asignaciones }, 3);
+  });
+
+  it.each([undefined, alcance])("rechaza profesores de otro departamento al crear y editar sin escribir, alcance %j", async (alcanceUsuario) => {
+    simularOferta();
+    vi.mocked(ofertasRepository.checkProfesorDepartamento).mockResolvedValue(false);
+    const crear = vi.spyOn(ofertasRepository, "create").mockResolvedValue(oferta);
+    const actualizar = vi.spyOn(ofertasRepository, "update").mockResolvedValue(oferta);
+    const asignaciones = [{ tipoHoraId: 1, profesorId: 99 }];
+    await expect(ofertasService.createOferta({ ...datos, asignaciones }, alcanceUsuario))
+      .rejects.toMatchObject({ statusCode: 400, message: "El profesor con ID 99 no pertenece al departamento de la asignatura" });
+    await expect(ofertasService.updateOferta(9, { asignaciones }, alcanceUsuario))
+      .rejects.toMatchObject({ statusCode: 400, message: "El profesor con ID 99 no pertenece al departamento de la asignatura" });
+    expect(crear).not.toHaveBeenCalled();
+    expect(actualizar).not.toHaveBeenCalled();
+  });
+
+  it("valida todos los tipos contra la asignatura efectiva y las asignaciones conservadas", async () => {
+    simularOferta();
+    const crear = vi.spyOn(ofertasRepository, "create").mockResolvedValue(oferta);
+    const actualizar = vi.spyOn(ofertasRepository, "update").mockResolvedValue(oferta);
+    vi.mocked(ofertasRepository.findTiposAsignatura).mockResolvedValue([
+      { asignaturaCodigo: "INF100", tipoHoraId: 1, horas: 4 },
+      { asignaturaCodigo: "INF100", tipoHoraId: 2, horas: 2 },
+    ]);
+    vi.mocked(ofertasRepository.checkProfesorDepartamento).mockImplementation(async (id, codigo) => id === 7 && codigo === "INF100");
+    const asignaciones = [{ tipoHoraId: 1, profesorId: 7 }, { tipoHoraId: 2, profesorId: 99 }];
+    await expect(ofertasService.createOferta({ ...datos, asignaciones }, alcance)).rejects.toMatchObject({ statusCode: 400 });
+    await expect(ofertasService.updateOferta(9, { asignaciones }, alcance)).rejects.toMatchObject({ statusCode: 400 });
+    await expect(ofertasService.updateOferta(9, { asignaturaCodigo: "MAT100" }, alcance)).rejects.toMatchObject({ statusCode: 400 });
+    expect(ofertasRepository.checkProfesorDepartamento).toHaveBeenLastCalledWith(7, "MAT100");
+    vi.mocked(ofertasRepository.findById).mockResolvedValue({ ...oferta, asignaciones } as never);
+    await expect(ofertasService.updateOferta(9, { cupos: 10 }, alcance)).rejects.toMatchObject({ statusCode: 400 });
+    expect(crear).not.toHaveBeenCalled();
+    expect(actualizar).not.toHaveBeenCalled();
+  });
+
+  it("permite secciones pendientes y quitar asignaciones sin consultar departamentos", async () => {
+    simularOferta();
+    const crear = vi.spyOn(ofertasRepository, "create").mockResolvedValue(oferta);
+    const actualizar = vi.spyOn(ofertasRepository, "update").mockResolvedValue(oferta);
+    await ofertasService.createOferta({ ...datos, asignaciones: [] }, alcance);
+    await ofertasService.updateOferta(9, { asignaciones: [] }, alcance);
+    expect(crear).toHaveBeenCalledWith({ ...datos, asignaciones: [] });
+    expect(actualizar).toHaveBeenCalledWith(9, { asignaciones: [] }, 3);
+    expect(ofertasRepository.checkProfesorExists).not.toHaveBeenCalled();
+    expect(ofertasRepository.checkProfesorDepartamento).not.toHaveBeenCalled();
   });
 
   it("conserva rechazo de asignaturas fuera del alcance sin escribir", async () => {
@@ -188,6 +236,24 @@ describe("Reglas del servicio de ofertas", () => {
     const eliminar = vi.spyOn(ofertasRepository, "delete");
     await expect(ofertasService.deleteOferta(404, alcance)).rejects.toMatchObject({ statusCode: 404 });
     expect(eliminar).not.toHaveBeenCalled();
+  });
+});
+
+describe("Departamento del profesor para una asignatura", () => {
+  it("compara departamentos y restringe por profesor y código sin modificar datos", async () => {
+    respuestas.push([[7]], []);
+    await expect(ofertasRepository.checkProfesorDepartamento(7, "INF100")).resolves.toBe(true);
+    await expect(ofertasRepository.checkProfesorDepartamento(99, "INF100")).resolves.toBe(false);
+    expect(consultas).toHaveLength(2);
+    for (const consulta of consultas) {
+      expect(consulta.sql).toContain('inner join "asignaturas"');
+      expect(consulta.sql).toContain('"asignaturas"."departamento_id" = "profesores"."departamento_id"');
+      expect(consulta.sql).toContain('"profesores"."id" = $1');
+      expect(consulta.sql).toContain('"asignaturas"."codigo" = $2');
+      expect(consulta.parametros.slice(1, 2)).toEqual(["INF100"]);
+      expect(consulta.sql).not.toMatch(/insert|update|delete/i);
+    }
+    expect(consultas.map(consulta => consulta.parametros[0])).toEqual([7, 99]);
   });
 });
 

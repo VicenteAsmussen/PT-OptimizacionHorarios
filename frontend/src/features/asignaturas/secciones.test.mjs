@@ -287,6 +287,52 @@ function textoElemento(elemento) {
 }
 const botonConTexto = (arbol, texto) => elementos(arbol, e => e.type === 'button' && textoElemento(e) === texto)[0];
 
+test('section loading restricts teacher selection and submission to the subject department', async () => {
+  const panel = await fuente('./PanelSecciones.tsx');
+  const cuerpo = panel.match(/const cargar = useCallback\(async \(\) => \{([\s\S]*?)\n  \}, \[/)?.[1];
+  assert.ok(cuerpo);
+  assert.match(panel, /\[asignatura\.codigo, asignatura\.departamentoId, semestre\.id\]/);
+  const { ofertasDePlanificacion, prepararOferta } = await import('./datos.ts');
+  const profesores = Object.freeze([
+    { id: 1, nombre: 'Ana Uno', rut: '1-9', departamento: { id: 4, nombre: 'Informática' } },
+    { id: 2, nombre: 'Ana Dos', rut: '2-7', departamento: { id: 5, nombre: 'Matemática' } },
+  ].map(Object.freeze));
+  for (const departamentoId of [4, 5, 6]) {
+    let datos;
+    const errores = [];
+    const cargar = new Function('solicitud', 'setCargando', 'setDatos', 'setErrorCarga', 'asignaturasApi',
+      'asignatura', 'semestre', 'ofertasDePlanificacion', `return async () => {${cuerpo}}`)(
+      { current: 0 }, () => {}, valor => { datos = valor; }, valor => { if (valor) errores.push(valor); },
+      { ofertas: async () => [], profesores: async () => profesores },
+      { codigo: 'A', departamentoId }, { id: 3 }, ofertasDePlanificacion);
+    await cargar();
+    assert.deepEqual(errores, []);
+    assert.deepEqual(datos.profesores.map(p => p.id), profesores.filter(p => p.departamento.id === departamentoId).map(p => p.id));
+    assert.equal(profesores.length, 2, 'the global catalogue is not modified');
+    for (const profesor of profesores) {
+      const entrada = { seccion: '1', cupos: '0', asignaciones: [{ tipoHoraId: 1, profesorId: profesor.id }] };
+      if (profesor.departamento.id === departamentoId) {
+        assert.deepEqual(prepararOferta(entrada, datos.profesores, [1]).asignaciones, entrada.asignaciones);
+      } else {
+        assert.throws(() => prepararOferta(entrada, datos.profesores, [1]), /profesor válido/);
+      }
+    }
+    assert.deepEqual(prepararOferta({ seccion: '1', cupos: '0', asignaciones: [] }, datos.profesores, [1]).asignaciones, []);
+    for (const busqueda of ['Ana', '2-7']) {
+      const renderizar = await componenteConEstado('./SelectorProfesor.tsx');
+      const propiedades = { profesores: datos.profesores, profesorId: null, alSeleccionar() {} };
+      elementos(renderizar(propiedades), e => e.type === 'input')[0].props.onChange({ target: { value: busqueda } });
+      const sugerencias = elementos(renderizar(propiedades), e => e.props?.role === 'option').map(textoElemento).join(' ');
+      for (const profesor of datos.profesores.filter(p => busqueda === 'Ana' || p.id === 2)) {
+        assert.ok(sugerencias.includes(profesor.nombre), 'eligible teachers remain selectable by name and RUT');
+      }
+      for (const profesor of profesores.filter(p => p.departamento.id !== departamentoId)) {
+        assert.ok(!sugerencias.includes(profesor.nombre));
+      }
+    }
+  }
+});
+
 test('editing a subject displays its hour breakdown without adding editable hour controls', async () => {
   const renderizar = await componenteConEstado('./EditarAsignatura.tsx');
   const { renderToStaticMarkup } = await import('react-dom/server');

@@ -77,14 +77,15 @@ function ContenidoSecciones({ asignatura, semestre, alCerrar, alCambiarOfertas }
         asignaturasApi.ofertas(asignatura.codigo, semestre.id), asignaturasApi.profesores(),
       ]);
       if (numero === solicitud.current) setDatos({
-        ofertas: ofertasDePlanificacion(ofertas, asignatura.codigo, semestre.id), profesores,
+        ofertas: ofertasDePlanificacion(ofertas, asignatura.codigo, semestre.id),
+        profesores: profesores.filter(profesor => profesor.departamento.id === asignatura.departamentoId),
       });
     } catch (fallo) {
       if (numero === solicitud.current) setErrorCarga(fallo instanceof Error ? fallo.message : 'No se pudieron cargar las secciones.');
     } finally {
       if (numero === solicitud.current) setCargando(false);
     }
-  }, [asignatura.codigo, semestre.id]);
+  }, [asignatura.codigo, asignatura.departamentoId, semestre.id]);
   useEffect(() => {
     void cargar();
     return () => { solicitud.current++; };
@@ -94,6 +95,9 @@ function ContenidoSecciones({ asignatura, semestre, alCerrar, alCambiarOfertas }
     contenido.current?.focus();
   }, [accion]);
   const libres = seccionesLibres(datos?.ofertas ?? [], accion?.tipo === 'editar' ? accion.oferta.id : undefined);
+  const profesoresNoElegibles = datos && accion?.tipo === 'editar' ? accion.oferta.asignaciones.filter(anterior =>
+    asignaciones.some(actual => actual.tipoHoraId === anterior.tipoHoraId && actual.profesorId === anterior.profesorId)
+    && !datos.profesores.some(profesor => profesor.id === anterior.profesorId)).map(anterior => anterior.profesor.nombre) : [];
   function abrir(nueva: Accion) {
     if (!vigente.current || !puedeEditar || ocupado) return;
     if (nueva.tipo === 'eliminar' && nueva.oferta.horarios?.length) return;
@@ -162,6 +166,10 @@ function ContenidoSecciones({ asignatura, semestre, alCerrar, alCambiarOfertas }
           </select></label>
           <label>Cupos<input type="number" min="0" step="1" required value={cupos} onChange={e => setCupos(e.target.value)} /></label>
           <p>Puedes guardar la sección con profesores pendientes. Cada tipo de hora admite un profesor.</p>
+          <p>Solo puedes asignar profesores del departamento de la asignatura.</p>
+          {profesoresNoElegibles.length > 0 && <p role="alert" className={estilos.error}>
+            Profesores de otro departamento: {profesoresNoElegibles.join(', ')}. Reemplaza esas asignaciones o limpia sus campos antes de guardar.
+          </p>}
           <EditorAsignaciones key={`${accion.tipo}-${accion.tipo === 'editar' ? accion.oferta.id : 'nueva'}`}
             asignatura={asignatura} profesores={datos.profesores} asignaciones={asignaciones} alCambiar={setAsignaciones} />
         </>}
