@@ -78,6 +78,12 @@ export const ofertasRepository = {
   async checkProfesorExists(id: number) {
     return !!await db.query.profesores.findFirst({ where: eq(profesores.id, id), columns: { id: true } });
   },
+  async checkProfesorDepartamento(id: number, codigo: string) {
+    const [profesor] = await db.select({ id: profesores.id }).from(profesores)
+      .innerJoin(asignaturas, eq(asignaturas.departamentoId, profesores.departamentoId))
+      .where(and(eq(profesores.id, id), eq(asignaturas.codigo, codigo))).limit(1);
+    return !!profesor;
+  },
   async findTiposAsignatura(codigo: string) {
     return db.query.asignaturaTipoHora.findMany({ where: eq(asignaturaTipoHora.asignaturaCodigo, codigo) });
   },

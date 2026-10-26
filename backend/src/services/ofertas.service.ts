@@ -11,8 +11,13 @@ async function validarAsignaciones(codigo: string, asignaciones: CreateOfertaDTO
     || asignaciones.some(a => !tipos.some(t => t.tipoHoraId === a.tipoHoraId))) {
     throw new BadRequestError("Las asignaciones deben tener tipos de hora únicos definidos para la asignatura");
   }
-  for (const asignacion of asignaciones) if (!await ofertasRepository.checkProfesorExists(asignacion.profesorId)) {
-    throw new BadRequestError(`El profesor con ID ${asignacion.profesorId} no existe`);
+  for (const asignacion of asignaciones) {
+    if (!await ofertasRepository.checkProfesorExists(asignacion.profesorId)) {
+      throw new BadRequestError(`El profesor con ID ${asignacion.profesorId} no existe`);
+    }
+    if (!await ofertasRepository.checkProfesorDepartamento(asignacion.profesorId, codigo)) {
+      throw new BadRequestError(`El profesor con ID ${asignacion.profesorId} no pertenece al departamento de la asignatura`);
+    }
   }
 }
 
@@ -28,7 +33,6 @@ export const ofertasService = {
   },
   async createOferta(datos: CreateOfertaDTO, alcance?: AlcanceCarrera) {
     await planificacionesSemestresService.exigirAsignatura(datos.planificacionSemestreId, datos.asignaturaCodigo, alcance);
-    // La selección de profesores sigue siendo global, independiente de su departamento.
     await validarAsignaciones(datos.asignaturaCodigo, datos.asignaciones ?? []);
     if (await ofertasRepository.findByUniqueConstraint(datos.asignaturaCodigo, datos.planificacionSemestreId, datos.seccion)) throw new ConflictError("Ya existe esta sección en la planificación");
     const creada = await ofertasRepository.create(datos);
