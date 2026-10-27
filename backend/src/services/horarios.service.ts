@@ -34,8 +34,13 @@ async function resolverCarreraExcel(usuario: UsuarioExcelSalas): Promise<number 
   return perfil.carreraId;
 }
 
+function exigirSecretariaExternos(usuario: UsuarioExcelSalas) {
+  if (usuario.rol !== "secretaria") throw new ForbiddenError("La gestión de horarios externos es exclusiva de secretaría");
+}
+
 export const horariosService = {
   async coberturaExcelExternos(planificacionSemestreId: number, departamentoId: number, usuario: UsuarioExcelSalas) {
+    exigirSecretariaExternos(usuario);
     const carreraId = await resolverCarreraExcel(usuario);
     const planificacion = await horariosRepository.findPlanificacionById(planificacionSemestreId);
     if (!planificacion || (carreraId !== undefined && planificacion.carreraId !== carreraId)) throw new ForbiddenError("La planificación no pertenece a su carrera");
@@ -46,6 +51,7 @@ export const horariosService = {
       cobertura: calcularCoberturaExterna(contexto.asignaturas, planificacion.codigo, contexto.ofertas.filter(oferta => conHorario.has(oferta.id))) };
   },
   async importarExcelExternos(planificacionSemestreId: number, departamentoId: number, archivo: Buffer, usuario: UsuarioExcelSalas) {
+    exigirSecretariaExternos(usuario);
     const carreraId = await resolverCarreraExcel(usuario);
     const planificacion = await horariosRepository.findPlanificacionById(planificacionSemestreId);
     if (!planificacion || (carreraId !== undefined && planificacion.carreraId !== carreraId)) throw new ForbiddenError("La planificación no pertenece a su carrera");

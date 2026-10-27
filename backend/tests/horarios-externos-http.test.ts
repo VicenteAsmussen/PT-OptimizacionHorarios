@@ -9,7 +9,7 @@ vi.mock("../src/services/horarios.service.js", () => ({ horariosService: {
   importarExcelExternos: vi.fn(), coberturaExcelExternos: vi.fn(),
 } }));
 vi.mock("../src/middlewares/auth.middleware.js", () => ({ authenticate: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
-  req.user = { id: 1, rol: req.headers['x-test-role'] === 'profesor' ? 'profesor' : 'secretaria' } as express.Request['user']; next();
+  req.user = { id: 1, rol: String(req.headers['x-test-role'] ?? 'secretaria') } as express.Request['user']; next();
 } }));
 const app = express(); app.use('/horarios', rutas);
 const resultado = { ofertasCreadas: 0, ofertasActualizadas: 0, ofertasEliminadas: 0, horariosCreados: 0,
@@ -31,9 +31,9 @@ it('coverage GET validates its context, uses the authenticated user, and returns
   expect(horariosService.coberturaExcelExternos).toHaveBeenCalledWith(9, 4, { id: 1, rol: 'secretaria' });
   expect((await request(app).get('/horarios/excel/externos/cobertura?planificacionSemestreId=oops')).status).toBe(400);
 });
-it('professors cannot read coverage or import workbooks', async () => {
-  expect((await request(app).get('/horarios/excel/externos/cobertura?planificacionSemestreId=9&departamentoId=4').set('x-test-role', 'profesor')).status).toBe(403);
-  expect((await request(app).post('/horarios/excel/externos/importar?planificacionSemestreId=9&departamentoId=4').set('x-test-role', 'profesor')
+it.each(['admin', 'profesor'])('%s cannot read external coverage or import workbooks', async rol => {
+  expect((await request(app).get('/horarios/excel/externos/cobertura?planificacionSemestreId=9&departamentoId=4').set('x-test-role', rol)).status).toBe(403);
+  expect((await request(app).post('/horarios/excel/externos/importar?planificacionSemestreId=9&departamentoId=4').set('x-test-role', rol)
     .attach('archivo', Buffer.from('workbook'), 'horarios.xlsx')).status).toBe(403);
   expect(horariosService.coberturaExcelExternos).not.toHaveBeenCalled();
   expect(horariosService.importarExcelExternos).not.toHaveBeenCalled();

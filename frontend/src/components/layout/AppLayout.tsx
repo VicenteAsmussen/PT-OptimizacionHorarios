@@ -6,6 +6,8 @@ import { puedeGestionarAsignaturas } from "../../features/asignaturas/datos";
 import { puedeRegistrarDisponibilidad } from "../../features/disponibilidad/estado";
 import { puedeConsultarMiHorario } from "../../features/mi-horario/modelo";
 import { puedeVerSeguimiento } from "../../features/seguimiento-disponibilidad/estado";
+import { puedeAdministrarPeriodos } from "../../features/administracion-periodos/modelo";
+import { puedeGestionarHorariosExternos } from "../../features/horarios-externos/permisos";
 import logoUBB from "../../assets/logos/LogoUBB.png";
 import iconoSalida from "../../assets/iconos/salida.svg";
 import iconoRetrato from "../../assets/iconos/retrato.svg";
@@ -107,12 +109,17 @@ export default function AppLayout() {
             Asignaturas
           </NavLink>
         )}
+        {puedeAdministrarPeriodos(usuario?.rol) && (
+          <NavLink to="/app/administracion-periodos" onClick={() => setNavegacionAbierta(false)}>
+            Administración de períodos
+          </NavLink>
+        )}
         {puedeGestionarProfesores(usuario?.rol) && (
           <NavLink to="/app/profesores" onClick={() => setNavegacionAbierta(false)}>
             Profesores
           </NavLink>
         )}
-        {puedeGestionarAsignaturas(usuario?.rol) && (
+        {puedeGestionarHorariosExternos(usuario?.rol) && (
           <NavLink to="/app/horarios-externos" onClick={() => setNavegacionAbierta(false)}>
             Horarios departamentos externos
           </NavLink>

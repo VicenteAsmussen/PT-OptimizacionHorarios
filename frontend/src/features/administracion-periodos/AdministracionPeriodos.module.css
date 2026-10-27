@@ -1,0 +1,30 @@
+.pagina { display: grid; gap: 1.5rem; min-width: 0; overflow-wrap: anywhere; }
+.pagina h1, .pagina h2 { margin-top: 0; }
+.pagina select { max-width: 40rem; }
+.cabeceraTarjeta { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; margin-bottom: 1rem; }
+.cabeceraTarjeta h2 { margin: 0; }
+.distintivo {
+  display: inline-flex; max-width: 100%; padding: 0.375rem 0.75rem; border: 1px solid var(--color-borde);
+  border-radius: 0.375rem; background: var(--color-azul-fondo); color: var(--color-azul-texto);
+  font-size: var(--tamano-secundario); font-weight: 700; overflow-wrap: anywhere;
+}
+.descripcion { margin: 0 0 1.25rem; }
+.notaEstado { margin: 0; }
+.pasos { display: flex; flex-wrap: wrap; gap: 0.75rem 1rem; padding: 0; margin: 0 0 0.5rem; list-style: none; }
+.pasos li { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; }
+.numeroPaso {
+  display: inline-grid; place-items: center; width: 1.75rem; height: 1.75rem; border-radius: 50%;
+  background: var(--color-azul-fondo); color: var(--color-azul-texto); flex-shrink: 0;
+}
+.flechaPaso { color: var(--color-azul-texto); }
+.acciones { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.acciones button { min-height: 2.75rem; white-space: normal; }
+.acciones p { margin: 0.5rem 0 0; }
+.confirmacion { margin-top: 1rem; padding: 1rem; border: 2px solid var(--color-alerta-texto); border-radius: 0.375rem; }
+.confirmacion h3 { margin: 0; }
+.confirmacion p { margin: 0.25rem 0; }
+@media (max-width: 40rem) {
+  .acciones { grid-template-columns: minmax(0, 1fr); }
+  .pasos { flex-direction: column; }
+  .flechaPaso { display: none; }
+}

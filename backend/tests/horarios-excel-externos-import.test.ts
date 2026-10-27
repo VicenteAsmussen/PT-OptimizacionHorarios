@@ -102,10 +102,12 @@ it("rechaza departamento gestionado o ajeno", async () => {
   await expect(horariosService.importarExcelExternos(9, 4, await archivo(), usuario)).rejects.toThrow(/Departamento/);
   expect(horariosRepository.sincronizarExternosEnTransaccion).not.toHaveBeenCalled();
 });
-it("admin no necesita perfil de secretaria", async () => {
-  expect((await horariosService.importarExcelExternos(9, 4, await archivo({ 9: "" }), { id: 1, rol: "admin" })).errores).toEqual([]);
+it("admin no puede importar externos ni consultar perfiles o datos", async () => {
+  await expect(horariosService.importarExcelExternos(9, 4, await archivo({ 9: "" }), { id: 1, rol: "admin" })).rejects.toMatchObject({ statusCode: 403 });
   expect(horariosRepository.findCarreraSecretariaByUsuarioId).not.toHaveBeenCalled();
-  expect(horariosRepository.findContextoExternos).toHaveBeenCalledWith(9, 4, undefined);
+  expect(horariosRepository.findPlanificacionById).not.toHaveBeenCalled();
+  expect(horariosRepository.findContextoExternos).not.toHaveBeenCalled();
+  expect(horariosRepository.sincronizarExternosEnTransaccion).not.toHaveBeenCalled();
 });
 it.each([undefined, { id: 9, carreraId: 99, codigo: "2099-1", actual: true, estadoPlanificacion: "preparacion" as const }])("rechaza planificación ausente o de otra carrera antes de leer externos", async (planificacion) => {
   vi.mocked(horariosRepository.findPlanificacionById).mockResolvedValue(planificacion);

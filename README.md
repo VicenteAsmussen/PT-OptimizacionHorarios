@@ -10,6 +10,8 @@
 [![Drizzle ORM](https://img.shields.io/badge/Drizzle_ORM-0.45+-C5F74F?logo=drizzle&logoColor=black)](https://orm.drizzle.team/)
 [![pnpm](https://img.shields.io/badge/pnpm-11.x-orange?logo=pnpm&logoColor=white)](https://pnpm.io/)
 
+Administración: [reinicio de ofertas y horarios, y estados del período](docs/administracion-periodos.md).
+
 ---
 
 ## 📌 Descripción del Proyecto

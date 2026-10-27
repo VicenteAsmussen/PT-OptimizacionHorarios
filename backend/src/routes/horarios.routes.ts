@@ -67,11 +67,11 @@ router.post(
   horariosController.importarExcelSalas
 );
 
-router.get("/excel/externos/cobertura", authorizeRoles("admin", "secretaria"), horariosController.coberturaExcelExternos);
+router.get("/excel/externos/cobertura", authorizeRoles("secretaria"), horariosController.coberturaExcelExternos);
 
 router.post(
   "/excel/externos/importar",
-  authorizeRoles("admin", "secretaria"),
+  authorizeRoles("secretaria"),
   (req, res, next) => {
     subirExcelSalas(req, res, (error) => {
       if (error) {
