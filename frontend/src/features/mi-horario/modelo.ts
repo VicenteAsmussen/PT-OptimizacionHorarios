@@ -4,7 +4,7 @@ import type { Bloque, ClaseHorario } from './types.ts';
 
 export const puedeConsultarMiHorario = (rol: string | null | undefined) => rol === 'profesor';
 export const planificacionesVisibles = <T extends { estadoPlanificacion: string }>(planificaciones: T[]) =>
-  planificaciones.filter(p => p.estadoPlanificacion === 'propuesta' || p.estadoPlanificacion === 'publicado');
+  planificaciones.filter(p => p.estadoPlanificacion === 'preparacion' || p.estadoPlanificacion === 'propuesta' || p.estadoPlanificacion === 'publicado');
 export const etiquetaEstado = (planificacion: { estadoPlanificacion: string }) => estadoSecciones(planificacion).etiqueta;
 
 export const inicialesAsignatura = (nombre: string) => nombre.trim().split(/\s+/)

@@ -22,7 +22,7 @@ it("deriva planificaciones por asignaciones docentes y estado, sin restringir de
   expect(consulta.sql).not.toContain('carrera_departamento');
   expect(consulta.sql).not.toMatch(/"actual"\s*=/);
   // Relational loading also binds LIMIT 1 for the career relation.
-  expect(consulta.parametros.slice(-3)).toEqual(["propuesta", "publicado", 7]);
+  expect(consulta.parametros.slice(-4)).toEqual(["preparacion", "propuesta", "publicado", 7]);
 });
 
 it("mantiene el aislamiento de clases por oferta y tipo para dos profesores de una sección", async () => {

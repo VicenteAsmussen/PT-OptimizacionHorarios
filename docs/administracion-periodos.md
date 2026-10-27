@@ -34,7 +34,7 @@ Both **Propuesta** and **Publicado** are rejected with 409 if the selected caree
 
 This administrator page does **not** require full teaching-load coverage or assigned rooms before publishing. A future, separate secretary page may require rooms for theoretical/practical classes; that flow is not implemented here and does not grant secretary access to these maintenance commands.
 
-State commands do not generate/delete schedules, choose the current period, or modify external imports. Reset commands do not implicitly change state; after clearing managed schedules, select Preparación. Ordinary editing still requires a current period in preparation. Returning to preparation hides the teacher schedule view for that period; proposal and published states make it available under the existing access rules.
+State commands do not generate/delete schedules, choose the current period, or modify external imports. Reset commands do not implicitly change state; after clearing managed schedules, select Preparación. Ordinary editing still requires a current period in preparation. Returning to preparation keeps the period selectable for assigned teachers but replaces their calendar with a preparation notice and denies schedule reads; proposal and published states make their own schedule available under the existing access rules.
 
 ## API
 

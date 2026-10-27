@@ -29,6 +29,7 @@ function ConsultaMiHorario() {
   const [intento, setIntento] = useState(0);
   const [recarga, setRecarga] = useState(0);
   const [estado, dispatch] = useReducer(reducirHorario, estadoInicial);
+  const estadoPlanificacion = contexto?.planificaciones.find(p => p.id === estado.id)?.estadoPlanificacion;
 
   useEffect(() => {
     const controlador = new AbortController();
@@ -45,7 +46,7 @@ function ConsultaMiHorario() {
   }, [intento]);
 
   useEffect(() => {
-    if (estado.id === null) return;
+    if (estado.id === null || (estadoPlanificacion !== 'propuesta' && estadoPlanificacion !== 'publicado')) return;
     const id = estado.id;
     const controlador = new AbortController();
     let activo = true;
@@ -53,7 +54,7 @@ function ConsultaMiHorario() {
       if (activo) dispatch({ tipo: 'cargado', id, horarios });
     }).catch(fallo => { if (activo) dispatch({ tipo: 'fallo', id, mensaje: mensajeError(fallo) }); });
     return () => { activo = false; controlador.abort(); };
-  }, [estado.id, recarga]);
+  }, [estado.id, estadoPlanificacion, recarga]);
 
   return <section className={estilos.pagina} aria-labelledby="titulo-mi-horario">
     <EncabezadoMiHorario planificaciones={contexto?.planificaciones ?? []} planificacionId={estado.id}
@@ -61,9 +62,10 @@ function ConsultaMiHorario() {
     {errorContexto ? <div className={estilos.tarjeta}><p role="alert">{errorContexto}</p>
       <button type="button" className="boton boton--azul" onClick={() => setIntento(i => i + 1)}>Reintentar</button></div>
       : contexto === null ? <p role="status">Cargando planificaciones.</p>
-      : contexto.planificaciones.length === 0 ? <p className={estilos.tarjeta} role="status">No tienes horarios disponibles en planificaciones en Propuesta o Publicado.</p>
+      : contexto.planificaciones.length === 0 ? <p className={estilos.tarjeta} role="status">No tienes períodos con asignaciones docentes.</p>
       : <div className={estilos.tarjeta} aria-live="polite">
-          {estado.modo === 'cargando' ? <p role="status">Cargando horario.</p>
+          {estadoPlanificacion === 'preparacion' ? <p role="status">Este período está en Preparación. El horario aún no está habilitado para consulta.</p>
+            : estado.modo === 'cargando' ? <p role="status">Cargando horario.</p>
             : estado.modo === 'error' ? <><p role="alert">{estado.error}</p>
               <button type="button" className="boton boton--azul" onClick={() => {
                 if (estado.id !== null) dispatch({ tipo: 'seleccionar', id: estado.id });

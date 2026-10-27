@@ -191,23 +191,60 @@ describe.skipIf(!habilitado)("External Excel import on isolated PostgreSQL", () 
     expect(await huella()).toBe(anterior);
   });
 
-  it("keeps the shared offer when deleting its unscheduled teacher and isolates my schedule by type", async () => {
-    await cliente`insert into oferta_tipo_hora (oferta_id,tipo_hora_id,profesor_id) values (100,2,2)`;
+  async function vincularDocentes() {
     await cliente`insert into usuarios (id,nombre,correo,clave,rol) values
       (2,'Teacher one','one@example.test','not-a-password','profesor'),
       (3,'Teacher two','two@example.test','not-a-password','profesor')`;
     await cliente`update profesores set usuario_id=2 where id=1`;
     await cliente`update profesores set usuario_id=3 where id=2`;
-    const propias = await servicio.getMiHorario(2, { planificacionSemestreId: 1 });
-    expect(propias.length).toBeGreaterThan(0);
-    expect(propias.every(h => h.tipoHoraId === 1 && h.asignacion.profesorId === 1)).toBe(true);
-    expect(JSON.stringify(propias)).not.toMatch(/"rut"|"clave"/);
-    expect(await servicio.getMiHorario(3, { planificacionSemestreId: 1 })).toEqual([]);
+  }
+
+  it("keeps the shared offer and saved schedule when deleting its unscheduled teacher in preparation", async () => {
+    await cliente`insert into oferta_tipo_hora (oferta_id,tipo_hora_id,profesor_id) values (100,2,2)`;
+    const horariosAnteriores = await horarios();
     const { profesoresService } = await import("../../src/services/profesores.service.js");
     await profesoresService.deleteProfesor(2);
     const oferta = await servicioOfertas.getOfertaById(100);
     expect(oferta.asignaciones.map(a => a.profesorId)).toEqual([1]);
     expect(oferta.horarios).toHaveLength(1);
+    expect(await horarios()).toEqual(horariosAnteriores);
+  });
+
+  it.each([false, true])("offers only assigned preparation metadata and protects saved blocks for managed=%s teachers", async gestionado => {
+    await vincularDocentes();
+    await cliente`update carrera_departamento set es_gestionado=${gestionado} where carrera_id=1 and departamento_id=1`;
+    // This unscheduled assignment is selectable too; metadata does not require saved classes.
+    await cliente`insert into oferta_tipo_hora (oferta_id,tipo_hora_id,profesor_id) values (100,2,2)`;
+    const anterior = await huella();
+    const contexto = await servicio.getContextoMiHorario(2);
+    expect(contexto.planificaciones.map(p => p.id)).toEqual([1, 3, 2]);
+    expect(contexto.planificaciones.every(p => p.estadoPlanificacion === "preparacion")).toBe(true);
+    expect(contexto.planificaciones.some(p => p.id === 3)).toBe(true); // Assigned in another career.
+    expect((await servicio.getContextoMiHorario(3)).planificaciones.map(p => p.id)).toEqual([1]);
+    for (const usuarioId of [2, 3]) {
+      await expect(servicio.getMiHorario(usuarioId, { planificacionSemestreId: 1 })).rejects.toMatchObject({ statusCode: 403 });
+      expect(await servicio.getMiHorario(usuarioId)).toEqual([]);
+    }
+    await expect(servicio.getMiHorario(3, { planificacionSemestreId: 3 })).rejects.toMatchObject({ statusCode: 403 });
+    expect(await huella()).toBe(anterior);
+  });
+
+  it.each(["propuesta", "publicado"])("isolates my schedule by teacher and hour type in %s", async estado => {
+    await vincularDocentes();
+    await cliente`insert into oferta_tipo_hora (oferta_id,tipo_hora_id,profesor_id) values (100,2,2)`;
+    await cliente`update planificaciones_semestres set estado_planificacion=${estado} where id=1`;
+    const propias = await servicio.getMiHorario(2, { planificacionSemestreId: 1 });
+    expect(propias.length).toBeGreaterThan(0);
+    expect(propias.every(h => h.tipoHoraId === 1 && h.asignacion.profesorId === 1)).toBe(true);
+    expect(JSON.stringify(propias)).not.toMatch(/"rut"|"clave"/);
+    expect(await servicio.getMiHorario(3, { planificacionSemestreId: 1 })).toEqual([]);
+    await cliente`insert into horarios_asignaturas (oferta_id,tipo_hora_id,bloque_id,planificacion_semestre_id) values (100,2,4,1)`;
+    const otroTipo = await servicio.getMiHorario(3, { planificacionSemestreId: 1 });
+    expect(otroTipo).toHaveLength(1);
+    expect(otroTipo[0]).toMatchObject({ ofertaId: 100, tipoHoraId: 2, bloqueId: 4, asignacion: { profesorId: 2 } });
+    expect(await servicio.getMiHorario(2, { planificacionSemestreId: 1 })).toEqual(propias);
+    expect((await servicio.getMiHorario(2)).every(h => h.planificacionSemestreId === 1 && h.asignacion.profesorId === 1)).toBe(true);
+    await expect(servicio.getMiHorario(3, { planificacionSemestreId: 3 })).rejects.toMatchObject({ statusCode: 403 });
   });
 
   it("backfills existing scheduled types before removing the legacy teacher column", async () => {
