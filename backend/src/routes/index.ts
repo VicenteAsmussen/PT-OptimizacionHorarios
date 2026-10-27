@@ -11,6 +11,7 @@ import { disponibilidadRouter } from "./disponibilidad.routes.js";
 import { ofertasRouter } from "./ofertas.routes.js";
 import { horariosRouter } from "./horarios.routes.js";
 import { authRouter } from "./auth.routes.js";
+import { administracionPeriodosRouter } from "./administracion-periodos.routes.js";
 
 const apiRouter = Router();
 
@@ -20,6 +21,7 @@ apiRouter.use("/auth", authRouter);
 apiRouter.use("/asignaturas", asignaturasRouter);
 apiRouter.use("/salas", salasRouter);
 apiRouter.use("/planificaciones-semestres", planificacionesSemestresRouter);
+apiRouter.use("/administracion-periodos", administracionPeriodosRouter);
 apiRouter.use("/departamentos", departamentosRouter);
 apiRouter.use("/carreras", carrerasRouter);
 apiRouter.use("/usuarios", usuariosRouter);

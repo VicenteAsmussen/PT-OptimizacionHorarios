@@ -6,9 +6,11 @@ import ProfesoresPage, { RequireGestionProfesores } from "../features/profesores
 import { GuestOnly, RequireAuth } from "./AuthGuards";
 import AsignaturasPage, { RequireGestionAsignaturas } from "../features/asignaturas/AsignaturasPage";
 import HorariosExternosPage from "../features/horarios-externos/HorariosExternosPage";
+import RequireHorariosExternos from "../features/horarios-externos/RequireHorariosExternos";
 import DisponibilidadPage, { RequireDisponibilidad } from "../features/disponibilidad/DisponibilidadPage";
 import MiHorarioPage, { RequireMiHorario } from "../features/mi-horario/MiHorarioPage";
 import SeguimientoDisponibilidadPage, { RequireSeguimientoDisponibilidad } from "../features/seguimiento-disponibilidad/SeguimientoDisponibilidadPage";
+import AdministracionPeriodosPage, { RequireAdministracionPeriodos } from "../features/administracion-periodos/AdministracionPeriodosPage";
 
 export const router = createBrowserRouter([
   { path: "/", element: <Navigate to="/login" replace /> },
@@ -24,6 +26,9 @@ export const router = createBrowserRouter([
       children: [
         { index: true, element: <Navigate to="dashboard" replace /> },
         { path: "dashboard", element: <DashboardPage /> },
+        { element: <RequireAdministracionPeriodos />, children: [
+          { path: "administracion-periodos", element: <AdministracionPeriodosPage /> },
+        ] },
         { element: <RequireMiHorario />, children: [
           { path: "mi-horario", element: <MiHorarioPage /> },
         ] },
@@ -38,6 +43,8 @@ export const router = createBrowserRouter([
         ] },
         { element: <RequireGestionAsignaturas />, children: [
           { path: "asignaturas", element: <AsignaturasPage /> },
+        ] },
+        { element: <RequireHorariosExternos />, children: [
           { path: "horarios-externos", element: <HorariosExternosPage /> },
         ] },
         { path: "*", element: <p>Página no encontrada</p> },

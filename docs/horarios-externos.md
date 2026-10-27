@@ -1,6 +1,6 @@
 # Importar horarios de otros departamentos
 
-En **Horarios departamentos externos**, el período actual se completa automáticamente y no se puede cambiar. Elige un departamento para ver sus asignaturas de la malla, nivel y secciones con horarios guardados. Si no hay una planificación actual o no se puede determinar una sola carrera, la página lo informa sin elegir por su cuenta. Los períodos anteriores se consultan en **Asignaturas**.
+**Horarios departamentos externos** es exclusivo de secretaría: el administrador no ve el enlace ni puede acceder por URL directa o por la API. El período actual se completa automáticamente y no se puede cambiar. Elige un departamento para ver sus asignaturas de la malla, nivel y secciones con horarios guardados. Si no hay una planificación actual o no se puede determinar una sola carrera, la página lo informa sin elegir por su cuenta. Los períodos anteriores se consultan en **Asignaturas**.
 
 Sin un departamento seleccionado, aparece el resumen de cobertura de todos los departamentos externos, incluidos los que no tienen carga. Cuenta asignaturas con horarios respecto del total de la malla, no secciones. El resumen se actualiza al recargar o volver después de importar. Si falla la consulta, muestra un error y permite reintentar, no presenta un cero como resultado.
 
@@ -31,7 +31,9 @@ Si falla la consulta de cobertura, se bloquea la selección de archivo y aparece
 
 ## API y verificación
 
-- `GET /api/horarios-asignaturas/excel/externos/cobertura?planificacionSemestreId=…&departamentoId=…`: cobertura persistida, restringida a administradores y secretarias con alcance autorizado.
-- `POST /api/horarios-asignaturas/excel/externos/importar?planificacionSemestreId=…&departamentoId=…`: envío multipart con campo `archivo`. Devuelve HTTP 400 con `errores` y `data.cobertura` si falla la validación, o HTTP 201 con el resumen si se importa.
+- `GET /api/horarios-asignaturas/excel/externos/cobertura?planificacionSemestreId=…&departamentoId=…`: cobertura persistida, exclusiva de secretaría dentro de su carrera autorizada. Otros roles reciben HTTP 403 antes de consultar datos.
+- `POST /api/horarios-asignaturas/excel/externos/importar?planificacionSemestreId=…&departamentoId=…`: envío multipart con campo `archivo`, exclusivo de secretaría y su carrera. Otros roles reciben HTTP 403 antes de procesar el archivo. Devuelve HTTP 400 con `errores` y `data.cobertura` si falla la validación, o HTTP 201 con el resumen si se importa.
+
+El administrador conserva los reinicios de datos externos en **Administración de períodos**. Esta restricción no modifica los permisos existentes del Excel de salas.
 
 Las pruebas de persistencia y reversión se ejecutan mediante [la base PostgreSQL de pruebas](pruebas-excel-externos.md), nunca contra la base de desarrollo.
