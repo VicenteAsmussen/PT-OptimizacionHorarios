@@ -22,7 +22,7 @@ async function contextoHorarioPropio(usuarioId: number) {
   const profesor = await horariosRepository.findProfesorByUsuarioId(usuarioId);
   if (!profesor) throw new ForbiddenError("El usuario autenticado no tiene un perfil de profesor asociado");
   const planificaciones = (await miHorarioRepository.findPlanificaciones(profesor.id))
-    .filter(fila => fila.estadoPlanificacion === "propuesta" || fila.estadoPlanificacion === "publicado");
+    .filter(fila => fila.estadoPlanificacion === "preparacion" || fila.estadoPlanificacion === "propuesta" || fila.estadoPlanificacion === "publicado");
   return { profesor, planificaciones };
 }
 
@@ -293,7 +293,9 @@ export const horariosService = {
 
   async getMiHorario(usuarioId: number, consulta?: MiHorarioQueryDTO) {
     const { profesor, planificaciones } = await contextoHorarioPropio(usuarioId);
-    const permitidas = new Set(planificaciones.map(fila => fila.id));
+    const permitidas = new Set(planificaciones
+      .filter(fila => fila.estadoPlanificacion === "propuesta" || fila.estadoPlanificacion === "publicado")
+      .map(fila => fila.id));
     if (consulta?.planificacionSemestreId && !permitidas.has(consulta.planificacionSemestreId)) {
       throw new ForbiddenError("No tiene asignaciones en una planificación en Propuesta o Publicado");
     }

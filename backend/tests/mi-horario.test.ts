@@ -52,12 +52,32 @@ beforeEach(() => {
   datos.horarios = [10, 20, 30, 40].map((id, indice) => ({ id: indice + 1, planificacionSemestreId: id, profesorId: id === 40 ? 8 : 7, sala: null }));
 });
 describe("Consulta del horario propio", () => {
-  it("ofrece únicamente propuesta y publicado con asignaciones, incluso fuera del departamento e históricos", async () => {
+  it("ofrece metadatos de todos los estados con asignaciones, incluso fuera del departamento e históricos", async () => {
     const respuesta = await request(app).get(`${ruta}/contexto`).set("Authorization", "profesor");
     expect(respuesta.status).toBe(200);
-    expect(respuesta.body.data.planificaciones.map((p: any) => p.id)).toEqual([10, 20]);
+    expect(respuesta.body.data.planificaciones.map((p: any) => p.id)).toEqual([10, 20, 30]);
     expect(respuesta.body.data.planificaciones[0].carreraNombre).toBe("Carrera externa");
     expect(respuesta.body.data.bloques[0].dia).toBe("Lunes");
+  });
+  it("ofrece preparación sin consultar sus clases cuando es el único período asignado", async () => {
+    datos.planificaciones = datos.planificaciones.filter(p => p.id === 30);
+    const contexto = await request(app).get(`${ruta}/contexto`).set("Authorization", "profesor");
+    expect(contexto.status).toBe(200);
+    expect(contexto.body.data.planificaciones.map((p: any) => p.id)).toEqual([30]);
+    const respuesta = await request(app).get(ruta).set("Authorization", "profesor");
+    expect(respuesta.status).toBe(200);
+    expect(respuesta.body.data).toEqual([]);
+    expect(datos.consultar).not.toHaveBeenCalled();
+  });
+  it("lista metadatos por identidad autenticada aunque no existan clases guardadas", async () => {
+    datos.horarios = [];
+    for (const usuario of [1, 2]) {
+      const respuesta = await request(app).get(`${ruta}/contexto`)
+        .set("Authorization", "profesor").set("x-usuario", String(usuario));
+      expect(respuesta.status).toBe(200);
+      expect(respuesta.body.data.planificaciones.map((p: any) => p.id)).toEqual(usuario === 1 ? [10, 20, 30] : [40]);
+    }
+    expect(datos.consultar).not.toHaveBeenCalled();
   });
   it.each([10, 20])("consulta una planificación asignada %s sin depender del departamento", async id => {
     const respuesta = await request(app).get(`${ruta}?planificacionSemestreId=${id}`).set("Authorization", "profesor");

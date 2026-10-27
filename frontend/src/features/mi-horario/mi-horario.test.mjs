@@ -2,6 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { registerHooks } from 'node:module';
 import { readFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
+import { pathToFileURL } from 'node:url';
+import React from 'react';
+import { renderToStaticMarkup } from 'react-dom/server';
 
 // Match the app's bundler resolution without changing its TypeScript configuration.
 registerHooks({ resolve(especificador, contexto, siguiente) {
@@ -18,7 +22,9 @@ test('only professors can consult the page and only existing visible states are 
   assert.deepEqual(m.planificacionesVisibles([
     { id: 1, estadoPlanificacion: 'preparacion' }, { id: 2, estadoPlanificacion: 'propuesta' },
     { id: 3, estadoPlanificacion: 'publicado' },
-  ]).map(p => p.id), [2, 3]);
+    { id: 4, estadoPlanificacion: 'desconocido' },
+  ]).map(p => p.id), [1, 2, 3]);
+  assert.equal(m.etiquetaEstado({ estadoPlanificacion: 'preparacion' }), 'Preparación');
   assert.equal(m.etiquetaEstado({ estadoPlanificacion: 'propuesta' }), 'Propuesta');
   assert.equal(m.etiquetaEstado({ estadoPlanificacion: 'publicado' }), 'Publicado');
 });
@@ -163,3 +169,146 @@ test('changing planning immediately clears old data and ignores stale responses'
   assert.deepEqual(estado.horarios, []);
   assert.equal(estado.error, 'No disponible');
 });
+
+// Run the page's real effects with controlled hooks and deferred API responses, without a DOM or sockets.
+async function crearPaginaControlada(planificaciones) {
+  const ts = await import('typescript');
+  const resolver = createRequire(import.meta.url);
+  const modelo = await import('./modelo.ts');
+  const react = JSON.stringify(pathToFileURL(resolver.resolve('react')).href);
+  const fuente = (await readFile(new URL('./MiHorarioPage.tsx', import.meta.url), 'utf8'))
+    .replace(/^import .*;\r?\n/gm, '')
+    .replace(/^export /gm, '')
+    .replace('default function MiHorarioPage', 'function MiHorarioPage');
+  const codigo = ts.transpileModule(`import React from ${react};
+    export function crear(entorno) {
+      const { useEffect, useReducer, useState, miHorarioApi, EncabezadoMiHorario, CalendarioSemanal } = entorno;
+      const { estadoInicial, planificacionesVisibles, puedeConsultarMiHorario, reducirHorario } = entorno.modelo;
+      const estilos = {}; const useAuth = () => ({ usuario: { id: 1, rol: 'profesor' } });
+      class ApiError extends Error {};
+      ${fuente}
+      return ConsultaMiHorario;
+    }`, { compilerOptions: { jsx: ts.JsxEmit.React, module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText;
+  const { crear } = await import(`data:text/javascript;base64,${Buffer.from(codigo).toString('base64')}`);
+  const valores = [], efectos = [], pendientes = [], solicitudes = [];
+  let indice, sucio = false, arbol;
+  const encabezado = propiedades => React.createElement('select', {
+    'aria-label': 'Carrera y período', value: propiedades.planificacionId ?? '',
+    onChange: evento => propiedades.seleccionar(Number(evento.target.value)),
+  }, propiedades.planificaciones.map(p => React.createElement('option', { key: p.id, value: p.id }, modelo.etiquetaEstado(p))));
+  const pagina = crear({ modelo, EncabezadoMiHorario: encabezado,
+    CalendarioSemanal: ({ horarios }) => React.createElement('table', { 'aria-label': 'Horario semanal' },
+      React.createElement('tbody', null, React.createElement('tr', null, React.createElement('td', null, horarios.map(h => h.oferta.asignatura.nombre).join(', '))))),
+    useState(inicial) {
+      const posicion = indice++;
+      if (!(posicion in valores)) valores[posicion] = inicial;
+      return [valores[posicion], siguiente => {
+        valores[posicion] = typeof siguiente === 'function' ? siguiente(valores[posicion]) : siguiente;
+        sucio = true;
+      }];
+    },
+    useReducer(reducir, inicial) {
+      const posicion = indice++;
+      if (!(posicion in valores)) valores[posicion] = inicial;
+      return [valores[posicion], accion => { valores[posicion] = reducir(valores[posicion], accion); sucio = true; }];
+    },
+    useEffect(efecto, dependencias) {
+      const posicion = indice++;
+      const anterior = efectos[posicion];
+      if (!anterior || dependencias.some((valor, i) => !Object.is(valor, anterior.dependencias[i]))) {
+        pendientes.push(() => { anterior?.limpiar?.(); efectos[posicion] = { dependencias, limpiar: efecto() }; });
+      }
+    },
+    miHorarioApi: {
+      contexto: async () => ({ planificaciones, bloques }),
+      consultar(id, signal) {
+        return new Promise((resolver, rechazar) => solicitudes.push({ id, signal, resolver, rechazar }));
+      },
+    },
+  });
+  function renderizar() {
+    do {
+      sucio = false; indice = 0; arbol = pagina();
+      pendientes.splice(0).forEach(efecto => efecto());
+    } while (sucio);
+  }
+  async function asentar() {
+    await Promise.resolve(); await Promise.resolve(); renderizar();
+  }
+  function buscar(elemento, tipo) {
+    if (!React.isValidElement(elemento)) return;
+    if (elemento.type === tipo) return elemento;
+    for (const hijo of React.Children.toArray(elemento.props.children)) {
+      const encontrado = buscar(hijo, tipo); if (encontrado) return encontrado;
+    }
+  }
+  renderizar(); await asentar();
+  return {
+    solicitudes, asentar,
+    html: () => renderToStaticMarkup(arbol),
+    seleccionar(id) { buscar(arbol, encabezado).props.seleccionar(id); renderizar(); },
+    cerrar() { efectos.forEach(efecto => efecto.limpiar?.()); },
+  };
+}
+
+const periodos = [
+  { id: 10, estadoPlanificacion: 'propuesta' },
+  { id: 20, estadoPlanificacion: 'preparacion' },
+  { id: 30, estadoPlanificacion: 'publicado' },
+];
+const avisoPreparacion = 'Este período está en Preparación. El horario aún no está habilitado para consulta.';
+
+test('preparation is selectable and shows the exact notice without requesting or rendering a calendar', async () => {
+  const pagina = await crearPaginaControlada([periodos[1]]);
+  try {
+    assert.match(pagina.html(), /<option value="20" selected="">Preparación<\/option>/);
+    assert.ok(pagina.html().includes(avisoPreparacion));
+    assert.doesNotMatch(pagina.html(), /<table|Cargando horario|No tienes clases/);
+    assert.equal(pagina.solicitudes.length, 0);
+  } finally { pagina.cerrar(); }
+});
+
+test('switching proposal to preparation clears the calendar and published still loads its own classes', async () => {
+  const pagina = await crearPaginaControlada(periodos);
+  try {
+    pagina.solicitudes[0].resolver([clase]); await pagina.asentar();
+    assert.match(pagina.html(), /<table/);
+    pagina.seleccionar(20);
+    assert.ok(pagina.html().includes(avisoPreparacion));
+    assert.doesNotMatch(pagina.html(), /<table|Álgebra/);
+    assert.equal(pagina.solicitudes[0].signal.aborted, true);
+    assert.equal(pagina.solicitudes.length, 1);
+    pagina.seleccionar(30);
+    assert.doesNotMatch(pagina.html(), /<table|Álgebra/);
+    assert.deepEqual(pagina.solicitudes.map(s => s.id), [10, 30]);
+    pagina.solicitudes[1].resolver([{ ...clase, planificacionSemestreId: 30 }]); await pagina.asentar();
+    assert.match(pagina.html(), /<table/);
+    assert.doesNotMatch(pagina.html(), /Preparación\. El horario/);
+  } finally { pagina.cerrar(); }
+});
+
+for (const resultado of ['success', 'failure']) {
+  test(`late ${resultado} cannot restore a calendar in preparation or after returning to the same period`, async () => {
+    const pagina = await crearPaginaControlada(periodos);
+    try {
+      const anterior = pagina.solicitudes[0];
+      pagina.seleccionar(20);
+      assert.ok(pagina.html().includes(avisoPreparacion));
+      if (resultado === 'success') anterior.resolver([clase]); else anterior.rechazar(new Error('Late failure'));
+      await pagina.asentar();
+      assert.ok(pagina.html().includes(avisoPreparacion));
+      assert.doesNotMatch(pagina.html(), /<table|Álgebra|role="alert"/);
+      pagina.seleccionar(10);
+      const repetida = pagina.solicitudes.at(-1);
+      pagina.seleccionar(20); pagina.seleccionar(10);
+      assert.doesNotMatch(pagina.html(), /<table|Álgebra|role="alert"/);
+      pagina.solicitudes.at(-1).resolver([{ ...clase, oferta: { ...clase.oferta, asignatura: { nombre: 'Current schedule' } } }]);
+      await pagina.asentar();
+      assert.match(pagina.html(), /<table/);
+      if (resultado === 'success') repetida.resolver([clase]); else repetida.rechazar(new Error('Late failure'));
+      await pagina.asentar();
+      assert.match(pagina.html(), /Current schedule/);
+      assert.doesNotMatch(pagina.html(), /Álgebra|role="alert"/);
+    } finally { pagina.cerrar(); }
+  });
+}

@@ -9,7 +9,7 @@ export const miHorarioRepository = {
   async findPlanificaciones(profesorId: number) {
     const filas = await db.query.planificacionesSemestres.findMany({
       where: and(
-        inArray(planificacionesSemestres.estadoPlanificacion, ["propuesta", "publicado"]),
+        inArray(planificacionesSemestres.estadoPlanificacion, ["preparacion", "propuesta", "publicado"]),
         inArray(planificacionesSemestres.id, db.select({ id: ofertasAsignaturas.planificacionSemestreId })
           .from(ofertasAsignaturas)
           .innerJoin(ofertaTipoHora, eq(ofertaTipoHora.ofertaId, ofertasAsignaturas.id))
