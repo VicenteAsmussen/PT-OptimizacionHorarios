@@ -1,6 +1,6 @@
 import { planificacionesSemestresRepository } from "../repositories/planificaciones-semestres.repository.js";
 import { exigirEnAlcance, type AlcanceCarrera } from "../utils/alcance-carrera.js";
-import { BadRequestError, ForbiddenError, NotFoundError } from "../utils/errors.js";
+import { BadRequestError, ConflictError, ForbiddenError, NotFoundError } from "../utils/errors.js";
 import type { CreatePlanificacionSemestreDTO, UpdatePlanificacionSemestreDTO } from "../validations/planificaciones-semestres.validation.js";
 
 export type UsuarioPlanificacion = { id: number; rol: string };
@@ -27,13 +27,33 @@ export const planificacionesSemestresService = {
   },
   async create(datos: CreatePlanificacionSemestreDTO, alcance?: AlcanceCarrera) {
     exigirEnAlcance(alcance ? [alcance.carreraId] : undefined, datos.carreraId);
-    return planificacionesSemestresRepository.create(datos);
+    try {
+      return await planificacionesSemestresRepository.create({ ...datos, actual: true, estadoPlanificacion: "preparacion" });
+    } catch (error) {
+      // Drizzle wraps PostgreSQL errors; translate only career/code uniqueness.
+      let causa: unknown = error;
+      const visitadas = new Set<unknown>();
+      while (causa && typeof causa === "object" && !visitadas.has(causa)) {
+        visitadas.add(causa);
+        const detalle = causa as { code?: string; constraint_name?: string; constraint?: string; cause?: unknown };
+        if (detalle.code === "23505" && (detalle.constraint_name ?? detalle.constraint) === "planificaciones_semestres_carrera_codigo_unique") {
+          throw new ConflictError("Período existente");
+        }
+        causa = detalle.cause;
+      }
+      throw error;
+    }
   },
   async update(id: number, datos: UpdatePlanificacionSemestreDTO, alcance?: AlcanceCarrera) {
     const planificacion = await this.getById(id, alcance);
-    // T3 ampliará guards de entradas y transiciones. Este endpoint no reabre estados.
-    if (planificacion.estadoPlanificacion !== "preparacion") throw new ForbiddenError("La planificación ya tiene una propuesta o publicación");
+    if (planificacion.estadoPlanificacion !== "preparacion" && (datos.codigo !== undefined || datos.actual === undefined)) {
+      throw new ForbiddenError("La planificación ya tiene una propuesta o publicación");
+    }
     if (!Object.keys(datos).length) throw new BadRequestError("No hay cambios de planificación");
     return planificacionesSemestresRepository.update(id, planificacion.carreraId, datos);
+  },
+  async delete(id: number, confirmacion: string, alcance?: AlcanceCarrera) {
+    const planificacion = await this.getById(id, alcance);
+    return planificacionesSemestresRepository.delete(id, planificacion.carreraId, confirmacion);
   },
 };

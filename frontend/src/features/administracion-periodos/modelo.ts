@@ -15,6 +15,10 @@ export const estadosPeriodo: Record<EstadoPeriodo, string> = {
   preparacion: 'Preparación', propuesta: 'Propuesta', publicado: 'Publicado',
 };
 export type ResumenesPeriodo = Record<AlcanceReinicio, ResumenPeriodo>;
+export function puedeEliminarPeriodo(resumen: ResumenPeriodo, planificacionId: number) {
+  return resumen.alcance === 'todas' && resumen.planificacion.id === planificacionId
+    && resumen.planificacion.estadoPlanificacion === 'preparacion' && resumen.ofertas === 0;
+}
 export interface AccionReinicio {
   objetivo: ObjetivoReinicio;
   alcance: 'gestionadas' | 'externas';

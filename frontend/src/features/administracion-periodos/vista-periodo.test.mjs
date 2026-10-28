@@ -17,7 +17,9 @@ async function cargarVista(archivo = './VistaPeriodo.tsx') {
     if (ruta === 'react-router-dom') return 'const Navigate = () => null; const Outlet = () => null;';
     if (ruta === '../../hooks/useAuth') return 'const useAuth = () => ({ usuario: { id: 1, rol: "admin" } });';
     if (ruta === './administracion-periodos.api') return 'const servicio = {};';
+    if (ruta === '../../lib/notificaciones') return 'const notificaciones = { exito() {}, error() {} };';
     if (ruta === './VistaPeriodo') return 'const VistaPeriodo = () => null;';
+    if (ruta === './SelectorPeriodo') return 'const SelectorPeriodo = () => null;';
     if (ruta === './modelo') return linea.replace("'./modelo'", JSON.stringify(new URL('./modelo.ts', import.meta.url).href));
     throw new Error(`Unexpected import: ${ruta}`);
   });
@@ -178,4 +180,67 @@ test('page renders its short description immediately below the title', async () 
   const html = renderToStaticMarkup(React.createElement(Pagina));
   assert.match(html, /<h1[^>]*>Administración de períodos<\/h1><p[^>]*>Selecciona una carrera y un período para cambiar su estado o reiniciar datos\.<\/p>/);
   assert.doesNotMatch(html, /Alcance del reinicio/);
+});
+test('current action works in every state without submitting state form; busy/current guards remain explicit', async () => {
+  const Vista = await cargarVista(); let llamadas = 0;
+  for (const estado of ['preparacion', 'propuesta', 'publicado']) for (const actual of [true, false]) for (const bloqueado of [true, false]) {
+    const datos = structuredClone(resumenes); Object.assign(datos.todas.planificacion, { estadoPlanificacion: estado, actual });
+    const elemento = Vista({ ...propiedades, resumenes: datos, bloqueado, alMarcarActual: () => llamadas++ });
+    const boton = nodos(elemento).find(nodo => nodo.type === 'button' && nodo.props.children === (actual ? 'Es actual' : 'Marcar como actual'));
+    assert.doesNotMatch(renderToStaticMarkup(elemento), /Puedes marcar este período como actual/);
+    assert.equal(boton.props.type, 'button'); assert.equal(boton.props.disabled, actual || bloqueado);
+    const anteriores = llamadas; boton.props.onClick(); assert.equal(llamadas - anteriores, actual || bloqueado ? 0 : 1);
+  }
+});
+test('delete keeps irreversible warning and exact confirmation without the long eligibility paragraph', async () => {
+  const Vista = await cargarVista(); let llamadas = 0;
+  for (const estado of ['preparacion', 'propuesta', 'publicado']) for (const ofertas of [0, 1]) for (const bloqueado of [false, true]) for (const codigo of ['2099-2', ' 2099-2']) {
+    const datos = structuredClone(resumenes); datos.todas.planificacion.estadoPlanificacion = estado; datos.todas.ofertas = ofertas;
+    const elemento = Vista({ ...propiedades, resumenes: datos, bloqueado, confirmacionEliminacion: codigo, alEliminar: () => llamadas++ });
+    const elementos = nodos(elemento); const boton = elementos.find(nodo => nodo.type === 'button' && nodo.props.children === 'Confirmar eliminación');
+    const permitido = estado === 'preparacion' && ofertas === 0 && !bloqueado && codigo === '2099-2';
+    assert.equal(boton.props.disabled, !permitido);
+    const anteriores = llamadas;
+    elementos.find(nodo => nodo.type === 'form' && nodo.props['aria-label'] === 'Confirmar eliminación de período').props.onSubmit({ preventDefault() {} });
+    assert.equal(llamadas - anteriores, permitido ? 1 : 0);
+    assert.match(renderToStaticMarkup(elemento), /Esta eliminación no se puede deshacer/);
+    assert.match(renderToStaticMarkup(elemento), /Escribe 2099-2 para eliminar/);
+    assert.doesNotMatch(renderToStaticMarkup(elemento), /Solo se puede eliminar un período en Preparación|disponibilidad docente|No se eliminarán ofertas ni horarios/);
+  }
+});
+
+test('state current and delete actions share one right-aligned wrapping row outside forms', async () => {
+  const Vista = await cargarVista();
+  const elemento = Vista(propiedades); const elementos = nodos(elemento);
+  const html = renderToStaticMarkup(elemento);
+  assert.doesNotMatch(html, /<h3>Período actual<\/h3>|<h3>Eliminar período<\/h3>/);
+  const etiquetas = ['Cambiar estado', 'Marcar como actual', 'Eliminar período'];
+  const fila = elementos.find(nodo => nodo.type === 'div' && etiquetas.every(etiqueta =>
+    React.Children.toArray(nodo.props.children).some(hijo => hijo.type === 'button' && hijo.props.children === etiqueta)));
+  assert.ok(fila, 'all three actions must be siblings');
+  const formulario = elementos.find(nodo => nodo.type === 'form');
+  const estado = nodos(fila).find(nodo => nodo.props.children === 'Cambiar estado');
+  assert.equal(estado.props.type, 'submit'); assert.equal(estado.props.form, formulario.props.id);
+  assert.ok(formulario.props.id);
+  for (const formulario of elementos.filter(nodo => nodo.type === 'form')) {
+    assert.equal(nodos(formulario).filter(nodo => nodo.type === 'form').length, 1);
+    assert.ok(!nodos(formulario).some(nodo => ['Marcar como actual', 'Eliminar período'].includes(nodo.props.children)));
+  }
+  const css = await readFile(new URL('./AdministracionPeriodos.module.css', import.meta.url), 'utf8');
+  assert.match(css, /\.accionesPeriodo\s*\{[^}]*display:\s*flex[^}]*flex-wrap:\s*wrap[^}]*justify-content:\s*flex-end/);
+});
+
+test('current-period actions follow the preparation notice without a redundant current paragraph', async () => {
+  const Vista = await cargarVista();
+  const datos = structuredClone(resumenes); datos.todas.planificacion.actual = true;
+  const elemento = Vista({ ...propiedades, resumenes: datos });
+  const html = renderToStaticMarkup(elemento);
+  assert.doesNotMatch(html, /Este es el período actual de la carrera\./);
+  assert.match(html, /Para volver a Preparación, elimina primero los horarios gestionados\. Los externos pueden conservarse\.<\/p><\/form><div/);
+  const seccion = React.Children.toArray(elemento.props.children).find(nodo => nodo.type === 'section');
+  const hijos = React.Children.toArray(seccion.props.children);
+  const indiceFormulario = hijos.findIndex(nodo => nodo.type === 'form');
+  assert.equal(hijos[indiceFormulario + 1].type, 'div');
+  assert.deepEqual(React.Children.toArray(hijos[indiceFormulario + 1].props.children).map(nodo => nodo.props.children),
+    ['Cambiar estado', 'Es actual', 'Eliminar período']);
 });

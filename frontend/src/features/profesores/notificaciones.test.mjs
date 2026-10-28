@@ -87,7 +87,7 @@ test("operaciones repetidas usan avisos independientes sin arrastrar fallos", as
 test("adaptador aplica duración y cierre a éxitos, advertencias y errores reales", async () => {
   const { notificaciones } = await import("../../lib/notificaciones.ts");
   const { toast } = await import("sonner");
-  for (const [tipo, duracion] of [["exito", 5000], ["advertencia", Infinity], ["error", Infinity]]) {
+  for (const [tipo, duracion] of [["exito", 5000], ["advertencia", 5000], ["error", 5000]]) {
     const id = notificaciones[tipo](`Prueba ${tipo}`);
     const aviso = toast.getHistory().find((aviso) => aviso.id === id);
     assert.equal(aviso.duration, duracion);
@@ -102,8 +102,8 @@ test("política central y un único Toaster global con etiquetas españolas", as
   const componente = await readFile(new URL("../../components/notificaciones/Notificaciones.tsx", import.meta.url), "utf8");
   const pagina = await readFile(new URL("./ProfesoresPage.tsx", import.meta.url), "utf8");
   assert.match(adaptador, /exito:[\s\S]*?duration: 5000/);
-  assert.match(adaptador, /error:[\s\S]*?duration: Infinity/);
-  assert.match(adaptador, /advertencia:[\s\S]*?duration: Infinity/);
+  assert.match(adaptador, /error:[\s\S]*?duration: 5000/);
+  assert.match(adaptador, /advertencia:[\s\S]*?duration: 5000/);
   assert.equal(app.match(/<Notificaciones\s*\/>/g)?.length, 1);
   assert.equal(componente.match(/<Toaster\b/g)?.length, 1);
   assert.match(componente, /closeButton/);

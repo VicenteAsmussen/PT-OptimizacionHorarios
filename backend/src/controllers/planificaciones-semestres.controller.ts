@@ -28,4 +28,10 @@ export const planificacionesSemestresController = {
       res.json({ status: "success", data });
     } catch (error) { next(error); }
   },
+  async delete(req: Request, res: Response, next: NextFunction) {
+    try {
+      const data = await planificacionesSemestresService.delete(Number(req.params.id), req.body.confirmacion, await resolverAlcanceCarrera(req.user));
+      res.json({ status: "success", data });
+    } catch (error) { next(error); }
+  },
 };

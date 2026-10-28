@@ -6,6 +6,19 @@ import { disponibilidadRepository } from "../src/repositories/disponibilidad.rep
 import { horariosRepository } from "../src/repositories/horarios.repository.js";
 import { planificacionesSemestresRepository } from "../src/repositories/planificaciones-semestres.repository.js";
 import { exigirPlanificacionEditable } from "../src/repositories/planificacion-escritura.js";
+import express, { type Request, type Response, type NextFunction } from "express";
+import request from "supertest";
+import { planificacionesSemestresRouter } from "../src/routes/planificaciones-semestres.routes.js";
+import { errorHandler } from "../src/middlewares/error.middleware.js";
+
+vi.mock("../src/middlewares/auth.middleware.js", () => ({ authenticate: (req: Request, _res: Response, next: NextFunction) => {
+  req.user = { id: 5, rol: "admin" } as Request["user"];
+  next();
+} }));
+const app = express();
+app.use(express.json());
+app.use("/api/planificaciones-semestres", planificacionesSemestresRouter);
+app.use(errorHandler);
 
 const contexto = vi.hoisted(() => ({ base: {} as Record<string, unknown> }));
 vi.mock("../src/config/db.js", () => ({ db: new Proxy({}, { get: (_, clave) => contexto.base[String(clave)] }) }));
@@ -15,6 +28,7 @@ let tablas: Record<string, Fila[]>;
 let eventos: string[];
 let alBloquear: (() => void) | undefined;
 let alEscribir: ((tabla: string, operacion: string) => void) | undefined;
+let consultas: { tabla: string; parametros: unknown[]; eventosPrevios: string[] }[];
 function parametros(condicion?: SQL): unknown[] { return condicion ? dialecto.sqlToQuery(condicion).params : []; }
 function buscar(tabla: string, condicion?: SQL) {
   const valores = parametros(condicion);
@@ -35,6 +49,7 @@ function baseSimulada() {
     let condicion: SQL | undefined;
     let unida = false;
     const resultados = () => {
+      consultas.push({ tabla: nombre, parametros: parametros(condicion), eventosPrevios: [...eventos] });
       if (!unida) return buscar(nombre, condicion);
       const originales = tablas[nombre];
       tablas[nombre] = originales.map(fila => ({ ...fila, ...tablas.oferta_tipo_hora.find(a => a.ofertaId === fila.ofertaId && a.tipoHoraId === fila.tipoHoraId), id: fila.id }));
@@ -77,7 +92,11 @@ function baseSimulada() {
         if (existente) Object.assign(existente, actualizacionConflicto); else tablas[nombre].push(fila);
       }
       if (operacion === "update") afectadas.forEach(fila => Object.assign(fila, datos));
-      if (operacion === "delete") tablas[nombre] = tablas[nombre].filter(fila => !afectadas.includes(fila));
+      if (operacion === "delete") {
+        tablas[nombre] = tablas[nombre].filter(fila => !afectadas.includes(fila));
+        // Model the existing availability FK cascade, not an application delete.
+        if (nombre === "planificaciones_semestres") tablas.disponibilidad_profesores = tablas.disponibilidad_profesores.filter(fila => !afectadas.some(periodo => periodo.id === fila.planificacionSemestreId));
+      }
       return filas;
     };
     const cadena = { values: (valor: Fila) => { datos = valor; return cadena; }, set: (valor: Fila) => { datos = valor; return cadena; }, where: (valor: SQL) => { condicion = valor; return cadena; },
@@ -98,6 +117,7 @@ beforeEach(() => {
   eventos = [];
   alBloquear = undefined;
   alEscribir = undefined;
+  consultas = [];
   tablas = {
     carreras: [{ id: 1 }, { id: 2 }],
     planificaciones_semestres: [
@@ -201,6 +221,154 @@ it("permite seleccionar como actual una preparación histórica", async () => {
   tablas.planificaciones_semestres[0].actual = false;
   await planificacionesSemestresRepository.update(1, 2, { actual: true });
   expect(eventos.at(-1)).toBe("commit");
+});
+it.each(["preparacion", "propuesta", "publicado"])("actual-only %s conserva datos y aísla carrera", async estadoPlanificacion => {
+  Object.assign(tablas.planificaciones_semestres[0], { actual: false, estadoPlanificacion });
+  tablas.planificaciones_semestres.push({ id: 3, carreraId: 2, codigo: "2027-1", actual: true, estadoPlanificacion: "publicado" });
+  const anteriores = structuredClone(tablas);
+  await planificacionesSemestresRepository.update(1, 2, { actual: true });
+  expect(tablas).toEqual({ ...anteriores, planificaciones_semestres: anteriores.planificaciones_semestres.map(fila => fila.carreraId === 2 ? { ...fila, actual: fila.id === 1 } : fila) });
+  expect(eventos.slice(0, 3)).toEqual(["inicio", "bloqueo:carreras:2", "bloqueo:planificaciones_semestres:1,2"]);
+});
+it.each(["preparacion", "propuesta", "publicado"])("desmarcar actual %s no elige reemplazo", async estadoPlanificacion => {
+  tablas.planificaciones_semestres[0].estadoPlanificacion = estadoPlanificacion;
+  const anteriores = structuredClone(tablas);
+  await planificacionesSemestresRepository.update(1, 2, { actual: false });
+  expect(tablas).toEqual({ ...anteriores, planificaciones_semestres: [{ ...anteriores.planificaciones_semestres[0], actual: false }, anteriores.planificaciones_semestres[1]] });
+});
+it("actual-only revalida bajo bloqueo y revierte las desactivaciones si falla la última escritura", async () => {
+  const anteriores = structuredClone(tablas); let escrituras = 0;
+  alBloquear = () => { tablas.planificaciones_semestres[0].estadoPlanificacion = "publicado"; };
+  alEscribir = () => { if (++escrituras === 2) throw new Error("fallo al marcar actual"); };
+  await expect(planificacionesSemestresRepository.update(1, 2, { actual: true })).rejects.toThrow("fallo al marcar actual");
+  expect(tablas).toEqual(anteriores); expect(eventos.at(-1)).toBe("rollback");
+});
+it.each([true, false])("DELETE preparación actual=%s permite disponibilidad y no activa reemplazo", async actual => {
+  tablas.ofertas_asignaturas = []; tablas.horarios_asignaturas = [];
+  tablas.planificaciones_semestres[0].actual = actual;
+  tablas.planificaciones_semestres.push({ id: 3, carreraId: 2, codigo: "2027-1", actual: false, estadoPlanificacion: "publicado" });
+  const anteriores = structuredClone(tablas);
+  expect(await planificacionesSemestresRepository.delete(1, 2, "2026-2")).toEqual(anteriores.planificaciones_semestres[0]);
+  expect(tablas).toEqual({ ...anteriores, planificaciones_semestres: anteriores.planificaciones_semestres.slice(1), disponibilidad_profesores: [] });
+  expect(eventos).toEqual(["inicio", "bloqueo:carreras:2", "bloqueo:planificaciones_semestres:1,2", "escritura:planificaciones_semestres:delete", "commit"]);
+});
+it.each(["oferta externa", "oferta gestionada", "oferta sin relación", "propuesta", "publicado", "código", "id", "carrera"])("DELETE rechaza %s y conserva todas las tablas", async caso => {
+  if (!caso.startsWith("oferta")) { tablas.ofertas_asignaturas = []; tablas.horarios_asignaturas = []; }
+  if (caso === "oferta gestionada") tablas.carrera_departamento[0].esGestionado = true;
+  if (caso === "oferta sin relación") tablas.carrera_departamento = [];
+  if (["propuesta", "publicado"].includes(caso)) tablas.planificaciones_semestres[0].estadoPlanificacion = caso;
+  const anteriores = structuredClone(tablas);
+  await expect(planificacionesSemestresRepository.delete(caso === "id" ? 404 : 1, caso === "carrera" ? 1 : 2, caso === "código" ? " 2026-2" : "2026-2")).rejects.toMatchObject({ statusCode: ["id", "carrera"].includes(caso) ? 404 : 409 });
+  expect(tablas).toEqual(anteriores);
+  expect(eventos.some(evento => evento.startsWith("escritura:"))).toBe(false);
+  expect(eventos.at(-1)).toBe("rollback");
+});
+it.each(["estado", "código", "oferta", "desaparición", "carrera"])("DELETE relee %s después de esperar carrera", async caso => {
+  tablas.ofertas_asignaturas = []; tablas.horarios_asignaturas = [];
+  alBloquear = () => {
+    if (caso === "estado") tablas.planificaciones_semestres[0].estadoPlanificacion = "publicado";
+    if (caso === "código") tablas.planificaciones_semestres[0].codigo = "2028-1";
+    if (caso === "oferta") tablas.ofertas_asignaturas.push({ id: 40, planificacionSemestreId: 1 });
+    if (caso === "desaparición") tablas.planificaciones_semestres.shift();
+    if (caso === "carrera") tablas.planificaciones_semestres[0].carreraId = 1;
+  };
+  await expect(planificacionesSemestresRepository.delete(1, 2, "2026-2")).rejects.toMatchObject({ statusCode: ["desaparición", "carrera"].includes(caso) ? 404 : 409 });
+  expect(eventos.some(evento => evento.startsWith("escritura:"))).toBe(false);
+});
+it("DELETE revierte un fallo tardío sin limpiar ofertas/horarios ni cambiar actual", async () => {
+  tablas.ofertas_asignaturas = []; tablas.horarios_asignaturas = [];
+  const anteriores = structuredClone(tablas);
+  alEscribir = () => { throw new Error("fallo de eliminación"); };
+  await expect(planificacionesSemestresRepository.delete(1, 2, "2026-2")).rejects.toThrow("fallo de eliminación");
+  expect(tablas).toEqual(anteriores); expect(eventos.at(-1)).toBe("rollback");
+});
+it.each(["preparacion", "propuesta", "publicado"])("crear período conserva anterior %s y los datos de todas las carreras", async estadoPlanificacion => {
+  tablas.planificaciones_semestres[0].estadoPlanificacion = estadoPlanificacion;
+  const anteriores = structuredClone(tablas);
+  const creada = await planificacionesSemestresRepository.create({ carreraId: 2, codigo: "2027-1" });
+  expect(creada).toMatchObject({ carreraId: 2, codigo: "2027-1", actual: true, estadoPlanificacion: "preparacion" });
+  expect(tablas).toEqual({ ...anteriores, planificaciones_semestres: [
+    { ...anteriores.planificaciones_semestres[0], actual: false }, anteriores.planificaciones_semestres[1], creada,
+  ] });
+  expect(eventos).toEqual(["inicio", "bloqueo:carreras:2", "escritura:planificaciones_semestres:update", "escritura:planificaciones_semestres:insert", "commit"]);
+});
+it("crea el primer período sin afectar carreras que ya tienen uno actual", async () => {
+  tablas.carreras.push({ id: 3 });
+  const anteriores = structuredClone(tablas);
+  const creada = await planificacionesSemestresRepository.create({ carreraId: 3, codigo: "2026-2" });
+  expect(creada).toMatchObject({ carreraId: 3, codigo: "2026-2", actual: true, estadoPlanificacion: "preparacion" });
+  expect(tablas).toEqual({ ...anteriores, planificaciones_semestres: [...anteriores.planificaciones_semestres, creada] });
+});
+describe("creation HTTP through the real service/repository and simulated storage", () => {
+  function simularUnicidadSinNombre() {
+    alEscribir = (tabla, operacion) => {
+      if (tabla === "planificaciones_semestres" && operacion === "insert" && tablas[tabla].some(fila => fila.carreraId === 2 && fila.codigo === "2026-2")) {
+        // Model an opaque driver constraint error, not evidence of the live driver.
+        throw Object.assign(new Error("duplicate key"), { code: "23505" });
+      }
+    };
+  }
+  it.each(["preparacion", "propuesta", "publicado"])("duplicate %s returns exact 409 before any writes", async estadoPlanificacion => {
+    Object.assign(tablas.planificaciones_semestres[0], { actual: false, estadoPlanificacion });
+    tablas.planificaciones_semestres.push({ id: 3, carreraId: 2, codigo: "2027-1", actual: true, estadoPlanificacion: "preparacion" });
+    const anteriores = structuredClone(tablas);
+    const lectura = await request(app).get("/api/planificaciones-semestres");
+    simularUnicidadSinNombre();
+    const respuesta = await request(app).post("/api/planificaciones-semestres").send({ carreraId: 2, codigo: "2026-2" });
+    expect(respuesta.status).toBe(409);
+    expect(respuesta.body).toEqual({ status: "error", statusCode: 409, message: "Período existente" });
+    expect((await request(app).get("/api/planificaciones-semestres")).body).toEqual(lectura.body);
+    expect(tablas).toEqual(anteriores);
+    expect(eventos).toEqual(["inicio", "bloqueo:carreras:2", "rollback"]);
+    expect(consultas).toEqual([{ tabla: "planificaciones_semestres", parametros: [2, "2026-2"], eventosPrevios: ["inicio", "bloqueo:carreras:2"] }]);
+  });
+  it("reads duplicates committed while waiting for the career lock, before demoting current", async () => {
+    alBloquear = () => { tablas.planificaciones_semestres.push({ id: 3, carreraId: 2, codigo: "2027-1", actual: false, estadoPlanificacion: "publicado" }); };
+    const respuesta = await request(app).post("/api/planificaciones-semestres").send({ carreraId: 2, codigo: "2027-1" });
+    expect(respuesta.status).toBe(409);
+    expect(respuesta.body).toEqual({ status: "error", statusCode: 409, message: "Período existente" });
+    expect(eventos).toEqual(["inicio", "bloqueo:carreras:2", "rollback"]);
+    expect(consultas).toEqual([{ tabla: "planificaciones_semestres", parametros: [2, "2027-1"], eventosPrevios: ["inicio", "bloqueo:carreras:2"] }]);
+  });
+  it("same code in another career still creates and preserves all unrelated data", async () => {
+    const anteriores = structuredClone(tablas);
+    const respuesta = await request(app).post("/api/planificaciones-semestres").send({ carreraId: 1, codigo: "2026-2" });
+    expect(respuesta.status).toBe(201);
+    expect(respuesta.body).toEqual({ status: "success", data: { id: 10, carreraId: 1, codigo: "2026-2", actual: true, estadoPlanificacion: "preparacion" } });
+    expect(tablas).toEqual({ ...anteriores, planificaciones_semestres: [anteriores.planificaciones_semestres[0], { ...anteriores.planificaciones_semestres[1], actual: false }, respuesta.body.data] });
+    expect(consultas).toEqual([{ tabla: "planificaciones_semestres", parametros: [1, "2026-2"], eventosPrevios: ["inicio", "bloqueo:carreras:1"] }]);
+    expect((await request(app).get("/api/planificaciones-semestres")).body.data).toEqual(tablas.planificaciones_semestres);
+  });
+  it("unrelated insertion failure stays 500 and rolls back current flags/data", async () => {
+    const anteriores = structuredClone(tablas);
+    const lectura = await request(app).get("/api/planificaciones-semestres");
+    alEscribir = (_tabla, operacion) => { if (operacion === "insert") throw new Error("storage unavailable"); };
+    const respuesta = await request(app).post("/api/planificaciones-semestres").send({ carreraId: 2, codigo: "2027-1" });
+    expect(respuesta.status).toBe(500);
+    expect(respuesta.body).toEqual({ status: "error", statusCode: 500, message: "Internal server error" });
+    expect((await request(app).get("/api/planificaciones-semestres")).body).toEqual(lectura.body);
+    expect(tablas).toEqual(anteriores);
+    expect(eventos.at(-1)).toBe("rollback");
+  });
+});
+it("un fallo tardío de inserción revierte la desactivación anterior en la transacción simulada", async () => {
+  const anteriores = structuredClone(tablas);
+  const error = Object.assign(new Error("duplicate"), { code: "23505", constraint: "planificaciones_semestres_carrera_codigo_unique" });
+  alEscribir = (tabla, operacion) => {
+    if (tabla === "planificaciones_semestres" && operacion === "insert") {
+      expect(tablas.planificaciones_semestres[0].actual).toBe(false);
+      throw error;
+    }
+  };
+  await expect(planificacionesSemestresRepository.create({ carreraId: 2, codigo: "2027-1" })).rejects.toBe(error);
+  expect(tablas).toEqual(anteriores);
+  expect(eventos.at(-1)).toBe("rollback");
+});
+it("carrera inexistente no altera tablas en la transacción simulada", async () => {
+  const anteriores = structuredClone(tablas);
+  await expect(planificacionesSemestresRepository.create({ carreraId: 404, codigo: "2027-1" })).rejects.toMatchObject({ statusCode: 404 });
+  expect(tablas).toEqual(anteriores);
+  expect(eventos).toEqual(["inicio", "bloqueo:carreras:404", "rollback"]);
 });
 it("Excel externo no cambia estado ni usa bloqueo global", async () => {
   tablas.ofertas_asignaturas = [];

@@ -92,12 +92,37 @@ describe("Publicación única por planificación (offline)", () => {
     }
   });
   it("crea planificación vacía sin horarios y conserva preparacion", async () => {
-    responses.push([[1]], [[7, 1, "2027-1", false, "preparacion"]]);
-    expect(await planificacionesSemestresRepository.create({ carreraId: 1, codigo: "2027-1" })).toEqual({ id: 7, carreraId: 1, codigo: "2027-1", actual: false, estadoPlanificacion: "preparacion" });
+    responses.push([[1]], [], [], [[7, 1, "2027-1", true, "preparacion"]]);
+    expect(await planificacionesSemestresRepository.create({ carreraId: 1, codigo: "2027-1" })).toEqual({ id: 7, carreraId: 1, codigo: "2027-1", actual: true, estadoPlanificacion: "preparacion" });
+    expect(transaction).toHaveBeenCalledOnce();
+    expect(statements).toHaveLength(4);
+    expect(statements[0].sql).toContain("for update");
+    expect(statements[0].params).toEqual([1]);
+    expect(statements[1].sql).toContain('from "planificaciones_semestres"');
+    expect(statements[1].params).toEqual([1, "2027-1", 1]);
+    expect(statements[2].sql).toContain('update "planificaciones_semestres" set "actual" = $1 where "planificaciones_semestres"."carrera_id" = $2');
+    expect(statements[2].params).toEqual([false, 1]);
+    expect(statements[3].sql).toContain('insert into "planificaciones_semestres"');
+    expect(statements[3].params).toEqual([1, "2027-1", true, "preparacion"]);
+  });
+  it("no escribe ni desactiva períodos si la carrera no existe", async () => {
+    responses.push([]);
+    await expect(planificacionesSemestresRepository.create({ carreraId: 404, codigo: "2027-1" })).rejects.toMatchObject({ statusCode: 404, message: "Carrera no encontrada" });
+    expect(statements).toHaveLength(1);
+    expect(statements[0].params).toEqual([404]);
+  });
+  it("checks career/code after its lock and rejects before demotion/insertion", async () => {
+    responses.push([[1]], [[7]]);
+    await expect(planificacionesSemestresRepository.create({ carreraId: 1, codigo: "2027-1" })).rejects.toMatchObject({ statusCode: 409, message: "Período existente" });
     expect(transaction).toHaveBeenCalledOnce();
     expect(statements).toHaveLength(2);
+    expect(statements[0].sql).toContain('from "carreras"');
     expect(statements[0].sql).toContain("for update");
-    expect(statements[1].sql).toContain('insert into "planificaciones_semestres"');
+    expect(statements[0].params).toEqual([1]);
+    expect(statements[1].sql).toContain('from "planificaciones_semestres"');
+    expect(statements[1].sql).toContain('("planificaciones_semestres"."carrera_id" = $1 and "planificaciones_semestres"."codigo" = $2)');
+    expect(statements[1].params).toEqual([1, "2027-1", 1]);
+    expect(statements.every(({ sql }) => sql.startsWith("select "))).toBe(true);
   });
   it("borrar entrada no reabre la planificación", async () => {
     simularGuardia([[entryRow]]);
