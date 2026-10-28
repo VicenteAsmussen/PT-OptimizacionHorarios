@@ -52,13 +52,10 @@ it.each([['2026-1', 'PAR', 'IMPAR'], ['2026-2', 'IMPAR', 'PAR']])(
     ]) });
     expect(horariosRepository.sincronizarExternosEnTransaccion).not.toHaveBeenCalled();
   });
-it('rejects invalid optional rows too, without labeling them valid or saving other rows', async () => {
+it('defers coverage until all capacities are valid, including optional rows', async () => {
   const resultado = await importarHorariosExternos(9, 4, await archivo(['PAR', 'IMPAR'], true), 3);
-  expect(resultado.errores).toContainEqual(expect.objectContaining({ fila: 3, columna: 'Cupos', codigoAsignatura: 'IMPAR', valor: '-1' }));
-  expect(resultado).toMatchObject({ cobertura: expect.arrayContaining([
-    expect.objectContaining({ codigo: 'PAR', estado: 'cargada' }),
-    expect.objectContaining({ codigo: 'IMPAR', estado: 'invalida' }),
-  ]) });
+  expect(resultado.errores).toEqual([expect.objectContaining({ fila: 3, columna: 'Cupos', codigoAsignatura: 'IMPAR', valor: '-1' })]);
+  expect(resultado).toMatchObject({ ofertasCreadas: 0, horariosCreados: 0, cobertura: [] });
   expect(horariosRepository.sincronizarExternosEnTransaccion).not.toHaveBeenCalled();
 });
 it('keeps opposite-parity scheduled courses and ignores unrelated malformed rows', async () => {

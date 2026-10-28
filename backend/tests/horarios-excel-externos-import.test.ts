@@ -153,3 +153,70 @@ it("mantiene choques de profesor por RUT y bloques repetidos entre sesiones", as
   expect((await horariosService.importarExcelExternos(9, 4, await archivo({ 10: "t", 11: "Lunes", 12: "08:10-08:50" }), usuario)).errores).toContainEqual(expect.objectContaining({ columna: "Horario 2" }));
   expect(horariosRepository.sincronizarExternosEnTransaccion).not.toHaveBeenCalled();
 });
+
+it.each(["", "12345678-9", "11111111-1"])("reports only identity errors before other row validation for RUT %j", async rut => {
+  const primera = filaBase();
+  primera[2] = 1; primera[3] = -1; primera[4] = rut; primera[5] = "First teacher";
+  const segunda = [...primera];
+  segunda[2] = 2; segunda[5] = "Second teacher";
+  const resultado = await horariosService.importarExcelExternos(9, 4, await libroConFilas([primera, segunda]), usuario);
+  expect(resultado.errores.map(({ fila, columna }) => ({ fila, columna }))).toEqual([
+    { fila: 2, columna: "RUT Profesor" }, { fila: 3, columna: "RUT Profesor" },
+  ]);
+  expect(resultado).toMatchObject({ ofertasCreadas: 0, ofertasActualizadas: 0, ofertasEliminadas: 0, horariosCreados: 0, cobertura: [] });
+  expect(horariosRepository.sincronizarExternosEnTransaccion).not.toHaveBeenCalled();
+});
+
+it("finishes the RUT stage across the whole file before validating earlier rows", async () => {
+  const primera = filaBase(); primera[2] = 0; primera[3] = -1; primera[8] = "invalid";
+  const segunda = filaBase(); segunda[2] = 3; segunda[4] = "";
+  const resultado = await horariosService.importarExcelExternos(9, 4, await libroConFilas([primera, segunda]), usuario);
+  expect(resultado.errores).toEqual([expect.objectContaining({ fila: 3, columna: "RUT Profesor" })]);
+  expect(resultado.cobertura).toEqual([]);
+  expect(horariosRepository.sincronizarExternosEnTransaccion).not.toHaveBeenCalled();
+});
+
+it("validates sections and capacities before reaching schedules", async () => {
+  const resultado = await horariosService.importarExcelExternos(9, 4, await archivo({ 2: 0, 3: -1, 8: "invalid" }), usuario);
+  expect(resultado.errores.map(error => error.columna)).toEqual(["Sección", "Cupos"]);
+  expect(resultado).toMatchObject({ ofertasCreadas: 0, horariosCreados: 0, cobertura: [] });
+  expect(horariosRepository.sincronizarExternosEnTransaccion).not.toHaveBeenCalled();
+});
+
+it("reports duplicate sections before checking their overlapping schedules", async () => {
+  const resultado = await horariosService.importarExcelExternos(9, 4, await archivo({}, true), usuario);
+  expect(resultado.errores).toEqual([expect.objectContaining({ fila: 3, columna: "Sección" })]);
+  expect(resultado.cobertura).toEqual([]);
+  expect(horariosRepository.sincronizarExternosEnTransaccion).not.toHaveBeenCalled();
+});
+
+it("accepts distinct resolved teachers at the same time in different sections", async () => {
+  const datos = contexto();
+  datos.profesores.push({ id: 8, rut: "11111111-1", nombre: "Second teacher", departamentoId: 4 });
+  vi.mocked(horariosRepository.findContextoExternos).mockResolvedValue(datos as never);
+  vi.mocked(horariosRepository.sincronizarExternosEnTransaccion).mockResolvedValue({ ofertasCreadas: 2, ofertasActualizadas: 0, ofertasEliminadas: 0 });
+  const segunda = filaBase(); segunda[2] = 3; segunda[4] = "11111111-1"; segunda[5] = "Second teacher";
+  const resultado = await horariosService.importarExcelExternos(9, 4, await libroConFilas([filaBase(), segunda]), usuario);
+  expect(resultado).toMatchObject({ ofertasCreadas: 2, horariosCreados: 2, errores: [] });
+  expect(horariosRepository.sincronizarExternosEnTransaccion).toHaveBeenCalledExactlyOnceWith(9, 4, [
+    { asignaturaCodigo: "INF100", profesorId: 7, seccion: 2, cupos: 40, sesiones: [{ bloqueId: 10, tipoHoraId: 1 }] },
+    { asignaturaCodigo: "INF100", profesorId: 8, seccion: 3, cupos: 40, sesiones: [{ bloqueId: 10, tipoHoraId: 1 }] },
+  ], 3);
+});
+
+it("still rejects the same resolved teacher in overlapping sections", async () => {
+  const segunda = filaBase(); segunda[2] = 3;
+  const resultado = await horariosService.importarExcelExternos(9, 4, await libroConFilas([filaBase(), segunda]), usuario);
+  expect(resultado.errores).toEqual([expect.objectContaining({ fila: 3, columna: "Horario 1" })]);
+  expect(horariosRepository.sincronizarExternosEnTransaccion).not.toHaveBeenCalled();
+});
+
+it("ignores other-career rows before every validation stage", async () => {
+  const ajena = filaBase();
+  ajena[0] = "OTHER999"; ajena[2] = 0; ajena[3] = -1; ajena[4] = ""; ajena[8] = "invalid";
+  const resultado = await horariosService.importarExcelExternos(9, 4, await libroConFilas([filaBase(), ajena]), usuario);
+  expect(resultado).toMatchObject({ ofertasCreadas: 1, horariosCreados: 1, errores: [] });
+  expect(horariosRepository.sincronizarExternosEnTransaccion).toHaveBeenCalledExactlyOnceWith(9, 4, [
+    { asignaturaCodigo: "INF100", profesorId: 7, seccion: 2, cupos: 40, sesiones: [{ bloqueId: 10, tipoHoraId: 1 }] },
+  ], 3);
+});

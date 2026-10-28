@@ -83,6 +83,28 @@ function comprobarProfesores(usuarios: Fila[], profesores: Fila[]) {
 }
 
 describe("seed de usuarios sin conexión a DB", () => {
+  it("updates the eight requested contracts and Cristian's department without changing identities or availability", async () => {
+    const { baseDatos, usuarios, profesores } = crearBaseSimulada();
+    const correos = ["sparra", "jmeza", "osanmartin", "vberatto", "mfuenzalida", "aandia", "econtreras", "fbanda", "cpinto"];
+    for (const [indice, correo] of correos.entries()) {
+      const datos = datosProfesores.find(profesor => profesor.correo === `${correo}@ubb.cl`)!;
+      usuarios.push({ id: 200 + indice, nombre: datos.nombre, correo: datos.correo, rol: "profesor", clave: "conservada" });
+      profesores.push({ id: 700 + indice, usuarioId: 200 + indice, nombre: datos.nombre, rut: datos.rut, departamentoId: 99, tipo: "planta" });
+    }
+    const disponibilidad = profesores.map(profesor => ({ profesorId: profesor.id, bloqueHorarioId: 1 }));
+    const anterior = structuredClone({ usuarios, profesores, disponibilidad });
+    await sembrarUsuarios(baseDatos, catalogos);
+    for (const [indice, correo] of correos.entries()) {
+      expect(usuarios.find(usuario => usuario.id === 200 + indice)).toEqual(anterior.usuarios[indice]);
+      expect(profesores.find(profesor => profesor.id === 700 + indice)).toMatchObject({
+        usuarioId: 200 + indice, rut: anterior.profesores[indice].rut, tipo: correo === "cpinto" ? "planta" : "part time",
+      });
+    }
+    expect(profesores.find(profesor => profesor.id === 708)?.departamentoId)
+      .toBe(catalogos.departamentos.find(departamento => departamento.nombre === "Departamento de Sistemas de Información")!.id);
+    expect(disponibilidad).toEqual(anterior.disponibilidad);
+  });
+
   it("crea ambos tipos y repetirlo conserva IDs, vínculos y contraseñas sin volver a hashear", async () => {
     vi.mocked(hashPassword).mockClear();
     const { baseDatos, usuarios, profesores, secretarias } = crearBaseSimulada();

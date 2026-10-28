@@ -22,9 +22,9 @@ async function seed() {
       await reemplazarAcademico(baseDatos, env.DATABASE_URL, env.NODE_ENV);
     } else {
       console.log("Poblando catálogos base sin borrar datos existentes...");
-      const catalogos = await sembrarAcademico(baseDatos);
-      await sembrarHorarios(baseDatos);
-      await sembrarUsuarios(baseDatos, catalogos);
+      // One transaction covers every catalog, including failures during user seeding.
+      // Existing identities and scheduling dependencies are never replaced.
+      await baseDatos.transaction(sembrarDatosIniciales);
     }
 
     console.log("\nSeed completado con éxito.");
@@ -38,3 +38,9 @@ seed().catch((error) => {
   console.error("Error durante el seed:", error);
   process.exit(1);
 });
+
+async function sembrarDatosIniciales(baseDatos: Parameters<typeof sembrarAcademico>[0]) {
+  const catalogos = await sembrarAcademico(baseDatos);
+  await sembrarHorarios(baseDatos);
+  await sembrarUsuarios(baseDatos, catalogos);
+}
