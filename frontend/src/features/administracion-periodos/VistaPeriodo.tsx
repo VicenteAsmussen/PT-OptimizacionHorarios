@@ -1,4 +1,4 @@
-import { accionesReinicio, confirmarReinicio, estadosPeriodo, puedeCambiarEstado, puedeReiniciar } from './modelo';
+import { accionesReinicio, confirmarReinicio, estadosPeriodo, puedeCambiarEstado, puedeEliminarPeriodo, puedeReiniciar } from './modelo';
 import type { AccionReinicio, EstadoPeriodo, ResumenesPeriodo } from './modelo';
 import base from '../asignaturas/Asignaturas.module.css';
 import estilos from './AdministracionPeriodos.module.css';
@@ -15,21 +15,30 @@ interface Propiedades {
   alReiniciar: () => void;
   alCancelar: () => void;
   alCambiarEstado: () => void;
+  alMarcarActual: () => void;
+  alSolicitarEliminacion: () => void;
+  confirmacionEliminacion: string | null;
+  alConfirmacionEliminacion: (texto: string) => void;
+  alCancelarEliminacion: () => void;
+  alEliminar: () => void;
 }
 export default function VistaPeriodo({ resumenes, nuevoEstado, accion, confirmacion, bloqueado,
-  alNuevoEstado, alSeleccionarAccion, alConfirmacion, alReiniciar, alCancelar, alCambiarEstado }: Propiedades) {
+  alNuevoEstado, alSeleccionarAccion, alConfirmacion, alReiniciar, alCancelar, alCambiarEstado,
+  alMarcarActual, alSolicitarEliminacion, confirmacionEliminacion = null, alConfirmacionEliminacion, alCancelarEliminacion, alEliminar }: Propiedades) {
   const { planificacion } = resumenes.todas;
   const horarios = resumenes.gestionadas.horarios;
   const resumen = accion ? resumenes[accion.alcance] : null;
   const confirmado = !!accion && !!resumen && puedeReiniciar(accion, resumen) && confirmarReinicio(resumen, planificacion.id, accion.alcance, confirmacion);
   const cambioPermitido = puedeCambiarEstado(planificacion.estadoPlanificacion, nuevoEstado, horarios);
+  const eliminacionPermitida = puedeEliminarPeriodo(resumenes.todas, planificacion.id);
+  const eliminacionConfirmada = eliminacionPermitida && confirmacionEliminacion === planificacion.codigo;
   return <>
     <section className={base.pagina} aria-labelledby="titulo-estado">
       <header className={estilos.cabeceraTarjeta}>
         <h2 id="titulo-estado">Estado del período</h2>
         <span className={estilos.distintivo}><span className={base.soloLectores}>Estado actual: </span>{estadosPeriodo[planificacion.estadoPlanificacion]}</span>
       </header>
-      <form className={base.campos} onSubmit={evento => { evento.preventDefault(); if (!bloqueado && cambioPermitido) alCambiarEstado(); }}>
+      <form id="formulario-estado-periodo" className={base.campos} onSubmit={evento => { evento.preventDefault(); if (!bloqueado && cambioPermitido) alCambiarEstado(); }}>
         <label>Nuevo estado<select disabled={bloqueado} value={nuevoEstado} onChange={evento => alNuevoEstado(evento.target.value as EstadoPeriodo)}>
           {Object.entries(estadosPeriodo).map(([valor, texto]) =>
             <option key={valor} value={valor} disabled={valor !== planificacion.estadoPlanificacion
@@ -37,8 +46,22 @@ export default function VistaPeriodo({ resumenes, nuevoEstado, accion, confirmac
         </select></label>
         {horarios > 0 && planificacion.estadoPlanificacion !== 'preparacion' && <p>Para volver a Preparación, elimina primero los horarios gestionados. Los externos pueden conservarse.</p>}
         {horarios === 0 && <p className={estilos.notaEstado}>Para pasar a Propuesta o Publicado, deben existir horarios de las ofertas gestionadas.</p>}
-        <div><button disabled={bloqueado || !cambioPermitido}>Cambiar estado</button></div>
       </form>
+      <div className={estilos.accionesPeriodo}>
+        <button type="submit" form="formulario-estado-periodo" disabled={bloqueado || !cambioPermitido}>Cambiar estado</button>
+        <button type="button" disabled={bloqueado || !!planificacion.actual} onClick={() => { if (!bloqueado && !planificacion.actual) alMarcarActual(); }}>{planificacion.actual ? 'Es actual' : 'Marcar como actual'}</button>
+        <button type="button" disabled={bloqueado || !eliminacionPermitida} onClick={() => { if (!bloqueado && eliminacionPermitida) alSolicitarEliminacion(); }}>Eliminar período</button>
+      </div>
+      {confirmacionEliminacion !== null && <form className={`${base.campos} ${estilos.confirmacion}`} aria-label="Confirmar eliminación de período"
+        onSubmit={evento => { evento.preventDefault(); if (!bloqueado && eliminacionConfirmada) alEliminar(); }}>
+        <h3>Confirmar eliminación de {planificacion.codigo}</h3>
+        <p>{planificacion.carrera.nombre} · {planificacion.codigo}. Esta eliminación no se puede deshacer.</p>
+        <label>Escribe {planificacion.codigo} para eliminar el período<input autoComplete="off" disabled={bloqueado} value={confirmacionEliminacion} onChange={evento => alConfirmacionEliminacion(evento.target.value)} /></label>
+        <div className={base.acciones}>
+          <button disabled={bloqueado || !eliminacionConfirmada}>Confirmar eliminación</button>
+          <button type="button" disabled={bloqueado} onClick={alCancelarEliminacion}>Cancelar eliminación</button>
+        </div>
+      </form>}
     </section>
     <section className={base.pagina} aria-labelledby="titulo-reinicio">
       <header className={estilos.cabeceraTarjeta}>

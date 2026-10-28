@@ -74,9 +74,29 @@ test('API sends exact planning, scope, confirmation and previous state with auth
     assert.match(solicitudes[2].ruta, /administracion-periodos\/7\/estado$/);
     assert.equal(solicitudes[2].opciones.method, 'PATCH');
     assert.deepEqual(JSON.parse(solicitudes[2].opciones.body), { estadoAnterior: 'publicado', estadoPlanificacion: 'preparacion' });
+    await api.carreras();
+    assert.match(solicitudes[3].ruta, /\/carreras$/);
+    await api.crear({ carreraId: 3, codigo: '2027-1' });
+    assert.match(solicitudes[4].ruta, /\/planificaciones-semestres$/);
+    assert.equal(solicitudes[4].opciones.method, 'POST');
+    assert.deepEqual(JSON.parse(solicitudes[4].opciones.body), { carreraId: 3, codigo: '2027-1' });
+    await api.planificaciones();
+    assert.equal(solicitudes[5].opciones.cache, 'no-store');
+    await api.marcarActual(7);
+    assert.match(solicitudes[6].ruta, /planificaciones-semestres\/7$/);
+    assert.equal(solicitudes[6].opciones.method, 'PATCH');
+    assert.deepEqual(JSON.parse(solicitudes[6].opciones.body), { actual: true });
+    await api.eliminar(7, '2026-2');
+    assert.match(solicitudes[7].ruta, /planificaciones-semestres\/7$/);
+    assert.equal(solicitudes[7].opciones.method, 'DELETE');
+    assert.deepEqual(JSON.parse(solicitudes[7].opciones.body), { confirmacion: '2026-2' });
     for (const { opciones } of solicitudes) assert.equal(opciones.credentials, 'include');
     globalThis.fetch = async () => new Response(JSON.stringify({ message: 'Los datos cambiaron' }), { status: 409 });
     await assert.rejects(api.reiniciar(7, datos), error => error.status === 409 && error.message === 'Los datos cambiaron');
+    globalThis.fetch = async () => new Response(JSON.stringify({ message: 'Período existente' }), { status: 409 });
+    await assert.rejects(api.crear({ carreraId: 3, codigo: '2027-1' }), error => error.status === 409 && error.message === 'Período existente');
+    globalThis.fetch = async () => new Response(JSON.stringify({ message: 'Internal server error' }), { status: 500 });
+    await assert.rejects(api.crear({ carreraId: 3, codigo: '2027-1' }), error => error.status === 500 && error.message === 'Internal server error');
   } finally { globalThis.fetch = original; }
 });
 test('navigation and direct route use an administrator-only guard', async () => {
