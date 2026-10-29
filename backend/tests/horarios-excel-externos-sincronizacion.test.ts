@@ -40,10 +40,14 @@ it("no borra la carga anterior si el archivo no contiene asignaturas pertinentes
   expect(resultado.errores).toContainEqual(expect.objectContaining({ columna: "archivo" }));
   expect(horariosRepository.sincronizarExternosEnTransaccion).not.toHaveBeenCalled();
 });
-it("mantiene error de código ausente y rechaza secciones duplicadas del archivo", async () => {
+it("stages missing course codes before duplicate sections without writing", async () => {
   const resultado = await importarHorariosExternos(9, 4, await archivo([["", "Sin código"], fila(), fila()]), 3);
-  expect(resultado.errores).toContainEqual(expect.objectContaining({ fila: 2, columna: "Código Asig." }));
-  expect(resultado.errores).toContainEqual(expect.objectContaining({ fila: 4, columna: "Sección", codigoAsignatura: "MAT100" }));
+  expect(resultado.errores).toEqual([expect.objectContaining({ fila: 2, columna: "Código Asig." })]);
+  expect(resultado.cobertura).toEqual([]);
+  expect(horariosRepository.sincronizarExternosEnTransaccion).not.toHaveBeenCalled();
+  const corregido = await importarHorariosExternos(9, 4, await archivo([fila(), fila()]), 3);
+  expect(corregido.errores).toEqual([expect.objectContaining({ fila: 3, columna: "Sección", codigoAsignatura: "MAT100" })]);
+  expect(corregido.cobertura).toEqual([]);
   expect(horariosRepository.sincronizarExternosEnTransaccion).not.toHaveBeenCalled();
 });
 it("mantiene conflictos con ofertas no reemplazadas", async () => {

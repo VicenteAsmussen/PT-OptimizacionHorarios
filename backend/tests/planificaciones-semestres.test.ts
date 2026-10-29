@@ -149,6 +149,32 @@ function crearBaseDatos(planificaciones: unknown[][] = [], fallo?: Error) {
 }
 
 describe("Seed de planificaciones (offline)", () => {
+  it("reconciles fixture-owned course fields and hours without deleting dependent data", async () => {
+    const contexto = crearBaseDatos();
+    const registro = vi.spyOn(console, "log").mockImplementation(() => {});
+    try {
+      await sembrarAcademico(contexto.baseDatos);
+      const asignaturas = contexto.sentencias.filter(({ sql }) => sql.startsWith('insert into "asignaturas"'));
+      expect(asignaturas).toHaveLength(49);
+      for (const { sql } of asignaturas) {
+        const actualizacion = sql.split(" do update set ")[1];
+        expect(sql).toContain('on conflict ("codigo") do update set');
+        expect(actualizacion).toContain('"nombre"');
+        expect(actualizacion).toContain('"departamento_id"');
+        expect(actualizacion).toContain('"semestre_malla"');
+        expect(actualizacion).not.toContain('"es_critica"');
+      }
+      const horas = contexto.sentencias.filter(({ sql }) => sql.startsWith('insert into "asignatura_tipo_hora"'));
+      expect(horas.length).toBeGreaterThan(0);
+      expect(horas.every(({ sql }) => sql.includes('on conflict ("asignatura_codigo","tipo_hora_id") do update set "horas"'))).toBe(true);
+      expect(horas.some(({ params }) => params[0] === "340277" && params[1] === 1 && params[2] === 2)).toBe(true);
+      expect(horas.some(({ params }) => params[0] === "620434" && params[1] === 2 && params[2] === 2)).toBe(true);
+      expect(horas.some(({ params }) => ["620449", "620456", "620477"].includes(String(params[0])))).toBe(false);
+      expect(contexto.sentencias.some(({ sql }) => /^(delete|truncate)/i.test(sql))).toBe(false);
+      expect(contexto.sentencias.some(({ sql }) => /(?:into|update) "(?:ofertas_asignaturas|oferta_tipo_hora|horarios_asignaturas|disponibilidad_profesores)"/.test(sql))).toBe(false);
+    } finally { registro.mockRestore(); }
+  });
+
   it("asegura todos los periodos por carrera y repetirlo no cambia filas", async () => {
     const contexto = crearBaseDatos();
     const registro = vi.spyOn(console, 'log').mockImplementation(() => {});

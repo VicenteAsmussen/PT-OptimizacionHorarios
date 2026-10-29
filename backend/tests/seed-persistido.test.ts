@@ -39,7 +39,7 @@ it.skipIf(!habilitado)("preserves protected rows and rolls back a failed academi
     const anterior = await protegidos();
     expect(ejecutar(true).status).toBe(0);
     expect(await protegidos()).toEqual(anterior);
-    expect(Number((await cliente`select count(*) from asignaturas`)[0].count)).toBe(15);
+    expect(Number((await cliente`select count(*) from asignaturas`)[0].count)).toBe(49);
     const profesores = await cliente`select p.tipo, u.correo, u.clave from profesores p join usuarios u on u.id=p.usuario_id`;
     expect(profesores).toHaveLength(46);
     for (const profesor of profesores) {
