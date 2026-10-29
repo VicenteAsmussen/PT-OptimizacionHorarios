@@ -53,53 +53,27 @@ export async function importarHorariosExternos(planificacionSemestreId: number, 
     if (!asignatura) return;
     filas.push({ codigo, numeroFila, texto, error });
   });
-  if (errores.length) return rechazado();
-
-  // Resolve every relevant teacher before validating data or building occupancy keys.
-  const filasConProfesor = filas.flatMap(fila => {
+  // Collect independent field errors across the workbook before business rules.
+  const filasConFormato = filas.map(fila => {
     const { texto, error, numeroFila } = fila;
     const rut = normalizarRut(texto(5));
-    const profesores = rut ? contexto.profesores.filter((profesor) => normalizarRut(profesor.rut) === rut) : [];
-    const profesor = profesores.length === 1 && profesores[0]!.departamentoId === departamentoId ? profesores[0] : undefined;
-    if (!rut) { error(numeroFila, "RUT Profesor", "Indique un RUT válido con dígito verificador."); return []; }
-    if (!profesor) { error(numeroFila, "RUT Profesor", "Profesor inexistente, ambiguo o fuera del departamento autorizado. Registre el profesor antes de importar."); return []; }
-    return [{ ...fila, profesorId: profesor.id }];
-  });
-  if (errores.length) return rechazado();
-
-  // Advance the whole file only after all sections and capacities are valid.
-  const claves = new Set<string>();
-  const filasConDatos = filasConProfesor.map(fila => {
-    const { codigo, texto, error, numeroFila } = fila;
+    if (!rut) error(numeroFila, "RUT Profesor", "Indique un RUT válido con dígito verificador.");
     const seccion = Number(texto(3)); const cupos = Number(texto(4));
     if (!texto(3) || !Number.isSafeInteger(seccion) || seccion < 1 || seccion > 2147483647) error(numeroFila, "Sección", "Indique un entero positivo.");
     if (!texto(4) || !Number.isSafeInteger(cupos) || cupos < 0 || cupos > 2147483647) error(numeroFila, "Cupos", "Indique un entero no negativo.");
-    const clave = JSON.stringify([codigo, seccion]);
-    if (claves.has(clave)) error(numeroFila, "Sección", "La asignatura/sección está repetida en el archivo.");
-    claves.add(clave);
-    return { ...fila, seccion, cupos };
-  });
-  if (errores.length) return rechazado();
-
-  const propuestas: Parameters<typeof horariosRepository.crearExternosEnTransaccion>[1] = [];
-  const filasValidas: { asignaturaCodigo: string; seccion: number }[] = [];
-  const codigos = new Set(contexto.asignaturas.map(asignatura => asignatura.codigo));
-  const ofertasReemplazadas = new Set(contexto.ofertas.filter(oferta => codigos.has(oferta.asignaturaCodigo)).map(oferta => oferta.id));
-  const ocupaciones = new Set(contexto.ocupaciones.filter(ocupacion => !ofertasReemplazadas.has(ocupacion.ofertaId)).map((ocupacion) => `${ocupacion.profesorId}:${ocupacion.bloqueId}`));
-  for (const { codigo, numeroFila, texto, error, profesorId, seccion, cupos } of filasConDatos) {
-    const erroresPrevios = errores.length;
-    const sesiones: { bloqueId: number; tipoHoraId: number }[] = [];
-    const bloquesUsados = new Set<number>();
+    const sesiones: { bloqueId: number; tipoHoraId: number; numero: number }[] = [];
+    let tieneSesion = false;
     for (let numero = 1; numero <= 5; numero++) {
       const inicio = 7 + (numero - 1) * 4;
       // Sala N nunca identifica sesiones ni salas: se persiste exclusivamente null.
       if (![texto(inicio), texto(inicio + 1), texto(inicio + 2)].some(Boolean)) continue;
+      tieneSesion = true;
       const tipos = contexto.tipos.filter((tipo) => normalizarTipoHoraExcel(tipo.tipo) === normalizarTipoHoraExcel(texto(inicio)));
       if (!texto(inicio) || tipos.length !== 1) error(numeroFila, `Tipo Hora ${numero}`, "Tipo de hora inexistente o ambiguo.");
       const dia = normalizarDia(texto(inicio + 1)); const horario = analizarHorario(texto(inicio + 2));
       if (!dia.exito) error(numeroFila, `Día ${numero}`, dia.error);
       if (!horario.exito) error(numeroFila, `Horario ${numero}`, horario.error);
-      if (!dia.exito || !horario.exito || tipos.length !== 1) continue;
+      if (!dia.exito || !horario.exito) continue;
       const bloques = contexto.bloques.filter((bloque) => {
         const diaBloque = normalizarDia(bloque.dia);
         return diaBloque.exito && diaBloque.valor === dia.valor && bloque.horaInicio >= horario.valor.horaInicio && bloque.horaTermino <= horario.valor.horaTermino;
@@ -108,14 +82,45 @@ export async function importarHorariosExternos(planificacionSemestreId: number, 
       if (!agrupadas.exito || agrupadas.valor.length !== 1 || formatearHorario(agrupadas.valor[0]!) !== formatearHorario(horario.valor)) {
         error(numeroFila, `Horario ${numero}`, "El rango debe corresponder exactamente a bloques institucionales consecutivos."); continue;
       }
-      for (const bloque of bloques) {
-        const ocupacion = `${profesorId}:${bloque.id}`;
-        if (bloquesUsados.has(bloque.id) || ocupaciones.has(ocupacion)) error(numeroFila, `Horario ${numero}`, "Bloque repetido o profesor ocupado en el semestre.");
-        bloquesUsados.add(bloque.id); ocupaciones.add(ocupacion);
-        sesiones.push({ bloqueId: bloque.id, tipoHoraId: tipos[0]!.id });
-      }
+      if (tipos.length === 1) for (const bloque of bloques) sesiones.push({ bloqueId: bloque.id, tipoHoraId: tipos[0]!.id, numero });
     }
-    if (!sesiones.length) error(numeroFila, "Horario 1", "Incluya al menos una sesión válida.");
+    if (!tieneSesion) error(numeroFila, "Horario 1", "Incluya al menos una sesión válida.");
+    return { ...fila, rut, seccion, cupos, sesiones };
+  });
+  if (errores.length) return rechazado();
+
+  // Resolve identities before constructing shared resource occupancy keys.
+  const filasConProfesor = filasConFormato.flatMap(fila => {
+    const profesores = contexto.profesores.filter(profesor => normalizarRut(profesor.rut) === fila.rut);
+    const profesor = profesores.length === 1 && profesores[0]!.departamentoId === departamentoId ? profesores[0] : undefined;
+    if (!profesor) { fila.error(fila.numeroFila, "RUT Profesor", "Profesor inexistente, ambiguo o fuera del departamento autorizado. Registre el profesor antes de importar."); return []; }
+    return [{ ...fila, profesorId: profesor.id }];
+  });
+  if (errores.length) return rechazado();
+
+  const claves = new Set<string>();
+  for (const { codigo, seccion, numeroFila, error } of filasConProfesor) {
+    const clave = JSON.stringify([codigo, seccion]);
+    if (claves.has(clave)) error(numeroFila, "Sección", "La asignatura/sección está repetida en el archivo.");
+    claves.add(clave);
+  }
+  if (errores.length) return rechazado();
+
+  const propuestas: Parameters<typeof horariosRepository.crearExternosEnTransaccion>[1] = [];
+  const filasValidas: { asignaturaCodigo: string; seccion: number }[] = [];
+  const codigos = new Set(contexto.asignaturas.map(asignatura => asignatura.codigo));
+  const ofertasReemplazadas = new Set(contexto.ofertas.filter(oferta => codigos.has(oferta.asignaturaCodigo)).map(oferta => oferta.id));
+  const ocupaciones = new Set(contexto.ocupaciones.filter(ocupacion => !ofertasReemplazadas.has(ocupacion.ofertaId)).map((ocupacion) => `${ocupacion.profesorId}:${ocupacion.bloqueId}`));
+  for (const { codigo, numeroFila, error, profesorId, seccion, cupos, sesiones: sesionesValidadas } of filasConProfesor) {
+    const erroresPrevios = errores.length;
+    const sesiones: { bloqueId: number; tipoHoraId: number }[] = [];
+    const bloquesUsados = new Set<number>();
+    for (const { bloqueId, tipoHoraId, numero } of sesionesValidadas) {
+      const ocupacion = `${profesorId}:${bloqueId}`;
+      if (bloquesUsados.has(bloqueId) || ocupaciones.has(ocupacion)) error(numeroFila, `Horario ${numero}`, "Bloque repetido o profesor ocupado en el semestre.");
+      bloquesUsados.add(bloqueId); ocupaciones.add(ocupacion);
+      sesiones.push({ bloqueId, tipoHoraId });
+    }
     propuestas.push({ asignaturaCodigo: codigo, profesorId, seccion, cupos, sesiones });
     if (errores.length === erroresPrevios) filasValidas.push({ asignaturaCodigo: codigo, seccion });
   }
