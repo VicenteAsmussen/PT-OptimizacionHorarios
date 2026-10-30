@@ -11,6 +11,7 @@ export const asignaturas = pgTable("asignaturas", {
   departamentoId: integer("departamento_id").notNull().references(() => departamentos.id, { onDelete: "restrict" }),
   semestreMalla: integer("semestre_malla").notNull(),
   esCritica: boolean("es_critica").notNull().default(false),
+  requiereSala: boolean("requiere_sala").notNull().default(true),
 });
 
 export const asignaturasRelations = relations(asignaturas, ({ one, many }) => ({

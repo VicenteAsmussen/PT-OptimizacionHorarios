@@ -34,6 +34,7 @@ export const createAsignaturaValidation = z.object({
     .min(1, "El semestre de la malla debe ser como mínimo 1")
     .max(14, "El semestre de la malla debe ser como máximo 14"),
   esCritica: z.boolean({ message: "El campo esCrítica debe ser un booleano" }).optional().default(false),
+  requiereSala: z.boolean().optional().default(true),
   tiposHora: z.array(tipoHoraAsignaturaInputValidation).optional().default([]),
   carrerasIds: z.array(z.number().int().positive("Los IDs de carreras deben ser números positivos")).optional().default([]),
 });
@@ -52,6 +53,7 @@ export const updateAsignaturaValidation = z.object({
     .max(14, "El semestre de la malla debe ser como máximo 14")
     .optional(),
   esCritica: z.boolean().optional(),
+  requiereSala: z.boolean().optional(),
   tiposHora: z.array(tipoHoraAsignaturaInputValidation).optional(),
   carrerasIds: z.array(z.number().int().positive("Los IDs de carreras deben ser números positivos")).optional(),
 });

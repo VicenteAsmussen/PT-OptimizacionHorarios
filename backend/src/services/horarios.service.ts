@@ -15,6 +15,7 @@ import { NotFoundError, ConflictError, BadRequestError, ForbiddenError } from ".
 import { normalizarTipoHoraExcel as normalizarTipoHora } from "../utils/excel-comun.js";
 import { importarHorariosExternos } from "../utils/excel-horarios-externos.js";
 import { calcularCoberturaExterna } from "../utils/cobertura-externos.js";
+import type { PlanificacionSemestre } from "../db/schema/planificaciones-semestres.schema.js";
 
 type UsuarioExcelSalas = { id: number; rol: string };
 
@@ -57,9 +58,14 @@ export const horariosService = {
     if (!planificacion || (carreraId !== undefined && planificacion.carreraId !== carreraId)) throw new ForbiddenError("La planificación no pertenece a su carrera");
     return importarHorariosExternos(planificacionSemestreId, departamentoId, archivo, carreraId);
   },
-  async importarExcelSalas(planificacionSemestreId: number, archivo: Buffer, usuario: UsuarioExcelSalas) {
-    const carreraId = await resolverCarreraExcel(usuario);
-    const planificacion = await horariosRepository.findPlanificacionById(planificacionSemestreId);
+  async importarExcelSalas(planificacionSemestreId: number, archivo: Buffer, usuario: UsuarioExcelSalas, propuesta?: {
+    carreraId?: number; planificacion: PlanificacionSemestre;
+    contexto: Awaited<ReturnType<typeof horariosRepository.findParaImportarSalas>>;
+    guardar: (cambios: { id: number; salaId: number | null }[]) => Promise<void>;
+  }) {
+    // Proposal callers supply an authorized, locked snapshot, never HTTP-provided context.
+    const carreraId = propuesta ? propuesta.carreraId : await resolverCarreraExcel(usuario);
+    const planificacion = propuesta?.planificacion ?? await horariosRepository.findPlanificacionById(planificacionSemestreId);
     if (!planificacion || (carreraId !== undefined && planificacion.carreraId !== carreraId)) throw new ForbiddenError("La planificación no pertenece a su carrera");
     const errores: { fila: number; columna: string; mensaje: string }[] = [];
     const error = (fila: number, columna: string, mensaje: string) => errores.push({ fila, columna, mensaje });
@@ -78,14 +84,14 @@ export const horariosService = {
     });
     if (hoja.columnCount > encabezadosExcelSalas.length) error(1, "archivo", "Hay columnas adicionales. Use únicamente las columnas del archivo exportado.");
     if (errores.length) return rechazado();
-    const { entradas, salas, entradasParaConflictos = entradas } = carreraId === undefined
+    const { entradas, salas, entradasParaConflictos = entradas } = propuesta?.contexto ?? (carreraId === undefined
       ? await horariosRepository.findParaImportarSalas(planificacionSemestreId)
-      : await horariosRepository.findParaImportarSalas(planificacionSemestreId, carreraId);
+      : await horariosRepository.findParaImportarSalas(planificacionSemestreId, carreraId));
     type Entrada = typeof entradas[number];
     const grupos = new Map<string, Entrada[]>();
     for (const entrada of entradas) {
       const tipo = normalizarTipoHora(entrada.tipoHora.tipo);
-      if (tipo === "laboratorio" || tipo === "laboratory") continue;
+      if (tipo === "laboratorio" || tipo === "laboratory" || entrada.oferta.asignatura.requiereSala === false) continue;
       const clave = JSON.stringify([entrada.oferta.asignatura.codigo, entrada.oferta.seccion, entrada.asignacion.profesorId, tipo]);
       const grupo = grupos.get(clave) ?? []; grupo.push(entrada); grupos.set(clave, grupo);
     }
@@ -128,7 +134,8 @@ export const horariosService = {
         if (!dia.exito) error(numeroFila, `Día ${numero}`, dia.error);
         if (!horario.exito) error(numeroFila, `Horario ${numero}`, horario.error);
         const salasCoincidentes = salas.filter((sala) => normalizarCodigoSala(sala.nombre) === normalizarCodigoSala(salaTexto));
-        if (salaTexto && salasCoincidentes.length !== 1) error(numeroFila, `Sala ${numero}`, `La sala «${salaTexto}» no existe o su nombre es ambiguo. Revise el listado de salas.`);
+        const sinSala = propuesta !== undefined && salaTexto.toUpperCase() === "SIN SALA";
+        if (salaTexto && !sinSala && salasCoincidentes.length !== 1) error(numeroFila, `Sala ${numero}`, `La sala «${salaTexto}» no existe o su nombre es ambiguo. Revise el listado de salas.`);
         if (!dia.exito || !horario.exito) continue;
         const coincidencias = candidatas.filter((sesion) => normalizarTipoHora(sesion.entradas[0]!.tipoHora.tipo) === normalizarTipoHora(tipoTexto) && sesion.dia === dia.valor && sesion.horario === formatearHorario(horario.valor));
         if (coincidencias.length !== 1) {
@@ -141,8 +148,10 @@ export const horariosService = {
         if (sesion.entradas.some((entrada) => propuestas.has(entrada.id))) {
           error(numeroFila, `Horario ${numero}`, "La sesión está repetida en el archivo. Inclúyala solo una vez."); continue;
         }
-        if (salaTexto && salasCoincidentes.length !== 1) continue;
-        const salaId = salaTexto ? salasCoincidentes[0]!.id : null;
+        if (salaTexto && !sinSala && salasCoincidentes.length !== 1) continue;
+        // An unanswered proposal response must not erase a previously assigned room.
+        if (propuesta && !salaTexto) continue;
+        const salaId = salaTexto && !sinSala ? salasCoincidentes[0]!.id : null;
         for (const entrada of sesion.entradas) propuestas.set(entrada.id, { id: entrada.id, salaId, fila: numeroFila, columna: `Sala ${numero}` });
         if (salaId === null) pendientes++; else actualizadas++;
       }
@@ -165,24 +174,28 @@ export const horariosService = {
     if (errores.length) return rechazado();
     if (propuestas.size) {
       const cambios = [...propuestas.values()].map(({ id, salaId }) => ({ id, salaId }));
-      if (carreraId === undefined) await horariosRepository.actualizarSalasEnTransaccion(planificacionSemestreId, cambios);
+      if (propuesta) await propuesta.guardar(cambios);
+      else if (carreraId === undefined) await horariosRepository.actualizarSalasEnTransaccion(planificacionSemestreId, cambios);
       else await horariosRepository.actualizarSalasEnTransaccion(planificacionSemestreId, cambios, carreraId);
     }
     return { actualizadas, pendientes, errores };
   },
 
-  async exportarExcelSalas(planificacionSemestreId: number, usuario: UsuarioExcelSalas): Promise<{ buffer: Buffer; nombreArchivo: string }> {
-    const carreraId = await resolverCarreraExcel(usuario);
-    const planificacion = await horariosRepository.findPlanificacionById(planificacionSemestreId);
+  async exportarExcelSalas(planificacionSemestreId: number, usuario: UsuarioExcelSalas, propuesta?: {
+    carreraId?: number; planificacion: PlanificacionSemestre;
+    entradas: Awaited<ReturnType<typeof horariosRepository.findParaExportarSalas>>; soloPendientes: boolean;
+  }): Promise<{ buffer: Buffer; nombreArchivo: string }> {
+    const carreraId = propuesta ? propuesta.carreraId : await resolverCarreraExcel(usuario);
+    const planificacion = propuesta?.planificacion ?? await horariosRepository.findPlanificacionById(planificacionSemestreId);
     if (!planificacion) throw new NotFoundError(`Planificación con ID ${planificacionSemestreId} no encontrada`);
     if (carreraId !== undefined && planificacion.carreraId !== carreraId) throw new ForbiddenError("La planificación no pertenece a su carrera");
-    const entradas = carreraId === undefined
+    const entradas = propuesta?.entradas ?? (carreraId === undefined
       ? await horariosRepository.findParaExportarSalas(planificacionSemestreId)
-      : await horariosRepository.findParaExportarSalas(planificacionSemestreId, carreraId);
+      : await horariosRepository.findParaExportarSalas(planificacionSemestreId, carreraId));
     const grupos = new Map<string, { entrada: typeof entradas[number]; bloques: BloqueExcelSala[] }>();
     for (const entrada of entradas) {
       const tipo = normalizarTipoHora(entrada.tipoHora.tipo);
-      if (tipo === "laboratorio" || tipo === "laboratory") continue;
+      if (tipo === "laboratorio" || tipo === "laboratory" || entrada.oferta.asignatura.requiereSala === false) continue;
       const clave = JSON.stringify([
         entrada.oferta.asignatura.codigo, entrada.oferta.seccion, entrada.asignacion.profesorId, tipo,
       ]);
@@ -207,19 +220,26 @@ export const horariosService = {
       const referencia = `${asignatura.codigo}, sección ${oferta.seccion}, profesor ${asignacion.profesor.nombre}, tipo ${tipoHora.tipo}`;
       const resultado = agruparBloquesEnSesiones(grupo.bloques);
       if (!resultado.exito) throw new BadRequestError(`${referencia}: ${resultado.error} Revise los bloques del horario antes de exportar.`);
-      if (resultado.valor.length > maximoSesionesExcelSalas) {
-        throw new BadRequestError(`${referencia}: tiene ${resultado.valor.length} sesiones; el máximo es ${maximoSesionesExcelSalas}. Revise la distribución de bloques antes de exportar.`);
+      const sesiones = propuesta?.soloPendientes ? resultado.valor.filter(sesion => entradas.some(entrada => {
+        const dia = normalizarDia(entrada.bloque.dia);
+        return entrada.ofertaId === oferta.id && entrada.tipoHoraId === tipoHora.id && entrada.salaId === null
+          && dia.exito && dia.valor === sesion.dia && sesion.numerosBloque.includes(entrada.bloque.numeroBloque);
+      })) : resultado.valor;
+      if (!sesiones.length) continue;
+      if (sesiones.length > maximoSesionesExcelSalas) {
+        throw new BadRequestError(`${referencia}: tiene ${sesiones.length} sesiones; el máximo es ${maximoSesionesExcelSalas}. Revise la distribución de bloques antes de exportar.`);
       }
       const celdas: (string | number)[] = [
         asignatura.codigo, asignatura.nombre, oferta.seccion, oferta.cupos, asignacion.profesor.nombre,
       ];
       for (let numeroSesion = 0; numeroSesion < maximoSesionesExcelSalas; numeroSesion++) {
-        const sesion = resultado.valor[numeroSesion];
+        const sesion = sesiones[numeroSesion];
         // Nunca exportar la sala asignada: este archivo se completa externamente.
         celdas.push(sesion ? tipoHora.tipo : "", sesion?.dia ?? "", sesion ? formatearHorario(sesion) : "", "");
       }
       hoja.addRow(celdas);
     }
+    if (propuesta && hoja.rowCount === 1) throw new BadRequestError("No hay sesiones pendientes de sala para exportar.");
     return {
       buffer: Buffer.from(await libro.xlsx.writeBuffer()),
       nombreArchivo: `Resumen Malla (${planificacion.codigo}).xlsx`,

@@ -164,6 +164,7 @@ Para reemplazar los datos académicos locales existe `pnpm run db:seed --reempla
 - [x] Control de bloqueo de disponibilidad docente al generar propuestas de horario.
 - [x] Publicación de horarios por entrada (`semestres_horarios`), con `sala_id` opcional.
 - [x] Exportación e importación Excel de asignación de salas.
+- [x] Backend de gestión del resultado en Propuesta: [contratos, restricciones y verificación](docs/gestion-resultado-horarios.md). Migración `0016` aplicada en la base local con respaldo verificado y conservación de datos; 23 escenarios verificados con PostgreSQL aislado. Frontend y ejecución del modelo fuera de esta entrega.
 - [x] Importación Excel pre-modelo de horarios de departamentos externos.
 - [x] Alcance carrera-departamento mediante `carrera_departamento.es_gestionado`.
 - [x] Seed único no destructivo con datos base del prototipo.

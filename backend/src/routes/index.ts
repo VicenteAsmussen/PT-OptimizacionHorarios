@@ -12,6 +12,7 @@ import { ofertasRouter } from "./ofertas.routes.js";
 import { horariosRouter } from "./horarios.routes.js";
 import { authRouter } from "./auth.routes.js";
 import { administracionPeriodosRouter } from "./administracion-periodos.routes.js";
+import { resultadosHorariosRouter } from "./resultados-horarios.routes.js";
 
 const apiRouter = Router();
 
@@ -29,5 +30,6 @@ apiRouter.use("/profesores", profesoresRouter);
 apiRouter.use("/disponibilidad-profesores", disponibilidadRouter);
 apiRouter.use("/ofertas-asignaturas", ofertasRouter);
 apiRouter.use("/horarios-asignaturas", horariosRouter);
+apiRouter.use("/resultados-horarios", resultadosHorariosRouter);
 
 export { apiRouter };

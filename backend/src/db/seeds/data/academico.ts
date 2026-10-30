@@ -33,6 +33,7 @@ export const departamentosGestionados = new Set([
 // Department ownership is explicitly confirmed; 612239 was appended but belongs to semester 7.
 // Hours are 40-minute academic blocks, ordered theoretical/practical/laboratory.
 const carrera = "Ingeniería Civil en Informática";
+const codigosSinSala = new Set(["620449", "620456", "620477"]);
 export const datosAsignaturas = [
   { codigo: "220143", nombre: "Álgebra y Trigonometría", semestreMalla: 1, departamento: "Matemática", horas: [4, 4, 0] },
   { codigo: "620431", nombre: "Introducción a la Programación", semestreMalla: 1, departamento: "Sistemas de Información", horas: [5, 2, 2] },
@@ -83,7 +84,7 @@ export const datosAsignaturas = [
   { codigo: "620472", nombre: "Anteproyecto de Titulo", semestreMalla: 9, departamento: "Sistemas de Información", horas: [2, 0, 0] },
   { codigo: "620473", nombre: "Seguridad Informática", semestreMalla: 10, departamento: "Sistemas de Información", horas: [3, 2, 0] },
   { codigo: "620477", nombre: "Proyecto de Titulo", semestreMalla: 10, departamento: "Sistemas de Información", horas: [0, 0, 0] },
-].map(asignatura => ({ ...asignatura, departamento: `Departamento de ${asignatura.departamento}`, carreras: [carrera] }));
+].map(asignatura => ({ ...asignatura, requiereSala: !codigosSinSala.has(asignatura.codigo), departamento: `Departamento de ${asignatura.departamento}`, carreras: [carrera] }));
 
 export const datosSemestres = [
   { codigo: "2026-1", actual: false },
