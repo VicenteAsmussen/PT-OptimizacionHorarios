@@ -31,3 +31,17 @@ export async function api<T>(ruta: string, opciones: RequestInit = {}): Promise<
   if (respuesta.status === 204) return undefined as T;
   return respuesta.json() as Promise<T>;
 }
+
+export async function apiArchivo(ruta: string, signal?: AbortSignal): Promise<Blob> {
+  const respuesta = await fetch(`${baseUrl.replace(/\/$/, "")}/${ruta.replace(/^\//, "")}`, {
+    credentials: "include", signal,
+    headers: { Accept: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" },
+  });
+  if (!respuesta.ok) {
+    const detalle: unknown = await respuesta.json().catch(() => null);
+    const mensaje = detalle && typeof detalle === "object" && "message" in detalle && typeof detalle.message === "string"
+      ? detalle.message : "No se pudo descargar la solicitud de salas.";
+    throw new ApiError(mensaje, respuesta.status, detalle);
+  }
+  return respuesta.blob();
+}

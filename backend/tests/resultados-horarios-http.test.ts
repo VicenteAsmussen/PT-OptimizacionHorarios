@@ -4,13 +4,14 @@ import request from "supertest";
 import ExcelJS from "exceljs";
 import { encabezadosExcelSalas } from "../src/utils/excel-salas.js";
 
-const datos = vi.hoisted(() => ({ contexto: {} as any, fallo: false }));
+const datos = vi.hoisted(() => ({ contexto: {} as any, fallo: false, escrituras: 0 }));
 vi.mock("../src/repositories/resultados-horarios.repository.js", () => ({ resultadosHorariosRepository: {
   leer: vi.fn(async () => structuredClone(datos.contexto)),
   conBloqueo: vi.fn(async (_id: number, operar: any) => {
     const copia = structuredClone(datos.contexto);
     const persistencia = {
       mover: async (cambios: { id: number; bloqueId: number }[]) => {
+        datos.escrituras++;
         for (const cambio of cambios) {
           const entrada = copia.entradas.find((fila: any) => fila.id === cambio.id);
           entrada.bloqueId = cambio.bloqueId;
@@ -64,6 +65,7 @@ beforeEach(() => {
     salas: [{ id: 4, nombre: "101-AA" }, { id: 5, nombre: "102-AA" }],
     disponibilidades: bloques.map(bloque => ({ profesorId: 7, bloqueId: bloque.id, planificacionSemestreId: 9 })) };
   datos.fallo = false;
+  datos.escrituras = 0;
 });
 async function movimiento(idsHorarios = [100, 101], bloqueInicioId = 5, sufijo = "movimientos") {
   const lectura = await consultar();
@@ -82,6 +84,102 @@ async function importarSalas(sala: string, revision?: string) {
     .field("revision", revision ?? lectura.body.data.revision).attach("archivo", await respuestaSalas(sala), "salas.xlsx");
 }
 describe("Proposal results public HTTP contract", () => {
+  async function comprobarRechazo(ids: number[], destino: number, codigo: string, mensaje: string) {
+    const antes = await consultar();
+    const previa = await movimiento(ids, destino, "validar-movimiento");
+    expect(previa.status).toBe(200);
+    expect(previa.body.data).toEqual({ valido: false, problemas: [{ codigo, mensaje }], cambios: [] });
+    const guardado = await movimiento(ids, destino);
+    expect(guardado.status).toBe(409);
+    expect(guardado.body.message).toBe(mensaje);
+    expect((await consultar()).body).toEqual(antes.body);
+    expect(datos.escrituras).toBe(0);
+  }
+  function agregarMartes() {
+    const martes = bloques.map(bloque => ({ ...bloque, id: 1000 + bloque.id, dia: "Martes" }));
+    datos.contexto.bloques = [...bloques, ...martes];
+    datos.contexto.disponibilidades.push(...martes.map(bloque => ({ profesorId: 7, bloqueId: bloque.id, planificacionSemestreId: 9 })));
+  }
+  it("S11 rejects an even institutional number with an odd ID in preview and save", async () => {
+    datos.contexto.bloques = bloques.map(bloque => ({ ...bloque, id: bloque.id === 6 ? 61 : bloque.id }));
+    datos.contexto.disponibilidades.push({ profesorId: 7, bloqueId: 61, planificacionSemestreId: 9 });
+    await comprobarRechazo([100, 101], 61, "inicioPar", "La clase debe comenzar en un bloque institucional impar.");
+  });
+  it("S11 accepts an odd institutional number with an even ID", async () => {
+    datos.contexto.bloques = bloques.map(bloque => ({ ...bloque, id: bloque.id === 5 ? 50 : bloque.id }));
+    datos.contexto.disponibilidades.push({ profesorId: 7, bloqueId: 50, planificacionSemestreId: 9 });
+    const antes = await consultar();
+    const previa = await movimiento([100, 101], 50, "validar-movimiento");
+    expect(previa.status).toBe(200); expect(previa.body.data).toMatchObject({ valido: true, problemas: [], cambios: [{ id: 100, bloqueId: 50 }, { id: 101, bloqueId: 6 }] });
+    expect((await consultar()).body).toEqual(antes.body); expect(datos.escrituras).toBe(0);
+    const guardado = await movimiento([100, 101], 50);
+    expect(guardado.status).toBe(200); expect(guardado.body.data.sesiones[0].bloquesIds).toEqual([50, 6]);
+    expect(datos.escrituras).toBe(1);
+  });
+  it.each([
+    { numeros: [1, 2, 3, 4, 5], ids: [100, 101, 102] },
+    { numeros: [1, 2, 3, 4, 5, 6, 7], ids: [102, 103, 104] },
+  ])("S11 rejects newly even-start residual segments: %j", async ({ numeros, ids }) => {
+    agregarMartes(); datos.contexto.entradas = entradas(oferta(), numeros);
+    await comprobarRechazo(ids, 1001, "restantePar", "Los segmentos restantes deben comenzar en un bloque institucional impar.");
+  });
+  it.each([
+    { numeros: [1, 2, 3, 4, 5], ids: [100, 101], restantes: [3, 4, 5] },
+    { numeros: [1, 2, 3, 4], ids: [100, 101], restantes: [3, 4] },
+    { numeros: [2, 3, 4], ids: [100, 101, 102], restantes: [] },
+  ])("S11 preserves safe splits and whole legacy-even correction: %j", async ({ numeros, ids, restantes }) => {
+    agregarMartes(); datos.contexto.entradas = entradas(oferta(), numeros);
+    const antes = await consultar();
+    const previa = await movimiento(ids, 1001, "validar-movimiento");
+    expect(previa.status).toBe(200); expect(previa.body.data.valido).toBe(true); expect(previa.body.data.problemas).toEqual([]);
+    expect((await consultar()).body).toEqual(antes.body); expect(datos.escrituras).toBe(0);
+    const guardado = await movimiento(ids, 1001);
+    expect(guardado.status).toBe(200);
+    expect(guardado.body.data.sesiones.map((sesion: any) => sesion.bloquesIds)).toEqual([
+      ids.map((_, indice) => 1001 + indice), ...(restantes.length ? [restantes] : []),
+    ]);
+    expect(datos.escrituras).toBe(1);
+  });
+  it("S11 rejects an odd destination that merges into an even-start legacy session", async () => {
+    agregarMartes();
+    const anteriores = entradas(oferta(), [2, 3]).map((entrada, indice) => ({ ...entrada, id: 200 + indice,
+      bloqueId: 1002 + indice, bloque: datos.contexto.bloques.find((bloque: any) => bloque.id === 1002 + indice) }));
+    // Move to 5 after a legacy 2–4 segment, across the institutional pair break.
+    anteriores.push({ ...anteriores[1]!, id: 202, bloqueId: 1004, bloque: datos.contexto.bloques.find((bloque: any) => bloque.id === 1004) });
+    datos.contexto.entradas.push(...anteriores);
+    await comprobarRechazo([100, 101], 1005, "sesionPar", "La sesión resultante del destino debe comenzar en un bloque institucional impar.");
+  });
+  it("S11 does not block movement, reading or publication for unrelated legacy-even sessions", async () => {
+    const externa = oferta(2, 2, 6); datos.contexto.entradas.push(...entradas(externa, [2, 3], 8, null));
+    datos.contexto.ofertas.push(externa); datos.contexto.asignaturasMalla.push(externa.asignatura);
+    expect((await consultar()).body.data.sesiones).toHaveLength(2);
+    expect((await request(aplicacion).get(`${ruta}/validacion-publicacion`).set("Authorization", "secretaria")).body.data.valido).toBe(true);
+    expect((await movimiento()).status).toBe(200);
+    expect((await consultar()).body.data.sesiones.find((sesion: any) => sesion.ofertaId === 2).bloquesIds).toEqual([2, 3]);
+  });
+  it("S11 leaves an unrelated even-start session of the same offer/type/professor untouched", async () => {
+    agregarMartes();
+    datos.contexto.entradas.push(...entradas(oferta(), [6, 7]).map((entrada, indice) => ({ ...entrada, id: 200 + indice })));
+    const previa = await movimiento([100, 101], 1001, "validar-movimiento");
+    expect(previa.status).toBe(200); expect(previa.body.data.valido).toBe(true); expect(datos.escrituras).toBe(0);
+    const guardado = await movimiento([100, 101], 1001);
+    expect(guardado.status).toBe(200);
+    expect(guardado.body.data.sesiones.map((sesion: any) => sesion.bloquesIds)).toEqual([[1001, 1002], [6, 7]]);
+    expect(datos.escrituras).toBe(1);
+  });
+  it("S11 preserves conflict rejection when an odd target overlaps a two-block legacy-even group", async () => {
+    agregarMartes();
+    datos.contexto.entradas.push(...entradas(oferta(), [2, 3]).map((entrada, indice) => ({ ...entrada, id: 200 + indice,
+      bloqueId: 1002 + indice, bloque: datos.contexto.bloques.find((bloque: any) => bloque.id === 1002 + indice) })));
+    const antes = await consultar();
+    const previa = await movimiento([100, 101], 1003, "validar-movimiento");
+    expect(previa.status).toBe(200); expect(previa.body.data.valido).toBe(false);
+    expect(previa.body.data.problemas.map((problema: any) => problema.codigo)).toEqual(["profesor", "nivel", "salaOcupada"]);
+    const guardado = await movimiento([100, 101], 1003);
+    expect(guardado.status).toBe(409);
+    expect(guardado.body.message).toBe("El profesor tiene otra clase en este bloque. Hay otra clase del mismo nivel semestral en este bloque. La sala está ocupada en este bloque.");
+    expect((await consultar()).body).toEqual(antes.body); expect(datos.escrituras).toBe(0);
+  });
   it("reads grouped sessions with a revision, availability and room status", async () => {
     const respuesta = await consultar();
     expect(respuesta.status).toBe(200);

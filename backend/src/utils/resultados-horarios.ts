@@ -102,9 +102,12 @@ export function prepararMovimiento(contexto: ContextoResultado, datos: Movimient
   const sesion = agruparEntradasResultado(contexto.entradas).find(grupo => seleccionadas.every(entrada => grupo.entradas.some(fila => fila.id === entrada.id)));
   if (!sesion || agruparEntradasResultado(seleccionadas).length !== 1) return rechazar("continuidad", "Los bloques seleccionados deben ser consecutivos y pertenecer a una sola sesión.");
   const restantes = sesion.entradas.filter(entrada => !datos.idsHorarios.includes(entrada.id));
-  if (agruparEntradasResultado(restantes).some(grupo => grupo.entradas.length < 2)) return rechazar("bloqueAislado", "El movimiento dejaría un bloque aislado en el horario original.");
+  const segmentosRestantes = agruparEntradasResultado(restantes);
+  if (segmentosRestantes.some(grupo => grupo.entradas.length < 2)) return rechazar("bloqueAislado", "El movimiento dejaría un bloque aislado en el horario original.");
+  if (segmentosRestantes.some(grupo => grupo.entradas[0]!.bloque.numeroBloque % 2 === 0)) return rechazar("restantePar", "Los segmentos restantes deben comenzar en un bloque institucional impar.");
   const inicio = contexto.bloques.find(bloque => bloque.id === datos.bloqueInicioId);
   if (!inicio) return rechazar("destino", "El bloque de inicio no existe.");
+  if (inicio.numeroBloque % 2 === 0) return rechazar("inicioPar", "La clase debe comenzar en un bloque institucional impar.");
   const destinos = contexto.bloques.filter(bloque => bloque.dia === inicio.dia && bloque.numeroBloque >= inicio.numeroBloque && bloque.numeroBloque < inicio.numeroBloque + seleccionadas.length)
     .sort((primero, segundo) => primero.numeroBloque - segundo.numeroBloque);
   const agrupadas = agruparBloquesEnSesiones(destinos);
@@ -112,8 +115,13 @@ export function prepararMovimiento(contexto: ContextoResultado, datos: Movimient
   seleccionadas.sort((primera, segunda) => primera.bloque.numeroBloque - segunda.bloque.numeroBloque);
   const cambios = seleccionadas.map((entrada, indice) => ({ id: entrada.id, bloqueId: destinos[indice]!.id }));
   const nuevas = seleccionadas.map((entrada, indice) => ({ ...entrada, bloqueId: destinos[indice]!.id, bloque: destinos[indice]! }));
+  const finales = [...contexto.entradas.filter(entrada => !datos.idsHorarios.includes(entrada.id)), ...nuevas];
   problemas.push(...comprobarDisponibilidad(contexto, nuevas));
-  problemas.push(...conflictos([...contexto.entradas.filter(entrada => !datos.idsHorarios.includes(entrada.id)), ...nuevas], new Set(datos.idsHorarios)));
+  problemas.push(...conflictos(finales, new Set(datos.idsHorarios)));
+  // Conflicting destinations can contain duplicate blocks; reject those through the existing conflict contract.
+  // Only sessions containing moved records acquire a new start invariant, not unrelated legacy teaching.
+  if (!problemas.length && agruparEntradasResultado(finales).some(grupo => grupo.entradas.some(entrada => datos.idsHorarios.includes(entrada.id))
+    && grupo.entradas[0]!.bloque.numeroBloque % 2 === 0)) return rechazar("sesionPar", "La sesión resultante del destino debe comenzar en un bloque institucional impar.");
   return { valido: problemas.length === 0, problemas, cambios };
 }
 export function validarPublicacionResultado(contexto: ContextoResultado) {
