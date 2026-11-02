@@ -25,5 +25,3 @@ Thumbs.db
 # IDE & Editor files
 .vscode/
 .idea/
-# Local AI runtime state
-.atl/
