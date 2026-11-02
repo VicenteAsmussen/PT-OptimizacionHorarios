@@ -55,7 +55,7 @@ flowchart TD
 | **ORM / DAL** | **Drizzle ORM + Drizzle Kit** | Tipado TypeScript nativo de extremo a extremo y control de migraciones. |
 | **Validación** | **Zod** | Validación de esquemas y DTOs en tiempo de ejecución con mensajes en español. |
 | **Frontend** | **React + TypeScript** *(en desarrollo)* | Interfaz para secretaría y docentes sobre la API existente. |
-| **Package Manager** | **pnpm** | Gestión estricta y eficiente de dependencias. |
+| **Gestor de paquetes** | **pnpm** | Gestión estricta y eficiente de dependencias. |
 
 ---
 
@@ -226,7 +226,15 @@ Desde la raíz del repositorio, mediante Docker:
 docker compose run --rm --no-deps backend sh -c "pnpm run build && pnpm exec tsc --noEmit && pnpm exec vitest run tests/schema-organization.test.ts tests/departamento-asignaturas.test.ts tests/alcance-secretaria.test.ts"
 ```
 
-Las suites de integración que ejercitan PostgreSQL requieren `RUN_ISOLATED_DATABASE_TESTS=true` y una base aislada, migrada y sembrada; sin esa habilitación se omiten por seguridad. No ejecutar la suite completa contra una base compartida o con datos importantes.
+Las suites antiguas que escriben mediante la aplicación requieren `RUN_ISOLATED_DATABASE_TESTS=true`, `BASE_PRUEBAS_REINICIABLE=yes`, `NODE_ENV=test` y el destino exacto de `horarios_test` con su usuario restringido, definido en `backend/src/config/seguridad-pruebas.ts`. Sin habilitación se omiten, con una configuración incorrecta se detienen antes de importar la aplicación. La base de pruebas debe estar preparada con sus migraciones y datos necesarios, el ejecutor no toma la base real como alternativa.
+
+La conexión de la aplicación también valida ese destino antes de crear el cliente cuando detecta un entorno de pruebas. Vitest activa un marcador explícito, por lo que cambiar solo `NODE_ENV` no desactiva la protección. Las pruebas que simulan la conexión no necesitan una base ni esa habilitación. Se pueden comprobar las barreras sin PostgreSQL con:
+
+```powershell
+pnpm --dir backend exec vitest run tests/base-pruebas.test.ts tests/seguridad-conexion-pruebas.test.ts tests/configuracion-entorno.test.ts --no-cache --fsModuleCache=false
+```
+
+Las integraciones que reinician fixtures conservan sus comprobaciones y su bloqueo para evitar ejecuciones simultáneas. Las dos sondas opcionales de seed tienen autorizaciones y destinos desechables propios, no se habilitan con el permiso general. No ejecutar semillas, migraciones ni pruebas de escritura contra una base compartida o con datos importantes.
 
 Para verificar la importación Excel usando una base `horarios_test` separada en el PostgreSQL habitual:
 

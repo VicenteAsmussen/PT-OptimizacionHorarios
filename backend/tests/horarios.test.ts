@@ -2,12 +2,13 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import request from "supertest";
 import { eq } from "drizzle-orm";
 import { planificacionesSemestres } from "../src/db/schema/planificaciones-semestres.schema.js";
-// Opt in only with an explicitly isolated, disposable database.
-const runDatabaseTests = process.env.RUN_ISOLATED_DATABASE_TESTS === "true";
-const app = runDatabaseTests ? (await import("../src/app.js")).app : undefined!;
-const db = runDatabaseTests ? (await import("../src/config/db.js")).db : undefined!;
+import { habilitarPruebasIntegracion } from "./soporte/base-pruebas.js";
 
-describe.skipIf(!runDatabaseTests)("Gestión de Horarios y Choques (/api/horarios-asignaturas)", () => {
+const ejecutarIntegracion = habilitarPruebasIntegracion(process.env);
+const app = ejecutarIntegracion ? (await import("../src/app.js")).app : undefined!;
+const db = ejecutarIntegracion ? (await import("../src/config/db.js")).db : undefined!;
+
+describe.skipIf(!ejecutarIntegracion)("Gestión de Horarios y Choques (/api/horarios-asignaturas)", () => {
   let secretariaCookie: string[];
   let profesorCookie: string[];
   const asignaturaCodigo = `TEST${Date.now()}`.slice(0, 15);

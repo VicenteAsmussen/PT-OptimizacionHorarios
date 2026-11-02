@@ -1,7 +1,8 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import request from "supertest";
-// Solo habilitar contra una base explícitamente aislada y descartable.
-const ejecutarIntegracion = process.env.RUN_ISOLATED_DATABASE_TESTS === "true";
+import { habilitarPruebasIntegracion } from "./soporte/base-pruebas.js";
+
+const ejecutarIntegracion = habilitarPruebasIntegracion(process.env);
 const app = ejecutarIntegracion ? (await import("../src/app.js")).app : undefined!;
 const db = ejecutarIntegracion ? (await import("../src/config/db.js")).db : undefined!;
 

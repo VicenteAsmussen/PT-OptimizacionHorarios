@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
 import { beforeAll, describe, expect, it } from "vitest";
 import request from "supertest";
-// Solo habilitar contra una base explícitamente aislada y descartable.
-const ejecutarIntegracion = process.env.RUN_ISOLATED_DATABASE_TESTS === "true";
+import { habilitarPruebasIntegracion } from "./soporte/base-pruebas.js";
+
+const ejecutarIntegracion = habilitarPruebasIntegracion(process.env);
 const app = ejecutarIntegracion ? (await import("../src/app.js")).app : undefined!;
 
 describe.skipIf(!ejecutarIntegracion)("Módulo Departamentos (/api/departamentos)", () => {
