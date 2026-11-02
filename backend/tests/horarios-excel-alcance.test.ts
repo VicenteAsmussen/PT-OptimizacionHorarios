@@ -44,7 +44,9 @@ beforeEach(() => {
     update: () => ({ set: () => ({ where: simulacion.actualizar }) }),
     query: {
       planificacionesSemestres: { findFirst: simulacion.planificacion },
-      horariosAsignaturas: { findFirst: async () => ({ id: 12, planificacionSemestreId: 9 }) },
+      horariosAsignaturas: { findFirst: async () => ({ id: 12, planificacionSemestreId: 9, tipoHoraId: 1 }) },
+      salas: { findFirst: async () => ({ id: 5, tipo: "Sala" }) },
+      tiposHora: { findFirst: async () => ({ id: 1, tipo: "Teórica" }) },
     },
     select: () => ({ from: (tabla: never) => ({ where: () => ({ for: async () => getTableName(tabla) === "carreras" ? [{ id: 3 }] : [await simulacion.planificacion()] }) }) }),
   }));

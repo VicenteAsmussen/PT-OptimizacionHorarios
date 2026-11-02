@@ -134,7 +134,13 @@ cd backend
 pnpm run db:seed
 ```
 
-El seed no ejecuta `TRUNCATE` ni borra datos existentes: asegura catálogos académicos, bloques horarios, salas, departamentos, profesores y usuarios iniciales. Su fuente es `OptimizacionHorarios_v3.xlsx` y los datos académicos viven en `backend/src/db/seeds/data/`.
+El seed no ejecuta `TRUNCATE` ni borra datos existentes: asegura catálogos académicos, bloques horarios, salas, departamentos, profesores y usuarios iniciales. La fuente académica es `OptimizacionHorarios_v3.xlsx` y sus datos viven en `backend/src/db/seeds/data/`.
+
+El catálogo de salas contiene únicamente las 56 salas institucionales del campus Concepción aprobadas para ICINF, tomadas de `Resumen Salas Institucionales UBB al 16.11.2022.xls` (hoja `Salas_Institucionales`, columnas B y H). Conserva códigos y capacidades de esa fuente histórica; todas tienen tipo `Sala`. Los laboratorios se incorporarán posteriormente. El archivo Excel no se necesita para ejecutar la seed: los datos están transcritos en `backend/src/db/seeds/data/horarios.ts`.
+
+Las sesiones teóricas y prácticas solo admiten espacios de tipo `Sala`; las sesiones de laboratorio, únicamente `Laboratorio`. Esta compatibilidad se valida al crear o editar horarios y al asignar salas mediante Excel; el Excel de salas sigue excluyendo las sesiones de laboratorio. Se permite dejar una sesión sin sala asignada.
+
+Las seis salas de ejemplo anteriores ya no forman parte de la seed. Repetir la carga conserva los IDs de salas con el mismo nombre y actualiza su capacidad y tipo, pero **no elimina las salas antiguas de una base previamente poblada** ni sus referencias en horarios.
 
 Incluye 49 asignaturas de los semestres de malla 1 al 10, con tipos de hora y cantidades del Excel en bloques académicos de 40 minutos. No incluye Electivos I–VI ni Formación Integral Oferta Institucional; sí conserva las prácticas y el proyecto de título con cero horas. Gestión Estratégica (612239) pertenece al semestre 7 y a Administración y Auditoría, al igual que Gestión Presupuestaria y Financiera (610229).
 

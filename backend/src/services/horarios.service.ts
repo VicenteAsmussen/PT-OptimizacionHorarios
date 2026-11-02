@@ -15,6 +15,7 @@ import { NotFoundError, ConflictError, BadRequestError, ForbiddenError } from ".
 import { normalizarTipoHoraExcel as normalizarTipoHora } from "../utils/excel-comun.js";
 import { importarHorariosExternos } from "../utils/excel-horarios-externos.js";
 import { calcularCoberturaExterna } from "../utils/cobertura-externos.js";
+import { esSalaCompatible, mensajeSalaIncompatible } from "../utils/compatibilidad-salas.js";
 
 type UsuarioExcelSalas = { id: number; rol: string };
 
@@ -142,6 +143,9 @@ export const horariosService = {
           error(numeroFila, `Horario ${numero}`, "La sesión está repetida en el archivo. Inclúyala solo una vez."); continue;
         }
         if (salaTexto && salasCoincidentes.length !== 1) continue;
+        if (salaTexto && !esSalaCompatible(sesion.entradas[0]!.tipoHora.tipo, salasCoincidentes[0]!.tipo)) {
+          error(numeroFila, `Sala ${numero}`, mensajeSalaIncompatible); continue;
+        }
         const salaId = salaTexto ? salasCoincidentes[0]!.id : null;
         for (const entrada of sesion.entradas) propuestas.set(entrada.id, { id: entrada.id, salaId, fila: numeroFila, columna: `Sala ${numero}` });
         if (salaId === null) pendientes++; else actualizadas++;

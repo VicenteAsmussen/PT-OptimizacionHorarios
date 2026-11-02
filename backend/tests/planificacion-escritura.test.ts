@@ -68,7 +68,7 @@ function baseSimulada() {
     };
     return cadena;
   } });
-  const nombres = { ofertaTipoHora: "oferta_tipo_hora", asignaturaTipoHora: "asignatura_tipo_hora", planificacionesSemestres: "planificaciones_semestres", ofertasAsignaturas: "ofertas_asignaturas", horariosAsignaturas: "horarios_asignaturas", disponibilidadProfesores: "disponibilidad_profesores", carreraDepartamento: "carrera_departamento", carreraAsignatura: "carrera_asignatura", asignaturas: "asignaturas", profesores: "profesores" };
+  const nombres = { salas: "salas", tiposHora: "tipos_hora", ofertaTipoHora: "oferta_tipo_hora", asignaturaTipoHora: "asignatura_tipo_hora", planificacionesSemestres: "planificaciones_semestres", ofertasAsignaturas: "ofertas_asignaturas", horariosAsignaturas: "horarios_asignaturas", disponibilidadProfesores: "disponibilidad_profesores", carreraDepartamento: "carrera_departamento", carreraAsignatura: "carrera_asignatura", asignaturas: "asignaturas", profesores: "profesores" };
   base.query = Object.fromEntries(Object.entries(nombres).map(([clave, nombre]) => [clave, {
     findFirst: async ({ where }: { where: SQL }) => {
       eventos.push(`lectura:${nombre}`);
@@ -119,6 +119,8 @@ beforeEach(() => {
   alEscribir = undefined;
   consultas = [];
   tablas = {
+    salas: [{ id: 2, nombre: "A101AA", tipo: "Sala" }, { id: 3, nombre: "Laboratorio futuro", tipo: "Laboratorio" }],
+    tipos_hora: [{ id: 1, tipo: "Teórica" }, { id: 2, tipo: "Práctica" }, { id: 3, tipo: "Laboratorio" }],
     carreras: [{ id: 1 }, { id: 2 }],
     planificaciones_semestres: [
       { id: 1, carreraId: 2, codigo: "2026-2", actual: true, estadoPlanificacion: "preparacion" },
@@ -147,6 +149,43 @@ it.each([
 });
 const oferta = { asignaturaCodigo: "INF100", asignaciones: [], profesorId: 7, seccion: 1, cupos: 30, planificacionSemestreId: 1 };
 const horario = { ofertaId: 10, bloqueId: 1, tipoHoraId: 1, salaId: null, planificacionSemestreId: 1 };
+describe.each(["create", "update", "Excel"])("room compatibility through %s", operacion => {
+  it.each([
+    [1, 2, true], [1, 3, false], [2, 2, true], [2, 3, false], [3, 2, false], [3, 3, true],
+    [1, null, true], [2, null, true], [3, null, true],
+  ] as const)("hour %s / room %s allowed=%s", async (tipoHoraId, salaId, permitido) => {
+    tablas.oferta_tipo_hora = [{ ofertaId: 10, tipoHoraId, profesorId: 7 }];
+    tablas.horarios_asignaturas[0].tipoHoraId = tipoHoraId;
+    const anteriores = structuredClone(tablas);
+    const mutar = () => operacion === "create" ? horariosRepository.create({ ...horario, tipoHoraId, salaId })
+      : operacion === "update" ? horariosRepository.update(20, { salaId })
+      : horariosRepository.actualizarSalasEnTransaccion(1, [{ id: 20, salaId }]);
+    if (!permitido) {
+      await expect(mutar()).rejects.toMatchObject({ statusCode: 400, message: expect.stringMatching(/tipo.*sala|sala.*tipo/i) });
+      expect(tablas).toEqual(anteriores);
+      expect(eventos.at(-1)).toBe("rollback");
+    } else {
+      await mutar();
+      expect(tablas.horarios_asignaturas.at(-1)).toMatchObject({ tipoHoraId, salaId });
+      expect(eventos.at(-1)).toBe("commit");
+    }
+  });
+});
+it("revalidates the retained classroom when updating only the hour type", async () => {
+  tablas.horarios_asignaturas[0].salaId = 2;
+  tablas.oferta_tipo_hora.push({ ofertaId: 10, tipoHoraId: 3, profesorId: 7 });
+  const anteriores = structuredClone(tablas);
+  await expect(horariosRepository.update(20, { tipoHoraId: 3 })).rejects.toMatchObject({ statusCode: 400 });
+  expect(tablas).toEqual(anteriores);
+});
+it("rolls back the entire room import when a later session requires a laboratory", async () => {
+  tablas.horarios_asignaturas.push({ ...tablas.horarios_asignaturas[0], id: 21, tipoHoraId: 3, bloqueId: 3 });
+  const anteriores = structuredClone(tablas);
+  await expect(horariosRepository.actualizarSalasEnTransaccion(1, [{ id: 20, salaId: 2 }, { id: 21, salaId: 2 }]))
+    .rejects.toMatchObject({ statusCode: 400 });
+  expect(tablas).toEqual(anteriores);
+  expect(eventos.at(-1)).toBe("rollback");
+});
 const mutaciones = [
   ["crear oferta", () => ofertasRepository.create(oferta)],
   ["actualizar oferta", () => ofertasRepository.update(10, { cupos: 40 })],
