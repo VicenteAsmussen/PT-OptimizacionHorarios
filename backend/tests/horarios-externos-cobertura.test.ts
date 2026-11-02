@@ -1,4 +1,5 @@
 import { beforeEach, expect, it, vi } from "vitest";
+vi.mock("../src/config/db.js", () => ({ db: {} }));
 import ExcelJS from "exceljs";
 import { importarHorariosExternos, encabezadosExcelExternos } from "../src/utils/excel-horarios-externos.js";
 import { horariosRepository } from "../src/repositories/horarios.repository.js";

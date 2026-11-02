@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+vi.mock("../src/config/db.js", () => ({ db: {} }));
 import express, { type Request, type Response, type NextFunction } from "express";
 import request from "supertest";
 import { asignaturasRouter } from "../src/routes/asignaturas.routes.js";

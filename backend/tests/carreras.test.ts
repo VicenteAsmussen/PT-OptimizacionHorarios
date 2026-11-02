@@ -1,9 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { beforeAll, describe, expect, it } from "vitest";
 import request from "supertest";
-import { app } from "../src/app.js";
+import { habilitarPruebasIntegracion } from "./soporte/base-pruebas.js";
 
-describe("Módulo Carreras (/api/carreras)", () => {
+const ejecutarIntegracion = habilitarPruebasIntegracion(process.env);
+const app = ejecutarIntegracion ? (await import("../src/app.js")).app : undefined!;
+
+describe.skipIf(!ejecutarIntegracion)("Módulo Carreras (/api/carreras)", () => {
   let secretariaCookie: string[];
   let adminCookie: string[];
 
