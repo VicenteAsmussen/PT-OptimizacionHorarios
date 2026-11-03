@@ -8,6 +8,7 @@ import { puedeConsultarMiHorario } from "../../features/mi-horario/modelo";
 import { puedeVerSeguimiento } from "../../features/seguimiento-disponibilidad/estado";
 import { puedeAdministrarPeriodos } from "../../features/administracion-periodos/modelo";
 import { puedeGestionarHorariosExternos } from "../../features/horarios-externos/permisos";
+import { puedeGestionarResultados } from "../../features/resultados-horarios/permisos";
 import logoUBB from "../../assets/logos/LogoUBB.png";
 import iconoSalida from "../../assets/iconos/salida.svg";
 import iconoRetrato from "../../assets/iconos/retrato.svg";
@@ -122,6 +123,11 @@ export default function AppLayout() {
         {puedeGestionarHorariosExternos(usuario?.rol) && (
           <NavLink to="/app/horarios-externos" onClick={() => setNavegacionAbierta(false)}>
             Horarios departamentos externos
+          </NavLink>
+        )}
+        {puedeGestionarResultados(usuario?.rol) && (
+          <NavLink to="/app/resultados-horarios" onClick={() => setNavegacionAbierta(false)}>
+            Gestión del horario
           </NavLink>
         )}
         {puedeRegistrarDisponibilidad(usuario?.rol) && (

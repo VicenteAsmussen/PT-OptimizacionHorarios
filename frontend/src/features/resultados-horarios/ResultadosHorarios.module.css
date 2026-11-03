@@ -1,0 +1,61 @@
+.pagina { display: grid; gap: 1.25rem; }
+.pagina h1 { margin: 0; font-size: var(--tamano-titulo-pagina); }
+.pagina h2, .dialogo h2 { font-size: var(--tamano-titulo-seccion); margin-top: 0; }
+.tarjeta { min-width: 0; padding: 1.25rem; border: 1px solid var(--color-borde); border-radius: .75rem; background: var(--color-superficie); }
+.controles, .acciones { display: flex; flex-wrap: wrap; align-items: end; gap: .75rem; margin: 1rem 0; }
+.controles label, .importacion label { display: grid; gap: .5rem; flex: 1 1 14rem; }
+.controles select, .importacion input { width: 100%; min-height: 2.75rem; padding: .5rem; font: inherit; color: inherit; background: var(--color-superficie); border: 1px solid var(--color-borde-campo); border-radius: .25rem; }
+.controles select:focus-visible, .importacion input:focus-visible, .destino:focus-visible { outline: 3px solid var(--color-foco); outline-offset: 2px; }
+.estado { display: inline-block; padding: .5rem .75rem; border: 1px solid var(--color-azul-borde); border-radius: .5rem; color: var(--color-azul-texto); background: var(--color-azul-hover); }
+.semestres { display: flex; flex-wrap: nowrap; overflow-x: auto; gap: .5rem; padding: .25rem; margin: 1rem 0; }
+.semestre { flex: 1 0 2.75rem; min-height: 2.75rem; padding: .5rem; border: 1px solid var(--color-borde-campo); border-radius: .375rem; background: var(--color-superficie); color: var(--color-texto); font: inherit; cursor: pointer; }
+.semestre[aria-pressed="true"] { background: var(--color-primario); color: var(--color-blanco); border-color: var(--color-primario); font-weight: 700; }
+.semestre:focus-visible { outline: 3px solid var(--color-foco); outline-offset: -3px; }
+.semestre:disabled { opacity: .6; cursor: not-allowed; }
+.tablaResultados { table-layout: fixed; }
+.columnaHora { width: 8rem; }
+.sesionLista, .sesionLista:disabled { background: #e0f2fe; border-color: #7ab8db; color: #184b68; opacity: 1; cursor: default; }
+.sesionPendiente { background: #fff6ce; border-color: #c4a441; color: #66500c; }
+.tarjetaOcupada, .tarjetaOcupada:disabled { background: #fce8e6; border-color: #cb9292; color: #632222; opacity: 1; }
+.seleccionada, .seleccionada:disabled { background: #e5e7eb; border-color: #6b7280; color: #29313d; outline: 3px solid var(--color-foco); outline-offset: -3px; }
+.vistaPrevia { background: #e5e7eb; border: 2px dashed #6b7280; color: #29313d; pointer-events: none; }
+.editor { border: 1px solid var(--color-azul-borde); border-radius: .5rem; padding: 1rem; margin: 1rem 0; }
+.editor h3 { margin-top: 0; }
+.gruposMovimiento { min-width: 0; border: 0; padding: 0; margin: 1rem 0; }
+.gruposMovimiento legend { padding: 0; margin-bottom: .5rem; font-weight: 600; }
+.opcionesGrupos { display: flex; flex-wrap: wrap; gap: .5rem; }
+.grupoMovimiento { display: grid; gap: .25rem; flex: 1 1 12rem; min-height: 2.75rem; padding: .75rem; border: 1px solid var(--color-borde-campo); border-radius: .5rem; background: var(--color-superficie); color: var(--color-texto); font: inherit; text-align: left; cursor: pointer; }
+.grupoMovimiento[aria-pressed="true"] { background: #e5e7eb; color: #29313d; border-color: var(--color-primario); box-shadow: inset 0 0 0 1px var(--color-primario); }
+.grupoMovimiento:focus-visible { outline: 3px solid var(--color-foco); outline-offset: 2px; }
+.grupoMovimiento:disabled { opacity: .6; cursor: not-allowed; }
+.trayectoMovimiento { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); max-width: 36rem; gap: .5rem; align-items: center; margin: .75rem 0; }
+.tramoMovimiento { display: grid; min-width: 0; gap: .125rem; align-content: center; align-self: stretch; padding: .5rem .75rem; border: 1px solid var(--color-azul-borde); border-radius: .5rem; background: var(--color-azul-hover); color: var(--color-azul-texto); font-size: .875rem; line-height: 1.35; overflow-wrap: anywhere; }
+.tramoDestino { border-style: dashed; }
+.flechaMovimiento { font-size: 1.5rem; text-align: center; }
+.disponible { background: #e5f6e9; }
+.sinDisponibilidad { background: #fce8e6; }
+.invalido { background: #fce8e6; outline: 2px solid #9f1d1d; outline-offset: -2px; }
+.celdaMovimiento { position: relative; }
+.celdaMovimiento > div { position: relative; pointer-events: none; }
+.celdaMovimiento > div > button { pointer-events: auto; }
+.destino { position: absolute; inset: 0; width: 100%; height: 100%; padding: 0; border: 0; background: transparent; cursor: pointer; }
+.destinoSeleccionado { box-shadow: inset 0 0 0 3px var(--color-primario); }
+.dialogo { width: min(76rem, calc(100% - 2rem)); max-height: calc(100dvh - 2rem); overflow: auto; padding: 1.25rem; color: var(--color-texto); background: var(--color-superficie); border: 1px solid var(--color-borde); border-radius: .75rem; }
+.dialogo:has(.tarjetasPendientes) { width: min(36rem, calc(100% - 2rem)); }
+.dialogo:has([data-dialogo-publicacion]) { width: min(36rem, calc(100% - 2rem)); }
+.dialogo::backdrop { background: rgb(0 0 0 / 40%); }
+.dialogo > button { margin: .75rem .75rem 0 0; }
+.error { color: #a11717; overflow-wrap: anywhere; }
+.importacion { display: grid; gap: .75rem; margin: 1rem 0; }
+.importacion button { justify-self: start; }
+.pendientes { display: grid; gap: .75rem; padding-left: 1.25rem; }
+.pendientes li { overflow-wrap: anywhere; }
+.pendientes span { display: block; margin-top: .25rem; }
+.tarjetasPendientes { display: grid; gap: .75rem; padding: 0; list-style: none; }
+.tarjetasPendientes li { min-width: 0; overflow-wrap: anywhere; }
+.tarjetasPendientes h3, .tarjetasPendientes h5 { margin: 0; font-size: 1rem; }
+.tarjetasPendientes p { margin: .35rem 0 0; }
+.erroresPlanilla { max-height: 20rem; overflow: auto; }
+.erroresPlanilla table { width: 100%; border-collapse: collapse; }
+.erroresPlanilla th, .erroresPlanilla td { padding: .5rem; border: 1px solid var(--color-borde); text-align: left; }
+@media (max-width: 48rem) { .tarjeta, .dialogo { padding: .75rem; } .acciones > button { flex: 1 1 12rem; } .trayectoMovimiento { grid-template-columns: minmax(0, 1fr); } .flechaMovimiento { transform: rotate(90deg); justify-self: center; } }

@@ -67,7 +67,7 @@ export async function sembrarAcademico(baseDatos: BaseDatosSeed): Promise<Catalo
     if (!departamentoAsignado) throw new Error(`Departamento del seed no encontrado: ${departamento}`);
     await baseDatos.insert(esquema.asignaturas).values({ ...asignatura, departamentoId: departamentoAsignado.id }).onConflictDoUpdate({
       target: esquema.asignaturas.codigo,
-      set: { nombre: asignatura.nombre, semestreMalla: asignatura.semestreMalla, departamentoId: departamentoAsignado.id },
+      set: { nombre: asignatura.nombre, semestreMalla: asignatura.semestreMalla, departamentoId: departamentoAsignado.id, requiereSala: asignatura.requiereSala },
     });
     for (const [indice, cantidad] of horas.entries()) {
       if (cantidad === 0) continue;

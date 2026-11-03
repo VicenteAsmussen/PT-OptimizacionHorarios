@@ -77,6 +77,7 @@ export const asignaturasService = {
         nombre: dto.nombre,
         semestreMalla: dto.semestreMalla,
         esCritica: dto.esCritica,
+        requiereSala: dto.requiereSala,
       },
       dto.tiposHora,
       dto.carrerasIds

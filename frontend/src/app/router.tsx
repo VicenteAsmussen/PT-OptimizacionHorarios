@@ -11,6 +11,7 @@ import DisponibilidadPage, { RequireDisponibilidad } from "../features/disponibi
 import MiHorarioPage, { RequireMiHorario } from "../features/mi-horario/MiHorarioPage";
 import SeguimientoDisponibilidadPage, { RequireSeguimientoDisponibilidad } from "../features/seguimiento-disponibilidad/SeguimientoDisponibilidadPage";
 import AdministracionPeriodosPage, { RequireAdministracionPeriodos } from "../features/administracion-periodos/AdministracionPeriodosPage";
+import ResultadosHorariosPage, { RequireResultadosHorarios } from "../features/resultados-horarios/ResultadosHorariosPage";
 
 export const router = createBrowserRouter([
   { path: "/", element: <Navigate to="/login" replace /> },
@@ -31,6 +32,9 @@ export const router = createBrowserRouter([
         ] },
         { element: <RequireMiHorario />, children: [
           { path: "mi-horario", element: <MiHorarioPage /> },
+        ] },
+        { element: <RequireResultadosHorarios />, children: [
+          { path: "resultados-horarios", element: <ResultadosHorariosPage /> },
         ] },
         { element: <RequireSeguimientoDisponibilidad />, children: [
           { path: "seguimiento-disponibilidad", element: <SeguimientoDisponibilidadPage /> },

@@ -43,3 +43,22 @@ test('existing API error messages and no-content responses remain unchanged', as
     assert.equal(await api('asignaturas/A', { method: 'DELETE' }), undefined);
   } finally { globalThis.fetch = anterior; }
 });
+
+test('binary downloads retain cookie credentials, abort signal and structured failures', async () => {
+  const { apiArchivo, ApiError } = await import('./api.ts');
+  const anterior = globalThis.fetch;
+  const controlador = new AbortController();
+  try {
+    globalThis.fetch = async (url, opciones) => {
+      assert.equal(url, 'http://localhost:3000/api/resultados-horarios/2/salas/exportar?soloPendientes=true');
+      assert.equal(opciones.credentials, 'include');
+      assert.equal(opciones.signal, controlador.signal);
+      return new Response(new Blob(['xlsx']));
+    };
+    const archivo = await apiArchivo('resultados-horarios/2/salas/exportar?soloPendientes=true', controlador.signal);
+    assert.equal(await archivo.text(), 'xlsx');
+    globalThis.fetch = async () => Response.json({ message: 'No hay sesiones pendientes.' }, { status: 400 });
+    await assert.rejects(apiArchivo('/resultados-horarios/2/salas/exportar'), error =>
+      error instanceof ApiError && error.status === 400 && error.message === 'No hay sesiones pendientes.');
+  } finally { globalThis.fetch = anterior; }
+});

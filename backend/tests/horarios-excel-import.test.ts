@@ -13,7 +13,7 @@ const horariosService = {
 };
 import { encabezadosExcelSalas } from "../src/utils/excel-salas.js";
 vi.mock("../src/repositories/horarios.repository.js", () => ({ horariosRepository: {
-  findParaImportarSalas: vi.fn(), actualizarSalasEnTransaccion: vi.fn(), findCarreraSecretariaByUsuarioId: vi.fn(), findPlanificacionById: vi.fn(),
+  findParaImportarSalas: vi.fn(), findParaExportarSalas: vi.fn(), actualizarSalasEnTransaccion: vi.fn(), findCarreraSecretariaByUsuarioId: vi.fn(), findPlanificacionById: vi.fn(),
 } }));
 vi.mock("../src/config/db.js", () => ({ db: {} }));
 vi.mock("../src/middlewares/auth.middleware.js", () => ({ authenticate: (req: Request, res: Response, next: NextFunction) => {
@@ -44,6 +44,16 @@ beforeEach(() => {
   vi.mocked(horariosRepository.findParaImportarSalas).mockResolvedValue({ entradas: [entrada()], salas: [{ id: 4, nombre: "101-AA", tipo: "Sala" }] } as never);
 });
 describe("Importación Excel todo-o-nada", () => {
+  it.each(["vacío", "solo laboratorios"])("preserva el rechazo previo al exportar un horario %s", async escenario => {
+    const laboratorio = entrada(); laboratorio.tipoHora.tipo = "Laboratorio";
+    const entradas = escenario === "vacío" ? [] : [laboratorio];
+    const anteriores = structuredClone(entradas);
+    vi.mocked(horariosRepository.findParaExportarSalas).mockResolvedValue(entradas as never);
+    const respuesta = await request(aplicacion).get("/horarios/excel/salas?planificacionSemestreId=9").set("x-rol-prueba", "admin");
+    expect(respuesta.status).toBe(400);
+    expect(entradas).toEqual(anteriores);
+    expect(horariosRepository.actualizarSalasEnTransaccion).not.toHaveBeenCalled();
+  });
   it.each(["Teórica", "Práctica"])("assigns %s sessions to classrooms", async tipo => {
     const sesion = entrada(); sesion.tipoHora.tipo = tipo;
     vi.mocked(horariosRepository.findParaImportarSalas).mockResolvedValue({ entradas: [sesion], salas: [{ id: 4, nombre: "101-AA", tipo: "Sala" }] } as never);
@@ -101,6 +111,18 @@ describe("Importación Excel todo-o-nada", () => {
     vi.mocked(horariosRepository.findParaImportarSalas).mockResolvedValue({ entradas: [entrada(1, "INF100", 4)], salas: [{ id: 4, nombre: "101-AA", tipo: "Sala" }] } as never);
     expect(await horariosService.importarExcelSalas(9, await archivo([datos]))).toEqual({ actualizadas: 0, pendientes: 1, errores: [] });
     expect(horariosRepository.actualizarSalasEnTransaccion).toHaveBeenCalledWith(9, [{ id: 1, salaId: null }]);
+  });
+  it("rechaza SIN SALA en el contrato antiguo sin borrar asignaciones", async () => {
+    const datos = fila(); datos[8] = "SIN SALA";
+    const entradas = [entrada(1, "INF100", 4)];
+    const anteriores = structuredClone(entradas);
+    vi.mocked(horariosRepository.findParaImportarSalas).mockResolvedValue({ entradas, salas: [{ id: 4, nombre: "101-AA" }] } as never);
+    const respuesta = await request(aplicacion).post("/horarios/excel/salas/importar?planificacionSemestreId=9")
+      .set("x-rol-prueba", "admin").attach("archivo", await archivo([datos]), "salas.xlsx");
+    expect(respuesta.status).toBe(400);
+    expect(respuesta.body.errores).toEqual([{ fila: 2, columna: "Sala 1", mensaje: "La sala «SIN SALA» no existe o su nombre es ambiguo. Revise el listado de salas." }]);
+    expect(horariosRepository.actualizarSalasEnTransaccion).not.toHaveBeenCalled();
+    expect(entradas).toEqual(anteriores);
   });
   it.each([[6, "Funday", "Día 1"], [7, "25:00-26:00", "Horario 1"], [1, "Otra", "Nombre Asignatura"], [4, "Otro", "Profesor"], [8, "999", "Sala 1"], [5, "desconocido", "Horario 1"], [0, "XYZ", "Código Asig."]])("reporta error accionable en columna %s sin actualizar", async (indice, valor, columna) => {
     const datos = fila(); datos[Number(indice)] = valor;
