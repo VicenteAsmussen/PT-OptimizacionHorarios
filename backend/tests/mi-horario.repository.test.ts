@@ -1,17 +1,30 @@
 import { beforeEach, expect, it, vi } from "vitest";
 
-const { consultas } = vi.hoisted(() => ({ consultas: [] as { sql: string; parametros: unknown[] }[] }));
+const { consultas, respuestas } = vi.hoisted(() => ({ consultas: [] as { sql: string; parametros: unknown[] }[], respuestas: [] as unknown[][][] }));
 vi.mock("../src/config/db.js", async () => {
   const { drizzle } = await import("drizzle-orm/pg-proxy");
   const schema = await import("../src/db/schema/index.js");
   return { db: drizzle(async (sql, parametros) => {
     consultas.push({ sql, parametros });
-    return { rows: [] };
+    return { rows: respuestas.shift() ?? [] };
   }, { schema }) };
 });
 import { miHorarioRepository } from "../src/repositories/mi-horario.repository.js";
 import { horariosRepository } from "../src/repositories/horarios.repository.js";
-beforeEach(() => { consultas.length = 0; });
+beforeEach(() => { consultas.length = 0; respuestas.length = 0; });
+
+it("incluye la carrera de cada planificación y consulta únicamente sus reservas", async () => {
+  respuestas.push([[10, 3, "2026-2", true, "propuesta", [3, "Carrera A"]]]);
+  expect(await miHorarioRepository.findPlanificaciones(7)).toEqual([
+    { id: 10, carreraId: 3, codigo: "2026-2", carreraNombre: "Carrera A", actual: true, estadoPlanificacion: "propuesta" },
+  ]);
+  respuestas.push([[3, 87]]);
+  expect(await miHorarioRepository.findBloquesReservados(3)).toEqual([87]);
+  expect(consultas[1].sql).toContain('from "bloques_reservados"');
+  expect(consultas[1].parametros).toEqual([3]);
+  expect(await miHorarioRepository.findBloquesReservados(4)).toEqual([]);
+  expect(consultas[2].parametros).toEqual([4]);
+});
 
 it("deriva planificaciones por asignaciones docentes y estado, sin restringir departamento ni período actual", async () => {
   await miHorarioRepository.findPlanificaciones(7);

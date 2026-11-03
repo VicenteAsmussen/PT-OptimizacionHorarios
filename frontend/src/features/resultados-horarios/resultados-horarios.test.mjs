@@ -69,6 +69,22 @@ test('movement targets are green only when the full group is free and available'
   assert.equal(m.puedeConfirmarMovimiento(resultado, sesion, datos, { clave: m.claveMovimiento(2, datos), valido: true, problemas: [] }), false);
 });
 
+test('las reservas impiden destinos completos y parciales sin bloquear otra carrera', async () => {
+  const m = await import('./modelo.ts');
+  for (const reserva of [190, 187]) {
+    const reservado = { ...resultado, bloquesReservadosIds: [reserva] };
+    const datos = { revision: resultado.revision, idsHorarios: [11, 12], bloqueInicioId: 190 };
+    assert.equal(m.estadoCasilla(reservado, sesion, reserva), 'reservado');
+    assert.equal(m.estadoDestino(reservado, sesion, 190, 2), 'reservado');
+    assert.equal(m.destinoDisponible(reservado, sesion, 190, 2), false);
+    assert.equal(m.puedeConfirmarMovimiento(reservado, sesion, datos, {
+      clave: m.claveMovimiento(2, datos), valido: true, problemas: [],
+    }), false);
+  }
+  assert.equal(m.estadoDestino({ ...resultado, bloquesReservadosIds: [] }, sesion, 190, 2), 'disponible');
+  assert.equal(m.destinoDisponible(resultado, sesion, 190, 2), true);
+});
+
 test('whole session is first and groups never leave isolated or nonconsecutive blocks', async () => {
   const { gruposMovibles } = await import('./modelo.ts');
   assert.deepEqual(gruposMovibles(sesion, bloques), [[11, 12, 13, 14], [11, 12], [13, 14]]);
@@ -161,6 +177,24 @@ test('calendar renders green read-only sessions and inline controls without a mo
   const servidor = await createServer({ envFile: false, server: { middlewareMode: true }, appType: 'custom' });
   try {
     const { default: Calendario } = await servidor.ssrLoadModule('/src/features/resultados-horarios/CalendarioResultados.tsx');
+    const conReservas = { ...resultado, bloquesReservadosIds: [90, 187] };
+    const reserva = renderToStaticMarkup(createElement(Calendario, { resultado: conReservas, nivel: '', seleccionar() {},
+      movimiento: { sesion, idsHorarios: [11, 12], cantidad: 2, inicioId: 190, invalido: false, elegir() {} },
+    }));
+    assert.equal([...reserva.matchAll(/>Reservado</g)].length, 2);
+    assert.match(reserva, /Clase en bloque reservado/);
+    assert.match(reserva, /aria-label="Estructuras de Datos, sección 1, Teórica, Docente, Sala pendiente"/);
+    assert.match(reserva, /<button[^>]*disabled=""[^>]*aria-label="Martes 08:10–08:50: [^"]*grupo incluye una reserva/);
+    assert.match(reserva, /aria-label="Martes 08:50–09:30: reservado/);
+    assert.doesNotMatch(reserva, /Vista previa sin guardar/);
+    for (const [, contenido] of reserva.matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/g)) {
+      if (!contenido.includes('>Reservado<')) continue;
+      assert.match(contenido, /<div class="[^"]*contenidoCelda[^"]*"><span class="[^"]*reserva[^"]*">/,
+        'La reserva no debe agregar altura fuera del contenedor de clases ni del control de destino.');
+    }
+    const vacio = renderToStaticMarkup(createElement(Calendario, { resultado: conReservas, nivel: '5', seleccionar() {} }));
+    assert.equal([...vacio.matchAll(/>Reservado</g)].length, 2);
+    assert.doesNotMatch(vacio, /Clase en bloque reservado|aria-label="Estructuras/);
     const externa = { ...sesion, idsHorarios: [20, 21], bloquesIds: [90, 87], editable: false, estadoSala: 'externa' };
     const asignada = { ...sesion, idsHorarios: [30, 31], bloquesIds: [84, 81], estadoSala: 'asignada', salas: [{ id: 1, nombre: 'A-101' }, { id: 1, nombre: 'A-101' }] };
     const laboratorio = { ...sesion, idsHorarios: [40, 41], bloquesIds: [78, 75], estadoSala: 'laboratorio', tipoHora: { id: 3, tipo: 'Laboratorio' } };
@@ -173,6 +207,22 @@ test('calendar renders green read-only sessions and inline controls without a mo
     const pendientes = [...html.matchAll(/<button\b[^>]*sesionPendiente[^>]*>/g)].map(([boton]) => boton);
     assert.equal(pendientes.length, 4);
     assert.equal(pendientes.every(b => !b.includes('disabled=""')), true);
+    for (const estadoPlanificacion of ['propuesta', 'publicado']) {
+      const exenta = { ...sesion, estadoSala: 'noRequiere', salas: sesion.salas.map(() => null) };
+      const exentoHtml = renderToStaticMarkup(createElement(Calendario, {
+        resultado: { ...resultado, planificacion: { ...resultado.planificacion, estadoPlanificacion }, sesiones: [exenta] },
+        nivel: '', seleccionar() {},
+      }));
+      const tarjetas = [...exentoHtml.matchAll(/<button\b[^>]*aria-label="Estructuras[^>]*>/g)].map(([boton]) => boton);
+      assert.equal(tarjetas.length, exenta.bloquesIds.length);
+      for (const tarjeta of tarjetas) {
+        assert.match(tarjeta, /sesionLista/);
+        assert.doesNotMatch(tarjeta, /sesionPendiente/);
+        assert.equal(tarjeta.includes('disabled=""'), estadoPlanificacion === 'publicado',
+          'El color de una sesión exenta no debe cambiar su permiso de movimiento.');
+      }
+      assert.match(exentoHtml, /No requiere sala/);
+    }
     const tarjetasLaboratorio = [...html.matchAll(/<button\b[^>]*aria-label="[^"]*Laboratorio[^"]*"[^>]*>[\s\S]*?<\/button>/g)];
     assert.equal(tarjetasLaboratorio.length, 2);
     for (const [tarjeta] of tarjetasLaboratorio) assert.doesNotMatch(tarjeta, /sala/i);
@@ -704,6 +754,10 @@ test('movement summary cards use compact platform-blue styling without recolorin
   assert.match(tarjeta, /padding:\s*\.5rem \.75rem/);
   assert.match(tarjeta, /font-size:\s*\.875rem/);
   assert.match(css, /\.trayectoMovimiento\s*\{[^}]*max-width:\s*36rem/);
+  assert.match(css, /\.gruposMovimiento\s*\{[^}]*width:\s*100%\s*;[^}]*max-width:\s*36rem/,
+    'Las opciones de bloques deben compartir el ancho compacto de origen y destino.');
+  assert.match(css, /\.opcionesGrupos\s*\{[^}]*display:\s*grid\s*;[^}]*grid-template-columns:\s*repeat\(3,\s*minmax\(0,\s*1fr\)\)/,
+    'Los tres grupos deben compartir una fila de columnas iguales, sin estirar el último.');
   assert.match(css, /\.seleccionada[^{}]*\{[^}]*background:\s*#e5e7eb/);
   assert.match(css, /\.vistaPrevia\s*\{[^}]*background:\s*#e5e7eb/);
 });
@@ -776,6 +830,59 @@ test('a pending-room link selects its semester before preparing the inline movem
     pagina.componente('GestionSalas').props.seleccionar(sesion); pagina.renderizar();
     assert.equal(pagina.componente('CalendarioResultados').props.nivel, '3');
     assert.equal(pagina.componente('ControlesMovimiento').props.sesion, sesion);
+  } finally { pagina.cerrar(); }
+});
+
+test('los semestres vacíos muestran solo el aviso aunque existan reservas, sin perderlas al seleccionar clases', async () => {
+  for (const estadoPlanificacion of ['propuesta', 'publicado']) {
+    const reservado = { ...resultado, bloquesReservadosIds: [90], planificacion: { ...resultado.planificacion, estadoPlanificacion } };
+    const pagina = await montar('./ResultadosHorariosPage.tsx', 'ContenidoResultados', { id: 2, ocupado: false, actualizarPlanificacion() {} }, {
+      consultar: async () => reservado,
+    });
+    try {
+      await pagina.asentar();
+      assert.equal(pagina.componente('CalendarioResultados'), undefined);
+      assert.ok(pagina.buscar('p').some(p => pagina.texto(p).includes('No hay clases asignadas para el semestre 1.')));
+      pagina.boton('3').props.onClick(); pagina.renderizar();
+      assert.equal(pagina.componente('CalendarioResultados')?.props.resultado, reservado);
+      assert.deepEqual(pagina.componente('CalendarioResultados').props.resultado.bloquesReservadosIds, [90]);
+      pagina.boton('1').props.onClick(); pagina.renderizar();
+      assert.equal(pagina.componente('CalendarioResultados'), undefined);
+    } finally { pagina.cerrar(); }
+  }
+});
+
+test('el selector conserva Preparación sin montar contenido ni consultar resultados', async () => {
+  const consultas = [];
+  const pagina = await montar('./ResultadosHorariosPage.tsx', 'ConsultaResultados', {}, {
+    planificaciones: async () => [{ ...resultado.planificacion, estadoPlanificacion: 'preparacion', carrera: { nombre: 'Carrera' } }],
+    consultar: async (...datos) => { consultas.push(datos); return { ...resultado, bloquesReservadosIds: [90] }; },
+  });
+  try {
+    await pagina.asentar();
+    assert.ok(pagina.buscar('p').some(p => pagina.texto(p).includes('Este período está en Preparación.')));
+    assert.deepEqual(pagina.buscar('ContenidoResultados'), []);
+    assert.equal(pagina.componente('CalendarioResultados'), undefined);
+    assert.deepEqual(consultas, []);
+  } finally { pagina.cerrar(); }
+});
+
+test('una reserva parcial impide solicitar validación y guardar desde los manejadores reales', async () => {
+  const reservado = { ...resultado, bloquesReservadosIds: [187] };
+  const solicitudes = [];
+  const pagina = await montar('./ResultadosHorariosPage.tsx', 'ContenidoResultados', { id: 2, ocupado: false, actualizarPlanificacion() {} }, {
+    consultar: async () => reservado,
+    validarMovimiento: async (...datos) => { solicitudes.push(['validar', ...datos]); return { valido: true, problemas: [] }; },
+    mover: async (...datos) => { solicitudes.push(['mover', ...datos]); },
+  });
+  try {
+    await pagina.asentar();
+    pagina.componente('GestionSalas').props.seleccionar(sesion); pagina.renderizar();
+    const calendario = pagina.componente('CalendarioResultados');
+    calendario.props.movimiento.elegir(190); pagina.renderizar(); await pagina.asentar();
+    await pagina.componente('ControlesMovimiento').props.confirmar(); await pagina.asentar();
+    assert.deepEqual(solicitudes, []);
+    assert.equal(pagina.componente('CalendarioResultados').props.resultado, reservado);
   } finally { pagina.cerrar(); }
 });
 
@@ -1427,6 +1534,60 @@ test('publication keeps separate sessions of one subject and retains unresolved 
     assert.match(pagina.texto(filas[1]), /Martes 08:10–11:00/);
     assert.equal(pagina.buscar('li').filter(li => pagina.texto(li) === mensaje).length, 2);
     pagina.boton('Confirmar publicación').props.onClick(); assert.equal(publicaciones, 0);
+  } finally { pagina.cerrar(); }
+});
+
+test('publicación agrupa reservas por sesión y muestra los bloques afectados sin repetir mensajes', async () => {
+  const otra = { ...sesion, idsHorarios: [21, 22], bloquesIds: [190, 187], dia: 'Martes', horaTermino: '09:30' };
+  const contexto = { ...resultado, sesiones: [sesion, otra] };
+  const mensaje = 'El bloque horario está reservado para la carrera y no admite clases.';
+  const problemas = [
+    { codigo: 'bloqueReservado', mensaje, idsHorarios: [11], bloqueId: 90 },
+    { codigo: 'bloqueReservado', mensaje, idsHorarios: [12], bloqueId: 87 },
+    { codigo: 'bloqueReservado', mensaje, idsHorarios: [21], bloqueId: 190 },
+    { codigo: 'bloqueReservado', mensaje, idsHorarios: [22], bloqueId: 187 },
+  ];
+  const original = JSON.stringify({ contexto, problemas });
+  let publicaciones = 0;
+  const pagina = await montar('./PublicacionDialogo.tsx', 'PublicacionDialogo', {
+    resultado: contexto, ocupado: false, cerrar() {}, confirmar() { publicaciones++; },
+  }, { validarPublicacion: async () => ({ valido: false, revision: contexto.revision, problemas }) });
+  try {
+    await pagina.asentar();
+    const lista = pagina.buscar('ul').find(ul => ul.props['aria-label'] === 'Sesiones en bloques reservados');
+    assert.ok(lista);
+    assert.equal(pagina.buscar('article', lista).length, 2);
+    const filas = pagina.buscar('li', lista);
+    assert.match(pagina.texto(filas[0]), /100 — Estructuras de DatosSemestre 3 · Sección 1 · TeóricaLunes 08:10–11:00/);
+    const horariosReservados = pagina.buscar('div', filas[0]).find(div => div.props['aria-label'] === 'Horarios reservados');
+    assert.ok(horariosReservados);
+    assert.match(pagina.texto(horariosReservados), /Horario reservadoLunes 08:10–08:50Lunes 08:50–09:30/);
+    assert.doesNotMatch(pagina.texto(lista), /Bloques reservados:|\bB\d+\b/);
+    assert.match(pagina.texto(filas[1]), /Martes 08:10–09:30/);
+    assert.equal(pagina.buscar('li').filter(li => pagina.texto(li) === mensaje).length, 0);
+    assert.equal(pagina.boton('Confirmar publicación').props.disabled, true);
+    pagina.boton('Confirmar publicación').props.onClick();
+    assert.equal(publicaciones, 0);
+    assert.equal(JSON.stringify({ contexto, problemas }), original);
+  } finally { pagina.cerrar(); }
+});
+
+test('publicación conserva reservas no identificadas y pendientes de sala junto a sus tarjetas', async () => {
+  const mensaje = 'Reserva sin sesión identificada';
+  const problemas = [
+    { codigo: 'sala', mensaje: 'Falta sala', idsHorarios: [11] },
+    { codigo: 'bloqueReservado', mensaje, idsHorarios: [11, 999], bloqueId: 90 },
+    { codigo: 'bloqueReservado', mensaje: 'Reserva sin identificadores' },
+  ];
+  const pagina = await montar('./PublicacionDialogo.tsx', 'PublicacionDialogo', {
+    resultado, ocupado: false, cerrar() {}, confirmar() { assert.fail('No debe publicar'); },
+  }, { validarPublicacion: async () => ({ valido: false, revision: resultado.revision, problemas }) });
+  try {
+    await pagina.asentar();
+    assert.ok(pagina.buscar('ul').some(ul => ul.props['aria-label'] === 'Sesiones sin sala'));
+    assert.ok(pagina.buscar('ul').some(ul => ul.props['aria-label'] === 'Sesiones en bloques reservados'));
+    for (const texto of [mensaje, 'Reserva sin identificadores']) assert.ok(pagina.buscar('li').some(li => pagina.texto(li) === texto));
+    assert.equal(pagina.boton('Confirmar publicación').props.disabled, true);
   } finally { pagina.cerrar(); }
 });
 

@@ -14,12 +14,28 @@ function desglosarSalas(resultado: ResultadoHorario, problemas: Problema[]) {
   return { sesionesSinSala, problemasRestantes };
 }
 
+function desglosarReservas(resultado: ResultadoHorario, problemas: Problema[]) {
+  const reservas = problemas.filter(p => p.codigo === 'bloqueReservado');
+  const sesionesReservadas = resultado.sesiones.filter(sesion => reservas.some(p =>
+    p.idsHorarios?.some(id => sesion.idsHorarios.includes(id)))).map(sesion => {
+      const bloquesIds = new Set(reservas.filter(p => p.idsHorarios?.some(id => sesion.idsHorarios.includes(id)))
+        .flatMap(p => p.bloqueId !== undefined && sesion.bloquesIds.includes(p.bloqueId) ? [p.bloqueId]
+          : (p.idsHorarios ?? []).filter(id => sesion.idsHorarios.includes(id)).map(id => sesion.bloquesIds[sesion.idsHorarios.indexOf(id)])));
+      const bloques = resultado.bloques.filter(b => bloquesIds.has(b.id)).sort((a, b) => a.numeroBloque - b.numeroBloque);
+      return { sesion, bloques };
+    });
+  const identificados = new Set(sesionesReservadas.flatMap(({ sesion }) => sesion.idsHorarios));
+  return { sesionesReservadas, problemasRestantes: problemas.filter(p => p.codigo !== 'bloqueReservado'
+    || !p.idsHorarios?.length || p.idsHorarios.some(id => !identificados.has(id))) };
+}
+
 export default function PublicacionDialogo({ resultado, ocupado, cerrar, confirmar }: {
   resultado: ResultadoHorario; ocupado: boolean; cerrar: () => void; confirmar: (revision: string) => void;
 }) {
   const [validacion, setValidacion] = useState<ValidacionPublicacion | null>(null);
   const [error, setError] = useState('');
-  const { sesionesSinSala, problemasRestantes } = desglosarSalas(resultado, validacion?.problemas ?? []);
+  const { sesionesSinSala, problemasRestantes: sinSalas } = desglosarSalas(resultado, validacion?.problemas ?? []);
+  const { sesionesReservadas, problemasRestantes } = desglosarReservas(resultado, sinSalas);
   useEffect(() => {
     let activo = true;
     const controlador = new AbortController();
@@ -44,8 +60,22 @@ export default function PublicacionDialogo({ resultado, ocupado, cerrar, confirm
             </article>
           </li>)}</ul>
         </>}
+        {sesionesReservadas.length > 0 && <>
+          <h4>Sesiones en bloques reservados</h4>
+          <ul className={estilos.tarjetasPendientes} aria-label="Sesiones en bloques reservados">{sesionesReservadas.map(({ sesion, bloques }) => <li key={sesion.idsHorarios.join(',')}>
+            <article className={estilos.tarjeta} aria-label={`${sesion.asignatura.codigo} — ${sesion.asignatura.nombre}, ${sesion.tipoHora.tipo}, ${sesion.dia} ${sesion.horaInicio.slice(0, 5)}–${sesion.horaTermino.slice(0, 5)}`}>
+              <h5>{sesion.asignatura.codigo} — {sesion.asignatura.nombre}</h5>
+              <p>Semestre {sesion.asignatura.semestreMalla} · Sección {sesion.seccion} · {sesion.tipoHora.tipo}</p>
+              <p>{sesion.dia} {sesion.horaInicio.slice(0, 5)}–{sesion.horaTermino.slice(0, 5)}</p>
+              {bloques.length > 0 && <div className={estilos.horariosReservados} aria-label="Horarios reservados">
+                <strong>Horario reservado</strong>
+                {bloques.map(bloque => <p key={bloque.id}>{bloque.dia} {bloque.horaInicio.slice(0, 5)}–{bloque.horaTermino.slice(0, 5)}</p>)}
+              </div>}
+            </article>
+          </li>)}</ul>
+        </>}
         {problemasRestantes.length > 0 && <>
-          {sesionesSinSala.length > 0 && <h4>Otros problemas</h4>}
+          {(sesionesSinSala.length > 0 || sesionesReservadas.length > 0) && <h4>Otros problemas</h4>}
           <ul>{problemasRestantes.map((p, i) => <li key={i}>{p.mensaje}</li>)}</ul>
         </>}
       </>}

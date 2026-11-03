@@ -8,6 +8,7 @@ import { bloquesHorarios } from "../db/schema/bloques-horarios.schema.js";
 import { conPlanificacionesEditables, type TransaccionPlanificacion } from "./planificacion-escritura.js";
 import { reemplazarDisponibilidad } from "./disponibilidad.repository.js";
 import { ForbiddenError } from "../utils/errors.js";
+import { leerBloquesReservados } from "./bloques-reservados.js";
 
 async function contexto(profesorId: number, conexion: TransaccionPlanificacion | typeof db = db, incluirAnteriores = false) {
   const [planificaciones, ofertas, bloques, filas] = await Promise.all([
@@ -21,8 +22,12 @@ async function contexto(profesorId: number, conexion: TransaccionPlanificacion |
     conexion.query.disponibilidadProfesores.findMany({ where: eq(disponibilidadProfesores.profesorId, profesorId), orderBy: [asc(disponibilidadProfesores.bloqueId)] }),
   ]);
   const propias = ofertas.filter(oferta => oferta.asignaciones.some(asignacion => asignacion.profesorId === profesorId));
+  const permitidas = planificaciones.filter(planificacion => (incluirAnteriores || planificacion.actual)
+    && propias.some(oferta => oferta.planificacionSemestreId === planificacion.id));
+  const reservasPorCarrera = new Map(await Promise.all([...new Set(permitidas.map(planificacion => planificacion.carreraId))]
+    .map(async carreraId => [carreraId, await leerBloquesReservados(conexion, carreraId)] as const)));
   return {
-    planificaciones: planificaciones.filter(planificacion => (incluirAnteriores || planificacion.actual) && propias.some(oferta => oferta.planificacionSemestreId === planificacion.id)).map(planificacion => ({
+    planificaciones: permitidas.map(planificacion => ({
       id: planificacion.id, codigo: planificacion.codigo, carreraNombre: planificacion.carrera.nombre,
       estadoPlanificacion: planificacion.estadoPlanificacion, actual: planificacion.actual,
     })),
@@ -37,6 +42,7 @@ async function contexto(profesorId: number, conexion: TransaccionPlanificacion |
         horas: oferta.asignatura.tiposHora.find(tipo => tipo.tipoHoraId === asignacion.tipoHoraId)?.horas ?? 0,
       }))).sort((primero, segundo) => primero.ofertaId - segundo.ofertaId || primero.tipoHoraId - segundo.tipoHoraId);
       return { planificacionSemestreId, bloquesIds: filas.filter(fila => fila.profesorId === profesorId && fila.planificacionSemestreId === planificacionSemestreId).map(fila => fila.bloqueId).sort((a, b) => a - b),
+        bloquesReservadosIds: reservasPorCarrera.get(planificacion.carreraId) ?? [],
         minimoBloques: carga.reduce((suma, fila) => suma + fila.horas, 0), carga,
         editable: planificacion.actual && planificacion.estadoPlanificacion === "preparacion" };
     },

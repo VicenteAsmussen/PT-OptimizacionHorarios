@@ -4,6 +4,7 @@ import { bloquesHorarios } from "../db/schema/bloques-horarios.schema.js";
 import { ofertaTipoHora } from "../db/schema/oferta-tipo-hora.schema.js";
 import { ofertasAsignaturas } from "../db/schema/ofertas-asignaturas.schema.js";
 import { planificacionesSemestres } from "../db/schema/planificaciones-semestres.schema.js";
+import { leerBloquesReservados } from "./bloques-reservados.js";
 
 export const miHorarioRepository = {
   async findPlanificaciones(profesorId: number) {
@@ -19,9 +20,12 @@ export const miHorarioRepository = {
       orderBy: [desc(planificacionesSemestres.actual), desc(planificacionesSemestres.codigo), asc(planificacionesSemestres.id)],
     });
     return filas.map(fila => ({
-      id: fila.id, codigo: fila.codigo, carreraNombre: fila.carrera.nombre,
+      id: fila.id, carreraId: fila.carreraId, codigo: fila.codigo, carreraNombre: fila.carrera.nombre,
       estadoPlanificacion: fila.estadoPlanificacion, actual: fila.actual,
     }));
+  },
+  async findBloquesReservados(carreraId: number) {
+    return leerBloquesReservados(db, carreraId);
   },
   async findBloques() {
     return db.query.bloquesHorarios.findMany({ orderBy: [asc(bloquesHorarios.numeroBloque), asc(bloquesHorarios.id)] });

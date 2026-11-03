@@ -1,6 +1,10 @@
-import type { Bloque, Planificacion } from '../disponibilidad/types';
+import type { Bloque, Planificacion as PlanificacionBase } from '../disponibilidad/types';
 
-export type { Bloque, Planificacion };
+export type { Bloque };
+export interface Planificacion extends PlanificacionBase {
+  carreraId?: number;
+  bloquesReservadosIds?: number[];
+}
 export interface ClaseHorario {
   id: number;
   bloqueId: number;

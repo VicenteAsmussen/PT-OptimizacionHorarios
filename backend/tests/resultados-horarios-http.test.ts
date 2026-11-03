@@ -91,6 +91,32 @@ async function importarArchivoSalas(archivo: Buffer, revision?: string) {
     .field("revision", revision ?? lectura.body.data.revision).attach("archivo", archivo, "salas.xlsx");
 }
 describe("Proposal results public HTTP contract", () => {
+  it("expone reservas de la carrera sin ocultar clases heredadas ni depender del filtro de semestre", async () => {
+    datos.contexto.bloquesReservadosIds = [1];
+    const antes = structuredClone(datos.contexto);
+    const lectura = await consultar();
+    expect(lectura.status).toBe(200);
+    expect(lectura.body.data.bloquesReservadosIds).toEqual([1]);
+    expect(lectura.body.data.sesiones[0].bloquesIds).toEqual([1, 2]);
+    const filtrada = await consultar("?semestreMalla=3");
+    expect(filtrada.status).toBe(200);
+    expect(filtrada.body.data.bloquesReservadosIds).toEqual([1]);
+    expect(filtrada.body.data.sesiones).toEqual([]);
+    expect(datos.contexto).toEqual(antes);
+    expect(datos.escrituras).toBe(0);
+  });
+  it("rechaza la confirmación si cambiaron las reservas después de la lectura", async () => {
+    const lectura = await consultar();
+    expect(lectura.status).toBe(200);
+    datos.contexto.bloquesReservadosIds = [6];
+    const antes = structuredClone(datos.contexto);
+    const respuesta = await request(aplicacion).post(`${ruta}/movimientos`).set("Authorization", "secretaria")
+      .send({ revision: lectura.body.data.revision, idsHorarios: [100, 101], bloqueInicioId: 5 });
+    expect(respuesta.status).toBe(409);
+    expect(respuesta.body.message).toBe("El horario o sus restricciones cambiaron. Vuelva a consultar antes de confirmar.");
+    expect(datos.contexto).toEqual(antes);
+    expect(datos.escrituras).toBe(0);
+  });
   async function comprobarRechazo(ids: number[], destino: number, codigo: string, mensaje: string) {
     const antes = await consultar();
     const previa = await movimiento(ids, destino, "validar-movimiento");

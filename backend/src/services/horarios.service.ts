@@ -347,6 +347,11 @@ export const horariosService = {
 
   async getContextoMiHorario(usuarioId: number) {
     const { planificaciones } = await contextoHorarioPropio(usuarioId);
-    return { planificaciones, bloques: await miHorarioRepository.findBloques() };
+    const reservasPorCarrera = new Map(await Promise.all([...new Set(planificaciones.map(fila => fila.carreraId))]
+      .map(async carreraId => [carreraId, await miHorarioRepository.findBloquesReservados(carreraId)] as const)));
+    return {
+      planificaciones: planificaciones.map(fila => ({ ...fila, bloquesReservadosIds: reservasPorCarrera.get(fila.carreraId) ?? [] })),
+      bloques: await miHorarioRepository.findBloques(),
+    };
   },
 };

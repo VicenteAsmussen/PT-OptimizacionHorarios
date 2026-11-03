@@ -3,6 +3,7 @@ import { abreviarTipoClase, inicialesAsignatura } from '../mi-horario/modelo';
 import { bloquesDestino, estadoCasilla, estadoDestino, etiquetasSala, etiquetaSesion, esSesionLista, puedeMoverSesion, rangoBloque, sesionesVisibles } from './modelo';
 import type { ResultadoHorario, SesionResultado } from './types';
 import calendario from '../mi-horario/MiHorario.module.css';
+import MarcadorReserva from '../mi-horario/MarcadorReserva';
 import estilos from './ResultadosHorarios.module.css';
 
 interface Propiedades {
@@ -32,12 +33,15 @@ export default function CalendarioResultados({ resultado, nivel, seleccionar, oc
           return <td key={dia} className={movimiento ? `${estilos.celdaMovimiento} ${destino && movimiento.invalido ? estilos.invalido : disponible ? estilos.disponible : estilos.sinDisponibilidad} ${destino ? estilos.destinoSeleccionado : ''}` : undefined}>
             {bloque && movimiento && <button type="button" className={estilos.destino} disabled={ocupado || estadoInicio !== 'disponible'}
               aria-pressed={bloque.id === movimiento.inicioId} onClick={() => { if (!ocupado && estadoInicio === 'disponible') movimiento.elegir(bloque.id); }}
-              aria-label={`${bloque.dia} ${rangoBloque(bloque)}: ${disponible ? 'libre con disponibilidad' : estado === 'ocupado' ? 'ocupado' : 'sin disponibilidad'}${estadoInicio === 'inicioPar' ? '; inicio impar requerido' : estadoInicio === 'fueraDeRango' ? '; sin espacio para todo el grupo' : ''}`} />}
-            <div className={calendario.contenidoCelda}>{bloque ? sesiones.filter(s => s.bloquesIds.includes(bloque.id)).map(sesion => {
+              aria-label={`${bloque.dia} ${rangoBloque(bloque)}: ${estado === 'reservado' ? 'reservado' : disponible ? 'libre con disponibilidad' : estado === 'ocupado' ? 'ocupado' : 'sin disponibilidad'}${estadoInicio === 'reservado' ? '; el grupo incluye una reserva' : estadoInicio === 'inicioPar' ? '; inicio impar requerido' : estadoInicio === 'fueraDeRango' ? '; sin espacio para todo el grupo' : ''}`} />}
+            <div className={calendario.contenidoCelda}>
+            {bloque && resultado.bloquesReservadosIds?.includes(bloque.id) && <MarcadorReserva
+              conClase={sesiones.some(sesion => sesion.bloquesIds.includes(bloque.id))} />}
+            {bloque ? sesiones.filter(s => s.bloquesIds.includes(bloque.id)).map(sesion => {
               const seleccionada = movimiento?.sesion.idsHorarios[0] === sesion.idsHorarios[0]
                 && movimiento.idsHorarios.includes(sesion.idsHorarios[sesion.bloquesIds.indexOf(bloque.id)]);
               return <button key={`${sesion.ofertaId}-${sesion.idsHorarios[0]}`} type="button" disabled={ocupado || !puedeMoverSesion(resultado, sesion)}
-                className={`${calendario.clase} ${esSesionLista(sesion) ? estilos.sesionLista : estilos.sesionPendiente} ${movimiento ? estilos.tarjetaOcupada : ''} ${seleccionada ? estilos.seleccionada : ''}`}
+                className={`${calendario.clase} ${esSesionLista(sesion) || sesion.estadoSala === 'noRequiere' ? estilos.sesionLista : estilos.sesionPendiente} ${movimiento ? estilos.tarjetaOcupada : ''} ${seleccionada ? estilos.seleccionada : ''}`}
                 aria-pressed={seleccionada} aria-controls="controles-movimiento"
                 aria-label={`${etiquetaSesion(sesion)}, ${sesion.profesor.nombre}, ${etiquetasSala[sesion.estadoSala]}`}
                 onClick={() => { if (!ocupado && puedeMoverSesion(resultado, sesion)) seleccionar(sesion); }}>

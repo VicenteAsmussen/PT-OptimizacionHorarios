@@ -176,6 +176,8 @@ async function montarPagina(api, rol = 'profesor') {
     react: hooks, 'react/jsx-runtime': jsx, 'react-router-dom': { Navigate: 'navigate', Outlet: 'outlet' },
     '../../hooks/useAuth': { useAuth: () => ({ usuario: { id: 4, rol } }) },
     '../../lib/api': { ApiError }, './estado': modelo, './disponibilidad.api': { disponibilidadApi: api },
+    '../asignaturas/datos': await import('../asignaturas/datos.ts'),
+    '../mi-horario/MiHorario.module.css': { default: { estado: 'estado', publicado: 'publicado', propuesta: 'propuesta' } },
     './GrillaDisponibilidad': { default: 'grilla' }, './Disponibilidad.module.css': { default: {
       tarjeta: 'tarjeta', panelGrilla: 'panelGrilla', panelLateral: 'panelLateral',
     } },
@@ -360,6 +362,30 @@ test('header, grid and planning context are three separate cards', async () => {
   } finally { p.desmontar(); }
 });
 
+test('disponibilidad muestra carrera, período y estado como Mi horario y actualiza la etiqueta al cambiar', async () => {
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const planificaciones = ['preparacion', 'propuesta', 'publicado'].map((estadoPlanificacion, indice) => ({
+    ...planes[0], id: 7 + indice, codigo: `2098-${indice + 1}`, estadoPlanificacion,
+  }));
+  const p = await montarPagina({ consultar: async id => ({ planificaciones, bloques,
+    seleccion: id ? { ...seleccion, planificacionSemestreId: id, editable: id === 7 } : null }) });
+  try {
+    await p.esperar();
+    const etiquetas = ['Preparación', 'Propuesta', 'Publicado'];
+    for (const [indice, etiqueta] of etiquetas.entries()) {
+      const html = renderToStaticMarkup(p.elementos('select')[0]);
+      assert.ok(html.includes(`Informática — 2098-${indice + 1} — ${etiqueta}`));
+      p.elementos('select')[0].props.onChange({ target: { value: String(7 + indice) } });
+      p.renderizar(); await p.esperar();
+      assert.match(p.texto(), new RegExp(`Estado del período:\\s+${etiqueta}`));
+      if (indice > 0) {
+        assert.equal(p.boton('Editar disponibilidad'), undefined);
+        assert.equal(p.boton('Enviar disponibilidad'), undefined);
+      }
+    }
+  } finally { p.desmontar(); }
+});
+
 test('page description uses a comma and recommends more blocks without an intensifier', async () => {
   const { renderToStaticMarkup } = await import('react-dom/server');
   const p = await montarPagina({ consultar: async id => ({ planificaciones: [planes[0]], bloques,
@@ -475,4 +501,192 @@ test('API uses only self-service endpoints and the frozen request contract, pres
     await assert.rejects(disponibilidadApi.consultar(), error => error instanceof ApiError && error.status === 403
       && error.message === 'No tienes un perfil de profesor asociado.');
   } finally { globalThis.fetch = anterior; }
+});
+
+test('reservas bloquean selección individual y masiva sin afectar otra carrera ni el mínimo', async () => {
+  const m = await import('./estado.ts');
+  let estado = cargar(m, { ...seleccion, bloquesReservadosIds: [20] });
+  assert.deepEqual(m.reducirDisponibilidad(estado, { tipo: 'alternar', id: 20 }), estado);
+  estado = m.reducirDisponibilidad(estado, { tipo: 'seleccionar_todos', bloquesIds: [20, 10, 10] });
+  assert.deepEqual(estado.bloquesIds, [10]);
+  assert.equal(estado.seleccion.minimoBloques, 2);
+  assert.equal(m.puedeEnviar(estado), false);
+  assert.deepEqual(m.reducirDisponibilidad(estado, { tipo: 'enviar' }), estado);
+  const inyectada = { ...estado, bloquesIds: [20, 10] };
+  assert.equal(m.puedeEnviar(inyectada), false);
+  assert.deepEqual(m.reducirDisponibilidad(inyectada, { tipo: 'enviar' }), inyectada);
+  estado = m.reducirDisponibilidad(estado, { tipo: 'consultar', id: 8 });
+  estado = m.reducirDisponibilidad(estado, { tipo: 'cargada', id: 8,
+    seleccion: { ...seleccion, planificacionSemestreId: 8, bloquesReservadosIds: [] } });
+  estado = m.reducirDisponibilidad(estado, { tipo: 'seleccionar_todos', bloquesIds: [20, 10] });
+  assert.deepEqual(estado.bloquesIds, [20, 10]);
+  assert.equal(m.puedeEnviar(estado), true);
+  assert.deepEqual(m.reducirDisponibilidad(estado, { tipo: 'permiso', id: 7, editable: true,
+    bloquesReservadosIds: [20] }), estado);
+});
+
+test('reservas históricas se retiran automáticamente al editar, sin modificar lo guardado al cargar o cancelar', async () => {
+  const m = await import('./estado.ts');
+  let estado = cargar(m, { ...seleccion, bloquesIds: [20, 10], bloquesReservadosIds: [20] });
+  assert.deepEqual(estado.bloquesIds, [20, 10]);
+  estado = m.reducirDisponibilidad(estado, { tipo: 'editar' });
+  assert.deepEqual(estado.bloquesIds, [10]);
+  assert.equal(m.puedeEnviar(estado), false);
+  const masiva = m.reducirDisponibilidad(estado, { tipo: 'seleccionar_todos', bloquesIds: [20, 10, 30] });
+  assert.deepEqual(masiva.bloquesIds, [10, 30]);
+  estado = masiva;
+  assert.deepEqual(estado.bloquesIds, [10, 30]);
+  assert.deepEqual(estado.seleccion.bloquesIds, [20, 10]);
+  assert.equal(m.puedeEnviar(estado), true);
+  const enviando = m.reducirDisponibilidad(estado, { tipo: 'enviar' });
+  assert.deepEqual(m.reducirDisponibilidad(enviando, { tipo: 'editar' }), enviando);
+  estado = m.reducirDisponibilidad(estado, { tipo: 'cancelar' });
+  assert.deepEqual(estado.bloquesIds, [20, 10]);
+  const congelada = cargar(m, { ...seleccion, bloquesIds: [20], bloquesReservadosIds: [20], editable: false });
+  assert.deepEqual(m.reducirDisponibilidad(congelada, { tipo: 'editar' }), congelada);
+});
+
+test('página advierte capacidad imposible, no envía y usa solo los bloques utilizables al seleccionar todo', async () => {
+  const envios = [];
+  const p = await montarPagina({ consultar: async id => ({ planificaciones: planes, bloques,
+    seleccion: id ? { ...seleccion, planificacionSemestreId: id, bloquesReservadosIds: id === 7 ? [20] : [] } : null }),
+    enviar: async (...datos) => { envios.push(datos); return seleccion; } });
+  try {
+    await p.esperar();
+    assert.deepEqual(p.elementos('grilla')[0].props.bloquesReservadosIds, [20]);
+    assert.match(p.texto(), /La capacidad utilizable es de 1 bloque y no cubre el mínimo de 2\. Contacta a secretaría\./);
+    p.boton('Seleccionar todo').props.onClick(); p.renderizar();
+    assert.deepEqual(p.elementos('grilla')[0].props.bloquesIds, [10]);
+    assert.ok(p.boton('Deseleccionar todo'));
+    assert.equal(p.boton('Enviar disponibilidad').props.disabled, true);
+    await p.boton('Enviar disponibilidad').props.onClick();
+    assert.deepEqual(envios, []);
+    p.elementos('select')[0].props.onChange({ target: { value: '8' } }); p.renderizar(); await p.esperar();
+    assert.doesNotMatch(p.texto(), /La capacidad utilizable/);
+    p.boton('Seleccionar todo').props.onClick(); p.renderizar();
+    assert.deepEqual(p.elementos('grilla')[0].props.bloquesIds, [20, 10]);
+    assert.equal(p.boton('Enviar disponibilidad').props.disabled, false);
+  } finally { p.desmontar(); }
+});
+
+test('página retira reservas al editar sin botón extra, cancelar conserva lo guardado y solo enviar persiste', async () => {
+  let guardada = { ...seleccion, bloquesIds: [20, 10], bloquesReservadosIds: [20] };
+  const envios = [];
+  const catalogo = [...bloques, { ...bloques[1], id: 30, numeroBloque: 3 }];
+  const p = await montarPagina({ consultar: async id => ({ planificaciones: [planes[0]], bloques: catalogo, seleccion: id ? guardada : null }),
+    enviar: async (id, ids) => { envios.push({ id, ids }); guardada = { ...guardada, bloquesIds: ids }; return guardada; } });
+  try {
+    await p.esperar();
+    assert.doesNotMatch(p.texto(), /Retirar reservas|retira las reservas del borrador/);
+    assert.deepEqual(p.elementos('grilla')[0].props.bloquesIds, [20, 10]);
+    assert.equal(p.elementos('p').find(nodo => nodo.props.id === 'conteo-disponibilidad').props.children[1].props.children, 1);
+    assert.equal(p.boton('Retirar reservas del borrador'), undefined);
+    p.boton('Editar disponibilidad').props.onClick(); p.renderizar();
+    assert.deepEqual(p.elementos('grilla')[0].props.bloquesIds, [10]);
+    assert.equal(p.boton('Retirar reservas del borrador'), undefined);
+    p.boton('Seleccionar todo').props.onClick(); p.renderizar();
+    assert.deepEqual(p.elementos('grilla')[0].props.bloquesIds, [10, 30]);
+    assert.equal(p.boton('Enviar disponibilidad').props.disabled, false);
+    assert.deepEqual(envios, []);
+    p.boton('Cancelar edición').props.onClick(); p.renderizar();
+    assert.deepEqual(p.elementos('grilla')[0].props.bloquesIds, [20, 10]);
+    assert.deepEqual(guardada.bloquesIds, [20, 10]);
+    p.boton('Editar disponibilidad').props.onClick(); p.renderizar();
+    assert.deepEqual(p.elementos('grilla')[0].props.bloquesIds, [10]);
+    p.elementos('grilla')[0].props.alternar(30); p.renderizar();
+    await p.boton('Enviar disponibilidad').props.onClick(); await p.esperar();
+    assert.deepEqual(envios, [{ id: 7, ids: [10, 30] }]);
+    assert.deepEqual(p.elementos('grilla')[0].props.bloquesIds, [10, 30]);
+    assert.doesNotMatch(p.texto(), /Hay disponibilidad anterior en bloques reservados/);
+  } finally { p.desmontar(); }
+});
+
+test('rechazo por nueva reserva depura solo los bloques reservados del borrador y nunca reenvía automáticamente', async () => {
+  let nueva = false;
+  const envios = [];
+  const p = await montarPagina({ consultar: async id => ({ planificaciones: [planes[0]], bloques,
+    seleccion: id ? { ...seleccion, bloquesReservadosIds: nueva ? [20] : [] } : null }),
+    enviar: async (id, ids) => { envios.push({ id, ids }); nueva = true; throw new Error('Reserva nueva'); } });
+  try {
+    await p.esperar();
+    p.boton('Seleccionar todo').props.onClick(); p.renderizar();
+    await p.boton('Enviar disponibilidad').props.onClick(); await p.esperar();
+    assert.deepEqual(envios, [{ id: 7, ids: [20, 10] }]);
+    assert.deepEqual(p.elementos('grilla')[0].props.bloquesIds, [10]);
+    assert.deepEqual(p.elementos('grilla')[0].props.bloquesReservadosIds, [20]);
+    assert.equal(p.boton('Enviar disponibilidad').props.disabled, true);
+    assert.match(p.texto(), /No se pudo cargar o enviar/);
+  } finally { p.desmontar(); }
+});
+
+test('permiso tras rechazo conserva borrador congelado y descarta respuesta obsoleta', async () => {
+  const m = await import('./estado.ts');
+  let estado = cargar(m, { ...seleccion, bloquesIds: [20, 10], bloquesReservadosIds: [] });
+  estado = m.reducirDisponibilidad(estado, { tipo: 'editar' });
+  estado = m.reducirDisponibilidad(estado, { tipo: 'enviar' });
+  estado = m.reducirDisponibilidad(estado, { tipo: 'fallo', id: 7, mensaje: 'rechazo' });
+  assert.deepEqual(m.reducirDisponibilidad(estado, {
+    tipo: 'permiso', id: 8, editable: true, bloquesReservadosIds: [20],
+  }), estado);
+  const congelado = m.reducirDisponibilidad(estado, {
+    tipo: 'permiso', id: 7, editable: false, bloquesReservadosIds: [20],
+  });
+  assert.deepEqual(congelado.bloquesIds, [20, 10]);
+  assert.equal(congelado.error, 'rechazo');
+  assert.equal(m.puedeEnviar(congelado), false);
+  const editable = m.reducirDisponibilidad(estado, {
+    tipo: 'permiso', id: 7, editable: true, bloquesReservadosIds: [20],
+  });
+  assert.deepEqual(editable.bloquesIds, [10]);
+  assert.deepEqual(editable.seleccion.bloquesIds, [20, 10]);
+  assert.equal(editable.error, 'rechazo');
+  assert.equal(editable.modo, 'edicion');
+});
+
+test('grilla muestra solo Reservado en una línea conservando horario accesible y bloqueo', async () => {
+  const React = await import('react');
+  const jsx = await import('react/jsx-runtime');
+  const modelo = await import('./estado.ts');
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const { default: Grilla } = await compilar('./GrillaDisponibilidad.tsx', {
+    'react/jsx-runtime': jsx, './estado': modelo,
+    './Disponibilidad.module.css': { default: { bloque: 'bloque', reservado: 'reservado', marcado: 'marcado' } },
+  });
+  const alternados = [];
+  const arbol = Grilla({ bloques, bloquesIds: [20], bloquesReservadosIds: [20],
+    bloqueada: false, guardada: false, alternar: id => alternados.push(id) });
+  const html = renderToStaticMarkup(arbol);
+  assert.match(html, /aria-pressed="true" disabled="" aria-label="Lunes, bloque 1, 08:10–08:50, reservado para esta carrera, disponibilidad anterior"/);
+  const celdaReservada = html.match(/<button[^>]*class="bloque reservado"[^>]*>([^]*?)<\/button>/)?.[1];
+  assert.equal(celdaReservada, '<span>Reservado</span>');
+  assert.match(html, /aria-pressed="false" aria-label="Lunes, bloque 2/);
+  const botones = nodo => !React.isValidElement(nodo) ? [] : [
+    ...(nodo.type === 'button' ? [nodo] : []), ...React.Children.toArray(nodo.props.children).flatMap(botones),
+  ];
+  const [reservado, libre] = botones(arbol);
+  reservado.props.onClick();
+  assert.deepEqual(alternados, []);
+  libre.props.onClick();
+  assert.deepEqual(alternados, [10]);
+});
+
+test('capacidad cero mantiene mínimo y reservas históricas visibles sin permitir envío ni selección masiva', async () => {
+  const envios = [];
+  const p = await montarPagina({ consultar: async id => ({ planificaciones: [planes[0]], bloques,
+    seleccion: id ? { ...seleccion, bloquesIds: [20, 10], bloquesReservadosIds: [20, 10] } : null }),
+    enviar: async (...datos) => { envios.push(datos); return seleccion; } });
+  try {
+    await p.esperar();
+    assert.match(p.texto(), /La capacidad utilizable es de 0 bloques y no cubre el mínimo de 2\. Contacta a secretaría\./);
+    assert.deepEqual(p.elementos('grilla')[0].props.bloquesIds, [20, 10]);
+    p.boton('Editar disponibilidad').props.onClick(); p.renderizar();
+    assert.equal(p.boton('Seleccionar todo').props.disabled, true);
+    assert.equal(p.boton('Enviar disponibilidad').props.disabled, true);
+    assert.equal(p.boton('Retirar reservas del borrador'), undefined);
+    assert.deepEqual(p.elementos('grilla')[0].props.bloquesIds, []);
+    await p.boton('Enviar disponibilidad').props.onClick();
+    assert.deepEqual(envios, []);
+    p.boton('Cancelar edición').props.onClick(); p.renderizar();
+    assert.deepEqual(p.elementos('grilla')[0].props.bloquesIds, [20, 10]);
+  } finally { p.desmontar(); }
 });

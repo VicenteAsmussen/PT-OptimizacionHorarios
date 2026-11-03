@@ -6,6 +6,8 @@ import { disponibilidadApi } from './disponibilidad.api';
 import { estadoInicial, planificacionesActuales, puedeEnviar, puedeRegistrarDisponibilidad, reducirDisponibilidad } from './estado';
 import type { Bloque, Planificacion } from './types';
 import GrillaDisponibilidad from './GrillaDisponibilidad';
+import { estadoSecciones } from '../asignaturas/datos';
+import horario from '../mi-horario/MiHorario.module.css';
 import estilos from './Disponibilidad.module.css';
 
 export function RequireDisponibilidad() {
@@ -84,22 +86,27 @@ export default function DisponibilidadPage() {
     } catch (fallo) {
       if (numero === generacion.current) {
         dispatch({ tipo: 'fallo', id, mensaje: mensajeError(fallo) });
-        // Refresh only permissions: a rejected submission must never replace the unsaved draft.
+        // Actualizar restricciones y excluir reservas nuevas solo del borrador, sin reenviar.
         try {
           const datos = await disponibilidadApi.consultar(id);
           if (numero === generacion.current) {
             const planificacion = datos.planificaciones.find(p => p.id === id && p.actual);
             dispatch({ tipo: 'permiso', id, editable: datos.seleccion?.editable === true
-              && planificacion?.estadoPlanificacion === 'preparacion' });
+              && planificacion?.estadoPlanificacion === 'preparacion',
+              bloquesReservadosIds: datos.seleccion?.bloquesReservadosIds });
           }
-        } catch { /* Keep the draft and original error when the permission refresh also fails. */ }
+        } catch { /* Conservar el borrador y el error original si falla la consulta. */ }
       }
     } finally { enviando.current = false; }
   }
 
   const seleccion = estado.seleccion;
+  const planificacionSeleccionada = planificaciones?.find(p => p.id === planificacionId);
   const guardando = estado.modo === 'enviando';
-  const todosSeleccionados = bloques.length > 0 && bloques.every(bloque => estado.bloquesIds.includes(bloque.id));
+  const reservados = seleccion?.bloquesReservadosIds ?? [];
+  const utilizables = bloques.filter(bloque => !reservados.includes(bloque.id));
+  const capacidadInsuficiente = seleccion !== null && utilizables.length < seleccion.minimoBloques;
+  const todosSeleccionados = utilizables.length > 0 && utilizables.every(bloque => estado.bloquesIds.includes(bloque.id));
   return <section className={estilos.pagina} aria-labelledby="titulo-disponibilidad">
     <header className={estilos.tarjeta}><h1 id="titulo-disponibilidad">Mi disponibilidad</h1>
       <p>Registra tu disponibilidad para cada carrera y período actual en que impartes asignaturas. Debes seleccionar al menos el mínimo de bloques requerido, se recomienda seleccionar más para facilitar la generación del horario.</p></header>
@@ -115,9 +122,11 @@ export default function DisponibilidadPage() {
           {estado.error && <p role="alert">{estado.error}</p>}
           {estado.modo === 'error' && <button type="button" className="boton boton--azul" onClick={() => setRecarga(i => i + 1)}>Reintentar</button>}
           {seleccion && <>
-            <p id="conteo-disponibilidad">Seleccionados: <strong>{estado.bloquesIds.length}</strong> / mínimo {seleccion.minimoBloques} bloques.</p>
+            <p id="conteo-disponibilidad">Seleccionados: <strong>{estado.bloquesIds.filter(id => !reservados.includes(id)).length}</strong> / mínimo {seleccion.minimoBloques} bloques.</p>
+            {reservados.length > 0 && <p>Los bloques reservados pertenecen a esta carrera, no se pueden seleccionar ni cuentan para el mínimo.</p>}
+            {capacidadInsuficiente && <p role="alert">{`La capacidad utilizable es de ${utilizables.length} ${utilizables.length === 1 ? 'bloque' : 'bloques'} y no cubre el mínimo de ${seleccion.minimoBloques}. Contacta a secretaría.`}</p>}
             {bloques.length === 0 ? <p>No hay bloques horarios disponibles.</p> : <GrillaDisponibilidad bloques={bloques}
-              bloquesIds={estado.bloquesIds} bloqueada={estado.modo !== 'edicion' || !seleccion.editable}
+              bloquesIds={estado.bloquesIds} bloquesReservadosIds={reservados} bloqueada={estado.modo !== 'edicion' || !seleccion.editable}
               guardada={estado.modo === 'guardada'} alternar={id => dispatch({ tipo: 'alternar', id })} />}
           </>}
         </div>
@@ -131,8 +140,11 @@ export default function DisponibilidadPage() {
               setErrorCarga('');
               setPlanificacionId(id);
             }}>
-            {planificaciones.map(p => <option key={p.id} value={p.id}>{p.carreraNombre} — {p.codigo}</option>)}
+            {planificaciones.map(p => <option key={p.id} value={p.id}>{p.carreraNombre} — {p.codigo} — {estadoSecciones(p).etiqueta}</option>)}
           </select></label>
+          {planificacionSeleccionada && <span className={`${horario.estado} ${planificacionSeleccionada.estadoPlanificacion === 'publicado' ? horario.publicado : horario.propuesta}`}>
+            Estado del período: {estadoSecciones(planificacionSeleccionada).etiqueta}
+          </span>}
           {seleccion && <>
             <details key={seleccion.planificacionSemestreId} className={estilos.carga}>
               <summary><span className={estilos.resumenCarga}>
@@ -148,18 +160,18 @@ export default function DisponibilidadPage() {
               : !seleccion.editable ? 'Solo lectura: la planificación ya no admite cambios.'
               : estado.modo === 'guardada' ? 'Disponibilidad enviada. Para cambiarla, selecciona Editar disponibilidad.'
               : 'Selección sin enviar. Marca los bloques y luego envía tu disponibilidad.'}</p>
-            {estado.modo === 'edicion' && !puedeEnviar(estado) && <p>Selecciona al menos {seleccion.minimoBloques} bloques antes de enviar.</p>}
+            {estado.modo === 'edicion' && !puedeEnviar(estado) && !capacidadInsuficiente && <p>Selecciona al menos {seleccion.minimoBloques} bloques no reservados antes de enviar.</p>}
             <div className={estilos.acciones} role="group" aria-label="Acciones de disponibilidad">
               <button type="button" className="boton boton--gris"
-                disabled={estado.modo !== 'edicion' || !seleccion.editable || bloques.length === 0}
+                disabled={estado.modo !== 'edicion' || !seleccion.editable || utilizables.length === 0}
                 onClick={() => dispatch(todosSeleccionados ? { tipo: 'deseleccionar_todos' }
-                  : { tipo: 'seleccionar_todos', bloquesIds: bloques.map(bloque => bloque.id) })}>
+                  : { tipo: 'seleccionar_todos', bloquesIds: utilizables.map(bloque => bloque.id) })}>
                 {todosSeleccionados ? 'Deseleccionar todo' : 'Seleccionar todo'}
               </button>
               {seleccion.editable && (estado.modo === 'guardada'
                 ? <button type="button" className="boton boton--editar" onClick={() => dispatch({ tipo: 'editar' })}>Editar disponibilidad</button>
                 : <>
-                  <button type="button" className="boton boton--azul" disabled={!puedeEnviar(estado) || bloques.length === 0}
+                  <button type="button" className="boton boton--azul" disabled={!puedeEnviar(estado) || capacidadInsuficiente || bloques.length === 0}
                     aria-describedby="conteo-disponibilidad" onClick={enviar}>{guardando ? 'Enviando…' : 'Enviar disponibilidad'}</button>
                   {seleccion.bloquesIds.length > 0 && <button type="button" className="boton boton--gris" disabled={guardando}
                     onClick={() => dispatch({ tipo: 'cancelar' })}>Cancelar edición</button>}

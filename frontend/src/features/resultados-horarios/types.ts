@@ -13,6 +13,7 @@ export interface SesionResultado {
 export interface ResultadoHorario {
   planificacion: Omit<PlanificacionSemestre, 'carrera'>; revision: string; bloques: Bloque[];
   disponibilidades: { profesorId: number; bloqueId: number; planificacionSemestreId: number }[];
+  bloquesReservadosIds?: number[];
   pendientesSala: number; sesiones: SesionResultado[];
 }
 export interface Movimiento { revision: string; idsHorarios: number[]; bloqueInicioId: number }
