@@ -6,6 +6,7 @@ import { columnasProfesorSinRut } from "../db/schema/profesores.schema.js";
 import type { ContextoResultado } from "../utils/resultados-horarios.js";
 import { NotFoundError, ConflictError } from "../utils/errors.js";
 import type { TransaccionPlanificacion } from "./planificacion-escritura.js";
+import { exigirBloquesNoReservados, leerBloquesReservados } from "./bloques-reservados.js";
 
 const conAsignatura = { asignatura: { with: { tiposHora: { with: { tipoHora: true as const } } } } };
 async function cargar(tx: TransaccionPlanificacion, id: number): Promise<ContextoResultado> {
@@ -18,6 +19,7 @@ async function cargar(tx: TransaccionPlanificacion, id: number): Promise<Context
   const malla = await tx.query.carreraAsignatura.findMany({ where: eq(carreraAsignatura.carreraId, planificacion.carreraId), with: conAsignatura });
   const departamentos = await tx.query.carreraDepartamento.findMany({ where: and(eq(carreraDepartamento.carreraId, planificacion.carreraId), eq(carreraDepartamento.esGestionado, true)) });
   return { planificacion, entradas, ofertas, asignaturasMalla: malla.map(vinculo => vinculo.asignatura),
+    bloquesReservadosIds: await leerBloquesReservados(tx, planificacion.carreraId),
     departamentosGestionadosIds: departamentos.map(departamento => departamento.departamentoId),
     bloques: await tx.select().from(bloquesHorarios), salas: await tx.select({ id: salas.id, nombre: salas.nombre, tipo: salas.tipo }).from(salas),
     disponibilidades: await tx.query.disponibilidadProfesores.findMany({ where: eq(disponibilidadProfesores.planificacionSemestreId, id) }) };
@@ -44,6 +46,7 @@ export const resultadosHorariosRepository = {
         async mover(cambios) {
           const originales = await tx.select().from(horariosAsignaturas).where(and(eq(horariosAsignaturas.planificacionSemestreId, id), inArray(horariosAsignaturas.id, cambios.map(cambio => cambio.id))));
           if (originales.length !== cambios.length) throw new ConflictError("El horario cambió; vuelva a consultar.");
+          await exigirBloquesNoReservados(tx, id, cambios.map(cambio => cambio.bloqueId));
           // Remove the complete group first, avoiding transient unique-index conflicts.
           await tx.delete(horariosAsignaturas).where(and(eq(horariosAsignaturas.planificacionSemestreId, id), inArray(horariosAsignaturas.id, cambios.map(cambio => cambio.id))));
           await tx.insert(horariosAsignaturas).values(originales.map(original => ({ ...original, bloqueId: cambios.find(cambio => cambio.id === original.id)!.bloqueId })));
@@ -51,6 +54,7 @@ export const resultadosHorariosRepository = {
         async asignarSalas(cambios) {
           if (!cambios.length) return;
           const ids = cambios.map(cambio => cambio.id);
+          await exigirBloquesNoReservados(tx, id, contexto.entradas.filter(entrada => ids.includes(entrada.id)).map(entrada => entrada.bloqueId));
           // Release assignments together before applying a validated final state (room swaps).
           await tx.update(horariosAsignaturas).set({ salaId: null }).where(and(eq(horariosAsignaturas.planificacionSemestreId, id), inArray(horariosAsignaturas.id, ids)));
           for (const cambio of cambios) {

@@ -18,12 +18,12 @@ import { resultadosHorariosRepository } from "../src/repositories/resultados-hor
 beforeEach(() => { registro.sentencias.length = 0; registro.respuestas.length = 0; registro.transaccion.mockClear(); });
 function contextoVacio() {
   const planificacion = [9, 3, "2026-1", true, "propuesta"];
-  registro.respuestas.push([planificacion], [[3]], [planificacion], [planificacion], [], [], [], [], [], [], []);
+  registro.respuestas.push([planificacion], [[3]], [planificacion], [planificacion], [], [], [], [], [], [], [], []);
 }
 describe("Proposal repository transaction SQL", () => {
   it("locks career before planning and relocates all original IDs in one transaction", async () => {
     contextoVacio();
-    registro.respuestas.push([[100, 1, 4, 1, 1, 9], [101, 1, 4, 2, 1, 9]], [], []);
+    registro.respuestas.push([[100, 1, 4, 1, 1, 9], [101, 1, 4, 2, 1, 9]], [[9, 3, "2026-1", true, "propuesta"]], [], [], []);
     await resultadosHorariosRepository.conBloqueo(9, async (_contexto, persistencia) => {
       await persistencia.mover([{ id: 100, bloqueId: 5 }, { id: 101, bloqueId: 6 }]);
     });
@@ -43,6 +43,17 @@ describe("Proposal repository transaction SQL", () => {
     })).rejects.toMatchObject({ statusCode: 409 });
     expect(registro.sentencias.every(sentencia => sentencia.sql.startsWith("select "))).toBe(true);
   });
+  it("valida la reserva de la carrera antes de eliminar un grupo para moverlo", async () => {
+    contextoVacio();
+    registro.respuestas.push([[100, 1, 4, 1, 1, 9], [101, 1, 4, 2, 1, 9]], [[9, 3, "2026-1", true, "propuesta"]], [[3, 6]]);
+    await expect(resultadosHorariosRepository.conBloqueo(9, async (_contexto, persistencia) => {
+      await persistencia.mover([{ id: 100, bloqueId: 5 }, { id: 101, bloqueId: 6 }]);
+    })).rejects.toMatchObject({ statusCode: 409 });
+    const reservas = registro.sentencias.filter(sentencia => sentencia.sql.includes('from "bloques_reservados"'));
+    expect(reservas).toHaveLength(2);
+    expect(reservas.every(sentencia => sentencia.parametros.length === 1 && sentencia.parametros[0] === 3)).toBe(true);
+    expect(registro.sentencias.every(sentencia => sentencia.sql.startsWith("select "))).toBe(true);
+  });
   it("releases a room batch before applying final assignments", async () => {
     contextoVacio(); registro.respuestas.push([], [[100]], [[101]]);
     await resultadosHorariosRepository.conBloqueo(9, async (_contexto, persistencia) => {
@@ -52,7 +63,7 @@ describe("Proposal repository transaction SQL", () => {
     expect(registro.sentencias.slice(-3).map(sentencia => sentencia.parametros)).toEqual([[null, 9, 100, 101], [5, 9, 100], [4, 9, 101]]);
   });
   it("propagates insertion failures through the transaction boundary", async () => {
-    contextoVacio(); registro.respuestas.push([[100, 1, 4, 1, 1, 9], [101, 1, 4, 2, 1, 9]], [], new Error("insert failed"));
+    contextoVacio(); registro.respuestas.push([[100, 1, 4, 1, 1, 9], [101, 1, 4, 2, 1, 9]], [[9, 3, "2026-1", true, "propuesta"]], [], [], new Error("insert failed"));
     await expect(resultadosHorariosRepository.conBloqueo(9, async (_contexto, persistencia) => {
       await persistencia.mover([{ id: 100, bloqueId: 5 }, { id: 101, bloqueId: 6 }]);
     })).rejects.toMatchObject({ cause: { message: "insert failed" } });

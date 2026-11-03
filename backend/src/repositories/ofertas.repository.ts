@@ -11,6 +11,7 @@ import type { CreateOfertaDTO, UpdateOfertaDTO } from "../validations/ofertas.va
 import { planificacionesSemestresRepository } from "./planificaciones-semestres.repository.js";
 import { BadRequestError, ConflictError, NotFoundError } from "../utils/errors.js";
 import { conPlanificacionesEditables, exigirVinculoEsperado, type TransaccionPlanificacion } from "./planificacion-escritura.js";
+import { exigirBloquesNoReservados } from "./bloques-reservados.js";
 
 async function vinculoOferta(tx: TransaccionPlanificacion, id: number, origenEsperado?: number) {
   const oferta = await tx.query.ofertasAsignaturas.findFirst({ where: eq(ofertasAsignaturas.id, id) });
@@ -101,6 +102,10 @@ export const ofertasRepository = {
       return [origen, datos.planificacionSemestreId ?? origen];
     }, async tx => {
       const { asignaciones, ...oferta } = datos;
+      if (oferta.planificacionSemestreId !== undefined) {
+        const horarios = await tx.query.horariosAsignaturas.findMany({ where: eq(horariosAsignaturas.ofertaId, id) });
+        await exigirBloquesNoReservados(tx, oferta.planificacionSemestreId, horarios.map(horario => horario.bloqueId));
+      }
       const actualizada = Object.keys(oferta).length
         ? (await tx.update(ofertasAsignaturas).set(oferta).where(eq(ofertasAsignaturas.id, id)).returning())[0]
         : (await tx.query.ofertasAsignaturas.findFirst({ where: eq(ofertasAsignaturas.id, id) }))!;

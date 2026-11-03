@@ -10,7 +10,7 @@ vi.mock("../src/repositories/horarios.repository.js", () => ({ horariosRepositor
 const encabezados = ["Código Asig.", "Nombre Asignatura", "Sección", "Cupos", "RUT Profesor", "Profesor",
   ...[1, 2, 3, 4, 5].flatMap((numero) => [`Tipo Hora ${numero}`, `Día ${numero}`, `Horario ${numero}`, `Sala ${numero}`])];
 const usuario = { id: 1, rol: "secretaria" };
-const contexto = () => ({ codigoPeriodo: "2099-1", departamentoValido: true, asignaturas: [{ codigo: "INF100", nombre: "Programación", semestreMalla: 1 }], profesores: [{ id: 7, rut: "12345678-5", nombre: "Ana Pérez", departamentoId: 4 }], tipos: [{ id: 1, tipo: "Teórica" }], bloques: [{ id: 10, dia: "Lunes", numeroBloque: 1, horaInicio: "08:10", horaTermino: "08:50" }], ofertas: [] as { asignaturaCodigo: string; seccion: number }[], ocupaciones: [] as { profesorId: number; bloqueId: number }[] });
+const contexto = () => ({ bloquesReservadosIds: [] as number[], codigoPeriodo: "2099-1", departamentoValido: true, asignaturas: [{ codigo: "INF100", nombre: "Programación", semestreMalla: 1 }], profesores: [{ id: 7, rut: "12345678-5", nombre: "Ana Pérez", departamentoId: 4 }], tipos: [{ id: 1, tipo: "Teórica" }], bloques: [{ id: 10, dia: "Lunes", numeroBloque: 1, horaInicio: "08:10", horaTermino: "08:50" }], ofertas: [] as { asignaturaCodigo: string; seccion: number }[], ocupaciones: [] as { profesorId: number; bloqueId: number }[] });
 const filaBase = () => ["INF100", "Programación", 2, 40, "12345678-5", " ANA   PEREZ ", "t", "Lunes", "08:10-08:50", "Sala inexistente ignorada"];
 async function libroConFilas(filas: (string | number)[][], titulos: readonly string[] = encabezados) {
   const libro = new ExcelJS.Workbook();
@@ -24,6 +24,30 @@ async function archivo(cambio: Record<number, string | number> = {}, duplicada =
   for (const [indice, valor] of Object.entries(cambio)) fila[Number(indice)] = valor;
   return libroConFilas(duplicada ? [fila, fila] : [fila]);
 }
+it("rechaza la sesión reservada por fila sin sincronizar ninguna oferta", async () => {
+  const datos = { ...contexto(), bloquesReservadosIds: [10] };
+  const anteriores = structuredClone(datos);
+  vi.mocked(horariosRepository.findContextoExternos).mockResolvedValue(datos as never);
+  const resultado = await horariosService.importarExcelExternos(9, 4, await archivo(), usuario);
+  expect(resultado).toMatchObject({ ofertasCreadas: 0, ofertasActualizadas: 0, ofertasEliminadas: 0, horariosCreados: 0 });
+  expect(resultado.errores).toContainEqual(expect.objectContaining({ fila: 2, columna: "Horario 1", mensaje: expect.stringMatching(/reservado.*carrera/i) }));
+  expect(horariosRepository.sincronizarExternosEnTransaccion).not.toHaveBeenCalled();
+  expect(datos).toEqual(anteriores);
+});
+it.each([5, 6])("rechaza todo el Excel si la última fila incluye martes B%s reservado", async bloqueHorarioId => {
+  const datos = contexto();
+  datos.bloques.push(
+    { id: 5, dia: "Martes", numeroBloque: 5, horaInicio: "11:10", horaTermino: "11:50" },
+    { id: 6, dia: "Martes", numeroBloque: 6, horaInicio: "11:50", horaTermino: "12:30" },
+  );
+  datos.bloquesReservadosIds = [bloqueHorarioId];
+  vi.mocked(horariosRepository.findContextoExternos).mockResolvedValue(datos as never);
+  const ultima = filaBase(); ultima[2] = 3; ultima[7] = "Martes"; ultima[8] = "11:10-12:30";
+  const resultado = await horariosService.importarExcelExternos(9, 4, await libroConFilas([filaBase(), ultima]), usuario);
+  expect(resultado.errores).toContainEqual(expect.objectContaining({ fila: 3, columna: "Horario 1", mensaje: expect.stringMatching(/reservado.*carrera/i) }));
+  expect(resultado.horariosCreados).toBe(0);
+  expect(horariosRepository.sincronizarExternosEnTransaccion).not.toHaveBeenCalled();
+});
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(horariosRepository.findCarreraSecretariaByUsuarioId).mockResolvedValue({ carreraId: 3 });

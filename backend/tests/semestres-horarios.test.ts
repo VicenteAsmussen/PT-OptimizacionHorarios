@@ -60,7 +60,7 @@ describe("Publicación única por planificación (offline)", () => {
   });
   it("crea entrada con sala null sin relación secundaria", async () => {
     simularGuardia([[ofertaRow]]);
-    responses.push([[2, 4, 5]], [], [entryRow]);
+    responses.push([[7, 1, "2027-1", true, "preparacion"]], [], [[2, 4, 5]], [], [entryRow]);
     expect(await horariosRepository.create(entry)).toEqual({ id: 12, ...entry });
     expect(statements.at(-1)!.sql).toContain('insert into "horarios_asignaturas"');
     expect(statements.at(-1)!.params).toEqual([2, null, 3, 4, 7]);
@@ -68,12 +68,12 @@ describe("Publicación única por planificación (offline)", () => {
   });
   it("propaga fallo de inserción", async () => {
     simularGuardia([[ofertaRow]]);
-    responses.push([[2, 4, 5]], [], new Error("fallo entrada"));
+    responses.push([[7, 1, "2027-1", true, "preparacion"]], [], [[2, 4, 5]], [], new Error("fallo entrada"));
     await expect(horariosRepository.create(entry)).rejects.toMatchObject({ cause: { message: "fallo entrada" } });
   });
   it("actualiza contexto y sala sin escribir publicación", async () => {
     simularGuardia([[entryRow], [[2, "INF100", 8, 1, 30]]], [7, 8]);
-    responses.push([entryRow], [[2, 4, 5]], [], [[12, 2, null, 3, 4, 8]]);
+    responses.push([entryRow], [[8, 1, "2027-1", true, "preparacion"]], [], [[2, 4, 5]], [], [[12, 2, null, 3, 4, 8]]);
     expect(await horariosRepository.update(12, { planificacionSemestreId: 8, salaId: null })).toEqual({ id: 12, ...entry, planificacionSemestreId: 8 });
     expect(statements.at(-1)!.sql).toContain('update "horarios_asignaturas"');
     expect(statements.every(({ sql }) => !sql.includes("horario_publicado"))).toBe(true);

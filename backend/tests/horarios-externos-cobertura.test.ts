@@ -13,7 +13,7 @@ const asignaturas = [
   { codigo: "IMPAR", nombre: "Odd course", semestreMalla: 3 },
 ];
 function contexto(codigoPeriodo = "2026-2") {
-  return { codigoPeriodo, departamentoValido: true, asignaturas, profesores: [{ id: 7, rut: "12345678-5", departamentoId: 4 }],
+  return { bloquesReservadosIds: [] as number[], codigoPeriodo, departamentoValido: true, asignaturas, profesores: [{ id: 7, rut: "12345678-5", departamentoId: 4 }],
     tipos: [{ id: 1, tipo: "Teórica" }], ofertas: [], ocupaciones: [],
     bloques: [{ id: 10, dia: "Lunes", horaInicio: "08:10", horaTermino: "08:50", numeroBloque: 1 },
       { id: 11, dia: "Martes", horaInicio: "08:10", horaTermino: "08:50", numeroBloque: 1 }] };

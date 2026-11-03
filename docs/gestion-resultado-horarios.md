@@ -34,6 +34,8 @@ Las respuestas correctas usan `{ "status": "success", "data": ... }`. Una escrit
 
 La revisión obtenida al consultar abarca todo el contexto de la planificación, incluida la disponibilidad, la gestión de las clases y los requisitos de sala. Si ese contexto cambia, la confirmación deja de ser válida. La vista previa es informativa, al guardar siempre se valida de nuevo dentro de una transacción.
 
+También incluye los bloques reservados de la carrera, comunes a todos sus períodos. Ningún destino puede incluir un bloque reservado, aunque el profesor esté disponible. La vista previa devuelve el problema `bloqueReservado` y el guardado lo rechaza con HTTP 409. La misma regla protege las escrituras de preparación, los traslados de horarios u ofertas a otra planificación y las asignaciones de sala de sesiones reservadas. Las reservas de otras carreras no afectan esta planificación.
+
 Las sesiones se forman con las reglas institucionales de continuidad existentes, incluido el descanso de diez minutos después de un par de bloques. Los identificadores no determinan el orden cronológico. El frontend selecciona la sesión completa de forma predeterminada, pero la API acepta un grupo consecutivo de una misma sesión si cumple estas condiciones:
 
 - Se mueven al menos dos bloques juntos y el grupo completo cabe en un mismo día de destino.
@@ -89,6 +91,9 @@ La publicación valida toda la planificación, sin aplicar el filtro de visualiz
 2. No hay clases simultáneas que compartan profesor, sala o nivel de la malla.
 3. Todas las clases gestionadas por la carrera están dentro de la disponibilidad declarada del profesor. Si no hay declaración, se considera que no hay disponibilidad, no que sea ilimitada. No se inventa una declaración de disponibilidad para las clases externas importadas y fijas.
 4. Todas las sesiones que requieren sala tienen una asignada. Las asignaturas exentas, los laboratorios y las sesiones externas no bloquean la publicación por falta de sala.
+5. Ninguna clase ocupa un bloque reservado de la carrera, tanto de departamentos gestionados como externos. Cada infracción se identifica mediante `bloqueReservado`, `idsHorarios` y `bloqueId`.
+
+Los horarios heredados se conservan, incluso los ya publicados. No se eliminan ni se despublican automáticamente. Una propuesta con reservas ocupadas no puede publicarse, pero una clase gestionada puede moverse a un destino permitido. Cualquier limpieza requiere consultar de nuevo los datos y una decisión explícita. Estas validaciones pertenecen a la aplicación y no modifican la lógica matemática del optimizador.
 
 Estas comprobaciones protegen la propuesta, no validan la ejecución del modelo matemático. La publicación usa el mismo orden de bloqueo que las escrituras de preparación existentes, primero la carrera y después la planificación. Una revisión desactualizada o una validación rechazada no modifican el horario ni el estado de la planificación.
 

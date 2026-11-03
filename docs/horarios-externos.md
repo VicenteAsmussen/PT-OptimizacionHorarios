@@ -25,6 +25,8 @@ Solo se importa en una planificación actual en preparación. El archivo reempla
 
 Si falta una asignatura obligatoria o hay datos inválidos en una fila pertinente, **no se guarda nada**. El resultado marca las filas válidas como **sin guardar** y detalla faltantes y errores por asignatura, fila, columna, valor y motivo. Corrige el archivo y vuelve a enviarlo. Usa **Consultar carga guardada** para revisar lo que ya existe sin importar de nuevo.
 
+Los bloques reservados pertenecen a la carrera, no al período ni al departamento. Si una sesión incluye siquiera un bloque reservado, se rechaza todo el archivo con un error en su fila y columna `Horario N`, sin reemplazar la carga anterior. ICINF reserva los martes B5 y B6, de 11:10 a 12:30. Esto no reserva esos bloques para otras carreras. El servidor vuelve a comprobar las reservas dentro de la transacción antes de escribir.
+
 Si se pierde la respuesta, consulta la carga guardada antes de reintentar, el servidor pudo haber completado la importación. La pantalla vuelve a consultar los datos al abrirse o cambiar de contexto.
 
 Si falla la consulta de cobertura, se bloquea la selección de archivo y aparece **Reintentar consulta**, con el estado HTTP cuando está disponible. Ante un 404, comprueba la dirección y versión del backend antes de reintentar.
