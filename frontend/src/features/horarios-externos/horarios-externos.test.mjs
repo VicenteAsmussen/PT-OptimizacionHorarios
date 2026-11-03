@@ -2,6 +2,96 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
+// Ejecuta el manejador de la página con la API HTTP real y un transporte simulado.
+async function prepararImportacion(respuesta) {
+  const ts = await import('typescript');
+  const { api, ApiError } = await import('../../lib/api.ts');
+  const pagina = (await readFile(new URL('./HorariosExternosPage.tsx', import.meta.url), 'utf8')).replace(/\r\n/g, '\n');
+  const fuente = pagina.match(/  async function importar\(\) \{[^]*?\n  \}/)?.[0];
+  assert.ok(fuente);
+  const anterior = [{ codigo: 'ANTERIOR', estado: 'cargada', secciones: [3] }];
+  const estado = { resultado: null, errores: [], mensaje: '', rechazado: false, importando: false,
+    archivo: new Blob(['planilla simulada']), confirmado: true, actualizacion: 0 };
+  const solicitudes = [];
+  const setters = ['Importando', 'Mensaje', 'Resultado', 'Errores', 'Rechazado', 'Archivo', 'Confirmado', 'Actualizacion'];
+  const nombres = setters.map(nombre => `set${nombre}`);
+  const valores = setters.map(nombre => valor => {
+    const clave = nombre[0].toLowerCase() + nombre.slice(1);
+    estado[clave] = typeof valor === 'function' ? valor(estado[clave]) : valor;
+  });
+  const enviando = { current: false };
+  const apiPagina = { importar: (planificacionId, departamentoId, archivo) => {
+    const cuerpo = new FormData(); cuerpo.append('archivo', archivo, 'externos.xlsx');
+    return api(`horarios/excel/externos?planificacionSemestreId=${planificacionId}&departamentoId=${departamentoId}`, { method: 'POST', body: cuerpo });
+  } };
+  const importar = new Function('enviando', 'archivo', 'confirmado', 'editable', 'persistida',
+    'planificacionId', 'departamentoId', 'horariosExternosApi', 'vigente', 'controlArchivo', 'resumen', 'ApiError', ...nombres,
+    ts.transpileModule(`${fuente}\nreturn importar;`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText)(
+    enviando, estado.archivo, true, true, anterior, 7, 6, apiPagina, { current: true }, { current: null },
+    { current: { focus() {} } }, ApiError, ...valores);
+  const fetchAnterior = globalThis.fetch;
+  globalThis.fetch = async (ruta, opciones) => {
+    solicitudes.push({ ruta, opciones });
+    if (respuesta instanceof Error) throw respuesta;
+    return new Response(JSON.stringify(respuesta.cuerpo), { status: respuesta.status, headers: { 'Content-Type': 'application/json' } });
+  };
+  try { await importar(); } finally { globalThis.fetch = fetchAnterior; }
+  assert.equal(enviando.current, false);
+  assert.equal(estado.importando, false);
+  assert.equal(solicitudes.length, 1);
+  assert.equal(solicitudes[0].opciones.credentials, 'include');
+  assert.deepEqual(anterior, [{ codigo: 'ANTERIOR', estado: 'cargada', secciones: [3] }]);
+  return { estado, pagina };
+}
+
+test('una reserva recibida por HTTP muestra fila, columna y motivo sin anunciar éxito ni sustituir la carga guardada', async () => {
+  const React = await import('react');
+  const ts = await import('typescript');
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const error = { fila: 4, columna: 'Horario 1', valor: 'Martes 10:30-11:50',
+    codigoAsignatura: 'MAT101', nombreAsignatura: 'Matemática', mensaje: 'La sesión incluye un bloque reservado para esta carrera.' };
+  const { estado, pagina } = await prepararImportacion({ status: 400, cuerpo: { message: 'Archivo rechazado', errores: [error] } });
+  assert.deepEqual(estado.errores, [error]);
+  assert.equal(estado.rechazado, true);
+  assert.equal(estado.resultado, null);
+  assert.equal(estado.actualizacion, 0);
+  assert.ok(estado.archivo);
+  assert.match(estado.mensaje, /No se guardó ninguna fila ni se modificó la carga anterior/);
+  assert.doesNotMatch(estado.mensaje, /completada|correctamente/);
+  const tabla = pagina.match(/<table className=\{base.tabla\}><caption>Corrige estos errores[^]*?<\/table>/)?.[0];
+  assert.ok(tabla);
+  const renderizar = new Function('React', 'base', 'errores', ts.transpileModule(`return (${tabla});`, {
+    compilerOptions: { jsx: ts.JsxEmit.React, target: ts.ScriptTarget.ES2022 },
+  }).outputText);
+  const html = renderToStaticMarkup(renderizar(React, {}, estado.errores));
+  for (const texto of ['MAT101', 'Matemática', '<td>4</td>', 'Horario 1', error.valor, error.mensaje]) assert.ok(html.includes(texto), texto);
+});
+
+for (const [nombre, respuesta] of [
+  ['conflicto sin detalle de fila', { status: 409, cuerpo: { message: 'El horario ocupa un bloque reservado para esta carrera.' } }],
+  ['respuesta perdida', new TypeError('Error de red')],
+]) test(`la importación con ${nombre} no inventa filas ni afirma reversión`, async () => {
+  const { estado } = await prepararImportacion(respuesta);
+  assert.deepEqual(estado.errores, []);
+  assert.equal(estado.rechazado, false);
+  assert.equal(estado.resultado, null);
+  assert.equal(estado.actualizacion, 1);
+  assert.match(estado.mensaje, /Consulta la carga guardada antes de reintentar/);
+  assert.doesNotMatch(estado.mensaje, /No se guardó ninguna fila|completada/);
+});
+
+test('la importación confirmada conserva el flujo anterior de éxito y consulta actualizada', async () => {
+  const resultado = { ofertasCreadas: 1, ofertasActualizadas: 0, ofertasEliminadas: 0, horariosCreados: 2, cobertura: [], errores: [] };
+  const { estado } = await prepararImportacion({ status: 200, cuerpo: resultado });
+  assert.deepEqual(estado.resultado, resultado);
+  assert.equal(estado.rechazado, false);
+  assert.deepEqual(estado.errores, []);
+  assert.equal(estado.archivo, null);
+  assert.equal(estado.confirmado, false);
+  assert.equal(estado.actualizacion, 1);
+  assert.match(estado.mensaje, /Importación completada/);
+});
+
 test('external department selection belongs to the selected career, not a global flag', async () => {
   const { departamentosExternos } = await import('./datos.ts');
   const departamentos = [{ id: 1, carreraDepartamentos: [{ carreraId: 2, esGestionado: false }, { carreraId: 1, esGestionado: true }] },

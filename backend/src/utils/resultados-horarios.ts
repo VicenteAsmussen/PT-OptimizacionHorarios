@@ -76,6 +76,7 @@ export function presentarResultado(contexto: ContextoResultado, semestreMalla?: 
       estadoSala, editable: contexto.planificacion.actual && contexto.planificacion.estadoPlanificacion === "propuesta" && esGestionada(contexto, entrada) };
   });
   return { planificacion: contexto.planificacion, revision: revisionResultado(contexto), bloques: contexto.bloques,
+    bloquesReservadosIds: contexto.bloquesReservadosIds,
     disponibilidades: contexto.disponibilidades, pendientesSala: sesiones.filter(sesion => sesion.estadoSala === "pendiente").length,
     sesiones: semestreMalla === undefined ? sesiones : sesiones.filter(sesion => sesion.asignatura.semestreMalla === semestreMalla) };
 }

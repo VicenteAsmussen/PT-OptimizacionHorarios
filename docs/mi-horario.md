@@ -11,11 +11,13 @@ La página `/app/mi-horario` permite consultar las clases propias en un calendar
 
 Las filas mantienen la misma altura compacta, tengan o no clases. Si coinciden varias clases en una celda, su contenido se puede desplazar sin aumentar la altura de la fila.
 
+Las reservas de la carrera seleccionada aparecen con la etiqueta **Reservado**, con la paleta azul institucional y borde discontinuo, separadas de las tarjetas de clase. El marcador tiene la misma altura que una tarjeta de clase y el texto centrado. Se obtienen del backend, no dependen del período ni bloquean otras carreras. Si una clase heredada coincide con una reserva, se conservan la clase y sus detalles y se muestra **Clase en bloque reservado**. Ambos contenidos comparten el desplazamiento interno de la celda, sin aumentar la altura de la fila. La reserva no se distingue únicamente por el color.
+
 Se incluyen planificaciones actuales e históricas con asignaciones del profesor autenticado, tanto externo como gestionado, en `preparacion`, `propuesta` o `publicado`. La carrera no necesita pertenecer a su departamento; sin asignaciones no se ofrece el período.
 
 En **Preparación** se muestra: “Este período está en Preparación. El horario aún no está habilitado para consulta.” No se consulta ni se muestra el calendario, aunque existan horarios externos guardados. **Propuesta** y **Publicado** mantienen la consulta de clases propias.
 
-Si no existen planificaciones visibles, se informa que no hay períodos con asignaciones docentes. En Propuesta o Publicado, si todavía no hay clases con horario, se muestra un estado vacío específico. Al cambiar de período se limpia el calendario anterior y se descartan las respuestas tardías, incluidos errores. Los errores de consulta permiten reintentar.
+Si no existen planificaciones visibles, se informa que no hay períodos con asignaciones docentes. En Propuesta o Publicado, si todavía no hay clases con horario, se muestra un estado vacío específico y se conserva el calendario cuando hay reservas para mostrar. En Preparación se mantiene únicamente el aviso, sin calendario ni clases. Al cambiar de período se limpia el calendario anterior y se descartan las respuestas tardías, incluidos errores. Los errores de consulta permiten reintentar.
 
 ## Contrato de lectura
 
@@ -24,6 +26,8 @@ Si no existen planificaciones visibles, se informa que no hay períodos con asig
 | `/api/horarios-asignaturas/mi-horario/contexto` | `{ planificaciones, bloques }`, con metadatos de períodos asignados en los tres estados y el catálogo de bloques, sin clases asignadas. |
 | `/api/horarios-asignaturas/mi-horario?planificacionSemestreId=10` | Arreglo de clases propias de la planificación seleccionada. |
 | `/api/horarios-asignaturas/mi-horario` | Arreglo de clases propias únicamente en Propuesta o Publicado; excluye Preparación. |
+
+Cada elemento de `planificaciones` en el contexto incluye, de forma aditiva, `carreraId` y `bloquesReservadosIds`. El arreglo de reservas pertenece a esa carrera y puede estar vacío. Solo se consultan carreras de planificaciones con asignaciones del profesor autenticado. El catálogo `bloques` y los arreglos de clases conservan su contrato. El frontend admite contextos anteriores sin los campos nuevos, tratándolos como ausencia de reservas.
 
 La identidad se obtiene de la sesión, nunca de un parámetro `profesorId`. Consultar directamente las clases de una planificación ajena, inexistente o en preparación produce `403`, aunque sus metadatos sean seleccionables. La pertenencia de una clase se determina por la combinación de oferta y tipo de hora asignada al profesor; compartir sección no permite consultar las clases de otro docente. Los permisos administrativos existentes no se modifican.
 
@@ -40,9 +44,11 @@ pnpm exec vitest run tests/mi-horario.test.ts tests/mi-horario.repository.test.t
 Desde `frontend`, con Node 22.19 o posterior:
 
 ```sh
-node --experimental-strip-types --test src/features/mi-horario/mi-horario.test.mjs
+node --experimental-transform-types --test src/features/mi-horario/mi-horario.test.mjs
 ```
 
 Estas pruebas usan datos controlados y un adaptador SQL simulado: no generan propuestas, cambian estados ni escriben en la base de desarrollo. Cubren estados, aviso sin calendario en Preparación, respuestas tardías, acceso por asignaciones fuera del departamento, aislamiento, sala nula y ausencia de clases. La comprobación SQL verifica el filtro por oferta, tipo y profesor; no sustituye una ejecución de integración contra PostgreSQL.
+
+La cobertura de reservas comprueba el contexto por carrera, ausencia de reservas en otra carrera, etiquetas sin clases ficticias, conservación de clases heredadas y cambio de planificación sin arrastrar reservas. El renderizado controlado no sustituye la revisión visual y de teclado en navegador.
 
 La integración PostgreSQL separa Preparación (metadatos seleccionables y clases protegidas), Propuesta/Publicado (aislamiento por docente y tipo de hora) y eliminación del docente sin horarios conservando la oferta compartida. Se ejecuta exclusivamente en `horarios_test` mediante `scripts/probar-excel-externos.ps1`; ver [pruebas de horarios externos](pruebas-excel-externos.md).

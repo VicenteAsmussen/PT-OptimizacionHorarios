@@ -2,15 +2,17 @@ import { useState } from 'react';
 import { abreviarTipoClase, crearCalendario, describirClase, inicialesAsignatura } from './modelo';
 import type { Bloque, ClaseHorario } from './types';
 import DetalleClaseDialogo from './DetalleClaseDialogo';
+import MarcadorReserva from './MarcadorReserva';
 import estilos from './MiHorario.module.css';
 
 interface Propiedades {
   bloques: Bloque[];
   horarios: ClaseHorario[];
   planificacionId: number;
+  bloquesReservadosIds?: number[];
 }
 
-export default function CalendarioSemanal({ bloques, horarios, planificacionId }: Propiedades) {
+export default function CalendarioSemanal({ bloques, horarios, planificacionId, bloquesReservadosIds = [] }: Propiedades) {
   const [claseId, setClaseId] = useState<number | null>(null);
   const calendario = crearCalendario(bloques, horarios, planificacionId);
   const seleccionada = horarios.find(clase => clase.id === claseId && clase.planificacionSemestreId === planificacionId);
@@ -21,7 +23,9 @@ export default function CalendarioSemanal({ bloques, horarios, planificacionId }
       <thead><tr><th scope="col">Horario</th>{calendario.dias.map(dia => <th key={dia.clave} scope="col">{dia.nombre}</th>)}</tr></thead>
       <tbody>{calendario.filas.map(fila => <tr key={fila.horario}>
         <th scope="row">{fila.horario}</th>
-        {fila.celdas.map((celda, indice) => <td key={calendario.dias[indice].clave}><div className={estilos.contenidoCelda}>
+        {fila.celdas.map((celda, indice) => <td key={calendario.dias[indice].clave}>
+          <div className={estilos.contenidoCelda}>
+          {celda.bloque && bloquesReservadosIds.includes(celda.bloque.id) && <MarcadorReserva conClase={celda.clases.length > 0} />}
           {celda.bloque ? <>
             {celda.clases.map(clase => {
               const detalle = describirClase(clase);

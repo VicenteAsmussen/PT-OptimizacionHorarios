@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import express from "express";
 import request from "supertest";
+import { PgDialect } from "drizzle-orm/pg-core";
 
 const datos = vi.hoisted(() => ({
   profesor: { id: 7, departamentoId: 99 },
   planificaciones: [] as any[], ofertas: [] as any[], bloques: [] as any[], filas: [] as any[],
+  reservas: [] as { carreraId: number; bloqueHorarioId: number }[],
   bloqueada: false,
   alBloquear: undefined as (() => void) | undefined,
 }));
@@ -16,9 +18,16 @@ vi.mock("../src/config/db.js", () => {
     },
     ofertasAsignaturas: { findMany: async () => datos.ofertas },
     bloquesHorarios: { findMany: async () => datos.bloques },
+    bloquesReservados: { findMany: async ({ where }: any) => {
+      const [carreraId] = new PgDialect().sqlToQuery(where).params;
+      return datos.reservas.filter(reserva => reserva.carreraId === carreraId);
+    } },
     disponibilidadProfesores: {
       findMany: async () => datos.filas.map(fila => ({ ...fila })),
-      findFirst: async () => datos.filas[0],
+      findFirst: async ({ where }: any) => {
+        const [id] = new PgDialect().sqlToQuery(where).params;
+        return datos.filas.find(fila => fila.id === id);
+      },
     },
   };
   return { db: {
@@ -60,6 +69,7 @@ const carga = [
   { ofertaId: 2, asignaturaCodigo: "A", asignaturaNombre: "Álgebra", seccion: 2, tipoHoraId: 2, tipoHoraNombre: "Práctica", horas: 1 },
 ];
 beforeEach(() => {
+  datos.reservas = [];
   datos.alBloquear = undefined;
   datos.planificaciones = [{ id: 10, codigo: "2026-2", carreraId: 30, actual: true, estadoPlanificacion: "preparacion", carrera: { nombre: "Otra carrera" } }];
   datos.ofertas = carga.map(fila => ({ id: fila.ofertaId, planificacionSemestreId: 10, seccion: fila.seccion, asignaturaCodigo: fila.asignaturaCodigo,
@@ -69,6 +79,86 @@ beforeEach(() => {
   datos.filas = [{ id: 40, profesorId: 7, planificacionSemestreId: 10, bloqueId: 6 }];
 });
 describe("Autoservicio de disponibilidad", () => {
+  it("expone solo reservas de la carrera autorizada sin limpiar disponibilidad anterior ni cambiar el mínimo", async () => {
+    datos.reservas = [{ carreraId: 30, bloqueHorarioId: 6 }, { carreraId: 80, bloqueHorarioId: 1 }];
+    const lectura = await request(app).get(`${ruta}?planificacionSemestreId=10`).set("Authorization", "profesor");
+    expect(lectura.status).toBe(200);
+    expect(lectura.body.data.seleccion).toEqual({ planificacionSemestreId: 10, bloquesIds: [6],
+      bloquesReservadosIds: [6], minimoBloques: 5, carga, editable: true });
+    const repetida = await request(app).get(`${ruta}?planificacionSemestreId=10`).set("Authorization", "profesor");
+    expect(repetida.body).toEqual(lectura.body);
+    const guardado = await request(app).post(ruta).set("Authorization", "profesor")
+      .send({ planificacionSemestreId: 10, bloquesIds: [1, 2, 3, 4, 5] });
+    expect(guardado.status).toBe(200);
+    expect(guardado.body.data.bloquesIds).toEqual([1, 2, 3, 4, 5]);
+    expect(guardado.body.data.bloquesReservadosIds).toEqual([6]);
+  });
+  it.each(["propia", "sincronizar", "individual"])("rechaza reservas por ruta %s y conserva lo guardado", async caso => {
+    datos.filas = [1, 2, 3, 4, 5].map(bloqueId => ({ id: bloqueId, profesorId: 7, planificacionSemestreId: 10, bloqueId }));
+    datos.reservas = [{ carreraId: 30, bloqueHorarioId: 6 }];
+    const peticion = caso === "propia" ? request(app).post(ruta) : request(app).post(`/api/disponibilidad-profesores${caso === "sincronizar" ? "/sincronizar" : ""}`);
+    const respuesta = await peticion.set("Authorization", "profesor").send({ planificacionSemestreId: 10,
+      ...(caso === "propia" ? {} : { profesorId: 7 }), ...(caso === "individual" ? { bloqueId: 6 } : { bloquesIds: [1, 2, 3, 4, 6] }) });
+    expect(respuesta.status).toBe(400);
+    expect(respuesta.body).toEqual({ status: "error", statusCode: 400,
+      message: "La selección incluye bloques reservados para esta carrera. Retíralos del borrador antes de enviar." });
+    const lectura = await request(app).get(`${ruta}?planificacionSemestreId=10`).set("Authorization", "profesor");
+    expect(lectura.status).toBe(200);
+    expect(lectura.body.data.seleccion.bloquesIds).toEqual([1, 2, 3, 4, 5]);
+    expect(lectura.body.data.seleccion.minimoBloques).toBe(5);
+    expect(datos.planificaciones[0].estadoPlanificacion).toBe("preparacion");
+  });
+  it("revalida reservas después del bloqueo sin aceptar una selección obsoleta", async () => {
+    const lectura = await request(app).get(`${ruta}?planificacionSemestreId=10`).set("Authorization", "profesor");
+    expect(lectura.body.data.seleccion.bloquesReservadosIds).toEqual([]);
+    datos.alBloquear = () => { datos.reservas = [{ carreraId: 30, bloqueHorarioId: 1 }]; };
+    const respuesta = await request(app).post(ruta).set("Authorization", "profesor")
+      .send({ planificacionSemestreId: 10, bloquesIds: [1, 2, 3, 4, 5] });
+    expect(respuesta.status).toBe(400);
+    expect(respuesta.body.message).toBe("La selección incluye bloques reservados para esta carrera. Retíralos del borrador antes de enviar.");
+    const posterior = await request(app).get(`${ruta}?planificacionSemestreId=10`).set("Authorization", "profesor");
+    expect(posterior.body.data.seleccion.bloquesIds).toEqual([6]);
+    expect(posterior.body.data.seleccion.bloquesReservadosIds).toEqual([1]);
+  });
+  it("cambiar de carrera obtiene sus propias reservas sin modificar ninguna selección", async () => {
+    datos.planificaciones.push({ ...datos.planificaciones[0], id: 20, carreraId: 80, carrera: { nombre: "Segunda carrera" } });
+    datos.ofertas.push({ ...structuredClone(datos.ofertas[0]), id: 90, planificacionSemestreId: 20 });
+    datos.filas.push({ id: 41, profesorId: 7, planificacionSemestreId: 20, bloqueId: 1 });
+    datos.reservas = [{ carreraId: 30, bloqueHorarioId: 6 }, { carreraId: 80, bloqueHorarioId: 1 }];
+    for (const [id, esperados, reservados, minimo] of [[10, [6], [6], 5], [20, [1], [1], 2], [10, [6], [6], 5]] as const) {
+      const lectura = await request(app).get(`${ruta}?planificacionSemestreId=${id}`).set("Authorization", "profesor");
+      expect(lectura.status).toBe(200);
+      expect(lectura.body.data.seleccion.bloquesIds).toEqual(esperados);
+      expect(lectura.body.data.seleccion.bloquesReservadosIds).toEqual(reservados);
+      expect(lectura.body.data.seleccion.minimoBloques).toBe(minimo);
+    }
+  });
+  it("las rutas antiguas permiten agregar bloques libres y retirar explícitamente una reserva anterior", async () => {
+    datos.filas = [1, 2, 3, 4, 5, 6].map(bloqueId => ({ id: bloqueId, profesorId: 7, planificacionSemestreId: 10, bloqueId }));
+    datos.reservas = [{ carreraId: 30, bloqueHorarioId: 6 }, { carreraId: 80, bloqueHorarioId: 1 }];
+    const retirada = await request(app).delete("/api/disponibilidad-profesores/6").set("Authorization", "profesor");
+    expect(retirada.status).toBe(204);
+    const lectura = await request(app).get(`${ruta}?planificacionSemestreId=10`).set("Authorization", "profesor");
+    expect(lectura.body.data.seleccion.bloquesIds).toEqual([1, 2, 3, 4, 5]);
+    datos.bloques.push({ ...datos.bloques[0], id: 7, numeroBloque: 7 });
+    const agregado = await request(app).post("/api/disponibilidad-profesores").set("Authorization", "profesor")
+      .send({ profesorId: 7, planificacionSemestreId: 10, bloqueId: 7 });
+    expect(agregado.status).toBe(201);
+    expect(agregado.body.data.bloqueId).toBe(7);
+    const posterior = await request(app).get(`${ruta}?planificacionSemestreId=10`).set("Authorization", "profesor");
+    expect(posterior.body.data.seleccion.bloquesIds).toEqual([1, 2, 3, 4, 5, 7]);
+  });
+  it("bloquea el mínimo imposible sin reducirlo ni reemplazar datos anteriores", async () => {
+    datos.reservas = [1, 2].map(bloqueHorarioId => ({ carreraId: 30, bloqueHorarioId }));
+    const respuesta = await request(app).post(ruta).set("Authorization", "profesor")
+      .send({ planificacionSemestreId: 10, bloquesIds: [1, 2, 3, 4, 5, 6] });
+    expect(respuesta.status).toBe(400);
+    expect(respuesta.body).toEqual({ status: "error", statusCode: 400,
+      message: "La capacidad utilizable es de 4 bloques y no cubre el mínimo de 5. Contacta a secretaría." });
+    const lectura = await request(app).get(`${ruta}?planificacionSemestreId=10`).set("Authorization", "profesor");
+    expect(lectura.body.data.seleccion.bloquesIds).toEqual([6]);
+    expect(lectura.body.data.seleccion.minimoBloques).toBe(5);
+  });
   it("excluye otras carreras, periodos y tipos de otro profesor del mínimo", async () => {
     datos.ofertas.push({ ...structuredClone(datos.ofertas[0]), id: 80, planificacionSemestreId: 80 });
     datos.ofertas[0].asignaciones.push({ profesorId: 8, tipoHoraId: 9, tipoHora: { tipo: "Ajena" } });
@@ -125,7 +215,7 @@ describe("Autoservicio de disponibilidad", () => {
     datos.filas = [];
     const respuesta = await request(app).get(`${ruta}?planificacionSemestreId=10`).set("Authorization", "profesor");
     expect(respuesta.status).toBe(200);
-    expect(respuesta.body.data.seleccion).toEqual({ planificacionSemestreId: 10, bloquesIds: [], minimoBloques: 5, carga, editable: true });
+    expect(respuesta.body.data.seleccion).toEqual({ planificacionSemestreId: 10, bloquesIds: [], bloquesReservadosIds: [], minimoBloques: 5, carga, editable: true });
     expect(datos.filas).toEqual([]);
   });
   it.each([
@@ -161,12 +251,12 @@ describe("Autoservicio de disponibilidad", () => {
   it("suma cada sección y tipo asignado sin restringir departamento", async () => {
     const respuesta = await request(app).get(`${ruta}?planificacionSemestreId=10`).set("Authorization", "profesor");
     expect(respuesta.status).toBe(200);
-    expect(respuesta.body.data.seleccion).toEqual({ planificacionSemestreId: 10, bloquesIds: [6], minimoBloques: 5, carga, editable: true });
+    expect(respuesta.body.data.seleccion).toEqual({ planificacionSemestreId: 10, bloquesIds: [6], bloquesReservadosIds: [], minimoBloques: 5, carga, editable: true });
   });
   it("guarda deduplicado bajo bloqueo sin cambiar estado", async () => {
     const respuesta = await request(app).post(ruta).set("Authorization", "profesor").send({ planificacionSemestreId: 10, bloquesIds: [1, 2, 3, 4, 5, 5] });
     expect(respuesta.status).toBe(200);
-    expect(respuesta.body).toEqual({ status: "success", data: { planificacionSemestreId: 10, bloquesIds: [1, 2, 3, 4, 5], minimoBloques: 5, carga, editable: true } });
+    expect(respuesta.body).toEqual({ status: "success", data: { planificacionSemestreId: 10, bloquesIds: [1, 2, 3, 4, 5], bloquesReservadosIds: [], minimoBloques: 5, carga, editable: true } });
     expect(datos.filas.map(fila => fila.bloqueId)).toEqual([1, 2, 3, 4, 5]);
     expect(datos.planificaciones[0].estadoPlanificacion).toBe("preparacion");
   });

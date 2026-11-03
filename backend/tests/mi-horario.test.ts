@@ -13,6 +13,7 @@ vi.mock("../src/repositories/mi-horario.repository.js", () => ({
   miHorarioRepository: {
     findPlanificaciones: async (profesorId: number) => datos.planificaciones.filter(p => p.profesorId === profesorId),
     findBloques: async () => [{ id: 1, dia: "Lunes", numeroBloque: 1, horaInicio: "08:10", horaTermino: "09:00" }],
+    findBloquesReservados: async (carreraId: number) => carreraId === 3 ? [1] : [],
   },
 }));
 vi.mock("../src/repositories/horarios.repository.js", () => ({
@@ -45,14 +46,29 @@ beforeEach(() => {
   datos.perfil = true;
   datos.consultar.mockClear();
   datos.planificaciones = [
-    { id: 10, profesorId: 7, codigo: "2026-2", carreraNombre: "Carrera externa", estadoPlanificacion: "propuesta", actual: true },
-    { id: 20, profesorId: 7, codigo: "2025-2", carreraNombre: "Carrera externa", estadoPlanificacion: "publicado", actual: false },
-    { id: 30, profesorId: 7, estadoPlanificacion: "preparacion" },
-    { id: 40, profesorId: 8, estadoPlanificacion: "publicado" },
+    { id: 10, carreraId: 3, profesorId: 7, codigo: "2026-2", carreraNombre: "Carrera externa", estadoPlanificacion: "propuesta", actual: true },
+    { id: 20, carreraId: 4, profesorId: 7, codigo: "2025-2", carreraNombre: "Otra carrera", estadoPlanificacion: "publicado", actual: false },
+    { id: 30, carreraId: 3, profesorId: 7, estadoPlanificacion: "preparacion" },
+    { id: 40, carreraId: 5, profesorId: 8, estadoPlanificacion: "publicado" },
   ];
   datos.horarios = [10, 20, 30, 40].map((id, indice) => ({ id: indice + 1, planificacionSemestreId: id, profesorId: id === 40 ? 8 : 7, sala: null }));
 });
 describe("Consulta del horario propio", () => {
+  it("amplía el contexto con reservas de la carrera propia, sin filtrar clases heredadas ni mezclar identidades", async () => {
+    const antes = structuredClone(datos.horarios);
+    const respuesta = await request(app).get(`${ruta}/contexto`).set("Authorization", "profesor");
+    expect(respuesta.status).toBe(200);
+    expect(respuesta.body.data.planificaciones).toEqual(datos.planificaciones.slice(0, 3).map(p => ({
+      ...p, bloquesReservadosIds: p.carreraId === 3 ? [1] : [],
+    })));
+    const ajena = await request(app).get(`${ruta}/contexto`).set("Authorization", "profesor").set("x-usuario", "2");
+    expect(ajena.status).toBe(200);
+    expect(ajena.body.data.planificaciones).toEqual([{ ...datos.planificaciones[3], bloquesReservadosIds: [] }]);
+    const clases = await request(app).get(`${ruta}?planificacionSemestreId=10`).set("Authorization", "profesor");
+    expect(clases.status).toBe(200);
+    expect(clases.body.data).toEqual(antes.filter(h => h.planificacionSemestreId === 10));
+    expect(datos.horarios).toEqual(antes);
+  });
   it("ofrece metadatos de todos los estados con asignaciones, incluso fuera del departamento e históricos", async () => {
     const respuesta = await request(app).get(`${ruta}/contexto`).set("Authorization", "profesor");
     expect(respuesta.status).toBe(200);

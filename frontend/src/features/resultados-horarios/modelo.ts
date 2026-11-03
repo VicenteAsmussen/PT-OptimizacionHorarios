@@ -41,7 +41,8 @@ export function bloquesDestino(bloques: Bloque[], inicioId: number, cantidad: nu
 }
 export function destinoDisponible(resultado: ResultadoHorario, sesion: SesionResultado, inicioId: number, cantidad: number) {
   const grupo = bloquesDestino(resultado.bloques, inicioId, cantidad);
-  return grupo.length === cantidad && grupo.every(b => resultado.disponibilidades.some(d => d.profesorId === sesion.profesorId
+  return grupo.length === cantidad && grupo.every(b => !resultado.bloquesReservadosIds?.includes(b.id)
+    && resultado.disponibilidades.some(d => d.profesorId === sesion.profesorId
     && d.planificacionSemestreId === resultado.planificacion.id && d.bloqueId === b.id));
 }
 export function estadoDestino(resultado: ResultadoHorario, sesion: SesionResultado, inicioId: number, cantidad: number) {
@@ -49,11 +50,13 @@ export function estadoDestino(resultado: ResultadoHorario, sesion: SesionResulta
   if (inicio && inicio.numeroBloque % 2 === 0) return 'inicioPar';
   const grupo = bloquesDestino(resultado.bloques, inicioId, cantidad);
   if (cantidad < 2 || grupo.length !== cantidad) return 'fueraDeRango';
+  if (grupo.some(b => resultado.bloquesReservadosIds?.includes(b.id))) return 'reservado';
   const estados = grupo.map(b => estadoCasilla(resultado, sesion, b.id));
   if (estados.includes('ocupado')) return 'ocupado';
   return estados.every(estado => estado === 'disponible') ? 'disponible' : 'sinDisponibilidad';
 }
 export function estadoCasilla(resultado: ResultadoHorario, sesion: SesionResultado, bloqueId: number) {
+  if (resultado.bloquesReservadosIds?.includes(bloqueId)) return 'reservado';
   if (resultado.sesiones.some(otra => otra.bloquesIds.includes(bloqueId)
     && (otra.asignatura.semestreMalla === sesion.asignatura.semestreMalla || otra.profesorId === sesion.profesorId))) return 'ocupado';
   return resultado.disponibilidades.some(d => d.profesorId === sesion.profesorId

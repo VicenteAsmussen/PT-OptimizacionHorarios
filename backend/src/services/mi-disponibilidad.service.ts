@@ -28,6 +28,10 @@ export const miDisponibilidadService = {
       const unicos = [...new Set(propuesta)].sort((a, b) => a - b);
       if (!unicos.length) throw new BadRequestError("Debe seleccionar al menos un bloque de disponibilidad");
       if (unicos.some(id => !bloques.some(bloque => bloque.id === id))) throw new BadRequestError("Hay bloques horarios inexistentes");
+      const reservados = new Set(seleccion.bloquesReservadosIds);
+      const capacidad = bloques.filter(bloque => !reservados.has(bloque.id)).length;
+      if (capacidad < seleccion.minimoBloques) throw new BadRequestError(`La capacidad utilizable es de ${capacidad} ${capacidad === 1 ? "bloque" : "bloques"} y no cubre el mínimo de ${seleccion.minimoBloques}. Contacta a secretaría.`);
+      if (unicos.some(id => reservados.has(id))) throw new BadRequestError("La selección incluye bloques reservados para esta carrera. Retíralos del borrador antes de enviar.");
       if (unicos.length < seleccion.minimoBloques) throw new BadRequestError(`Debe seleccionar al menos ${seleccion.minimoBloques} bloques de disponibilidad`);
       return unicos;
     });

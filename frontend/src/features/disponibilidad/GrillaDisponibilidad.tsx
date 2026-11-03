@@ -5,12 +5,13 @@ import estilos from './Disponibilidad.module.css';
 interface Propiedades {
   bloques: Bloque[];
   bloquesIds: number[];
+  bloquesReservadosIds?: number[];
   bloqueada: boolean;
   guardada: boolean;
   alternar: (id: number) => void;
 }
 
-export default function GrillaDisponibilidad({ bloques, bloquesIds, bloqueada, guardada, alternar }: Propiedades) {
+export default function GrillaDisponibilidad({ bloques, bloquesIds, bloquesReservadosIds = [], bloqueada, guardada, alternar }: Propiedades) {
   const ordenados = ordenarBloques(bloques);
   const dias = [...new Map(ordenados.map(b => [claveDia(b.dia), b.dia])).entries()];
   const numeros = [...new Set(ordenados.map(b => b.numeroBloque))].sort((a, b) => a - b);
@@ -23,12 +24,13 @@ export default function GrillaDisponibilidad({ bloques, bloquesIds, bloqueada, g
           const bloque = ordenados.find(b => claveDia(b.dia) === clave && b.numeroBloque === numero);
           if (!bloque) return <td key={clave}>—</td>;
           const marcado = bloquesIds.includes(bloque.id);
+          const reservado = bloquesReservadosIds.includes(bloque.id);
           const horario = `${bloque.horaInicio.slice(0, 5)}–${bloque.horaTermino.slice(0, 5)}`;
-          return <td key={clave}><button type="button" aria-pressed={marcado} disabled={bloqueada}
-            aria-label={`${bloque.dia}, bloque ${numero}, ${horario}`}
-            className={`${estilos.bloque} ${marcado ? guardada ? estilos.guardado : estilos.marcado : ''}`}
-            onClick={() => alternar(bloque.id)}>
-            <span>{horario}</span>
+          return <td key={clave}><button type="button" aria-pressed={marcado} disabled={bloqueada || reservado}
+            aria-label={`${bloque.dia}, bloque ${numero}, ${horario}${reservado ? `, reservado para esta carrera${marcado ? ', disponibilidad anterior' : ''}` : ''}`}
+            className={`${estilos.bloque} ${reservado ? estilos.reservado : marcado ? guardada ? estilos.guardado : estilos.marcado : ''}`}
+            onClick={() => { if (!bloqueada && !reservado) alternar(bloque.id); }}>
+            <span>{reservado ? 'Reservado' : horario}</span>
           </button></td>;
         })}
       </tr>)}</tbody>

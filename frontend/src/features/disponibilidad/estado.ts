@@ -23,7 +23,7 @@ export interface EstadoDisponibilidad {
 type Accion = { tipo: 'consultar'; id: number | null }
   | { tipo: 'cargada' | 'guardada'; id: number; seleccion: Seleccion }
   | { tipo: 'fallo'; id: number; mensaje: string }
-  | { tipo: 'permiso'; id: number; editable: boolean }
+  | { tipo: 'permiso'; id: number; editable: boolean; bloquesReservadosIds?: number[] }
   | { tipo: 'alternar'; id: number }
   | { tipo: 'seleccionar_todos'; bloquesIds: number[] }
   | { tipo: 'deseleccionar_todos' }
@@ -34,12 +34,17 @@ export const estadoInicial: EstadoDisponibilidad = {
 };
 export const puedeEnviar = (estado: EstadoDisponibilidad) => estado.modo === 'edicion'
   && estado.seleccion?.editable === true && estado.seleccion.minimoBloques > 0
-  && estado.bloquesIds.length >= estado.seleccion.minimoBloques;
+  && estado.bloquesIds.length >= estado.seleccion.minimoBloques
+  && !estado.bloquesIds.some(id => estado.seleccion?.bloquesReservadosIds?.includes(id));
 
 export function reducirDisponibilidad(estado: EstadoDisponibilidad, accion: Accion): EstadoDisponibilidad {
   if (accion.tipo === 'permiso') {
-    return accion.id === estado.id && estado.seleccion
-      ? { ...estado, seleccion: { ...estado.seleccion, editable: accion.editable } } : estado;
+    if (accion.id !== estado.id || !estado.seleccion) return estado;
+    const reservados = accion.bloquesReservadosIds ?? estado.seleccion.bloquesReservadosIds ?? [];
+    return { ...estado, seleccion: { ...estado.seleccion, editable: accion.editable,
+      ...(accion.bloquesReservadosIds === undefined ? {} : { bloquesReservadosIds: accion.bloquesReservadosIds }) },
+      bloquesIds: estado.modo === 'edicion' && accion.editable
+        ? estado.bloquesIds.filter(id => !reservados.includes(id)) : estado.bloquesIds };
   }
   if (accion.tipo === 'consultar') {
     return estado.modo === 'enviando' ? estado : { ...estadoInicial, id: accion.id };
@@ -54,16 +59,19 @@ export function reducirDisponibilidad(estado: EstadoDisponibilidad, accion: Acci
     return { ...estado, error: accion.mensaje, modo: estado.modo === 'enviando' ? 'edicion' : 'error' };
   }
   if (estado.modo === 'enviando' || !estado.seleccion?.editable) return estado;
-  if (accion.tipo === 'editar' && estado.modo === 'guardada') return { ...estado, modo: 'edicion', error: '' };
+  if (accion.tipo === 'editar' && estado.modo === 'guardada') return { ...estado, modo: 'edicion', error: '',
+    bloquesIds: estado.bloquesIds.filter(id => !estado.seleccion?.bloquesReservadosIds?.includes(id)) };
   if (accion.tipo === 'cancelar' && estado.modo === 'edicion' && estado.seleccion.bloquesIds.length > 0) {
     return { ...estado, bloquesIds: [...estado.seleccion.bloquesIds], modo: 'guardada', error: '' };
   }
   if (accion.tipo === 'alternar' && estado.modo === 'edicion') {
+    if (estado.seleccion.bloquesReservadosIds?.includes(accion.id)) return estado;
     return { ...estado, error: '', bloquesIds: estado.bloquesIds.includes(accion.id)
       ? estado.bloquesIds.filter(id => id !== accion.id) : [...estado.bloquesIds, accion.id] };
   }
   if (accion.tipo === 'seleccionar_todos' && estado.modo === 'edicion') {
-    return { ...estado, error: '', bloquesIds: [...new Set(accion.bloquesIds)] };
+    const reservados = estado.seleccion.bloquesReservadosIds ?? [];
+    return { ...estado, error: '', bloquesIds: [...new Set(accion.bloquesIds.filter(id => !reservados.includes(id)))] };
   }
   if (accion.tipo === 'deseleccionar_todos' && estado.modo === 'edicion') {
     return { ...estado, error: '', bloquesIds: [] };

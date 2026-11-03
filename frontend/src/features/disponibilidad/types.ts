@@ -27,6 +27,7 @@ export interface Carga {
 export interface Seleccion {
   planificacionSemestreId: number;
   bloquesIds: number[];
+  bloquesReservadosIds: number[];
   minimoBloques: number;
   carga: Carga[];
   editable: boolean;

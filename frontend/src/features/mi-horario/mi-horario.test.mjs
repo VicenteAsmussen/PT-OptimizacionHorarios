@@ -80,7 +80,7 @@ test('calendar renders real read-only cells with all class details and no editin
   const { createServer } = await import('vite');
   const { createElement } = await import('react');
   const { renderToStaticMarkup } = await import('react-dom/server');
-  const servidor = await createServer({ server: { middlewareMode: true }, appType: 'custom' });
+  const servidor = await createServer({ envFile: false, server: { middlewareMode: true }, appType: 'custom' });
   try {
     const { default: Calendario } = await servidor.ssrLoadModule('/src/features/mi-horario/CalendarioSemanal.tsx');
     const html = renderToStaticMarkup(createElement(Calendario, {
@@ -96,6 +96,21 @@ test('calendar renders real read-only cells with all class details and no editin
     assert.match(html, /scope="row"/);
     assert.doesNotMatch(html, /<input|<select|contenteditable/i);
     assert.equal([...html.matchAll(/<button\b[^>]*aria-haspopup="dialog"/g)].length, 2);
+    const reservado = renderToStaticMarkup(createElement(Calendario, {
+      bloques, horarios: [clase], planificacionId: 10, bloquesReservadosIds: [1, 3],
+    }));
+    assert.equal([...reservado.matchAll(/>Reservado</g)].length, 2);
+    assert.match(reservado, /Clase en bloque reservado/);
+    assert.match(reservado, /aria-label="Álgebra, Sección 2, Cátedra"/);
+    assert.equal([...reservado.matchAll(/aria-haspopup="dialog"/g)].length, 1);
+    const celdasReservadas = [...reservado.matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/g)]
+      .map(([, contenido]) => contenido).filter(contenido => contenido.includes('>Reservado<'));
+    assert.equal(celdasReservadas.length, 2);
+    for (const contenido of celdasReservadas) {
+      assert.match(contenido, /^<div class="[^"]*contenidoCelda[^"]*"><span class="[^"]*reserva[^"]*">/,
+        'La reserva debe quedar dentro del contenedor de altura fija, con o sin clase.');
+    }
+    assert.doesNotMatch(html, />Reservado<|Clase en bloque reservado/);
     assert.match(html, /type="button"/);
 
     const abreviado = renderToStaticMarkup(createElement(Calendario, {
@@ -197,7 +212,9 @@ async function crearPaginaControlada(planificaciones) {
     onChange: evento => propiedades.seleccionar(Number(evento.target.value)),
   }, propiedades.planificaciones.map(p => React.createElement('option', { key: p.id, value: p.id }, modelo.etiquetaEstado(p))));
   const pagina = crear({ modelo, EncabezadoMiHorario: encabezado,
-    CalendarioSemanal: ({ horarios }) => React.createElement('table', { 'aria-label': 'Horario semanal' },
+    CalendarioSemanal: ({ horarios, bloquesReservadosIds }) => React.createElement('table', {
+      'aria-label': 'Horario semanal', 'data-reservas': JSON.stringify(bloquesReservadosIds ?? []),
+    },
       React.createElement('tbody', null, React.createElement('tr', null, React.createElement('td', null, horarios.map(h => h.oferta.asignatura.nombre).join(', '))))),
     useState(inicial) {
       const posicion = indice++;
@@ -252,9 +269,9 @@ async function crearPaginaControlada(planificaciones) {
 }
 
 const periodos = [
-  { id: 10, estadoPlanificacion: 'propuesta' },
-  { id: 20, estadoPlanificacion: 'preparacion' },
-  { id: 30, estadoPlanificacion: 'publicado' },
+  { id: 10, carreraId: 3, bloquesReservadosIds: [1], estadoPlanificacion: 'propuesta' },
+  { id: 20, carreraId: 3, bloquesReservadosIds: [1], estadoPlanificacion: 'preparacion' },
+  { id: 30, carreraId: 4, bloquesReservadosIds: [], estadoPlanificacion: 'publicado' },
 ];
 const avisoPreparacion = 'Este período está en Preparación. El horario aún no está habilitado para consulta.';
 
@@ -268,11 +285,65 @@ test('preparation is selectable and shows the exact notice without requesting or
   } finally { pagina.cerrar(); }
 });
 
+test('el marcador reservado tiene la misma altura que la tarjeta de clase y centra su contenido', async () => {
+  const css = await readFile(new URL('./MiHorario.module.css', import.meta.url), 'utf8');
+  const clase = css.match(/\.clase\s*\{([^}]+)\}/)[1];
+  const reserva = css.match(/\.reserva\s*\{([^}]+)\}/)[1];
+  const altura = clase.match(/(?:^|;)\s*height:\s*([^;]+);/)[1];
+  assert.match(reserva, new RegExp(`(?:^|;)\\s*height:\\s*${altura.replace('.', '\\.')}\\s*;`));
+  assert.match(reserva, /align-content:\s*center\s*;/);
+  assert.match(reserva, /text-align:\s*center\s*;/);
+  assert.match(reserva, /width:\s*100%\s*;/);
+  assert.match(reserva, /line-height:\s*1\.2\s*;/);
+});
+
+test('las reservas usan la paleta institucional con borde discontinuo y contraste suficiente en todas las grillas', async () => {
+  const variables = await readFile(new URL('../../styles/variables.css', import.meta.url), 'utf8');
+  for (const [ruta, selector] of [
+    ['./MiHorario.module.css', 'reserva'],
+    ['../disponibilidad/Disponibilidad.module.css', 'reservado'],
+  ]) {
+    const css = await readFile(new URL(ruta, import.meta.url), 'utf8');
+    const reglas = [...css.matchAll(new RegExp(`\\.${selector}\\s*\\{([^}]+)\\}`, 'g'))];
+    assert.equal(reglas.length, 1, 'La reserva conserva la misma paleta del sitio sin sobrescribirla según el tema del sistema.');
+    const regla = reglas[0][1];
+    assert.match(regla, /background:\s*var\(--color-azul-fondo\)/);
+    assert.match(regla, /(?:^|;)\s*color:\s*var\(--color-azul-texto\)/);
+    assert.match(regla, /(?:border-color:|border:\s*1px dashed)\s*var\(--color-azul-borde\)/);
+    assert.match(regla, /(?:border-style:\s*dashed|border:\s*1px dashed)/);
+    assert.doesNotMatch(regla, /#[a-f\d]{3,8}\b/i);
+  }
+  const luminancia = color => {
+    const canales = color.match(/[a-f\d]{2}/gi).map(canal => parseInt(canal, 16) / 255)
+      .map(canal => canal <= 0.04045 ? canal / 12.92 : ((canal + 0.055) / 1.055) ** 2.4);
+    return canales[0] * 0.2126 + canales[1] * 0.7152 + canales[2] * 0.0722;
+  };
+  const contraste = (primero, segundo) => (Math.max(primero, segundo) + 0.05) / (Math.min(primero, segundo) + 0.05);
+  const valor = nombre => luminancia(variables.match(new RegExp(`${nombre}:\\s*(#[a-f\\d]{6})`, 'i'))[1]);
+  const fondo = valor('--color-azul-fondo');
+  assert.ok(contraste(fondo, valor('--color-azul-texto')) >= 4.5);
+  assert.ok(contraste(fondo, valor('--color-azul-borde')) >= 3);
+});
+
+test('un horario vacío informa la ausencia de clases y conserva solo las reservas de su carrera', async () => {
+  const pagina = await crearPaginaControlada(periodos);
+  try {
+    pagina.solicitudes[0].resolver([]); await pagina.asentar();
+    assert.match(pagina.html(), /No tienes clases con horario asignado/);
+    assert.match(pagina.html(), /data-reservas="\[1\]"/);
+    pagina.seleccionar(30);
+    pagina.solicitudes.at(-1).resolver([]); await pagina.asentar();
+    assert.match(pagina.html(), /No tienes clases con horario asignado/);
+    assert.doesNotMatch(pagina.html(), /<table/);
+  } finally { pagina.cerrar(); }
+});
+
 test('switching proposal to preparation clears the calendar and published still loads its own classes', async () => {
   const pagina = await crearPaginaControlada(periodos);
   try {
     pagina.solicitudes[0].resolver([clase]); await pagina.asentar();
     assert.match(pagina.html(), /<table/);
+    assert.match(pagina.html(), /data-reservas="\[1\]"/);
     pagina.seleccionar(20);
     assert.ok(pagina.html().includes(avisoPreparacion));
     assert.doesNotMatch(pagina.html(), /<table|Álgebra/);
@@ -283,6 +354,7 @@ test('switching proposal to preparation clears the calendar and published still 
     assert.deepEqual(pagina.solicitudes.map(s => s.id), [10, 30]);
     pagina.solicitudes[1].resolver([{ ...clase, planificacionSemestreId: 30 }]); await pagina.asentar();
     assert.match(pagina.html(), /<table/);
+    assert.match(pagina.html(), /data-reservas="\[\]"/);
     assert.doesNotMatch(pagina.html(), /Preparación\. El horario/);
   } finally { pagina.cerrar(); }
 });

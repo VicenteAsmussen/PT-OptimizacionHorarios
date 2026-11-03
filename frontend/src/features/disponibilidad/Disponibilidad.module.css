@@ -21,6 +21,7 @@
 .bloque { display: grid; place-items: center; width: 100%; min-height: 1.75rem; padding: 0.1875rem 0.375rem; border: 1px solid var(--color-borde); border-radius: 0.25rem; background: var(--color-superficie); color: var(--color-texto); font: inherit; font-size: 0.875rem; white-space: nowrap; cursor: pointer; }
 .marcado { background: var(--color-azul-hover); border-color: var(--color-azul-borde); color: var(--color-azul-texto); }
 .guardado { background: var(--color-primario); border-color: var(--color-azul-texto); color: var(--color-blanco); }
+.reservado { background: var(--color-azul-fondo); border-color: var(--color-azul-borde); border-style: dashed; color: var(--color-azul-texto); }
 .bloque:disabled { cursor: default; }
 .bloque:focus-visible, .selector select:focus-visible, .desplazamiento:focus-visible, .carga summary:focus-visible { outline: 3px solid var(--color-foco); outline-offset: 3px; }
 .acciones { display: flex; gap: 0.75rem; flex-wrap: wrap; }

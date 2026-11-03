@@ -29,7 +29,8 @@ function ConsultaMiHorario() {
   const [intento, setIntento] = useState(0);
   const [recarga, setRecarga] = useState(0);
   const [estado, dispatch] = useReducer(reducirHorario, estadoInicial);
-  const estadoPlanificacion = contexto?.planificaciones.find(p => p.id === estado.id)?.estadoPlanificacion;
+  const planificacion = contexto?.planificaciones.find(p => p.id === estado.id);
+  const estadoPlanificacion = planificacion?.estadoPlanificacion;
 
   useEffect(() => {
     const controlador = new AbortController();
@@ -71,8 +72,12 @@ function ConsultaMiHorario() {
                 if (estado.id !== null) dispatch({ tipo: 'seleccionar', id: estado.id });
                 setRecarga(i => i + 1);
               }}>Reintentar</button></>
-            : estado.horarios.length === 0 ? <p role="status">No tienes clases con horario asignado en esta planificación.</p>
-            : estado.id !== null && <CalendarioSemanal bloques={contexto.bloques} horarios={estado.horarios} planificacionId={estado.id} />}
+            : <>
+              {estado.horarios.length === 0 && <p role="status">No tienes clases con horario asignado en esta planificación.</p>}
+              {estado.id !== null && (estado.horarios.length > 0 || Boolean(planificacion?.bloquesReservadosIds?.length))
+                ? <CalendarioSemanal bloques={contexto.bloques} horarios={estado.horarios} planificacionId={estado.id}
+                  bloquesReservadosIds={planificacion?.bloquesReservadosIds} /> : null}
+            </>}
         </div>}
   </section>;
 }

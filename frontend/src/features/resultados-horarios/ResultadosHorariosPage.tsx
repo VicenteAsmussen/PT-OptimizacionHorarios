@@ -276,8 +276,9 @@ export function ContenidoResultados({ id, nombreCarrera, ocupado, cambiarOcupado
           {sesionMovimiento && <ControlesMovimiento resultado={resultado} sesion={sesionMovimiento} grupo={grupo} datos={datos}
             validacion={visible} error={errorMovimiento} aprobado={aprobado} ocupado={ocupado}
             cambiarGrupo={cambiarGrupo} cancelar={cancelarMovimiento} confirmar={confirmarMovimiento} />}
-          {sesionesVisibles(resultado, nivel).length === 0 ? <p role="status">No hay clases asignadas para el semestre {nivel}.</p>
-            : <CalendarioResultados resultado={resultado} nivel={nivel} ocupado={ocupado} seleccionar={seleccionarSesion}
+          {sesionesVisibles(resultado, nivel).length === 0 && <p role="status">No hay clases asignadas para el semestre {nivel}.</p>}
+          {sesionesVisibles(resultado, nivel).length > 0 &&
+            <CalendarioResultados resultado={resultado} nivel={nivel} ocupado={ocupado} seleccionar={seleccionarSesion}
               movimiento={sesionMovimiento ? { sesion: sesionMovimiento, idsHorarios: datos.idsHorarios, cantidad: datos.idsHorarios.length, inicioId: destino,
                 invalido: !disponible || visible?.valido === false || Boolean(errorMovimiento), elegir: elegirDestino } : undefined} />}
         </section>
