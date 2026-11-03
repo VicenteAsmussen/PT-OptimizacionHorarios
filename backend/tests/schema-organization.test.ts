@@ -8,6 +8,7 @@ const modules = {
   "asignaturas": "asignaturas",
   "asignatura-tipo-hora": "asignaturaTipoHora",
   "bloques-horarios": "bloquesHorarios",
+  "bloques-reservados": "bloquesReservados",
   "carrera-asignatura": "carreraAsignatura",
   "carrera-departamento": "carreraDepartamento",
   "carreras": "carreras",
@@ -29,10 +30,11 @@ const dir = new URL("../src/db/schema/", import.meta.url);
 const graph = {
   asignaturaTipoHora: { asignatura: "One:asignaturas", tipoHora: "One:tipos_hora" },
   asignaturas: { departamento: "One:departamentos", carreraAsignaturas: "Many:carrera_asignatura", ofertas: "Many:ofertas_asignaturas", tiposHora: "Many:asignatura_tipo_hora" },
-  bloquesHorarios: { disponibilidades: "Many:disponibilidad_profesores", horarios: "Many:horarios_asignaturas" },
+  bloquesHorarios: { disponibilidades: "Many:disponibilidad_profesores", horarios: "Many:horarios_asignaturas", bloquesReservados: "Many:bloques_reservados" },
+  bloquesReservados: { carrera: "One:carreras", bloqueHorario: "One:bloques_horarios" },
   carreraAsignatura: { carrera: "One:carreras", asignatura: "One:asignaturas" },
   carreraDepartamento: { carrera: "One:carreras", departamento: "One:departamentos" },
-  carreras: { carreraDepartamentos: "Many:carrera_departamento", carreraAsignaturas: "Many:carrera_asignatura", secretarias: "Many:secretarias", planificacionesSemestres: "Many:planificaciones_semestres" },
+  carreras: { carreraDepartamentos: "Many:carrera_departamento", carreraAsignaturas: "Many:carrera_asignatura", secretarias: "Many:secretarias", planificacionesSemestres: "Many:planificaciones_semestres", bloquesReservados: "Many:bloques_reservados" },
   departamentos: { asignaturas: "Many:asignaturas", profesores: "Many:profesores", carreraDepartamentos: "Many:carrera_departamento" },
   disponibilidadProfesores: { profesor: "One:profesores", planificacionSemestre: "One:planificaciones_semestres", bloque: "One:bloques_horarios" },
   horariosAsignaturas: { oferta: "One:ofertas_asignaturas", asignacion: "One:oferta_tipo_hora", sala: "One:salas", bloque: "One:bloques_horarios", tipoHora: "One:tipos_hora", planificacionSemestre: "One:planificaciones_semestres" },
@@ -101,7 +103,7 @@ describe("Flat schema organization (offline)", () => {
     const latest = journal.entries.at(-1);
     const previous = JSON.parse(readFileSync(new URL(`../src/db/migrations/meta/${String(latest.idx).padStart(4, "0")}_snapshot.json`, import.meta.url), "utf8"));
     const current = generateDrizzleJson(schema, previous.id);
-    expect(Object.keys(current.tables)).toHaveLength(17);
+    expect(Object.keys(current.tables)).toHaveLength(18);
     expect(await generateMigration(previous, current)).toEqual([]);
   });
 });

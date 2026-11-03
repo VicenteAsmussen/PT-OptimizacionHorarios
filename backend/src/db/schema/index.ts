@@ -9,6 +9,7 @@ export * from "./asignatura-tipo-hora.schema.js";
 export * from "./profesores.schema.js";
 export * from "./planificaciones-semestres.schema.js";
 export * from "./bloques-horarios.schema.js";
+export * from "./bloques-reservados.schema.js";
 export * from "./tipos-hora.schema.js";
 export * from "./salas.schema.js";
 export * from "./ofertas-asignaturas.schema.js";
