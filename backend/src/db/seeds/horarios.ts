@@ -1,7 +1,7 @@
 import { and, asc, eq } from "drizzle-orm";
 import * as esquema from "../schema/index.js";
 import type { BaseDatosSeed } from "./contexto.js";
-import { datosBloques, datosSalas, dias, modulos, datosPlanificacionHorarios } from "./data/horarios.js";
+import { datosBloques, datosBloquesReservados, datosSalas, dias, modulos, datosPlanificacionHorarios } from "./data/horarios.js";
 
 async function asegurarBloques(baseDatos: BaseDatosSeed) {
   for (const bloque of datosBloques) {
@@ -72,6 +72,22 @@ export async function sembrarPlanificacionHorarios(baseDatos: BaseDatosSeed) {
   }
 }
 
+export async function sembrarBloquesReservados(baseDatos: BaseDatosSeed) {
+  const reservas: esquema.NuevoBloqueReservado[] = [];
+  for (const dato of datosBloquesReservados) {
+    const [carrera] = await baseDatos.select().from(esquema.carreras)
+      .where(eq(esquema.carreras.nombre, dato.carrera)).limit(1);
+    if (!carrera) throw new Error(`Carrera del bloque reservado inexistente: ${dato.carrera}`);
+    const [bloque] = await baseDatos.select().from(esquema.bloquesHorarios)
+      .where(and(eq(esquema.bloquesHorarios.dia, dato.dia), eq(esquema.bloquesHorarios.numeroBloque, dato.numeroBloque))).limit(1);
+    if (!bloque) throw new Error(`Bloque reservado inexistente: ${dato.dia} B${dato.numeroBloque}`);
+    reservas.push({ carreraId: carrera.id, bloqueHorarioId: bloque.id });
+  }
+  for (const reserva of reservas) {
+    await baseDatos.insert(esquema.bloquesReservados).values(reserva).onConflictDoNothing();
+  }
+}
+
 export async function sembrarHorarios(baseDatos: BaseDatosSeed) {
   await asegurarBloques(baseDatos);
   console.log(`✓ Asegurados ${datosBloques.length} bloques horarios (${modulos.length} módulos por ${dias.length} días)`);
@@ -79,4 +95,6 @@ export async function sembrarHorarios(baseDatos: BaseDatosSeed) {
   const salasAseguradas = [];
   for (const sala of datosSalas) salasAseguradas.push(await asegurarSala(baseDatos, sala));
   console.log(`✓ Aseguradas ${salasAseguradas.length} salas`);
+
+  await sembrarBloquesReservados(baseDatos);
 }

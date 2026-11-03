@@ -20,6 +20,12 @@ export const modulos = [
   { horaInicio: "19:20", horaTermino: "20:00" },
 ];
 
+// Hoja BloquesReservados del modelo: martes B5 y B6, de 11:10 a 12:30.
+export const datosBloquesReservados = [
+  { carrera: "Ingeniería Civil en Informática", dia: "Martes", numeroBloque: 5 },
+  { carrera: "Ingeniería Civil en Informática", dia: "Martes", numeroBloque: 6 },
+] as const;
+
 export const datosBloques = dias.flatMap((dia) =>
   modulos.map((modulo, indice) => ({
     dia,

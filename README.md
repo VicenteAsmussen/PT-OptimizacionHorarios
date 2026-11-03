@@ -138,6 +138,8 @@ El seed no ejecuta `TRUNCATE` ni borra datos existentes: asegura catálogos acad
 
 El catálogo de salas contiene únicamente las 56 salas institucionales del campus Concepción aprobadas para ICINF, tomadas de `Resumen Salas Institucionales UBB al 16.11.2022.xls` (hoja `Salas_Institucionales`, columnas B y H). Conserva códigos y capacidades de esa fuente histórica; todas tienen tipo `Sala`. Los laboratorios se incorporarán posteriormente. El archivo Excel no se necesita para ejecutar la seed: los datos están transcritos en `backend/src/db/seeds/data/horarios.ts`.
 
+La carga normal también asegura para Ingeniería Civil en Informática los bloques reservados del martes B5 y B6, de 11:10 a 12:30, según la hoja `BloquesReservados` del modelo. Se vinculan a la carrera, sin depender del período, y se resuelven por nombre de carrera, día y número de bloque, sin IDs fijos. Repetir la seed no duplica estas reservas ni elimina otras existentes. Antes de ejecutarla debe estar aplicada la migración `0017_bloques_reservados.sql`. Esta carga no modifica horarios ni conecta todavía las reservas al optimizador.
+
 Las sesiones teóricas y prácticas solo admiten espacios de tipo `Sala`; las sesiones de laboratorio, únicamente `Laboratorio`. Esta compatibilidad se valida al crear o editar horarios y al asignar salas mediante Excel; el Excel de salas sigue excluyendo las sesiones de laboratorio. Se permite dejar una sesión sin sala asignada.
 
 Las seis salas de ejemplo anteriores ya no forman parte de la seed. Repetir la carga conserva los IDs de salas con el mismo nombre y actualiza su capacidad y tipo, pero **no elimina las salas antiguas de una base previamente poblada** ni sus referencias en horarios.

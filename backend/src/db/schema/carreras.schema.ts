@@ -4,6 +4,7 @@ import { carreraDepartamento } from "./carrera-departamento.schema.js";
 import { carreraAsignatura } from "./carrera-asignatura.schema.js";
 import { secretarias } from "./secretarias.schema.js";
 import { planificacionesSemestres } from "./planificaciones-semestres.schema.js";
+import { bloquesReservados } from "./bloques-reservados.schema.js";
 
 export const carreras = pgTable("carreras", {
   id: serial("id").primaryKey(),
@@ -15,6 +16,7 @@ export const carrerasRelations = relations(carreras, ({ many }) => ({
   carreraAsignaturas: many(carreraAsignatura),
   secretarias: many(secretarias),
   planificacionesSemestres: many(planificacionesSemestres),
+  bloquesReservados: many(bloquesReservados),
 }));
 
 export type Carrera = typeof carreras.$inferSelect;

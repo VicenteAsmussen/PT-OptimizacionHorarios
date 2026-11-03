@@ -8,3 +8,10 @@ Responsabilidades:
 1. Definir la estructura de las tablas en TypeScript (docentes, asignaturas, cargas, disponibilidad de horarios, salas, periodos semestrales y asignaciones optimizadas).
 2. Declarar las relaciones entre tablas (uno a muchos, muchos a muchos) para facilitar joins y consultas tipadas.
 3. Gestionar los archivos de migración y la sincronización con PostgreSQL mediante Drizzle Kit.
+
+Bloques reservados:
+La tabla bloques_reservados vincula una carrera con un bloque de bloques_horarios.
+La clave primaria compuesta evita reservas duplicadas para la misma carrera y bloque.
+Las reservas son semanales y pertenecen a la carrera, sin depender de un período.
+Al eliminar la carrera o el bloque, sus reservas se eliminan en cascada.
+Esta estructura no modifica horarios existentes ni integra todavía el optimizador.

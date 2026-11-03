@@ -120,6 +120,13 @@
       "when": 1793251564575,
       "tag": "0016_asignaturas_requiere_sala",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1793716667531,
+      "tag": "0017_bloques_reservados",
+      "breakpoints": true
     }
   ]
 }
