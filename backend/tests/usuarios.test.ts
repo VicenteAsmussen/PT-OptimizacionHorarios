@@ -1,9 +1,12 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import request from "supertest";
-import { app } from "../src/app.js";
-import { db } from "../src/config/db.js";
+import { habilitarPruebasIntegracion } from "./soporte/base-pruebas.js";
 
-describe("Módulo Usuarios y Seguridad (/api/usuarios)", () => {
+const ejecutarIntegracion = habilitarPruebasIntegracion(process.env);
+const app = ejecutarIntegracion ? (await import("../src/app.js")).app : undefined!;
+const db = ejecutarIntegracion ? (await import("../src/config/db.js")).db : undefined!;
+
+describe.skipIf(!ejecutarIntegracion)("Módulo Usuarios y Seguridad (/api/usuarios)", () => {
   let adminCookie: string[];
   const correoSecretariaTest = `sec_${Date.now()}@ubiobio.cl`;
   let carreraId: number;

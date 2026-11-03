@@ -19,7 +19,7 @@ async function cargar(tx: TransaccionPlanificacion, id: number): Promise<Context
   const departamentos = await tx.query.carreraDepartamento.findMany({ where: and(eq(carreraDepartamento.carreraId, planificacion.carreraId), eq(carreraDepartamento.esGestionado, true)) });
   return { planificacion, entradas, ofertas, asignaturasMalla: malla.map(vinculo => vinculo.asignatura),
     departamentosGestionadosIds: departamentos.map(departamento => departamento.departamentoId),
-    bloques: await tx.select().from(bloquesHorarios), salas: await tx.select({ id: salas.id, nombre: salas.nombre }).from(salas),
+    bloques: await tx.select().from(bloquesHorarios), salas: await tx.select({ id: salas.id, nombre: salas.nombre, tipo: salas.tipo }).from(salas),
     disponibilidades: await tx.query.disponibilidadProfesores.findMany({ where: eq(disponibilidadProfesores.planificacionSemestreId, id) }) };
 }
 export interface PersistenciaResultado {

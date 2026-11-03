@@ -6,7 +6,7 @@ dotenv.config();
 const envSchema = z.object({
   PORT: z.string().default("3000").transform((val) => parseInt(val, 10)),
   NODE_ENV: z.enum(["development", "production", "test"]).default("development"),
-  DATABASE_URL: z.string().min(1, "DATABASE_URL is required"),
+  DATABASE_URL: z.string().min(1, "DATABASE_URL es obligatoria"),
   CLIENT_URL: z.string().default("http://localhost:5173"),
   JWT_SECRET: z.string().default("supersecret_jwt_key_change_in_production"),
   JWT_EXPIRES_IN: z.string().default("7d"),
@@ -15,8 +15,8 @@ const envSchema = z.object({
 const _env = envSchema.safeParse(process.env);
 
 if (!_env.success) {
-  console.error("Invalid environment variables:", _env.error.format());
-  throw new Error("Invalid environment variables");
+  console.error("Configuración de entorno inválida:", _env.error.format());
+  throw new Error("Configuración de entorno inválida");
 }
 
 export const env = _env.data;

@@ -64,7 +64,7 @@ beforeEach(() => {
   const actual = oferta();
   datos.contexto = { planificacion: { id: 9, carreraId: 3, codigo: "2026-1", actual: true, estadoPlanificacion: "propuesta" },
     entradas: entradas(actual), ofertas: [actual], asignaturasMalla: [actual.asignatura], departamentosGestionadosIds: [5], bloques,
-    salas: [{ id: 4, nombre: "101-AA" }, { id: 5, nombre: "102-AA" }],
+    salas: [{ id: 4, nombre: "101-AA", tipo: "Sala" }, { id: 5, nombre: "102-AA", tipo: "Sala" }],
     disponibilidades: bloques.map(bloque => ({ profesorId: 7, bloqueId: bloque.id, planificacionSemestreId: 9 })) };
   datos.fallo = false;
   datos.escrituras = 0;
@@ -411,6 +411,15 @@ describe("Proposal results public HTTP contract", () => {
     expect(respuesta.body.data).toEqual({ actualizadas: 1, pendientes: 0, omitidas: 0, errores: [] });
     expect(datos.cambiosSalas).toEqual([{ id: 101, salaId: 4 }]);
     expect(datos.contexto.entradas.map((entrada: any) => entrada.salaId)).toEqual([4, 4]);
+  });
+  it("rechaza una sala de laboratorio para una sesión teórica pendiente sin escribir cambios", async () => {
+    datos.contexto.entradas.forEach((entrada: any) => { entrada.salaId = null; });
+    datos.contexto.salas[1].tipo = "Laboratorio";
+    const antes = structuredClone(datos.contexto);
+    const respuesta = await importarSalas("102AA");
+    expect(respuesta.status).toBe(400);
+    expect(respuesta.body.errores).toEqual([expect.objectContaining({ columna: "Sala 1", mensaje: expect.stringContaining("tipo de sala no es compatible") })]);
+    expect(datos.escrituras).toBe(0); expect(datos.contexto).toEqual(antes);
   });
   it("SIN SALA no elimina los bloques ya asignados de una sesión parcial", async () => {
     datos.contexto.entradas[1].salaId = null; const antes = structuredClone(datos.contexto);

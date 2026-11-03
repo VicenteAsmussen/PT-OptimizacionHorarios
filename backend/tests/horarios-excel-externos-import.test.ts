@@ -1,4 +1,5 @@
 import { beforeEach, expect, it, vi } from "vitest";
+vi.mock("../src/config/db.js", () => ({ db: {} }));
 import ExcelJS from "exceljs";
 import { horariosService } from "../src/services/horarios.service.js";
 import { horariosRepository } from "../src/repositories/horarios.repository.js";

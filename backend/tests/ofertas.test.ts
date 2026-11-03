@@ -1,11 +1,14 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import request from "supertest";
-import { app } from "../src/app.js";
-import { db } from "../src/config/db.js";
+import { habilitarPruebasIntegracion } from "./soporte/base-pruebas.js";
 import { eq } from "drizzle-orm";
 import { planificacionesSemestres } from "../src/db/schema/planificaciones-semestres.schema.js";
 
-describe("Módulo Ofertas de Asignaturas (/api/ofertas-asignaturas)", () => {
+const ejecutarIntegracion = habilitarPruebasIntegracion(process.env);
+const app = ejecutarIntegracion ? (await import("../src/app.js")).app : undefined!;
+const db = ejecutarIntegracion ? (await import("../src/config/db.js")).db : undefined!;
+
+describe.skipIf(!ejecutarIntegracion)("Módulo Ofertas de Asignaturas (/api/ofertas-asignaturas)", () => {
   let secretariaCookie: string[];
   let adminCookie: string[];
   const asignaturaCodigo = `OF${Date.now()}`.slice(0, 15);

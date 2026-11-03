@@ -16,6 +16,7 @@ import { normalizarTipoHoraExcel as normalizarTipoHora } from "../utils/excel-co
 import { importarHorariosExternos } from "../utils/excel-horarios-externos.js";
 import { calcularCoberturaExterna } from "../utils/cobertura-externos.js";
 import type { PlanificacionSemestre } from "../db/schema/planificaciones-semestres.schema.js";
+import { esSalaCompatible, mensajeSalaIncompatible } from "../utils/compatibilidad-salas.js";
 
 type UsuarioExcelSalas = { id: number; rol: string };
 
@@ -164,6 +165,9 @@ export const horariosService = {
         }
         if (salaTexto && !sinSala && salasCoincidentes.length !== 1) continue;
         if (propuesta && !salaTexto) continue;
+        if (salaTexto && !sinSala && !esSalaCompatible(sesion.entradas[0]!.tipoHora.tipo, salasCoincidentes[0]!.tipo)) {
+          error(numeroFila, `Sala ${numero}`, mensajeSalaIncompatible); continue;
+        }
         const salaId = salaTexto && !sinSala ? salasCoincidentes[0]!.id : null;
         if (propuesta && salaId !== null && sesion.entradas.some(entrada => entrada.salaId !== null && entrada.salaId !== salaId)) {
           error(numeroFila, `Sala ${numero}`, "La sesión tiene bloques ya asignados a otra sala. Indique la misma sala para completar los bloques pendientes."); continue;

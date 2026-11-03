@@ -18,6 +18,7 @@ import { secretarias } from "../db/schema/secretarias.schema.js";
 import { carreraAsignatura } from "../db/schema/carrera-asignatura.schema.js";
 import { carreraDepartamento } from "../db/schema/carrera-departamento.schema.js";
 import { esObligatoriaExterna } from "../utils/cobertura-externos.js";
+import { esSalaCompatible, mensajeSalaIncompatible } from "../utils/compatibilidad-salas.js";
 
 async function leerOferta(tx: TransaccionPlanificacion, id: number) {
   const oferta = await tx.query.ofertasAsignaturas.findFirst({ where: eq(ofertasAsignaturas.id, id) });
@@ -33,9 +34,19 @@ function exigirMismaPlanificacion(planificacionSemestreId: number, ofertaPlanifi
   if (planificacionSemestreId !== ofertaPlanificacionId) throw new BadRequestError("La planificación indicada no coincide con la planificación de la oferta");
 }
 
+async function exigirSalaCompatible(tx: TransaccionPlanificacion, tipoHoraId: number, salaId?: number | null) {
+  if (salaId == null) return;
+  const sala = await tx.query.salas.findFirst({ where: eq(salas.id, salaId) });
+  const tipoHora = await tx.query.tiposHora.findFirst({ where: eq(tiposHora.id, tipoHoraId) });
+  if (!sala) throw new BadRequestError("La sala no existe");
+  if (!tipoHora) throw new BadRequestError("El tipo de hora no existe");
+  if (!esSalaCompatible(tipoHora.tipo, sala.tipo)) throw new BadRequestError(mensajeSalaIncompatible);
+}
+
 async function exigirHorarioValido(tx: TransaccionPlanificacion, datos: NuevoHorarioAsignatura, id?: number) {
   const asignacion = await tx.query.ofertaTipoHora.findFirst({ where: and(eq(ofertaTipoHora.ofertaId, datos.ofertaId), eq(ofertaTipoHora.tipoHoraId, datos.tipoHoraId)) });
   if (!asignacion) throw new BadRequestError("El tipo de hora no tiene profesor asignado en esta oferta");
+  await exigirSalaCompatible(tx, datos.tipoHoraId, datos.salaId);
   const entradas = await tx.select({ id: horariosAsignaturas.id, ofertaId: horariosAsignaturas.ofertaId,
     salaId: horariosAsignaturas.salaId, profesorId: ofertaTipoHora.profesorId }).from(horariosAsignaturas)
     .innerJoin(ofertaTipoHora, and(eq(ofertaTipoHora.ofertaId, horariosAsignaturas.ofertaId), eq(ofertaTipoHora.tipoHoraId, horariosAsignaturas.tipoHoraId)))
@@ -162,7 +173,7 @@ export const horariosRepository = {
   },
   async findParaImportarSalas(planificacionSemestreId: number, carreraId?: number) {
     const entradas = await db.query.horariosAsignaturas.findMany({ where: and(eq(horariosAsignaturas.planificacionSemestreId, planificacionSemestreId), condicionAlcanceExcel(carreraId)), with: relacionesExcel });
-    const salasExistentes = await db.select({ id: salas.id, nombre: salas.nombre }).from(salas);
+    const salasExistentes = await db.select({ id: salas.id, nombre: salas.nombre, tipo: salas.tipo }).from(salas);
     // Conflictos de sala únicamente dentro de esta planificación.
     return { entradas, entradasParaConflictos: entradas, salas: salasExistentes };
   },
@@ -173,6 +184,8 @@ export const horariosRepository = {
       return vinculos;
     }, async tx => {
       for (const cambio of cambios) {
+        const horario = await leerHorario(tx, cambio.id);
+        await exigirSalaCompatible(tx, horario.tipoHoraId, cambio.salaId);
         const actualizadas = await tx.update(horariosAsignaturas).set({ salaId: cambio.salaId })
           .where(and(eq(horariosAsignaturas.id, cambio.id), eq(horariosAsignaturas.planificacionSemestreId, planificacionSemestreId), condicionAlcanceExcel(carreraId))).returning({ id: horariosAsignaturas.id });
         if (actualizadas.length !== 1) throw new Error("El horario cambió durante la importación; vuelva a exportar e importar.");

@@ -15,7 +15,7 @@ export interface ContextoResultado {
   ofertas: (Omit<EntradaResultado["oferta"], "asignatura"> & { asignatura: AsignaturaResultado })[];
   asignaturasMalla: AsignaturaResultado[];
   bloques: BloqueHorario[];
-  salas: { id: number; nombre: string }[];
+  salas: { id: number; nombre: string; tipo: string }[];
   disponibilidades: { profesorId: number; bloqueId: number; planificacionSemestreId: number }[];
   departamentosGestionadosIds: number[];
 }
@@ -67,7 +67,10 @@ export function presentarResultado(contexto: ContextoResultado, semestreMalla?: 
       ofertaId: entrada.ofertaId, asignatura: entrada.oferta.asignatura, seccion: entrada.oferta.seccion,
       profesor: entrada.asignacion.profesor, profesorId: entrada.asignacion.profesorId, tipoHora: entrada.tipoHora,
       dia: sesion.dia, horaInicio: sesion.horaInicio, horaTermino: sesion.horaTermino,
-      salas: sesion.entradas.map(fila => fila.salaId === null ? null : contexto.salas.find(sala => sala.id === fila.salaId) ?? null),
+      salas: sesion.entradas.map(fila => {
+        const sala = fila.salaId === null ? undefined : contexto.salas.find(sala => sala.id === fila.salaId);
+        return sala ? { id: sala.id, nombre: sala.nombre } : null;
+      }),
       estadoSala, editable: contexto.planificacion.actual && contexto.planificacion.estadoPlanificacion === "propuesta" && esGestionada(contexto, entrada) };
   });
   return { planificacion: contexto.planificacion, revision: revisionResultado(contexto), bloques: contexto.bloques,

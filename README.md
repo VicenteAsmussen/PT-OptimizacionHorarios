@@ -55,7 +55,7 @@ flowchart TD
 | **ORM / DAL** | **Drizzle ORM + Drizzle Kit** | Tipado TypeScript nativo de extremo a extremo y control de migraciones. |
 | **Validación** | **Zod** | Validación de esquemas y DTOs en tiempo de ejecución con mensajes en español. |
 | **Frontend** | **React + TypeScript** *(en desarrollo)* | Interfaz para secretaría y docentes sobre la API existente. |
-| **Package Manager** | **pnpm** | Gestión estricta y eficiente de dependencias. |
+| **Gestor de paquetes** | **pnpm** | Gestión estricta y eficiente de dependencias. |
 
 ---
 
@@ -134,7 +134,13 @@ cd backend
 pnpm run db:seed
 ```
 
-El seed no ejecuta `TRUNCATE` ni borra datos existentes: asegura catálogos académicos, bloques horarios, salas, departamentos, profesores y usuarios iniciales. Su fuente es `OptimizacionHorarios_v3.xlsx` y los datos académicos viven en `backend/src/db/seeds/data/`.
+El seed no ejecuta `TRUNCATE` ni borra datos existentes: asegura catálogos académicos, bloques horarios, salas, departamentos, profesores y usuarios iniciales. La fuente académica es `OptimizacionHorarios_v3.xlsx` y sus datos viven en `backend/src/db/seeds/data/`.
+
+El catálogo de salas contiene únicamente las 56 salas institucionales del campus Concepción aprobadas para ICINF, tomadas de `Resumen Salas Institucionales UBB al 16.11.2022.xls` (hoja `Salas_Institucionales`, columnas B y H). Conserva códigos y capacidades de esa fuente histórica; todas tienen tipo `Sala`. Los laboratorios se incorporarán posteriormente. El archivo Excel no se necesita para ejecutar la seed: los datos están transcritos en `backend/src/db/seeds/data/horarios.ts`.
+
+Las sesiones teóricas y prácticas solo admiten espacios de tipo `Sala`; las sesiones de laboratorio, únicamente `Laboratorio`. Esta compatibilidad se valida al crear o editar horarios y al asignar salas mediante Excel; el Excel de salas sigue excluyendo las sesiones de laboratorio. Se permite dejar una sesión sin sala asignada.
+
+Las seis salas de ejemplo anteriores ya no forman parte de la seed. Repetir la carga conserva los IDs de salas con el mismo nombre y actualiza su capacidad y tipo, pero **no elimina las salas antiguas de una base previamente poblada** ni sus referencias en horarios.
 
 Incluye 49 asignaturas de los semestres de malla 1 al 10, con tipos de hora y cantidades del Excel en bloques académicos de 40 minutos. No incluye Electivos I–VI ni Formación Integral Oferta Institucional; sí conserva las prácticas y el proyecto de título con cero horas. Gestión Estratégica (612239) pertenece al semestre 7 y a Administración y Auditoría, al igual que Gestión Presupuestaria y Financiera (610229).
 
@@ -222,7 +228,15 @@ Desde la raíz del repositorio, mediante Docker:
 docker compose run --rm --no-deps backend sh -c "pnpm run build && pnpm exec tsc --noEmit && pnpm exec vitest run tests/schema-organization.test.ts tests/departamento-asignaturas.test.ts tests/alcance-secretaria.test.ts"
 ```
 
-Las suites de integración que ejercitan PostgreSQL requieren `RUN_ISOLATED_DATABASE_TESTS=true` y una base aislada, migrada y sembrada; sin esa habilitación se omiten por seguridad. No ejecutar la suite completa contra una base compartida o con datos importantes.
+Las suites antiguas que escriben mediante la aplicación requieren `RUN_ISOLATED_DATABASE_TESTS=true`, `BASE_PRUEBAS_REINICIABLE=yes`, `NODE_ENV=test` y el destino exacto de `horarios_test` con su usuario restringido, definido en `backend/src/config/seguridad-pruebas.ts`. Sin habilitación se omiten, con una configuración incorrecta se detienen antes de importar la aplicación. La base de pruebas debe estar preparada con sus migraciones y datos necesarios, el ejecutor no toma la base real como alternativa.
+
+La conexión de la aplicación también valida ese destino antes de crear el cliente cuando detecta un entorno de pruebas. Vitest activa un marcador explícito, por lo que cambiar solo `NODE_ENV` no desactiva la protección. Las pruebas que simulan la conexión no necesitan una base ni esa habilitación. Se pueden comprobar las barreras sin PostgreSQL con:
+
+```powershell
+pnpm --dir backend exec vitest run tests/base-pruebas.test.ts tests/seguridad-conexion-pruebas.test.ts tests/configuracion-entorno.test.ts --no-cache --fsModuleCache=false
+```
+
+Las integraciones que reinician fixtures conservan sus comprobaciones y su bloqueo para evitar ejecuciones simultáneas. Las dos sondas opcionales de seed tienen autorizaciones y destinos desechables propios, no se habilitan con el permiso general. No ejecutar semillas, migraciones ni pruebas de escritura contra una base compartida o con datos importantes.
 
 Para verificar la importación Excel usando una base `horarios_test` separada en el PostgreSQL habitual:
 
