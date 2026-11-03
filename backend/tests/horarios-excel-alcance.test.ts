@@ -18,6 +18,7 @@ vi.mock("../src/config/db.js", async () => {
   return { db: {
     select: generador.select.bind(generador),
     query: {
+      bloquesReservados: { findMany: async () => [] },
       horariosAsignaturas: { findMany: simulacion.findMany },
       planificacionesSemestres: { findFirst: simulacion.planificacion },
       departamentos: { findFirst: simulacion.departamento },
@@ -43,6 +44,7 @@ beforeEach(() => {
   simulacion.transaccion.mockImplementation(async (operacion) => operacion({
     update: () => ({ set: () => ({ where: simulacion.actualizar }) }),
     query: {
+      bloquesReservados: { findMany: async () => [] },
       planificacionesSemestres: { findFirst: simulacion.planificacion },
       horariosAsignaturas: { findFirst: async () => ({ id: 12, planificacionSemestreId: 9, tipoHoraId: 1 }) },
       salas: { findFirst: async () => ({ id: 5, tipo: "Sala" }) },

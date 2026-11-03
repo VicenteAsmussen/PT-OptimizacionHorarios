@@ -68,7 +68,7 @@ function baseSimulada() {
     };
     return cadena;
   } });
-  const nombres = { salas: "salas", tiposHora: "tipos_hora", ofertaTipoHora: "oferta_tipo_hora", asignaturaTipoHora: "asignatura_tipo_hora", planificacionesSemestres: "planificaciones_semestres", ofertasAsignaturas: "ofertas_asignaturas", horariosAsignaturas: "horarios_asignaturas", disponibilidadProfesores: "disponibilidad_profesores", carreraDepartamento: "carrera_departamento", carreraAsignatura: "carrera_asignatura", asignaturas: "asignaturas", profesores: "profesores" };
+  const nombres = { bloquesReservados: "bloques_reservados", salas: "salas", tiposHora: "tipos_hora", ofertaTipoHora: "oferta_tipo_hora", asignaturaTipoHora: "asignatura_tipo_hora", planificacionesSemestres: "planificaciones_semestres", ofertasAsignaturas: "ofertas_asignaturas", horariosAsignaturas: "horarios_asignaturas", disponibilidadProfesores: "disponibilidad_profesores", carreraDepartamento: "carrera_departamento", carreraAsignatura: "carrera_asignatura", asignaturas: "asignaturas", profesores: "profesores" };
   base.query = Object.fromEntries(Object.entries(nombres).map(([clave, nombre]) => [clave, {
     findFirst: async ({ where }: { where: SQL }) => {
       eventos.push(`lectura:${nombre}`);
@@ -119,6 +119,7 @@ beforeEach(() => {
   alEscribir = undefined;
   consultas = [];
   tablas = {
+    bloques_reservados: [],
     salas: [{ id: 2, nombre: "A101AA", tipo: "Sala" }, { id: 3, nombre: "Laboratorio futuro", tipo: "Laboratorio" }],
     tipos_hora: [{ id: 1, tipo: "Teórica" }, { id: 2, tipo: "Práctica" }, { id: 3, tipo: "Laboratorio" }],
     carreras: [{ id: 1 }, { id: 2 }],
@@ -149,6 +150,68 @@ it.each([
 });
 const oferta = { asignaturaCodigo: "INF100", asignaciones: [], profesorId: 7, seccion: 1, cupos: 30, planificacionSemestreId: 1 };
 const horario = { ofertaId: 10, bloqueId: 1, tipoHoraId: 1, salaId: null, planificacionSemestreId: 1 };
+describe("reservas por carrera en escrituras de horarios", () => {
+  const externos = (bloqueId: number) => [{ asignaturaCodigo: "MAT100", profesorId: 7, seccion: 1, cupos: 30, sesiones: [{ bloqueId, tipoHoraId: 1 }] }];
+  const operaciones = [
+    ["crear", () => horariosRepository.create(horario)],
+    ["modificar", () => horariosRepository.update(20, { bloqueId: 1 })],
+    ["crear externos", () => horariosRepository.crearExternosEnTransaccion(1, externos(1))],
+    ["sincronizar externos", () => horariosRepository.sincronizarExternosEnTransaccion(1, 4, externos(1), 2)],
+  ] as const;
+  it.each(operaciones)("%s rechaza la reserva y conserva todos los datos", async (_, operar) => {
+    tablas.bloques_reservados = [{ carreraId: 2, bloqueHorarioId: 1 }];
+    const anteriores = structuredClone(tablas);
+    await expect(operar()).rejects.toMatchObject({ statusCode: 409, message: expect.stringMatching(/reservado.*carrera/i) });
+    expect(tablas).toEqual(anteriores);
+    expect(eventos.some(evento => evento.startsWith("escritura:"))).toBe(false);
+  });
+  it.each(operaciones)("%s permite el mismo bloque reservado solo por otra carrera", async (_, operar) => {
+    tablas.bloques_reservados = [{ carreraId: 1, bloqueHorarioId: 1 }];
+    await operar();
+    expect(tablas.horarios_asignaturas.at(-1)).toMatchObject({ bloqueId: 1, planificacionSemestreId: 1 });
+  });
+  it.each(["2099-2", "2100-2"])("aplica la reserva en cualquier período: %s", async codigo => {
+    tablas.planificaciones_semestres[0].codigo = codigo;
+    tablas.bloques_reservados = [{ carreraId: 2, bloqueHorarioId: 1 }];
+    await expect(horariosRepository.create(horario)).rejects.toMatchObject({ statusCode: 409 });
+  });
+  it("rechaza todo el lote externo si una fila posterior usa una reserva", async () => {
+    tablas.bloques_reservados = [{ carreraId: 2, bloqueHorarioId: 3 }];
+    const anteriores = structuredClone(tablas);
+    await expect(horariosRepository.sincronizarExternosEnTransaccion(1, 4,
+      [...externos(1), { ...externos(3)[0], seccion: 2 }], 2)).rejects.toMatchObject({ statusCode: 409 });
+    expect(tablas).toEqual(anteriores);
+    expect(eventos.some(evento => evento.startsWith("escritura:"))).toBe(false);
+  });
+  it("valida la carrera de destino al trasladar un horario", async () => {
+    tablas.ofertas_asignaturas.push({ id: 11, planificacionSemestreId: 2 });
+    tablas.oferta_tipo_hora.push({ ofertaId: 11, tipoHoraId: 1, profesorId: 7 });
+    tablas.bloques_reservados = [{ carreraId: 1, bloqueHorarioId: 2 }];
+    const anteriores = structuredClone(tablas);
+    await expect(horariosRepository.update(20, { ofertaId: 11, planificacionSemestreId: 2 })).rejects.toMatchObject({ statusCode: 409 });
+    expect(tablas).toEqual(anteriores);
+  });
+  it("rechaza el traslado de una oferta con horarios a una carrera que los reserva", async () => {
+    tablas.bloques_reservados = [{ carreraId: 1, bloqueHorarioId: 2 }];
+    const anteriores = structuredClone(tablas);
+    await expect(ofertasRepository.update(10, { planificacionSemestreId: 2 })).rejects.toMatchObject({ statusCode: 409 });
+    expect(tablas).toEqual(anteriores);
+  });
+  it("no elimina horarios heredados y permite trasladarlos fuera de la reserva", async () => {
+    tablas.bloques_reservados = [{ carreraId: 2, bloqueHorarioId: 2 }];
+    expect(tablas.horarios_asignaturas).toHaveLength(1);
+    await horariosRepository.update(20, { bloqueId: 1 });
+    expect(tablas.horarios_asignaturas).toEqual([expect.objectContaining({ id: 20, bloqueId: 1 })]);
+  });
+  it.each(["CRUD", "Excel de salas"])("%s no modifica una sesión heredada reservada", async via => {
+    tablas.bloques_reservados = [{ carreraId: 2, bloqueHorarioId: 2 }];
+    const anteriores = structuredClone(tablas);
+    const operar = () => via === "CRUD" ? horariosRepository.update(20, { salaId: 2 })
+      : horariosRepository.actualizarSalasEnTransaccion(1, [{ id: 20, salaId: 2 }]);
+    await expect(operar()).rejects.toMatchObject({ statusCode: 409 });
+    expect(tablas).toEqual(anteriores);
+  });
+});
 describe.each(["create", "update", "Excel"])("room compatibility through %s", operacion => {
   it.each([
     [1, 2, true], [1, 3, false], [2, 2, true], [2, 3, false], [3, 2, false], [3, 3, true],

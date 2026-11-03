@@ -19,6 +19,7 @@ import { carreraAsignatura } from "../db/schema/carrera-asignatura.schema.js";
 import { carreraDepartamento } from "../db/schema/carrera-departamento.schema.js";
 import { esObligatoriaExterna } from "../utils/cobertura-externos.js";
 import { esSalaCompatible, mensajeSalaIncompatible } from "../utils/compatibilidad-salas.js";
+import { exigirBloquesNoReservados, leerBloquesReservados } from "./bloques-reservados.js";
 
 async function leerOferta(tx: TransaccionPlanificacion, id: number) {
   const oferta = await tx.query.ofertasAsignaturas.findFirst({ where: eq(ofertasAsignaturas.id, id) });
@@ -44,6 +45,7 @@ async function exigirSalaCompatible(tx: TransaccionPlanificacion, tipoHoraId: nu
 }
 
 async function exigirHorarioValido(tx: TransaccionPlanificacion, datos: NuevoHorarioAsignatura, id?: number) {
+  await exigirBloquesNoReservados(tx, datos.planificacionSemestreId, [datos.bloqueId]);
   const asignacion = await tx.query.ofertaTipoHora.findFirst({ where: and(eq(ofertaTipoHora.ofertaId, datos.ofertaId), eq(ofertaTipoHora.tipoHoraId, datos.tipoHoraId)) });
   if (!asignacion) throw new BadRequestError("El tipo de hora no tiene profesor asignado en esta oferta");
   await exigirSalaCompatible(tx, datos.tipoHoraId, datos.salaId);
@@ -80,6 +82,7 @@ export const horariosRepository = {
     });
     return {
       codigoPeriodo: planificacion?.codigo,
+      bloquesReservadosIds: carreraContexto === undefined ? [] : await leerBloquesReservados(db, carreraContexto),
       departamentoValido: !!departamento && !!relacion && (carreraId === undefined || carreraId === carreraContexto),
       asignaturas: carreraContexto === undefined ? [] : await db.select().from(asignaturas).where(and(
         eq(asignaturas.departamentoId, departamentoId),
@@ -95,6 +98,7 @@ export const horariosRepository = {
   },
   async crearExternosEnTransaccion(planificacionSemestreId: number, filas: { asignaturaCodigo: string; profesorId: number; seccion: number; cupos: number; sesiones: { bloqueId: number; tipoHoraId: number }[] }[]) {
     await conPlanificacionesEditables(async () => [planificacionSemestreId], async tx => {
+      await exigirBloquesNoReservados(tx, planificacionSemestreId, filas.flatMap(fila => fila.sesiones.map(sesion => sesion.bloqueId)));
       for (const fila of filas) {
         const existente = await tx.query.ofertasAsignaturas.findFirst({ where: and(eq(ofertasAsignaturas.planificacionSemestreId, planificacionSemestreId), eq(ofertasAsignaturas.asignaturaCodigo, fila.asignaturaCodigo), eq(ofertasAsignaturas.seccion, fila.seccion)) });
         if (existente) throw new ConflictError("La oferta ya existe; no se importó ninguna fila.");
@@ -109,6 +113,7 @@ export const horariosRepository = {
     return conPlanificacionesEditables(async () => [planificacionSemestreId], async tx => {
       const planificacion = await tx.query.planificacionesSemestres.findFirst({ where: eq(planificacionesSemestres.id, planificacionSemestreId) });
       if (!planificacion || (carreraId !== undefined && planificacion.carreraId !== carreraId)) throw new ConflictError("La planificación cambió de carrera; no se modificó la carga anterior.");
+      await exigirBloquesNoReservados(tx, planificacionSemestreId, filas.flatMap(fila => fila.sesiones.map(sesion => sesion.bloqueId)));
       const relacion = await tx.query.carreraDepartamento.findFirst({ where: and(eq(carreraDepartamento.carreraId, planificacion.carreraId), eq(carreraDepartamento.departamentoId, departamentoId), eq(carreraDepartamento.esGestionado, false)) });
       if (!relacion) throw new ConflictError("El departamento ya no es externo para esta carrera; no se modificó la carga anterior.");
       const malla = await tx.query.carreraAsignatura.findMany({ where: eq(carreraAsignatura.carreraId, planificacion.carreraId) });
@@ -185,6 +190,7 @@ export const horariosRepository = {
     }, async tx => {
       for (const cambio of cambios) {
         const horario = await leerHorario(tx, cambio.id);
+        await exigirBloquesNoReservados(tx, horario.planificacionSemestreId, [horario.bloqueId]);
         await exigirSalaCompatible(tx, horario.tipoHoraId, cambio.salaId);
         const actualizadas = await tx.update(horariosAsignaturas).set({ salaId: cambio.salaId })
           .where(and(eq(horariosAsignaturas.id, cambio.id), eq(horariosAsignaturas.planificacionSemestreId, planificacionSemestreId), condicionAlcanceExcel(carreraId))).returning({ id: horariosAsignaturas.id });

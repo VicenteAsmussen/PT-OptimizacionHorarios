@@ -63,7 +63,7 @@ function entradas(ofertaActual: any, numeros = [1, 2], profesorId = 7, salaId: n
 beforeEach(() => {
   const actual = oferta();
   datos.contexto = { planificacion: { id: 9, carreraId: 3, codigo: "2026-1", actual: true, estadoPlanificacion: "propuesta" },
-    entradas: entradas(actual), ofertas: [actual], asignaturasMalla: [actual.asignatura], departamentosGestionadosIds: [5], bloques,
+    entradas: entradas(actual), ofertas: [actual], asignaturasMalla: [actual.asignatura], departamentosGestionadosIds: [5], bloques, bloquesReservadosIds: [],
     salas: [{ id: 4, nombre: "101-AA", tipo: "Sala" }, { id: 5, nombre: "102-AA", tipo: "Sala" }],
     disponibilidades: bloques.map(bloque => ({ profesorId: 7, bloqueId: bloque.id, planificacionSemestreId: 9 })) };
   datos.fallo = false;
@@ -107,6 +107,32 @@ describe("Proposal results public HTTP contract", () => {
     datos.contexto.bloques = [...bloques, ...martes];
     datos.contexto.disponibilidades.push(...martes.map(bloque => ({ profesorId: 7, bloqueId: bloque.id, planificacionSemestreId: 9 })));
   }
+  it.each([1005, 1006])("rechaza movimientos que incluyen el bloque reservado %s, incluso parcialmente", async reservado => {
+    agregarMartes(); datos.contexto.bloquesReservadosIds = [reservado];
+    const anteriores = structuredClone(datos.contexto);
+    const previa = await movimiento([100, 101], 1005, "validar-movimiento");
+    expect(previa.status).toBe(200);
+    expect(previa.body.data).toMatchObject({ valido: false, problemas: [expect.objectContaining({ codigo: "bloqueReservado" })] });
+    expect((await movimiento([100, 101], 1005)).status).toBe(409);
+    expect(datos.contexto).toEqual(anteriores); expect(datos.escrituras).toBe(0);
+  });
+  it.each([5, 6])("impide publicar reservas heredadas del departamento %s sin borrar horarios", async departamentoId => {
+    const actual = oferta(1, 1, departamentoId);
+    datos.contexto.entradas = entradas(actual);
+    datos.contexto.ofertas = [actual]; datos.contexto.asignaturasMalla = [actual.asignatura];
+    datos.contexto.bloquesReservadosIds = [2];
+    const anteriores = structuredClone(datos.contexto);
+    const validacion = await request(aplicacion).get(`${ruta}/validacion-publicacion`).set("Authorization", "secretaria");
+    expect(validacion.body.data).toMatchObject({ valido: false, problemas: [expect.objectContaining({ codigo: "bloqueReservado", idsHorarios: [101], bloqueId: 2 })] });
+    const lectura = await consultar();
+    const publicacion = await request(aplicacion).post(`${ruta}/publicar`).set("Authorization", "secretaria").send({ revision: lectura.body.data.revision });
+    expect(publicacion.status).toBe(409); expect(datos.contexto).toEqual(anteriores);
+  });
+  it("permite corregir una sesión heredada fuera de los bloques reservados", async () => {
+    datos.contexto.bloquesReservadosIds = [1, 2];
+    expect((await movimiento()).status).toBe(200);
+    expect(datos.contexto.entradas.map((entrada: any) => entrada.bloqueId)).toEqual([5, 6]);
+  });
   it("S11 rejects an even institutional number with an odd ID in preview and save", async () => {
     datos.contexto.bloques = bloques.map(bloque => ({ ...bloque, id: bloque.id === 6 ? 61 : bloque.id }));
     datos.contexto.disponibilidades.push({ profesorId: 7, bloqueId: 61, planificacionSemestreId: 9 });

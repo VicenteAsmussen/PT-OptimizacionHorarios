@@ -6,6 +6,7 @@ import { agruparBloquesEnSesiones, normalizarDia } from "./excel-salas.js";
 import { normalizarTipoHoraExcel } from "./excel-comun.js";
 import { esObligatoriaExterna } from "./cobertura-externos.js";
 import { BadRequestError } from "./errors.js";
+import { mensajeBloqueReservado } from "./bloques-reservados.js";
 
 export type EntradaResultado = Awaited<ReturnType<typeof horariosRepository.findParaExportarSalas>>[number];
 export type AsignaturaResultado = EntradaResultado["oferta"]["asignatura"];
@@ -18,6 +19,7 @@ export interface ContextoResultado {
   salas: { id: number; nombre: string; tipo: string }[];
   disponibilidades: { profesorId: number; bloqueId: number; planificacionSemestreId: number }[];
   departamentosGestionadosIds: number[];
+  bloquesReservadosIds: number[];
 }
 export interface ProblemaResultado { codigo: string; mensaje: string; idsHorarios?: number[]; bloqueId?: number; ofertaId?: number }
 export interface MovimientoResultado { revision: string; idsHorarios: number[]; bloqueInicioId: number }
@@ -115,6 +117,7 @@ export function prepararMovimiento(contexto: ContextoResultado, datos: Movimient
     .sort((primero, segundo) => primero.numeroBloque - segundo.numeroBloque);
   const agrupadas = agruparBloquesEnSesiones(destinos);
   if (destinos.length !== seleccionadas.length || !agrupadas.exito || agrupadas.valor.length !== 1) return rechazar("destino", "El destino no admite toda la duración de la clase de forma consecutiva.");
+  if (destinos.some(bloque => contexto.bloquesReservadosIds.includes(bloque.id))) return rechazar("bloqueReservado", mensajeBloqueReservado);
   seleccionadas.sort((primera, segunda) => primera.bloque.numeroBloque - segunda.bloque.numeroBloque);
   const cambios = seleccionadas.map((entrada, indice) => ({ id: entrada.id, bloqueId: destinos[indice]!.id }));
   const nuevas = seleccionadas.map((entrada, indice) => ({ ...entrada, bloqueId: destinos[indice]!.id, bloque: destinos[indice]! }));
@@ -129,6 +132,9 @@ export function prepararMovimiento(contexto: ContextoResultado, datos: Movimient
 }
 export function validarPublicacionResultado(contexto: ContextoResultado) {
   const problemas: ProblemaResultado[] = conflictos(contexto.entradas);
+  for (const entrada of contexto.entradas) if (contexto.bloquesReservadosIds.includes(entrada.bloqueId)) {
+    problemas.push({ codigo: "bloqueReservado", mensaje: mensajeBloqueReservado, idsHorarios: [entrada.id], bloqueId: entrada.bloqueId });
+  }
   problemas.push(...comprobarDisponibilidad(contexto, contexto.entradas));
   for (const entrada of contexto.entradas) if (solicitaSala(contexto, entrada) && entrada.salaId === null) problemas.push({ codigo: "sala", mensaje: "Hay una clase que requiere sala sin asignación.", idsHorarios: [entrada.id], ofertaId: entrada.ofertaId });
   for (const oferta of contexto.ofertas) for (const requisito of oferta.asignatura.tiposHora) {

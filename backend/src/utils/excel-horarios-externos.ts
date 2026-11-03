@@ -6,6 +6,7 @@ import { normalizarTipoHoraExcel } from "./excel-comun.js";
 
 import { normalizarRut } from "./rut.js";
 import { calcularCoberturaExterna, type CoberturaExterna } from "./cobertura-externos.js";
+import { mensajeBloqueReservado } from "./bloques-reservados.js";
 
 /** Formato externo independiente del Excel de solicitud/asignación de salas. */
 export const encabezadosExcelExternos = [
@@ -81,6 +82,9 @@ export async function importarHorariosExternos(planificacionSemestreId: number, 
       const agrupadas = agruparBloquesEnSesiones(bloques);
       if (!agrupadas.exito || agrupadas.valor.length !== 1 || formatearHorario(agrupadas.valor[0]!) !== formatearHorario(horario.valor)) {
         error(numeroFila, `Horario ${numero}`, "El rango debe corresponder exactamente a bloques institucionales consecutivos."); continue;
+      }
+      if (bloques.some(bloque => contexto.bloquesReservadosIds.includes(bloque.id))) {
+        error(numeroFila, `Horario ${numero}`, mensajeBloqueReservado); continue;
       }
       if (tipos.length === 1) for (const bloque of bloques) sesiones.push({ bloqueId: bloque.id, tipoHoraId: tipos[0]!.id, numero });
     }
