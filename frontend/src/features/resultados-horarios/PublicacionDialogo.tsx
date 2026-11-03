@@ -29,16 +29,19 @@ export default function PublicacionDialogo({ resultado, ocupado, cerrar, confirm
     return () => { activo = false; controlador.abort(); };
   }, [resultado.planificacion.id, resultado.revision]);
   return <Dialogo titulo="Publicar horario" ocupado={ocupado} cerrar={cerrar}>
+    <div data-dialogo-publicacion>
     {error ? <p role="alert" className={estilos.error}>{error}</p> : !validacion ? <p role="status">Validando publicación…</p> : <>
       {validacion.revision !== resultado.revision && <p role="alert">El horario cambió. Cierra y actualiza antes de publicar.</p>}
       {validacion.problemas.length > 0 && <>
         <h3>Problemas que impiden publicar</h3>
         {sesionesSinSala.length > 0 && <>
           <h4>Asignaturas sin sala</h4>
-          <ul aria-label="Sesiones sin sala">{sesionesSinSala.map(sesion => <li key={sesion.idsHorarios.join(',')}>
-            <strong>{sesion.asignatura.codigo} — {sesion.asignatura.nombre}</strong>
-            <p>Semestre {sesion.asignatura.semestreMalla} · Sección {sesion.seccion} · {sesion.tipoHora.tipo}</p>
-            <p>{sesion.dia} {sesion.horaInicio.slice(0, 5)}–{sesion.horaTermino.slice(0, 5)}</p>
+          <ul className={estilos.tarjetasPendientes} aria-label="Sesiones sin sala">{sesionesSinSala.map(sesion => <li key={sesion.idsHorarios.join(',')}>
+            <article className={estilos.tarjeta} aria-label={`${sesion.asignatura.codigo} — ${sesion.asignatura.nombre}, ${sesion.tipoHora.tipo}, ${sesion.dia} ${sesion.horaInicio.slice(0, 5)}–${sesion.horaTermino.slice(0, 5)}`}>
+              <h5>{sesion.asignatura.codigo} — {sesion.asignatura.nombre}</h5>
+              <p>Semestre {sesion.asignatura.semestreMalla} · Sección {sesion.seccion} · {sesion.tipoHora.tipo}</p>
+              <p>{sesion.dia} {sesion.horaInicio.slice(0, 5)}–{sesion.horaTermino.slice(0, 5)}</p>
+            </article>
           </li>)}</ul>
         </>}
         {problemasRestantes.length > 0 && <>
@@ -47,10 +50,11 @@ export default function PublicacionDialogo({ resultado, ocupado, cerrar, confirm
         </>}
       </>}
       {puedePublicar(resultado, validacion) && <>
-        <p role="status">Todos los horarios cargados que requieren sala tienen una sala asignada.</p>
-        <p>El horario está listo. Al publicarlo quedará en solo lectura; no se puede reabrir desde esta página.</p>
+        <p role="status">Todas las asignaturas que requieren sala tienen una asignada.</p>
+        <p>Al publicarlo quedará en solo lectura.</p>
       </>}
     </>}
+    </div>
     <button type="button" className="boton boton--azul" disabled={ocupado || !puedePublicar(resultado, validacion)} onClick={() => {
       if (puedePublicar(resultado, validacion)) confirmar(resultado.revision);
     }}>{ocupado ? 'Publicando…' : 'Confirmar publicación'}</button>

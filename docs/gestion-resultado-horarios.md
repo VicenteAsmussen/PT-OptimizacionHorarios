@@ -66,13 +66,18 @@ Envía un solo archivo `.xlsx` en `archivo`, de hasta 10 MB, junto con la revisi
 
 | Celda de sala | Comportamiento al responder una propuesta |
 |---|---|
-| Código de sala reconocido | Asignar esa sala a todos los bloques de la sesión identificada |
-| `SIN SALA` | Dejar explícitamente la sesión sin sala |
-| Celda vacía | Conservar las asignaciones existentes, sin borrarlas |
+| Código de sala reconocido en una sesión pendiente | Asignar esa sala a sus bloques pendientes, sin cambiar bloques ya asignados |
+| `SIN SALA` en una sesión pendiente | Mantenerla pendiente, sin quitar asignaciones existentes |
+| Sala vacía en una sesión pendiente | Rechazar la respuesta completa, indicando que se debe escribir una sala válida o `SIN SALA` |
+| Sesión identificada que ya tiene todos sus bloques con sala | Omitirla y conservar sus asignaciones, aunque el archivo indique otra sala, `SIN SALA` o una celda vacía |
 | Sesión omitida | Mantener la sesión sin cambios |
 | Sala desconocida o clave de sesión inválida | Rechazar la respuesta completa con errores que indican fila y columna |
 
-La validación final de ocupación de salas incluye tanto las sesiones modificadas como las que no cambian. Para intercambiar salas, las asignaciones modificadas se liberan en conjunto antes de aplicar el estado final validado. La planificación permanece bloqueada durante la validación y el guardado de la importación. Después de importar, actualiza los resultados para obtener la nueva revisión y el total general de pendientes. Los conteos de la importación corresponden a las sesiones procesadas en el archivo.
+Esta importación solo completa salas pendientes, no edita las ya asignadas. La omisión se decide por sesión, no por código de asignatura, después de identificar una coincidencia única por código, sección, tipo de hora, día y horario. Los encabezados y la identificación siguen siendo obligatorios, y las sesiones repetidas o no identificables rechazan el archivo completo. El contenido de sala y los nombres descriptivos de una sesión ya asignada no se usan para sobrescribirla.
+
+Si una sesión tiene algunos bloques asignados y otros pendientes, conserva los asignados y solo permite completar los restantes con la misma sala. `SIN SALA` mantiene los bloques pendientes sin borrar los ya asignados. La validación final de ocupación incluye las salas existentes de toda la planificación, además de las nuevas propuestas. Si hay errores, no se guarda ningún cambio.
+
+La planificación permanece bloqueada durante la validación y el guardado. La respuesta de Propuesta incluye `actualizadas`, `pendientes` y `omitidas`, contados por sesión del archivo. Las omitidas no cuentan como actualizadas ni producen escrituras. Volver a subir la misma respuesta después de asignar sus salas conserva los datos y devuelve esas sesiones como omitidas. Después de importar, consulta los resultados para obtener la revisión y el total general de pendientes.
 
 Los endpoints antiguos de Excel para preparación siguen disponibles. Conservan su regla de borrar asignaciones ante celdas vacías y allí `SIN SALA` sigue siendo una sala no reconocida. No los uses para procesar respuestas de una propuesta.
 

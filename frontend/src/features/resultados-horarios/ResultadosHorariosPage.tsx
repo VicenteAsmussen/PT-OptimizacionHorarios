@@ -12,6 +12,7 @@ import CalendarioResultados from './CalendarioResultados';
 import GestionSalas from './GestionSalas';
 import ControlesMovimiento from './ControlesMovimiento';
 import PublicacionDialogo from './PublicacionDialogo';
+import Dialogo from './Dialogo';
 import estilos from './ResultadosHorarios.module.css';
 
 export function RequireResultadosHorarios() {
@@ -23,12 +24,16 @@ export default function ResultadosHorariosPage() {
   return <ConsultaResultados key={usuario?.id} />;
 }
 const mensajeError = (fallo: unknown) => fallo instanceof Error ? fallo.message : 'No se pudo completar la solicitud.';
+const mensajeOmitidas = (cantidad: number) => cantidad === 0 ? '' : cantidad === 1
+  ? 'Se omitió 1 sesión que ya tenía sala.' : `Se omitieron ${cantidad} sesiones que ya tenían sala.`;
 function erroresPlanilla(fallo: unknown): ErrorPlanilla[] {
   const detalle = fallo instanceof ApiError ? fallo.detalle : null;
   if (!detalle || typeof detalle !== 'object' || !('errores' in detalle) || !Array.isArray(detalle.errores)) return [];
   return detalle.errores.filter((e): e is ErrorPlanilla => e && typeof e === 'object'
     && typeof e.fila === 'number' && typeof e.columna === 'string' && typeof e.mensaje === 'string');
 }
+type AvisoImportacion = { tipo: 'error'; errores: ErrorPlanilla[]; sinCambios: boolean }
+  | { tipo: 'pendientes'; sesiones: SesionResultado[]; trasImportacion: boolean; omitidas?: number } | { tipo: 'consulta' };
 
 export function ConsultaResultados() {
   const [planificaciones, setPlanificaciones] = useState<PlanificacionSemestre[] | null>(null);
@@ -61,13 +66,13 @@ export function ConsultaResultados() {
       : planificaciones.length === 0 ? <p role="status">No hay planificaciones disponibles para tu carrera.</p>
       : !planificacion ? <p role="status">Selecciona una carrera y un período para consultar el horario.</p>
       : planificacion.estadoPlanificacion === 'preparacion' ? <p className={estilos.tarjeta} role="status">Este período está en Preparación. Todavía no hay una propuesta habilitada para gestionar. La ejecución del modelo se realiza fuera de esta página.</p>
-      : <ContenidoResultados key={planificacion.id} id={planificacion.id} ocupado={ocupado} cambiarOcupado={setOcupado}
+      : <ContenidoResultados key={planificacion.id} id={planificacion.id} nombreCarrera={planificacion.carrera.nombre} ocupado={ocupado} cambiarOcupado={setOcupado}
           actualizarPlanificacion={datos => setPlanificaciones(actuales => actuales?.map(p => p.id === datos.id ? { ...p, ...datos } : p) ?? null)} />}
   </section>;
 }
 
-export function ContenidoResultados({ id, ocupado, cambiarOcupado, actualizarPlanificacion }: {
-  id: number; ocupado: boolean; cambiarOcupado: (valor: boolean) => void;
+export function ContenidoResultados({ id, nombreCarrera, ocupado, cambiarOcupado, actualizarPlanificacion }: {
+  id: number; nombreCarrera: string; ocupado: boolean; cambiarOcupado: (valor: boolean) => void;
   actualizarPlanificacion: (datos: ResultadoHorario['planificacion']) => void;
 }) {
   const [estado, dispatch] = useReducer(reducirResultados, { ...estadoInicial, id });
@@ -80,7 +85,8 @@ export function ContenidoResultados({ id, ocupado, cambiarOcupado, actualizarPla
   const [errorMovimiento, setErrorMovimiento] = useState('');
   const [publicando, setPublicando] = useState(false);
   const avisoActual = useRef<string | number | null>(null);
-  const [errores, setErrores] = useState<ErrorPlanilla[]>([]);
+  const [avisoImportacion, setAvisoImportacion] = useState<AvisoImportacion | null>(null);
+  const importacionPorInformar = useRef<{ mensaje: string; omitidas: number } | null>(null);
   const [descargando, setDescargando] = useState(false);
   const descarga = useRef<AbortController | null>(null);
   const bloqueo = useRef(false);
@@ -94,8 +100,18 @@ export function ContenidoResultados({ id, ocupado, cambiarOcupado, actualizarPla
       if (activo && resultado.planificacion.id === id) {
         dispatch({ tipo: 'cargado', secuencia, resultado });
         actualizarPlanificacion(resultado.planificacion);
+        if (importacionPorInformar.current !== null) {
+          const resumen = importacionPorInformar.current;
+          importacionPorInformar.current = null;
+          const sesiones = resultado.sesiones.filter(sesion => sesion.estadoSala === 'pendiente');
+          if (sesiones.length) setAvisoImportacion({ tipo: 'pendientes', sesiones, trasImportacion: true, omitidas: resumen.omitidas });
+          else { setAvisoImportacion(null); mostrarAviso('exito', resumen.mensaje); }
+        }
       }
-    }).catch(fallo => { if (activo) dispatch({ tipo: 'fallo', secuencia, mensaje: mensajeError(fallo) }); });
+    }).catch(fallo => { if (activo) {
+      dispatch({ tipo: 'fallo', secuencia, mensaje: mensajeError(fallo) });
+      if (importacionPorInformar.current !== null) setAvisoImportacion({ tipo: 'consulta' });
+    } });
     return () => { activo = false; controlador.abort(); };
   }, [id, estado.secuencia]);
   const resultado = estado.resultado;
@@ -152,30 +168,44 @@ export function ContenidoResultados({ id, ocupado, cambiarOcupado, actualizarPla
     setSeleccionada(null); setPublicando(false); dispatch({ tipo: 'seleccionar', id });
   }
   function actualizar() {
-    cerrarAviso(); recargar();
+    cerrarAviso(); setAvisoImportacion(null); recargar();
   }
-  async function ejecutar(operacion: () => Promise<{ resultado?: ResultadoHorario; mensaje: string }>) {
+  function verPendientes() {
+    if (!resultado || bloqueo.current || sesionMovimiento) return;
+    const sesiones = resultado.sesiones.filter(sesion => sesion.estadoSala === 'pendiente');
+    if (!sesiones.length) return;
+    setPublicando(false); setAvisoImportacion({ tipo: 'pendientes', sesiones, trasImportacion: false });
+  }
+  async function ejecutar(operacion: () => Promise<{ resultado?: ResultadoHorario; mensaje: string; omitidas?: number }>, esImportacion = false) {
     if (!resultado || !puedeEditarResultado(resultado) || bloqueo.current) return;
-    bloqueo.current = true; cambiarOcupado(true); cerrarAviso(); setErrores([]);
+    bloqueo.current = true; cambiarOcupado(true); cerrarAviso(); setAvisoImportacion(null); importacionPorInformar.current = null;
     try {
       const respuesta = await operacion();
       if (!vivo.current) return;
-      setSeleccionada(null); setPublicando(false); mostrarAviso('exito', respuesta.mensaje);
+      setSeleccionada(null); setPublicando(false);
+      if (esImportacion) importacionPorInformar.current = { mensaje: respuesta.mensaje, omitidas: respuesta.omitidas ?? 0 };
+      else mostrarAviso('exito', respuesta.mensaje);
       if (respuesta.resultado) {
         dispatch({ tipo: 'cargado', secuencia: estado.secuencia, resultado: respuesta.resultado });
         actualizarPlanificacion(respuesta.resultado.planificacion);
       } else recargar();
     } catch (fallo) {
       if (!vivo.current) return;
-      mostrarAviso('error', 'No pudimos confirmar el cambio. Estamos revisando el horario.');
-      setErrores(erroresPlanilla(fallo)); recargar();
+      if (esImportacion) {
+        const errores = erroresPlanilla(fallo);
+        const sinCambios = fallo instanceof ApiError && fallo.status === 400 && errores.length > 0;
+        setAvisoImportacion({ tipo: 'error', errores, sinCambios });
+        if (!sinCambios) recargar();
+      } else {
+        mostrarAviso('error', 'No pudimos confirmar el cambio. Estamos revisando el horario.'); recargar();
+      }
     } finally {
       bloqueo.current = false;
       if (vivo.current) cambiarOcupado(false);
     }
   }
   async function exportar(soloPendientes: boolean) {
-    if (bloqueo.current || !vivo.current) return;
+    if (!resultado || bloqueo.current || !vivo.current) return;
     const controlador = new AbortController();
     descarga.current = controlador;
     bloqueo.current = true; cambiarOcupado(true); setDescargando(true); cerrarAviso();
@@ -185,7 +215,7 @@ export function ContenidoResultados({ id, ocupado, cambiarOcupado, actualizarPla
       const url = URL.createObjectURL(archivo);
       try {
         const enlace = document.createElement('a'); enlace.href = url;
-        enlace.download = `solicitud-salas-${id}${soloPendientes ? '-pendientes' : ''}.xlsx`;
+        enlace.download = `Solicitud de salas - ${nombreCarrera} - ${resultado.planificacion.codigo}${soloPendientes ? ' - pendientes' : ''}.xlsx`;
         document.body.append(enlace); enlace.click(); enlace.remove();
       } finally { setTimeout(() => URL.revokeObjectURL(url), 0); }
       mostrarAviso('exito', 'La solicitud de salas está lista.');
@@ -208,10 +238,29 @@ export function ContenidoResultados({ id, ocupado, cambiarOcupado, actualizarPla
       <p role="status">Descargando solicitud de salas…</p>
       <button type="button" className="boton" onClick={cancelarDescarga}>Cancelar descarga</button>
     </div>}
-    {errores.length > 0 && <div className={`${estilos.tarjeta} ${estilos.erroresPlanilla}`} role="region" aria-label="Errores de la respuesta de salas" tabIndex={0}>
-      <h2>Revisa la planilla antes de volver a importarla</h2><table><thead><tr><th scope="col">Fila</th><th scope="col">Columna</th><th scope="col">Problema</th></tr></thead>
-        <tbody>{errores.map((e, i) => <tr key={i}><td>{e.fila}</td><td>{e.columna}</td><td>{e.mensaje}</td></tr>)}</tbody></table>
-    </div>}
+    {avisoImportacion && <Dialogo titulo={avisoImportacion.tipo === 'pendientes' ? 'Asignaturas sin sala'
+      : avisoImportacion.tipo === 'consulta' ? 'Revisar el resultado de la importación'
+      : avisoImportacion.sinCambios ? 'No se pudo importar la respuesta' : 'No pudimos confirmar la importación'}
+      ocupado={ocupado} cerrar={() => setAvisoImportacion(null)}>
+      {avisoImportacion.tipo === 'error' ? <>
+        <p>{avisoImportacion.sinCambios ? 'No se guardó ningún cambio. Corrige la planilla y vuelve a importarla.'
+          : 'No pudimos confirmar la importación. Estamos revisando el horario. No vuelvas a enviar el archivo hasta comprobar el estado actualizado.'}</p>
+        {avisoImportacion.errores.length > 0 && <div className={estilos.erroresPlanilla}>
+          <table aria-label="Errores de la respuesta de salas"><thead><tr><th scope="col">Fila</th><th scope="col">Columna</th><th scope="col">Problema</th></tr></thead>
+            <tbody>{avisoImportacion.errores.map((error, indice) => <tr key={indice}><td>{error.fila}</td><td>{error.columna}</td><td>{error.mensaje}</td></tr>)}</tbody></table>
+        </div>}
+      </> : avisoImportacion.tipo === 'pendientes' ? <>
+        <p>{avisoImportacion.trasImportacion && 'La respuesta se importó. '}{avisoImportacion.sesiones.length === 1 ? 'Queda 1 sesión sin sala' : `Quedan ${avisoImportacion.sesiones.length} sesiones sin sala`} en toda la planificación.</p>
+        {(avisoImportacion.omitidas ?? 0) > 0 && <p>{mensajeOmitidas(avisoImportacion.omitidas ?? 0)}</p>}
+        <ul className={estilos.tarjetasPendientes} aria-label="Sesiones sin sala">{avisoImportacion.sesiones.map(sesion => <li key={sesion.idsHorarios.join(',')}>
+          <article className={estilos.tarjeta} aria-label={`${sesion.asignatura.codigo} — ${sesion.asignatura.nombre}, ${sesion.tipoHora.tipo}, ${sesion.dia} ${sesion.horaInicio.slice(0, 5)}–${sesion.horaTermino.slice(0, 5)}`}>
+            <h3>{sesion.asignatura.codigo} — {sesion.asignatura.nombre}</h3>
+            <p>Semestre {sesion.asignatura.semestreMalla} · Sección {sesion.seccion} · {sesion.tipoHora.tipo}</p>
+            <p>{sesion.dia} {sesion.horaInicio.slice(0, 5)}–{sesion.horaTermino.slice(0, 5)}</p>
+          </article>
+        </li>)}</ul>
+      </> : <p>La respuesta se importó, pero no pudimos consultar el horario actualizado. Cierra este diálogo y usa Reintentar consulta para comprobar las salas, sin volver a enviar el archivo.</p>}
+    </Dialogo>}
     {estado.error ? <div className={estilos.tarjeta}><p role="alert">{estado.error}</p><button type="button" className="boton" onClick={actualizar}>Reintentar consulta</button></div>
       : !resultado ? <p role="status">Cargando horario…</p> : <>
         <section className={estilos.tarjeta} aria-labelledby="titulo-semana">
@@ -232,15 +281,14 @@ export function ContenidoResultados({ id, ocupado, cambiarOcupado, actualizarPla
               movimiento={sesionMovimiento ? { sesion: sesionMovimiento, idsHorarios: datos.idsHorarios, cantidad: datos.idsHorarios.length, inicioId: destino,
                 invalido: !disponible || visible?.valido === false || Boolean(errorMovimiento), elegir: elegirDestino } : undefined} />}
         </section>
-        <GestionSalas key={resultado.revision} resultado={resultado} ocupado={ocupado || Boolean(sesionMovimiento)} seleccionar={seleccionarSesion} exportar={exportar}
+        <GestionSalas key={resultado.revision} resultado={resultado} ocupado={ocupado || Boolean(sesionMovimiento)} seleccionar={seleccionarSesion} exportar={exportar} verPendientes={verPendientes}
           importar={archivo => { void ejecutar(async () => {
             const importacion = await resultadosHorariosApi.importar(id, resultado.revision, archivo);
             const cambios = importacion.actualizadas === 0 ? 'No hubo cambios.' : importacion.actualizadas === 1
               ? 'Se actualizó 1 sesión.' : `Se actualizaron ${importacion.actualizadas} sesiones.`;
-            const pendientes = importacion.pendientes > 0
-              ? ` ${importacion.pendientes === 1 ? 'Queda 1 sesión' : `Quedan ${importacion.pendientes} sesiones`} sin sala en el archivo.` : '';
-            return { mensaje: `Archivo importado. ${cambios}${pendientes}` };
-          }); }} />
+            const omitidas = importacion.omitidas ?? 0;
+            return { mensaje: `Archivo importado. ${cambios}${omitidas ? ` ${mensajeOmitidas(omitidas)}` : ''}`, omitidas };
+          }, true); }} />
         <section className={estilos.tarjeta} aria-labelledby="titulo-publicar"><h2 id="titulo-publicar">Publicación</h2>
           {puedeEditarResultado(resultado) ? <><p>Revisa los requisitos de toda la planificación antes de confirmar. Publicar bloquea la edición.</p>
             <button type="button" className="boton boton--azul" disabled={ocupado || Boolean(sesionMovimiento)} onClick={() => { if (!sesionMovimiento && !bloqueo.current) setPublicando(true); }}>Revisar y publicar</button></>

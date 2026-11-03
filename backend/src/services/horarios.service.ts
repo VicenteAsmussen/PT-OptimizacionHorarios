@@ -110,7 +110,8 @@ export const horariosService = {
       }
     }
     const propuestas = new Map<number, { id: number; salaId: number | null; fila: number; columna: string }>();
-    let actualizadas = 0; let pendientes = 0;
+    const identificadas = new Set<number>();
+    let actualizadas = 0; let pendientes = 0; let omitidas = 0;
     hoja.eachRow((fila, numeroFila) => {
       if (numeroFila === 1) return;
       const texto = (columna: number) => normalizarTextoCelda(fila.getCell(columna).value);
@@ -135,13 +136,26 @@ export const horariosService = {
         if (!horario.exito) error(numeroFila, `Horario ${numero}`, horario.error);
         const salasCoincidentes = salas.filter((sala) => normalizarCodigoSala(sala.nombre) === normalizarCodigoSala(salaTexto));
         const sinSala = propuesta !== undefined && salaTexto.toUpperCase() === "SIN SALA";
-        if (salaTexto && !sinSala && salasCoincidentes.length !== 1) error(numeroFila, `Sala ${numero}`, `La sala «${salaTexto}» no existe o su nombre es ambiguo. Revise el listado de salas.`);
-        if (!dia.exito || !horario.exito) continue;
+        const validarSala = () => {
+          if (propuesta && !salaTexto) error(numeroFila, `Sala ${numero}`, "Celda vacía. Indique una sala válida o escriba «SIN SALA».");
+          if (salaTexto && !sinSala && salasCoincidentes.length !== 1) error(numeroFila, `Sala ${numero}`, `La sala «${salaTexto}» no existe o su nombre es ambiguo.${propuesta ? "" : " Revise el listado de salas."}`);
+        };
+        if (!propuesta) validarSala();
+        if (!dia.exito || !horario.exito) { if (propuesta) validarSala(); continue; }
         const coincidencias = candidatas.filter((sesion) => normalizarTipoHora(sesion.entradas[0]!.tipoHora.tipo) === normalizarTipoHora(tipoTexto) && sesion.dia === dia.valor && sesion.horario === formatearHorario(horario.valor));
         if (coincidencias.length !== 1) {
+          if (propuesta) validarSala();
           error(numeroFila, `Horario ${numero}`, "No se encuentra una sesión única para esta clave visible, día y horario. Vuelva a exportar el semestre."); continue;
         }
         const sesion = coincidencias[0]!; const oferta = sesion.entradas[0]!.oferta;
+        if (propuesta) {
+          if (sesion.entradas.some(entrada => identificadas.has(entrada.id))) {
+            error(numeroFila, `Horario ${numero}`, "La sesión está repetida en el archivo. Inclúyala solo una vez."); continue;
+          }
+          for (const entrada of sesion.entradas) identificadas.add(entrada.id);
+          if (sesion.entradas.every(entrada => entrada.salaId !== null)) { omitidas++; continue; }
+          validarSala();
+        }
         if (texto(2) && texto(2) !== normalizarTextoCelda(oferta.asignatura.nombre)) error(numeroFila, "Nombre Asignatura", `El nombre esperado es «${oferta.asignatura.nombre}».`);
         const profesor = sesion.entradas[0]!.asignacion.profesor;
         if (texto(5) && texto(5) !== normalizarTextoCelda(profesor.nombre)) error(numeroFila, "Profesor", `El profesor esperado es «${profesor.nombre}».`);
@@ -149,10 +163,13 @@ export const horariosService = {
           error(numeroFila, `Horario ${numero}`, "La sesión está repetida en el archivo. Inclúyala solo una vez."); continue;
         }
         if (salaTexto && !sinSala && salasCoincidentes.length !== 1) continue;
-        // An unanswered proposal response must not erase a previously assigned room.
         if (propuesta && !salaTexto) continue;
         const salaId = salaTexto && !sinSala ? salasCoincidentes[0]!.id : null;
-        for (const entrada of sesion.entradas) propuestas.set(entrada.id, { id: entrada.id, salaId, fila: numeroFila, columna: `Sala ${numero}` });
+        if (propuesta && salaId !== null && sesion.entradas.some(entrada => entrada.salaId !== null && entrada.salaId !== salaId)) {
+          error(numeroFila, `Sala ${numero}`, "La sesión tiene bloques ya asignados a otra sala. Indique la misma sala para completar los bloques pendientes."); continue;
+        }
+        const aplicables = propuesta ? sesion.entradas.filter(entrada => entrada.salaId === null) : sesion.entradas;
+        if (!propuesta || salaId !== null) for (const entrada of aplicables) propuestas.set(entrada.id, { id: entrada.id, salaId, fila: numeroFila, columna: `Sala ${numero}` });
         if (salaId === null) pendientes++; else actualizadas++;
       }
     });
@@ -178,7 +195,7 @@ export const horariosService = {
       else if (carreraId === undefined) await horariosRepository.actualizarSalasEnTransaccion(planificacionSemestreId, cambios);
       else await horariosRepository.actualizarSalasEnTransaccion(planificacionSemestreId, cambios, carreraId);
     }
-    return { actualizadas, pendientes, errores };
+    return { actualizadas, pendientes, errores, ...(propuesta ? { omitidas } : {}) };
   },
 
   async exportarExcelSalas(planificacionSemestreId: number, usuario: UsuarioExcelSalas, propuesta?: {

@@ -214,7 +214,7 @@ test('calendar renders green read-only sessions and inline controls without a mo
     assert.doesNotMatch(controles, /<dialog|<table/);
     const { default: GestionSalas } = await servidor.ssrLoadModule('/src/features/resultados-horarios/GestionSalas.tsx');
     const salas = renderToStaticMarkup(createElement(GestionSalas, { resultado, ocupado: false, exportar: () => {}, importar: () => {}, seleccionar: () => {} }));
-    for (const texto of ['Exportar solicitud', 'Reexportar pendientes', 'Importar respuesta', 'SIN SALA', 'Estructuras de Datos']) assert.ok(salas.includes(texto), texto);
+    for (const texto of ['Exportar solicitud', 'Exportar pendiente', 'Importar respuesta', 'SIN SALA', 'Estructuras de Datos']) assert.ok(salas.includes(texto), texto);
     const publicado = renderToStaticMarkup(createElement(GestionSalas, { resultado: { ...resultado, planificacion: { ...resultado.planificacion, estadoPlanificacion: 'publicado' } }, ocupado: false, exportar: () => {}, importar: () => {}, seleccionar: () => {} }));
     assert.doesNotMatch(publicado, /type="file"|Importar respuesta/);
     assert.match(publicado, /solo lectura/i);
@@ -464,6 +464,90 @@ function diferida() {
   const promesa = new Promise((si, no) => { resolver = si; rechazar = no; });
   return { promesa, resolver, rechazar };
 }
+
+const conSalaParaExportar = { ...sesion, idsHorarios: [21, 22, 23, 24], estadoSala: 'asignada', salas: sesion.salas.map(() => ({ id: 4, nombre: 'A107AC' })) };
+for (const caso of [
+  { nombre: 'solicitud inicial sin asignaciones', sesiones: [sesion], pendientes: 1, completa: true, pendiente: false },
+  { nombre: 'respuesta parcial con sesiones pendientes', sesiones: [sesion, conSalaParaExportar], pendientes: 1, completa: false, pendiente: true },
+  { nombre: 'asignación completa', sesiones: [conSalaParaExportar], pendientes: 0, completa: false, pendiente: false },
+  { nombre: 'sin sesiones solicitables', sesiones: [], pendientes: 0, completa: false, pendiente: false },
+  { nombre: 'salas externas, de laboratorio y exentas no cuentan como asignaciones solicitables', sesiones: [sesion,
+    ...['externa', 'laboratorio', 'noRequiere'].map((estadoSala, indice) => ({ ...conSalaParaExportar, idsHorarios: [30 + indice], estadoSala }))], pendientes: 1, completa: true, pendiente: false },
+  { nombre: 'sesión gestionada con parte de sus bloques asignados', sesiones: [{ ...sesion, salas: [{ id: 4, nombre: 'A107AC' }, null, null, null] }], pendientes: 1, completa: false, pendiente: true },
+]) test(`la exportación usa las asignaciones actuales: ${caso.nombre}`, async () => {
+  const solicitudes = [];
+  const contexto = { ...resultado, pendientesSala: caso.pendientes, sesiones: caso.sesiones };
+  const original = JSON.stringify(contexto);
+  const propiedades = { resultado: contexto, ocupado: false, exportar: valor => solicitudes.push(valor), importar() {}, seleccionar() {} };
+  const pagina = await montar('./GestionSalas.tsx', 'GestionSalas', propiedades, {});
+  try {
+    const completa = pagina.boton('Exportar solicitud'); const pendiente = pagina.boton('Exportar pendiente');
+    assert.ok(completa); assert.ok(pendiente);
+    assert.equal(completa.props.disabled, !caso.completa); assert.equal(pendiente.props.disabled, !caso.pendiente);
+    completa.props.onClick(); pendiente.props.onClick();
+    assert.deepEqual(solicitudes, [...(caso.completa ? [false] : []), ...(caso.pendiente ? [true] : [])]);
+    const anteriores = [...solicitudes]; propiedades.ocupado = true; pagina.renderizar();
+    for (const nombre of ['Exportar solicitud', 'Exportar pendiente']) {
+      const boton = pagina.boton(nombre); assert.equal(boton.props.disabled, true); boton.props.onClick();
+    }
+    assert.deepEqual(solicitudes, anteriores); assert.equal(JSON.stringify(contexto), original);
+  } finally { pagina.cerrar(); }
+});
+
+for (const estadoPlanificacion of ['propuesta', 'publicado']) test(`los pendientes se pueden consultar otra vez en tarjetas sin importar: ${estadoPlanificacion}`, async () => {
+  const primera = { ...sesion, asignatura: { codigo: '620473', nombre: 'Seguridad Informática', semestreMalla: 10 }, dia: 'Lunes', horaInicio: '12:40', horaTermino: '14:50' };
+  const segunda = { ...primera, idsHorarios: [21, 22], tipoHora: { id: 2, tipo: 'Práctica' }, dia: 'Miércoles', horaTermino: '14:00' };
+  const tercera = { ...sesion, idsHorarios: [31, 32], asignatura: { codigo: '611049', nombre: 'Economía', semestreMalla: 6 }, horaTermino: '10:20' };
+  const contexto = { ...resultado, planificacion: { ...resultado.planificacion, estadoPlanificacion }, pendientesSala: 3, sesiones: [primera, segunda, tercera] };
+  const original = JSON.stringify(contexto); let lecturas = 0;
+  const pagina = await montar('./ResultadosHorariosPage.tsx', 'ContenidoResultados', { id: 2, ocupado: false, actualizarPlanificacion() {} }, {
+    consultar: async () => { lecturas++; return contexto; },
+    importar: async () => assert.fail('Consultar pendientes no debe importar el archivo'),
+  });
+  try {
+    await pagina.asentar(); assert.equal(pagina.componente('Dialogo'), undefined);
+    for (let vez = 0; vez < 2; vez++) {
+      pagina.componente('GestionSalas').props.verPendientes(); pagina.renderizar();
+      assert.equal(pagina.componente('Dialogo').props.titulo, 'Asignaturas sin sala');
+      const lista = pagina.buscar('ul').find(ul => ul.props['aria-label'] === 'Sesiones sin sala');
+      assert.ok(lista); assert.equal(pagina.buscar('article', lista).length, 3);
+      const tarjetas = pagina.buscar('article', lista).map(pagina.texto);
+      assert.match(tarjetas[0], /620473.*Seguridad Informática.*Semestre 10.*Sección 1.*Teórica.*Lunes 12:40–14:50/);
+      assert.match(tarjetas[1], /620473.*Seguridad Informática.*Práctica.*Miércoles 12:40–14:00/);
+      assert.match(tarjetas[2], /611049.*Economía.*Semestre 6.*Lunes 08:10–10:20/);
+      assert.equal(pagina.buscar('p').some(p => pagina.texto(p).includes('La respuesta se importó')), false);
+      pagina.componente('Dialogo').props.cerrar(); pagina.renderizar();
+      assert.equal(pagina.componente('Dialogo'), undefined);
+    }
+    assert.equal(lecturas, 1); assert.deepEqual(pagina.avisos, []); assert.equal(JSON.stringify(contexto), original);
+  } finally { pagina.cerrar(); }
+});
+
+test('solo el diálogo con tarjetas de pendientes limita su ancho a 36rem', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const css = await readFile(new URL('./ResultadosHorarios.module.css', import.meta.url), 'utf8');
+  const compacto = css.match(/\.dialogo:has\(\.tarjetasPendientes\)\s*\{([^}]+)\}/)?.[1];
+  assert.ok(compacto);
+  assert.match(compacto, /width:\s*min\(36rem,\s*calc\(100% - 2rem\)\)/);
+  const normal = css.match(/\.dialogo\s*\{([^}]+)\}/)?.[1];
+  assert.match(normal, /width:\s*min\(76rem,\s*calc\(100% - 2rem\)\)/);
+});
+
+test('el botón para consultar pendientes se bloquea al estar ocupado o no tener sesiones sin sala', async () => {
+  let consultas = 0;
+  const propiedades = { resultado, ocupado: false, exportar() {}, importar() {}, seleccionar() {}, verPendientes() { consultas++; } };
+  const pagina = await montar('./GestionSalas.tsx', 'GestionSalas', propiedades, {});
+  try {
+    assert.equal(pagina.boton('Ver sesiones sin sala').props.disabled, false);
+    pagina.boton('Ver sesiones sin sala').props.onClick(); assert.equal(consultas, 1);
+    propiedades.ocupado = true; pagina.renderizar();
+    assert.equal(pagina.boton('Ver sesiones sin sala').props.disabled, true);
+    pagina.boton('Ver sesiones sin sala').props.onClick(); assert.equal(consultas, 1);
+    propiedades.ocupado = false; propiedades.resultado = { ...resultado, sesiones: [], pendientesSala: 0 }; pagina.renderizar();
+    assert.equal(pagina.boton('Ver sesiones sin sala').props.disabled, true);
+    pagina.boton('Ver sesiones sin sala').props.onClick(); assert.equal(consultas, 1);
+  } finally { pagina.cerrar(); }
+});
 
 test('selecting a session projects availability onto the same semester calendar without a movement dialog', async () => {
   const pagina = await montar('./ResultadosHorariosPage.tsx', 'ContenidoResultados', { id: 2, ocupado: false, actualizarPlanificacion() {} }, {
@@ -819,6 +903,51 @@ for (const tipo of ['rejected', 'unknown']) test(`real save locks duplicate subm
   } finally { pagina.cerrar(); }
 });
 
+test('la consulta entrega el nombre de la carrera seleccionada al contenido del horario', async () => {
+  const planificacion = { ...resultado.planificacion, carrera: { nombre: 'Ingeniería Civil en Informática' } };
+  const pagina = await montar('./ResultadosHorariosPage.tsx', 'ConsultaResultados', {}, {
+    planificaciones: async () => [planificacion],
+  });
+  try {
+    await pagina.asentar();
+    assert.equal(pagina.componente('ContenidoResultados').props.nombreCarrera, planificacion.carrera.nombre);
+  } finally { pagina.cerrar(); }
+});
+
+test('las solicitudes completas y pendientes se descargan con la carrera y el período seleccionado', async () => {
+  const documento = globalThis.document;
+  const descargas = [];
+  globalThis.document = { body: { append() {} }, createElement: () => ({ click() { descargas.push(this.download); }, remove() {} }) };
+  try {
+    for (const [nombreCarrera, codigo] of [['Ingeniería Civil en Informática', '2100-2'], ['Ingeniería Comercial', '2027-1']]) {
+      const contexto = { ...resultado, planificacion: { ...resultado.planificacion, codigo } };
+      const original = JSON.stringify(contexto);
+      const solicitudes = [];
+      const pagina = await montar('./ResultadosHorariosPage.tsx', 'ContenidoResultados', {
+        id: contexto.planificacion.id, nombreCarrera, ocupado: false, actualizarPlanificacion() {},
+      }, {
+        consultar: async () => contexto,
+        exportar: async (id, soloPendientes, signal) => {
+          solicitudes.push({ id, soloPendientes }); assert.ok(signal instanceof AbortSignal);
+          return new Blob(['solicitud']);
+        },
+      });
+      try {
+        await pagina.asentar();
+        for (const soloPendientes of [false, true]) {
+          await pagina.componente('GestionSalas').props.exportar(soloPendientes); await pagina.asentar();
+          assert.equal(descargas.at(-1), `Solicitud de salas - ${nombreCarrera} - ${codigo}${soloPendientes ? ' - pendientes' : ''}.xlsx`);
+        }
+        assert.deepEqual(solicitudes, [{ id: contexto.planificacion.id, soloPendientes: false }, { id: contexto.planificacion.id, soloPendientes: true }]);
+        assert.equal(JSON.stringify(contexto), original);
+      } finally { pagina.cerrar(); }
+    }
+    assert.equal(descargas.length, 4);
+  } finally {
+    if (documento === undefined) delete globalThis.document; else globalThis.document = documento;
+  }
+});
+
 for (const etapa of ['fetch', 'body']) test(`room export can cancel a pending ${etapa} without unlocking a later write or downloading stale data`, async () => {
   const { resultadosHorariosApi } = await import('./resultados-horarios.api.ts');
   const anterior = globalThis.fetch;
@@ -872,7 +1001,8 @@ for (const etapa of ['fetch', 'body']) test(`room export can cancel a pending ${
     await segunda; await pagina.asentar();
     assert.equal(descargas, 1);
     assert.equal(pagina.avisos.filter(aviso => aviso.tipo === 'exito' && aviso.mensaje === 'La solicitud de salas está lista.').length, 1);
-    assert.equal(pagina.avisos.filter(aviso => aviso.tipo === 'exito' && aviso.mensaje === 'Archivo importado. Se actualizó 1 sesión.').length, 1);
+    assert.equal(pagina.avisos.filter(aviso => aviso.tipo === 'exito' && aviso.mensaje.startsWith('Archivo importado.')).length, 0);
+    assert.equal(pagina.componente('Dialogo').props.titulo, 'Asignaturas sin sala');
     assert.equal(pagina.buscar('p').some(p => pagina.texto(p).includes('La solicitud de salas está lista.')), false);
     assert.equal(pagina.boton('Cancelar descarga'), undefined);
     assert.equal(pagina.boton('Actualizar horario').props.disabled, false);
@@ -1047,8 +1177,9 @@ test('active export failures use a shared error notice instead of an embedded ou
 });
 
 test('page-owned notices are replaced by new operations and dismissed on manual refresh or exit', async () => {
+  const completo = { ...resultado, pendientesSala: 0, sesiones: [] };
   const pagina = await montar('./ResultadosHorariosPage.tsx', 'ContenidoResultados', { id: 2, ocupado: false, actualizarPlanificacion() {} }, {
-    consultar: async () => resultado,
+    consultar: async () => completo,
     importar: async () => ({ actualizadas: 1, pendientes: 0 }),
     exportar: async () => { throw new Error('Descarga no disponible.'); },
   });
@@ -1077,11 +1208,14 @@ test('page-owned notices are replaced by new operations and dismissed on manual 
 
 for (const caso of [
   { actualizadas: 0, pendientes: 0, mensaje: 'Archivo importado. No hubo cambios.' },
-  { actualizadas: 1, pendientes: 1, mensaje: 'Archivo importado. Se actualizó 1 sesión. Queda 1 sesión sin sala en el archivo.' },
-  { actualizadas: 2, pendientes: 2, mensaje: 'Archivo importado. Se actualizaron 2 sesiones. Quedan 2 sesiones sin sala en el archivo.' },
-]) test(`import notices use natural counts for ${caso.actualizadas} updated and ${caso.pendientes} pending sessions`, async () => {
+  { actualizadas: 1, pendientes: 0, mensaje: 'Archivo importado. Se actualizó 1 sesión.' },
+  { actualizadas: 2, pendientes: 0, mensaje: 'Archivo importado. Se actualizaron 2 sesiones.' },
+  { actualizadas: 0, pendientes: 0, omitidas: 3, mensaje: 'Archivo importado. No hubo cambios. Se omitieron 3 sesiones que ya tenían sala.' },
+  { actualizadas: 1, pendientes: 0, omitidas: 1, mensaje: 'Archivo importado. Se actualizó 1 sesión. Se omitió 1 sesión que ya tenía sala.' },
+]) test(`import notices use natural counts for ${caso.actualizadas} updated, ${caso.pendientes} pending and ${caso.omitidas ?? 0} skipped sessions`, async () => {
+  const completo = { ...resultado, pendientesSala: 0, sesiones: [] };
   const pagina = await montar('./ResultadosHorariosPage.tsx', 'ContenidoResultados', { id: 2, ocupado: false, actualizarPlanificacion() {} }, {
-    consultar: async () => resultado, importar: async () => caso,
+    consultar: async () => completo, importar: async () => caso,
   });
   try {
     await pagina.asentar();
@@ -1090,7 +1224,8 @@ for (const caso of [
     assert.equal(pagina.avisos.length, 1);
     assert.equal(pagina.avisos[0].tipo, 'exito'); assert.equal(pagina.avisos[0].mensaje, caso.mensaje);
     assert.equal(pagina.buscar('p').some(p => pagina.texto(p) === caso.mensaje), false);
-    assert.equal(pagina.componente('GestionSalas').props.resultado.pendientesSala, resultado.pendientesSala);
+    assert.equal(pagina.componente('GestionSalas').props.resultado.pendientesSala, 0);
+    assert.equal(pagina.componente('Dialogo'), undefined);
   } finally { pagina.cerrar(); }
 });
 
@@ -1121,20 +1256,92 @@ test('a result read failure keeps its inline retry without producing an operatio
   } finally { pagina.cerrar(); }
 });
 
-test('room-import errors keep row/column diagnostics after a safe reread', async () => {
+test('los errores de planilla abren un diálogo sin notificación ni desmontar el formulario', async () => {
   const { ApiError } = await import('../../lib/api.ts');
+  let lecturas = 0;
   const pagina = await montar('./ResultadosHorariosPage.tsx', 'ContenidoResultados', { id: 2, ocupado: false, actualizarPlanificacion() {} }, {
-    consultar: async () => resultado,
-    importar: async () => { throw new ApiError('Planilla inválida', 400, { errores: [{ fila: 4, columna: 'Sala', mensaje: 'Sala desconocida' }] }); },
+    consultar: async () => { lecturas++; return resultado; },
+    importar: async () => { throw new ApiError('Planilla inválida', 400, { errores: [
+      { fila: 4, columna: 'Sala', mensaje: 'Sala desconocida' },
+      { fila: 24, columna: 'Sala 1', mensaje: 'Celda vacía. Indique una sala válida o escriba «SIN SALA».' },
+    ] }); },
   });
   try {
     await pagina.asentar(); pagina.componente('GestionSalas').props.importar(new File(['file'], 'respuesta.xlsx'));
     await pagina.asentar(); await pagina.asentar();
     assert.ok(pagina.buscar('td').some(td => pagina.texto(td) === '4'));
     assert.ok(pagina.buscar('td').some(td => pagina.texto(td) === 'Sala desconocida'));
+    assert.ok(pagina.buscar('td').some(td => pagina.texto(td) === 'Celda vacía. Indique una sala válida o escriba «SIN SALA».'));
+    assert.ok(pagina.buscar('td').some(td => pagina.texto(td) === '24'));
     assert.equal(pagina.componente('GestionSalas').props.resultado, resultado);
-    assert.equal(pagina.avisos.filter(aviso => aviso.tipo === 'error').length, 1);
+    assert.equal(pagina.componente('Dialogo').props.titulo, 'No se pudo importar la respuesta');
+    assert.ok(pagina.buscar('p').some(p => pagina.texto(p) === 'No se guardó ningún cambio. Corrige la planilla y vuelve a importarla.'));
+    assert.equal(pagina.avisos.length, 0);
+    assert.equal(lecturas, 1);
     assert.equal(pagina.buscar('p').some(p => pagina.texto(p).includes('No pudimos confirmar el cambio')), false);
+    pagina.componente('Dialogo').props.cerrar(); pagina.renderizar();
+    assert.equal(pagina.componente('Dialogo'), undefined);
+    assert.equal(pagina.buscar('td').some(td => pagina.texto(td) === 'Sala desconocida'), false);
+  } finally { pagina.cerrar(); }
+});
+
+test('el diálogo de pendientes espera la consulta actualizada e incluye sesiones de todos los niveles', async () => {
+  const segunda = { ...sesion, idsHorarios: [21, 22], asignatura: { codigo: '200', nombre: 'Economía', semestreMalla: 5 }, seccion: 2, dia: 'Martes', tipoHora: { id: 2, tipo: 'Práctica' } };
+  const nuevo = { ...resultado, revision: 'b'.repeat(64), sesiones: [sesion, segunda, { ...sesion, idsHorarios: [31], estadoSala: 'externa' }], pendientesSala: 2 };
+  const consulta = diferida(); let lecturas = 0;
+  const pagina = await montar('./ResultadosHorariosPage.tsx', 'ContenidoResultados', { id: 2, ocupado: false, actualizarPlanificacion() {} }, {
+    consultar: () => ++lecturas === 1 ? Promise.resolve(resultado) : consulta.promesa,
+    importar: async () => ({ actualizadas: 25, pendientes: 0, omitidas: 2 }),
+  });
+  try {
+    await pagina.asentar(); pagina.componente('GestionSalas').props.importar(new File(['respuesta'], 'respuesta.xlsx'));
+    await pagina.asentar();
+    assert.equal(pagina.componente('Dialogo'), undefined); assert.deepEqual(pagina.avisos, []);
+    consulta.resolver(nuevo); await pagina.asentar();
+    assert.equal(pagina.componente('Dialogo').props.titulo, 'Asignaturas sin sala');
+    const lista = pagina.buscar('ul').find(ul => ul.props['aria-label'] === 'Sesiones sin sala');
+    assert.ok(lista); assert.equal(pagina.buscar('li', lista).length, 2);
+    assert.equal(pagina.buscar('article', lista).length, 2);
+    assert.ok(pagina.buscar('p').some(p => pagina.texto(p).startsWith('La respuesta se importó.')));
+    assert.ok(pagina.buscar('p').some(p => pagina.texto(p) === 'Se omitieron 2 sesiones que ya tenían sala.'));
+    assert.match(pagina.texto(lista), /100.*Estructuras de Datos.*Semestre 3.*Sección 1.*Lunes/);
+    assert.match(pagina.texto(lista), /200.*Economía.*Semestre 5.*Sección 2.*Práctica.*Martes/);
+    assert.deepEqual(pagina.avisos, []);
+    pagina.componente('Dialogo').props.cerrar(); pagina.renderizar();
+    assert.equal(pagina.componente('Dialogo'), undefined);
+  } finally { pagina.cerrar(); }
+});
+
+test('un fallo de red al importar abre un diálogo sin afirmar que hubo reversión', async () => {
+  let lecturas = 0;
+  const pagina = await montar('./ResultadosHorariosPage.tsx', 'ContenidoResultados', { id: 2, ocupado: false, actualizarPlanificacion() {} }, {
+    consultar: async () => { lecturas++; return resultado; }, importar: async () => { throw new Error('Failed to fetch'); },
+  });
+  try {
+    await pagina.asentar(); pagina.componente('GestionSalas').props.importar(new File(['respuesta'], 'respuesta.xlsx'));
+    await pagina.asentar(); await pagina.asentar();
+    assert.equal(pagina.componente('Dialogo').props.titulo, 'No pudimos confirmar la importación');
+    assert.equal(pagina.buscar('p').some(p => pagina.texto(p).includes('No se guardó ningún cambio')), false);
+    assert.deepEqual(pagina.avisos, []); assert.equal(lecturas, 2);
+  } finally { pagina.cerrar(); }
+});
+
+test('una importación confirmada con consulta fallida permite revisar el estado sin reenviar el archivo', async () => {
+  let lecturas = 0; let importaciones = 0;
+  const pagina = await montar('./ResultadosHorariosPage.tsx', 'ContenidoResultados', { id: 2, ocupado: false, actualizarPlanificacion() {} }, {
+    consultar: async () => { lecturas++; if (lecturas === 2) throw new Error('Lectura fallida'); return { ...resultado, pendientesSala: 0, sesiones: [] }; },
+    importar: async () => { importaciones++; return { actualizadas: 25, pendientes: 0 }; },
+  });
+  try {
+    await pagina.asentar(); pagina.componente('GestionSalas').props.importar(new File(['respuesta'], 'respuesta.xlsx'));
+    await pagina.asentar(); await pagina.asentar();
+    assert.equal(pagina.componente('Dialogo').props.titulo, 'Revisar el resultado de la importación');
+    assert.deepEqual(pagina.avisos, []);
+    pagina.componente('Dialogo').props.cerrar(); pagina.renderizar();
+    pagina.boton('Reintentar consulta').props.onClick(); await pagina.asentar();
+    assert.equal(importaciones, 1); assert.equal(lecturas, 3);
+    assert.equal(pagina.componente('Dialogo'), undefined);
+    assert.equal(pagina.avisos[0].mensaje, 'Archivo importado. Se actualizaron 25 sesiones.');
   } finally { pagina.cerrar(); }
 });
 
@@ -1184,6 +1391,8 @@ test('publication groups per-block missing rooms into session details across all
     assert.ok(lista);
     const filas = pagina.buscar('li', lista);
     assert.equal(filas.length, 2);
+    assert.equal(pagina.buscar('article', lista).length, 2);
+    assert.equal(pagina.buscar('h5', lista).length, 2);
     assert.equal(pagina.texto(filas[0]), '100 — Estructuras de DatosSemestre 3 · Sección 1 · TeóricaLunes 08:10–10:20');
     assert.equal(pagina.texto(filas[1]), '200 — EconomíaSemestre 5 · Sección 2 · PrácticaMartes 08:10–10:20');
     assert.equal(pagina.buscar('li').filter(li => pagina.texto(li) === 'Hay una clase que requiere sala sin asignación.').length, 0);
@@ -1231,15 +1440,29 @@ test('a publication without blocking problems retains its revision-bound confirm
     resultado: contexto, ocupado: false, cerrar() {}, confirmar: revision => publicadas.push(revision),
   }, { validarPublicacion: async () => ({ valido: true, revision: contexto.revision, problemas: [] }) });
   try {
+    assert.ok(pagina.buscar('div').some(div => div.props['data-dialogo-publicacion'] === true));
     assert.equal(pagina.buscar('p').some(p => pagina.texto(p).startsWith('Se comprueba toda la planificación:')), false);
     assert.equal(pagina.buscar('p').some(p => pagina.texto(p).includes('Todos los horarios cargados que requieren sala')), false);
     await pagina.asentar();
     assert.equal(pagina.buscar('ul').length, 0);
-    assert.ok(pagina.buscar('p').some(p => pagina.texto(p) === 'Todos los horarios cargados que requieren sala tienen una sala asignada.'));
+    assert.ok(pagina.buscar('p').some(p => pagina.texto(p) === 'Todas las asignaturas que requieren sala tienen una asignada.'));
+    assert.ok(pagina.buscar('p').some(p => pagina.texto(p) === 'Al publicarlo quedará en solo lectura.'));
+    assert.equal(pagina.buscar('p').some(p => /El horario está listo\.|no se puede reabrir desde esta página/.test(pagina.texto(p))), false);
     assert.equal(pagina.boton('Confirmar publicación').props.disabled, false);
     pagina.boton('Confirmar publicación').props.onClick();
     assert.deepEqual(publicadas, [resultado.revision]);
   } finally { pagina.cerrar(); }
+});
+
+test('la publicación mantiene el ancho compacto incluso sin sesiones pendientes', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const css = await readFile(new URL('./ResultadosHorarios.module.css', import.meta.url), 'utf8');
+  const compacto = css.match(/\.dialogo:has\(\[data-dialogo-publicacion\]\)\s*\{([^}]+)\}/)?.[1];
+  assert.ok(compacto);
+  assert.match(compacto, /width:\s*min\(36rem,\s*calc\(100% - 2rem\)\)/);
+  const fuente = await readFile(new URL('./PublicacionDialogo.tsx', import.meta.url), 'utf8');
+  assert.match(fuente, /className=\{estilos\.tarjetasPendientes\}/);
+  assert.match(fuente, /<article className=\{estilos\.tarjeta\}/);
 });
 
 test('a stale publication check never enables or invokes publication', async () => {

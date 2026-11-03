@@ -21,4 +21,4 @@ export interface Validacion { valido: boolean; problemas: Problema[] }
 export interface ValidacionMovimiento extends Validacion { clave: string }
 export interface ValidacionPublicacion extends Validacion { revision: string }
 export interface ErrorPlanilla { fila: number; columna: string; mensaje: string }
-export interface ImportacionSalas { actualizadas: number; pendientes: number; errores: ErrorPlanilla[] }
+export interface ImportacionSalas { actualizadas: number; pendientes: number; omitidas?: number; errores: ErrorPlanilla[] }

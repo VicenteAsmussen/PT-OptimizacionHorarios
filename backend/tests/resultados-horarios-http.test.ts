@@ -4,7 +4,7 @@ import request from "supertest";
 import ExcelJS from "exceljs";
 import { encabezadosExcelSalas } from "../src/utils/excel-salas.js";
 
-const datos = vi.hoisted(() => ({ contexto: {} as any, fallo: false, escrituras: 0 }));
+const datos = vi.hoisted(() => ({ contexto: {} as any, fallo: false, escrituras: 0, cambiosSalas: [] as { id: number; salaId: number | null }[] }));
 vi.mock("../src/repositories/resultados-horarios.repository.js", () => ({ resultadosHorariosRepository: {
   leer: vi.fn(async () => structuredClone(datos.contexto)),
   conBloqueo: vi.fn(async (_id: number, operar: any) => {
@@ -20,6 +20,8 @@ vi.mock("../src/repositories/resultados-horarios.repository.js", () => ({ result
         if (datos.fallo) throw new Error("Simulated persistence failure");
       },
       asignarSalas: async (cambios: { id: number; salaId: number | null }[]) => {
+        datos.escrituras++;
+        datos.cambiosSalas.push(...structuredClone(cambios));
         for (const cambio of cambios) copia.entradas.find((fila: any) => fila.id === cambio.id).salaId = cambio.salaId;
       },
       publicar: async () => { copia.planificacion.estadoPlanificacion = "publicado"; },
@@ -66,22 +68,27 @@ beforeEach(() => {
     disponibilidades: bloques.map(bloque => ({ profesorId: 7, bloqueId: bloque.id, planificacionSemestreId: 9 })) };
   datos.fallo = false;
   datos.escrituras = 0;
+  datos.cambiosSalas = [];
 });
 async function movimiento(idsHorarios = [100, 101], bloqueInicioId = 5, sufijo = "movimientos") {
   const lectura = await consultar();
   return request(aplicacion).post(`${ruta}/${sufijo}`).set("Authorization", "secretaria")
     .send({ revision: lectura.body.data?.revision, idsHorarios, bloqueInicioId });
 }
-async function respuestaSalas(sala: string) {
+async function respuestaSalas(sala: string, adicionales: (string | number)[][] = []) {
   const libro = new ExcelJS.Workbook(); const hoja = libro.addWorksheet("Resumen Malla");
   hoja.addRow([...encabezadosExcelSalas]);
   hoja.addRow(["AS1", "Subject 1", 1, 30, "Professor", "Teórica", "Lunes", "08:10-09:30", sala]);
+  adicionales.forEach(fila => hoja.addRow(fila));
   return Buffer.from(await libro.xlsx.writeBuffer());
 }
-async function importarSalas(sala: string, revision?: string) {
+async function importarSalas(sala: string, revision?: string, adicionales: (string | number)[][] = []) {
+  return importarArchivoSalas(await respuestaSalas(sala, adicionales), revision);
+}
+async function importarArchivoSalas(archivo: Buffer, revision?: string) {
   const lectura = await consultar();
   return request(aplicacion).post(`${ruta}/salas/importar`).set("Authorization", "secretaria")
-    .field("revision", revision ?? lectura.body.data.revision).attach("archivo", await respuestaSalas(sala), "salas.xlsx");
+    .field("revision", revision ?? lectura.body.data.revision).attach("archivo", archivo, "salas.xlsx");
 }
 describe("Proposal results public HTTP contract", () => {
   async function comprobarRechazo(ids: number[], destino: number, codigo: string, mensaje: string) {
@@ -284,14 +291,154 @@ describe("Proposal results public HTTP contract", () => {
     datos.contexto.planificacion.carreraId = 3; datos.contexto.planificacion.estadoPlanificacion = "preparacion";
     expect((await movimiento()).status).toBe(409);
   });
-  it("interprets SIN SALA explicitly, while blank responses preserve assigned rooms", async () => {
-    const antes = structuredClone(datos.contexto);
-    expect((await importarSalas("")).status).toBe(200); expect(datos.contexto).toEqual(antes);
-    const respuesta = await importarSalas("SIN SALA");
+  it.each(["SIN SALA", "sin sala"])("acepta la decisión explícita %s y permite completar la sala después", async valor => {
+    datos.contexto.entradas.forEach((entrada: any) => { entrada.salaId = null; });
+    const respuesta = await importarSalas(valor);
     expect(respuesta.status).toBe(200); expect(respuesta.body.data.pendientes).toBe(1);
     expect(datos.contexto.entradas.every((entrada: any) => entrada.salaId === null)).toBe(true);
     expect((await importarSalas("102AA")).status).toBe(200);
     expect(datos.contexto.entradas.every((entrada: any) => entrada.salaId === 5)).toBe(true);
+  });
+  it.each(["", "   "])("rechaza una sala vacía en una sesión pendiente sin modificar datos: %j", async valor => {
+    datos.contexto.entradas.forEach((entrada: any) => { entrada.salaId = null; });
+    const antes = structuredClone(datos.contexto);
+    const lectura = await consultar();
+    const respuesta = await importarSalas(valor);
+    expect(respuesta.status).toBe(400);
+    expect(respuesta.body).toEqual({ status: "error", errores: [{ fila: 2, columna: "Sala 1", mensaje: "Celda vacía. Indique una sala válida o escriba «SIN SALA»." }] });
+    expect(datos.escrituras).toBe(0); expect(datos.contexto).toEqual(antes);
+    expect((await consultar()).body).toEqual(lectura.body);
+  });
+  it("reúne las salas vacías y desconocidas en el mismo rechazo sin aplicar filas válidas", async () => {
+    for (const [id, numeros] of [[2, [3, 4]], [3, [5, 6]]] as const) {
+      const otra = oferta(id, id);
+      datos.contexto.ofertas.push(otra); datos.contexto.asignaturasMalla.push(otra.asignatura);
+      datos.contexto.entradas.push(...entradas(otra, [...numeros]));
+    }
+    datos.contexto.entradas.forEach((entrada: any) => { entrada.salaId = null; });
+    const antes = structuredClone(datos.contexto); const lectura = await consultar();
+    const respuesta = await importarSalas("102AA", undefined, [
+      ["AS2", "Subject 2", 1, 30, "Professor", "Teórica", "Lunes", "09:40-11:00", ""],
+      ["AS3", "Subject 3", 1, 30, "Professor", "Teórica", "Lunes", "11:10-12:30", "101-AAX"],
+    ]);
+    expect(respuesta.status).toBe(400);
+    expect(respuesta.body.errores).toEqual([
+      { fila: 3, columna: "Sala 1", mensaje: "Celda vacía. Indique una sala válida o escriba «SIN SALA»." },
+      { fila: 4, columna: "Sala 1", mensaje: "La sala «101-AAX» no existe o su nombre es ambiguo." },
+    ]);
+    expect(datos.escrituras).toBe(0); expect(datos.contexto).toEqual(antes);
+    expect((await consultar()).body).toEqual(lectura.body);
+  });
+  it("permite los espacios de sesiones inexistentes y conserva las sesiones omitidas", async () => {
+    datos.contexto.entradas.forEach((entrada: any) => { entrada.salaId = null; });
+    const otra = oferta(2, 2); const omitidas = entradas(otra, [3, 4]);
+    datos.contexto.entradas.push(...omitidas); datos.contexto.ofertas.push(otra);
+    const respuesta = await importarSalas("SIN SALA");
+    expect(respuesta.status).toBe(200); expect(respuesta.body.data.pendientes).toBe(1);
+    expect(datos.contexto.entradas.filter((entrada: any) => entrada.ofertaId === 2)).toEqual(omitidas);
+    expect(datos.escrituras).toBe(0);
+  });
+  it("informa la sala vacía junto con el horario inválido de la misma sesión", async () => {
+    const otra = oferta(2, 2); datos.contexto.ofertas.push(otra);
+    datos.contexto.entradas.push(...entradas(otra, [3, 4]));
+    datos.contexto.entradas.forEach((entrada: any) => { entrada.salaId = null; });
+    const antes = structuredClone(datos.contexto);
+    const respuesta = await importarSalas("102AA", undefined, [
+      ["AS2", "Subject 2", 1, 30, "Professor", "Teórica", "Lunes", "horario inválido", ""],
+    ]);
+    expect(respuesta.status).toBe(400);
+    expect(respuesta.body.errores).toEqual(expect.arrayContaining([
+      { fila: 3, columna: "Sala 1", mensaje: "Celda vacía. Indique una sala válida o escriba «SIN SALA»." },
+      expect.objectContaining({ fila: 3, columna: "Horario 1" }),
+    ]));
+    expect(datos.escrituras).toBe(0); expect(datos.contexto).toEqual(antes);
+  });
+  it("identifica Sala 2 cuando la segunda sesión de la misma fila está sin respuesta", async () => {
+    datos.contexto.ofertas[0].asignatura.tiposHora[0].horas = 4;
+    datos.contexto.entradas.push(...entradas(datos.contexto.ofertas[0], [5, 6], 7, null).map((entrada, indice) => ({ ...entrada, id: 102 + indice })));
+    const antes = structuredClone(datos.contexto); const lectura = await consultar();
+    const libro = new ExcelJS.Workbook(); await libro.xlsx.load(Uint8Array.from(await respuestaSalas("102AA")).buffer);
+    const fila = libro.worksheets[0]!.getRow(2);
+    fila.getCell(10).value = fila.getCell(6).value;
+    fila.getCell(11).value = fila.getCell(7).value;
+    fila.getCell(12).value = `${bloques[4]!.horaInicio}-${bloques[5]!.horaTermino}`;
+    fila.getCell(13).value = "";
+    const respuesta = await request(aplicacion).post(`${ruta}/salas/importar`).set("Authorization", "secretaria")
+      .field("revision", lectura.body.data.revision).attach("archivo", Buffer.from(await libro.xlsx.writeBuffer()), "salas.xlsx");
+    expect(respuesta.status).toBe(400);
+    expect(respuesta.body.errores).toEqual([{ fila: 2, columna: "Sala 2", mensaje: "Celda vacía. Indique una sala válida o escriba «SIN SALA»." }]);
+    expect(datos.escrituras).toBe(0); expect(datos.contexto).toEqual(antes);
+    expect((await consultar()).body).toEqual(lectura.body);
+  });
+  it.each(["101AA", "102AA", "SIN SALA", "sin sala", "", "DESCONOCIDA"])("omite una sesión ya asignada aunque la respuesta indique %j", async sala => {
+    const antes = structuredClone(datos.contexto); const lectura = await consultar();
+    const respuesta = await importarSalas(sala);
+    expect(respuesta.status).toBe(200);
+    expect(respuesta.body.data).toEqual({ actualizadas: 0, pendientes: 0, omitidas: 1, errores: [] });
+    expect(datos.contexto).toEqual(antes); expect(datos.escrituras).toBe(0);
+    expect((await consultar()).body).toEqual(lectura.body);
+  });
+  it("subir dos veces la misma respuesta solo asigna las salas en la primera importación", async () => {
+    datos.contexto.entradas.forEach((entrada: any) => { entrada.salaId = null; });
+    const archivo = await respuestaSalas("102AA");
+    const primera = await importarArchivoSalas(archivo);
+    expect(primera.status).toBe(200);
+    expect(primera.body.data).toEqual({ actualizadas: 1, pendientes: 0, omitidas: 0, errores: [] });
+    const despues = await consultar(); const guardado = structuredClone(datos.contexto);
+    const segunda = await importarArchivoSalas(archivo);
+    expect(segunda.status).toBe(200);
+    expect(segunda.body.data).toEqual({ actualizadas: 0, pendientes: 0, omitidas: 1, errores: [] });
+    expect(datos.escrituras).toBe(1); expect(datos.contexto).toEqual(guardado);
+    expect((await consultar()).body).toEqual(despues.body);
+  });
+  it("omite una sesión asignada y completa otra pendiente de la misma asignatura y fila", async () => {
+    datos.contexto.ofertas[0].asignatura.tiposHora[0].horas = 4;
+    datos.contexto.entradas.push(...entradas(datos.contexto.ofertas[0], [5, 6], 7, null).map((entrada, indice) => ({ ...entrada, id: 102 + indice })));
+    const libro = new ExcelJS.Workbook(); await libro.xlsx.load(Uint8Array.from(await respuestaSalas("SALA_ANTIGUA")).buffer);
+    const fila = libro.worksheets[0]!.getRow(2);
+    fila.getCell(10).value = fila.getCell(6).value; fila.getCell(11).value = fila.getCell(7).value;
+    fila.getCell(12).value = `${bloques[4]!.horaInicio}-${bloques[5]!.horaTermino}`; fila.getCell(13).value = "102AA";
+    const respuesta = await importarArchivoSalas(Buffer.from(await libro.xlsx.writeBuffer()));
+    expect(respuesta.status).toBe(200);
+    expect(respuesta.body.data).toEqual({ actualizadas: 1, pendientes: 0, omitidas: 1, errores: [] });
+    expect(datos.contexto.entradas.map((entrada: any) => entrada.salaId)).toEqual([4, 4, 5, 5]);
+    expect(datos.cambiosSalas).toEqual([{ id: 102, salaId: 5 }, { id: 103, salaId: 5 }]);
+  });
+  it("completa solo los bloques pendientes de una sesión parcialmente asignada", async () => {
+    datos.contexto.entradas[1].salaId = null;
+    const respuesta = await importarSalas("101AA");
+    expect(respuesta.status).toBe(200);
+    expect(respuesta.body.data).toEqual({ actualizadas: 1, pendientes: 0, omitidas: 0, errores: [] });
+    expect(datos.cambiosSalas).toEqual([{ id: 101, salaId: 4 }]);
+    expect(datos.contexto.entradas.map((entrada: any) => entrada.salaId)).toEqual([4, 4]);
+  });
+  it("SIN SALA no elimina los bloques ya asignados de una sesión parcial", async () => {
+    datos.contexto.entradas[1].salaId = null; const antes = structuredClone(datos.contexto);
+    const respuesta = await importarSalas("SIN SALA");
+    expect(respuesta.status).toBe(200);
+    expect(respuesta.body.data).toEqual({ actualizadas: 0, pendientes: 1, omitidas: 0, errores: [] });
+    expect(datos.escrituras).toBe(0); expect(datos.contexto).toEqual(antes);
+  });
+  it("rechaza completar una sesión parcial con una sala distinta de sus bloques ya asignados", async () => {
+    datos.contexto.entradas[1].salaId = null; const antes = structuredClone(datos.contexto);
+    const respuesta = await importarSalas("102AA");
+    expect(respuesta.status).toBe(400);
+    expect(respuesta.body.errores).toEqual([expect.objectContaining({ fila: 2, columna: "Sala 1", mensaje: expect.stringContaining("bloques ya asignados") })]);
+    expect(datos.escrituras).toBe(0); expect(datos.contexto).toEqual(antes);
+  });
+  it("rechaza una identificación incorrecta aunque la asignatura ya tenga sala", async () => {
+    const libro = new ExcelJS.Workbook(); await libro.xlsx.load(Uint8Array.from(await respuestaSalas("102AA")).buffer);
+    libro.worksheets[0]!.getCell("H2").value = "11:10-12:30";
+    const antes = structuredClone(datos.contexto);
+    const respuesta = await importarArchivoSalas(Buffer.from(await libro.xlsx.writeBuffer()));
+    expect(respuesta.status).toBe(400); expect(respuesta.body.errores).toEqual([expect.objectContaining({ columna: "Horario 1" })]);
+    expect(datos.contexto).toEqual(antes); expect(datos.escrituras).toBe(0);
+  });
+  it("rechaza sesiones repetidas en el archivo aunque ya estén asignadas", async () => {
+    const antes = structuredClone(datos.contexto);
+    const respuesta = await importarSalas("101AA", undefined, [["AS1", "Subject 1", 1, 30, "Professor", "Teórica", "Lunes", "08:10-09:30", "102AA"]]);
+    expect(respuesta.status).toBe(400); expect(respuesta.body.errores).toEqual([expect.objectContaining({ fila: 3, columna: "Horario 1", mensaje: expect.stringContaining("repetida") })]);
+    expect(datos.contexto).toEqual(antes); expect(datos.escrituras).toBe(0);
   });
   it("exports only pending eligible sessions without splitting a partially assigned session", async () => {
     datos.contexto.entradas[1].salaId = null;
