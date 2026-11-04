@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+vi.mock("../src/repositories/optimizacion-bloqueos.js", () => ({ exigirSinEjecucionActiva: vi.fn(), exigirCarreraSinEjecucion: vi.fn() }));
 import { getTableConfig } from "drizzle-orm/pg-core";
 import { readFileSync } from "node:fs";
 import * as schema from "../src/db/schema/index.js";
@@ -27,7 +28,8 @@ import { horariosRepository } from "../src/repositories/horarios.repository.js";
 import { horariosService } from "../src/services/horarios.service.js";
 
 const entry = { ofertaId: 2, salaId: null, bloqueId: 3, tipoHoraId: 4, planificacionSemestreId: 7 };
-const entryRow = [12, 2, null, 3, 4, 7];
+const entryRow = [12, 2, null, 3, 4, null, null, 7];
+const metadatosOptimizacionVacios = { ejecucionOptimizacionId: null, categoriaOptimizacionId: null };
 beforeEach(() => { statements.length = 0; responses.length = 0; transaction.mockClear(); });
 afterEach(() => vi.restoreAllMocks());
 function simularGuardia(lecturas: unknown[][][], ids = [7]) {
@@ -61,7 +63,7 @@ describe("Publicación única por planificación (offline)", () => {
   it("crea entrada con sala null sin relación secundaria", async () => {
     simularGuardia([[ofertaRow]]);
     responses.push([[7, 1, "2027-1", true, "preparacion"]], [], [[2, 4, 5]], [], [entryRow]);
-    expect(await horariosRepository.create(entry)).toEqual({ id: 12, ...entry });
+    expect(await horariosRepository.create(entry)).toEqual({ id: 12, ...entry, ...metadatosOptimizacionVacios });
     expect(statements.at(-1)!.sql).toContain('insert into "horarios_asignaturas"');
     expect(statements.at(-1)!.params).toEqual([2, null, 3, 4, 7]);
     expect(transaction).toHaveBeenCalledOnce();
@@ -73,8 +75,8 @@ describe("Publicación única por planificación (offline)", () => {
   });
   it("actualiza contexto y sala sin escribir publicación", async () => {
     simularGuardia([[entryRow], [[2, "INF100", 8, 1, 30]]], [7, 8]);
-    responses.push([entryRow], [[8, 1, "2027-1", true, "preparacion"]], [], [[2, 4, 5]], [], [[12, 2, null, 3, 4, 8]]);
-    expect(await horariosRepository.update(12, { planificacionSemestreId: 8, salaId: null })).toEqual({ id: 12, ...entry, planificacionSemestreId: 8 });
+    responses.push([entryRow], [[8, 1, "2027-1", true, "preparacion"]], [], [[2, 4, 5]], [], [[12, 2, null, 3, 4, null, null, 8]]);
+    expect(await horariosRepository.update(12, { planificacionSemestreId: 8, salaId: null })).toEqual({ id: 12, ...entry, ...metadatosOptimizacionVacios, planificacionSemestreId: 8 });
     expect(statements.at(-1)!.sql).toContain('update "horarios_asignaturas"');
     expect(statements.every(({ sql }) => !sql.includes("horario_publicado"))).toBe(true);
   });

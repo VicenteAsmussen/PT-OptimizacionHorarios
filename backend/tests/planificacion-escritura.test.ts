@@ -40,6 +40,9 @@ function buscar(tabla: string, condicion?: SQL) {
   }) && [...sql.matchAll(/"(\w+)"\s*<>\s*\$(\d+)/g)].every(([, columna, indice]) => {
     const campo = columna.replace(/_([a-z])/g, (_, letra: string) => letra.toUpperCase());
     return fila[campo] !== valores[Number(indice) - 1];
+  }) && [...sql.matchAll(/"(\w+)" in \(([^)]+)\)/g)].every(([, columna, lista]) => {
+    const campo = columna.replace(/_([a-z])/g, (_, letra: string) => letra.toUpperCase());
+    return [...lista.matchAll(/\$(\d+)/g)].some(([, indice]) => fila[campo] === valores[Number(indice) - 1]);
   }));
 }
 function baseSimulada() {
@@ -119,6 +122,7 @@ beforeEach(() => {
   alEscribir = undefined;
   consultas = [];
   tablas = {
+    ejecuciones_optimizacion: [],
     bloques_reservados: [],
     salas: [{ id: 2, nombre: "A101AA", tipo: "Sala" }, { id: 3, nombre: "Laboratorio futuro", tipo: "Laboratorio" }],
     tipos_hora: [{ id: 1, tipo: "Teórica" }, { id: 2, tipo: "Práctica" }, { id: 3, tipo: "Laboratorio" }],
@@ -402,6 +406,10 @@ it("crea el primer período sin afectar carreras que ya tienen uno actual", asyn
   expect(tablas).toEqual({ ...anteriores, planificaciones_semestres: [...anteriores.planificaciones_semestres, creada] });
 });
 describe("creation HTTP through the real service/repository and simulated storage", () => {
+  const consultasGuarda = (carreraId: number, ids: number[]) => [
+    { tabla: "planificaciones_semestres", parametros: [carreraId], eventosPrevios: ["inicio", `bloqueo:carreras:${carreraId}`] },
+    { tabla: "ejecuciones_optimizacion", parametros: [...ids, "en_ejecucion"], eventosPrevios: ["inicio", `bloqueo:carreras:${carreraId}`] },
+  ];
   function simularUnicidadSinNombre() {
     alEscribir = (tabla, operacion) => {
       if (tabla === "planificaciones_semestres" && operacion === "insert" && tablas[tabla].some(fila => fila.carreraId === 2 && fila.codigo === "2026-2")) {
@@ -422,7 +430,7 @@ describe("creation HTTP through the real service/repository and simulated storag
     expect((await request(app).get("/api/planificaciones-semestres")).body).toEqual(lectura.body);
     expect(tablas).toEqual(anteriores);
     expect(eventos).toEqual(["inicio", "bloqueo:carreras:2", "rollback"]);
-    expect(consultas).toEqual([{ tabla: "planificaciones_semestres", parametros: [2, "2026-2"], eventosPrevios: ["inicio", "bloqueo:carreras:2"] }]);
+    expect(consultas).toEqual([...consultasGuarda(2, [1, 3]), { tabla: "planificaciones_semestres", parametros: [2, "2026-2"], eventosPrevios: ["inicio", "bloqueo:carreras:2"] }]);
   });
   it("reads duplicates committed while waiting for the career lock, before demoting current", async () => {
     alBloquear = () => { tablas.planificaciones_semestres.push({ id: 3, carreraId: 2, codigo: "2027-1", actual: false, estadoPlanificacion: "publicado" }); };
@@ -430,7 +438,7 @@ describe("creation HTTP through the real service/repository and simulated storag
     expect(respuesta.status).toBe(409);
     expect(respuesta.body).toEqual({ status: "error", statusCode: 409, message: "Período existente" });
     expect(eventos).toEqual(["inicio", "bloqueo:carreras:2", "rollback"]);
-    expect(consultas).toEqual([{ tabla: "planificaciones_semestres", parametros: [2, "2027-1"], eventosPrevios: ["inicio", "bloqueo:carreras:2"] }]);
+    expect(consultas).toEqual([...consultasGuarda(2, [1, 3]), { tabla: "planificaciones_semestres", parametros: [2, "2027-1"], eventosPrevios: ["inicio", "bloqueo:carreras:2"] }]);
   });
   it("same code in another career still creates and preserves all unrelated data", async () => {
     const anteriores = structuredClone(tablas);
@@ -438,7 +446,7 @@ describe("creation HTTP through the real service/repository and simulated storag
     expect(respuesta.status).toBe(201);
     expect(respuesta.body).toEqual({ status: "success", data: { id: 10, carreraId: 1, codigo: "2026-2", actual: true, estadoPlanificacion: "preparacion" } });
     expect(tablas).toEqual({ ...anteriores, planificaciones_semestres: [anteriores.planificaciones_semestres[0], { ...anteriores.planificaciones_semestres[1], actual: false }, respuesta.body.data] });
-    expect(consultas).toEqual([{ tabla: "planificaciones_semestres", parametros: [1, "2026-2"], eventosPrevios: ["inicio", "bloqueo:carreras:1"] }]);
+    expect(consultas).toEqual([...consultasGuarda(1, [2]), { tabla: "planificaciones_semestres", parametros: [1, "2026-2"], eventosPrevios: ["inicio", "bloqueo:carreras:1"] }]);
     expect((await request(app).get("/api/planificaciones-semestres")).body.data).toEqual(tablas.planificaciones_semestres);
   });
   it("unrelated insertion failure stays 500 and rolls back current flags/data", async () => {

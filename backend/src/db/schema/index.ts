@@ -16,3 +16,4 @@ export * from "./ofertas-asignaturas.schema.js";
 export * from "./oferta-tipo-hora.schema.js";
 export * from "./disponibilidad-profesores.schema.js";
 export * from "./horarios-asignaturas.schema.js";
+export * from "./ejecuciones-optimizacion.schema.js";

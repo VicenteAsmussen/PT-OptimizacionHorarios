@@ -9,6 +9,7 @@ import type { AlcanceCarrera } from "../utils/alcance-carrera.js";
 import { ConflictError, NotFoundError } from "../utils/errors.js";
 import { ofertasAsignaturas } from "../db/schema/ofertas-asignaturas.schema.js";
 import type { TransaccionPlanificacion } from "./planificacion-escritura.js";
+import { exigirCarreraSinEjecucion } from "./optimizacion-bloqueos.js";
 
 // Reuse the metadata lock protocol for explicit deletion. Ordinary entry writes
 // still use conPlanificacionesEditables and its current/preparation guards.
@@ -19,6 +20,7 @@ async function conPeriodoBloqueado<T>(id: number, carreraId: number,
     const [planificacion] = await tx.select().from(planificacionesSemestres)
       .where(and(eq(planificacionesSemestres.id, id), eq(planificacionesSemestres.carreraId, carreraId))).for("update");
     if (!planificacion || planificacion.carreraId !== carreraId) throw new NotFoundError("Planificación no encontrada");
+    await exigirCarreraSinEjecucion(tx, carreraId);
     return ejecutar(tx, planificacion);
   }, { isolationLevel: "read committed" });
 }
@@ -55,6 +57,7 @@ export const planificacionesSemestresRepository = {
       // Serializar la selección de periodo actual sobre su carrera, no globalmente.
       const [carrera] = await tx.select({ id: carreras.id }).from(carreras).where(eq(carreras.id, datos.carreraId)).for("update");
       if (!carrera) throw new NotFoundError("Carrera no encontrada");
+      await exigirCarreraSinEjecucion(tx, datos.carreraId);
       // Check after the career lock and before writes, independent of driver error metadata.
       const [existente] = await tx.select({ id: planificacionesSemestres.id }).from(planificacionesSemestres)
         .where(and(eq(planificacionesSemestres.carreraId, datos.carreraId), eq(planificacionesSemestres.codigo, datos.codigo))).limit(1);

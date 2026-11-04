@@ -14,6 +14,7 @@ const modules = {
   "carreras": "carreras",
   "departamentos": "departamentos",
   "disponibilidad-profesores": "disponibilidadProfesores",
+  "ejecuciones-optimizacion": "ejecucionesOptimizacion",
   "horarios-asignaturas": "horariosAsignaturas",
   "ofertas-asignaturas": "ofertasAsignaturas",
   "oferta-tipo-hora": "ofertaTipoHora",
@@ -37,6 +38,7 @@ const graph = {
   carreras: { carreraDepartamentos: "Many:carrera_departamento", carreraAsignaturas: "Many:carrera_asignatura", secretarias: "Many:secretarias", planificacionesSemestres: "Many:planificaciones_semestres", bloquesReservados: "Many:bloques_reservados" },
   departamentos: { asignaturas: "Many:asignaturas", profesores: "Many:profesores", carreraDepartamentos: "Many:carrera_departamento" },
   disponibilidadProfesores: { profesor: "One:profesores", planificacionSemestre: "One:planificaciones_semestres", bloque: "One:bloques_horarios" },
+  ejecucionesOptimizacion: { planificacion: "One:planificaciones_semestres" },
   horariosAsignaturas: { oferta: "One:ofertas_asignaturas", asignacion: "One:oferta_tipo_hora", sala: "One:salas", bloque: "One:bloques_horarios", tipoHora: "One:tipos_hora", planificacionSemestre: "One:planificaciones_semestres" },
   ofertasAsignaturas: { asignatura: "One:asignaturas", asignaciones: "Many:oferta_tipo_hora", planificacionSemestre: "One:planificaciones_semestres", horarios: "Many:horarios_asignaturas" },
   ofertaTipoHora: { oferta: "One:ofertas_asignaturas", profesor: "One:profesores", tipoHora: "One:tipos_hora", horarios: "Many:horarios_asignaturas" },
@@ -103,7 +105,7 @@ describe("Flat schema organization (offline)", () => {
     const latest = journal.entries.at(-1);
     const previous = JSON.parse(readFileSync(new URL(`../src/db/migrations/meta/${String(latest.idx).padStart(4, "0")}_snapshot.json`, import.meta.url), "utf8"));
     const current = generateDrizzleJson(schema, previous.id);
-    expect(Object.keys(current.tables)).toHaveLength(18);
+    expect(Object.keys(current.tables)).toHaveLength(19);
     expect(await generateMigration(previous, current)).toEqual([]);
   });
 });

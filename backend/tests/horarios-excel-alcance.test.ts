@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+vi.mock("../src/repositories/optimizacion-bloqueos.js", () => ({ exigirSinEjecucionActiva: vi.fn() }));
 import { PgDialect } from "drizzle-orm/pg-core";
 import { getTableName, type SQL } from "drizzle-orm";
 import { horariosRepository } from "../src/repositories/horarios.repository.js";

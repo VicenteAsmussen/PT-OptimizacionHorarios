@@ -6,6 +6,9 @@ import { carreras, planificacionesSemestres, carreraDepartamento, asignaturas, o
 import { ConflictError, NotFoundError } from "../utils/errors.js";
 import type { TransaccionPlanificacion } from "./planificacion-escritura.js";
 import type { AlcanceReinicio, ReiniciarPeriodoDTO, EstadoPeriodoDTO } from "../validations/administracion-periodos.validation.js";
+import { cargarContextoResultado } from "./resultados-horarios.repository.js";
+import { validarPropuestaResultado, validarPublicacionResultado } from "../utils/resultados-horarios.js";
+import { exigirSinEjecucionActiva } from "./optimizacion-bloqueos.js";
 
 // Maintenance is an explicit admin command, not an exception in ordinary write guards.
 // Keep the same career -> planning lock order as conPlanificacionesEditables.
@@ -59,6 +62,7 @@ export const administracionPeriodosRepository = {
   },
   reiniciar(id: number, datos: ReiniciarPeriodoDTO) {
     return conPeriodoBloqueado(id, async (tx, planificacion, carrera) => {
+      await exigirSinEjecucionActiva(tx, [id]);
       const { resumen, ids } = await capturar(tx, planificacion, carrera, datos.alcance);
       if (datos.confirmacion !== planificacion.codigo || datos.huella !== resumen.huella) {
         throw new ConflictError("Los datos cambiaron o la confirmación no coincide. Consulta y confirma nuevamente el resumen");
@@ -80,6 +84,7 @@ export const administracionPeriodosRepository = {
   },
   cambiarEstado(id: number, datos: EstadoPeriodoDTO) {
     return conPeriodoBloqueado(id, async (tx, planificacion, carrera) => {
+      await exigirSinEjecucionActiva(tx, [id]);
       if (planificacion.estadoPlanificacion !== datos.estadoAnterior) {
         throw new ConflictError("El estado cambió. Consulta nuevamente el período antes de continuar");
       }
@@ -91,6 +96,12 @@ export const administracionPeriodosRepository = {
         if (datos.estadoPlanificacion !== "preparacion" && resumen.horarios === 0) {
           throw new ConflictError("Para pasar a Propuesta o Publicado, el período debe tener horarios de asignaturas gestionadas");
         }
+      }
+      if (datos.estadoPlanificacion !== "preparacion") {
+        const contexto = await cargarContextoResultado(tx, id);
+        const validacion = datos.estadoPlanificacion === "publicado"
+          ? validarPublicacionResultado(contexto) : validarPropuestaResultado(contexto);
+        if (!validacion.valido) throw new ConflictError(validacion.problemas.map(problema => problema.mensaje).join(" "));
       }
       const [actualizada] = await tx.update(planificacionesSemestres).set({ estadoPlanificacion: datos.estadoPlanificacion })
         .where(eq(planificacionesSemestres.id, id)).returning();

@@ -1,0 +1,3 @@
+ALTER TABLE "horarios_asignaturas" ADD COLUMN "ejecucion_optimizacion_id" uuid;--> statement-breakpoint
+ALTER TABLE "horarios_asignaturas" ADD COLUMN "categoria_optimizacion_id" text;--> statement-breakpoint
+ALTER TABLE "horarios_asignaturas" ADD CONSTRAINT "horarios_asignaturas_ejecucion_optimizacion_id_ejecuciones_optimizacion_id_fk" FOREIGN KEY ("ejecucion_optimizacion_id") REFERENCES "public"."ejecuciones_optimizacion"("id") ON DELETE restrict ON UPDATE no action;

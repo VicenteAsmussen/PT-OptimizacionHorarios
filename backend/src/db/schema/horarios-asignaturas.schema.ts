@@ -1,4 +1,4 @@
-import { pgTable, serial, integer, uniqueIndex, foreignKey } from "drizzle-orm/pg-core";
+import { pgTable, serial, integer, text, uuid, uniqueIndex, foreignKey } from "drizzle-orm/pg-core";
 import { relations } from "drizzle-orm";
 import { ofertasAsignaturas } from "./ofertas-asignaturas.schema.js";
 import { salas } from "./salas.schema.js";
@@ -6,6 +6,7 @@ import { bloquesHorarios } from "./bloques-horarios.schema.js";
 import { tiposHora } from "./tipos-hora.schema.js";
 import { planificacionesSemestres } from "./planificaciones-semestres.schema.js";
 import { ofertaTipoHora } from "./oferta-tipo-hora.schema.js";
+import { ejecucionesOptimizacion } from "./ejecuciones-optimizacion.schema.js";
 
 export const horariosAsignaturas = pgTable("horarios_asignaturas", {
   id: serial("id").primaryKey(),
@@ -13,6 +14,8 @@ export const horariosAsignaturas = pgTable("horarios_asignaturas", {
   salaId: integer("sala_id").references(() => salas.id, { onDelete: "restrict" }),
   bloqueId: integer("bloque_id").notNull().references(() => bloquesHorarios.id, { onDelete: "restrict" }),
   tipoHoraId: integer("tipo_hora_id").notNull(),
+  ejecucionOptimizacionId: uuid("ejecucion_optimizacion_id").references(() => ejecucionesOptimizacion.id, { onDelete: "restrict" }),
+  categoriaOptimizacionId: text("categoria_optimizacion_id"),
   planificacionSemestreId: integer("planificacion_semestre_id").notNull().references(() => planificacionesSemestres.id, { onDelete: "cascade" }),
 }, (tabla) => [
   foreignKey({ name: "fk_horarios_oferta_planificacion", columns: [tabla.ofertaId, tabla.planificacionSemestreId], foreignColumns: [ofertasAsignaturas.id, ofertasAsignaturas.planificacionSemestreId] }).onDelete("cascade"),

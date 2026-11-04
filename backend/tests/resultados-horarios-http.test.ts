@@ -233,10 +233,10 @@ describe("Proposal results public HTTP contract", () => {
     const antes = await consultar();
     const previa = await movimiento([100, 101], 1003, "validar-movimiento");
     expect(previa.status).toBe(200); expect(previa.body.data.valido).toBe(false);
-    expect(previa.body.data.problemas.map((problema: any) => problema.codigo)).toEqual(["profesor", "nivel", "salaOcupada"]);
+    expect(previa.body.data.problemas.map((problema: any) => problema.codigo)).toEqual(["profesor", "seccion", "salaOcupada"]);
     const guardado = await movimiento([100, 101], 1003);
     expect(guardado.status).toBe(409);
-    expect(guardado.body.message).toBe("El profesor tiene otra clase en este bloque. Hay otra clase del mismo nivel semestral en este bloque. La sala está ocupada en este bloque.");
+    expect(guardado.body.message).toBe("El profesor tiene otra clase en este bloque. Los componentes de una misma sección no pueden ser simultáneos. La sala está ocupada en este bloque.");
     expect((await consultar()).body).toEqual(antes.body); expect(datos.escrituras).toBe(0);
   });
   it("reads grouped sessions with a revision, availability and room status", async () => {
@@ -258,6 +258,40 @@ describe("Proposal results public HTTP contract", () => {
     expect(respuesta.status).toBe(200);
     expect(datos.contexto.entradas.map((fila: any) => [fila.id, fila.bloqueId, fila.salaId])).toEqual([[100, 5, 4], [101, 6, 4]]);
     expect(respuesta.body.data.revision).toMatch(/^[a-f0-9]{64}$/);
+  });
+  it("permite mover una sección sobre otra de la misma asignatura con docentes y salas diferentes", async () => {
+    const otra = oferta(2); otra.asignaturaCodigo = "AS1"; otra.asignatura.codigo = "AS1"; otra.seccion = 2;
+    datos.contexto.ofertas.push(otra); datos.contexto.entradas.push(...entradas(otra, [5, 6], 8, 5));
+    const previa = await movimiento([100, 101], 5, "validar-movimiento");
+    expect(previa.status).toBe(200); expect(previa.body.data.valido).toBe(true); expect(datos.escrituras).toBe(0);
+    expect((await movimiento()).status).toBe(200); expect(datos.escrituras).toBe(1);
+  });
+  it("rechaza exceso de presupuesto en vista previa, movimiento y publicación sin modificar datos", async () => {
+    const otra = oferta(2, 3); datos.contexto.ofertas.push(otra); datos.contexto.entradas.push(...entradas(otra, [5, 6], 8, 5));
+    datos.contexto.recursosOptimizacion = { categorias: [{ id: "cat", edificio: "A", tipo: "Sala", capacidad: 30, cantidad: 1, fuente: "Prueba sintética" }], asignaciones: [] };
+    const antes = structuredClone(datos.contexto);
+    const previa = await movimiento([100, 101], 5, "validar-movimiento");
+    expect(previa.status).toBe(200); expect(previa.body.data).toMatchObject({ valido: false, problemas: expect.arrayContaining([expect.objectContaining({ codigo: "recursos" })]) });
+    const rechazo = await movimiento(); expect(rechazo.status).toBe(409);
+    expect(rechazo.body.message).toBe("El bloque excede la cantidad o capacidad de los recursos de la ejecución. El bloque excede la cantidad o capacidad de los recursos de la ejecución.");
+    expect(datos.contexto).toEqual(antes); expect(datos.escrituras).toBe(0);
+    datos.contexto.recursosOptimizacion.categorias[0].cantidad = 0;
+    const anteriorPublicacion = structuredClone(datos.contexto); const lectura = await consultar();
+    const publicacion = await request(aplicacion).post(`${ruta}/publicar`).set("Authorization", "secretaria").send({ revision: lectura.body.data.revision });
+    expect(publicacion.status).toBe(409); expect(publicacion.body.message).toContain("recursos de la ejecución");
+    expect(datos.contexto).toEqual(anteriorPublicacion); expect(datos.escrituras).toBe(0);
+  });
+  it("rechaza un destino que une más de cuatro bloques continuos sin imponer un máximo diario", async () => {
+    agregarMartes();
+    datos.contexto.entradas.push(...entradas(oferta(), [1, 2, 3, 4]).map((entrada, indice) => ({ ...entrada, id: 200 + indice,
+      bloqueId: 1001 + indice, bloque: datos.contexto.bloques.find((bloque: any) => bloque.id === 1001 + indice) })));
+    const antes = structuredClone(datos.contexto);
+    const previa = await movimiento([100, 101], 1005, "validar-movimiento");
+    expect(previa.status).toBe(200); expect(previa.body.data.problemas).toEqual([{
+      codigo: "continuidad", mensaje: "Cada sesión gestionada debe comenzar en un bloque impar y tener entre dos y cuatro bloques continuos.", idsHorarios: [200, 201, 202, 203, 100, 101],
+    }]);
+    expect((await movimiento([100, 101], 1005)).status).toBe(409);
+    expect(datos.contexto).toEqual(antes); expect(datos.escrituras).toBe(0);
   });
   it("validates a destination without saving", async () => {
     const antes = structuredClone(datos.contexto);
@@ -292,6 +326,8 @@ describe("Proposal results public HTTP contract", () => {
   });
   it("rejects a different section at the same level and fixed external classes", async () => {
     const externa = oferta(2, 1, 6); externa.seccion = 9;
+    // La compatibilidad se define por las ofertas del período, no por filas huérfanas.
+    datos.contexto.ofertas.push(externa);
     datos.contexto.entradas.push(...entradas(externa, [5, 6], 8, null));
     expect((await movimiento()).status).toBe(409);
     const lectura = await consultar();
