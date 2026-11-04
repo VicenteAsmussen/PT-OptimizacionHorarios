@@ -3,6 +3,7 @@ import { db } from "../config/db.js";
 import { carreras } from "../db/schema/carreras.schema.js";
 import { planificacionesSemestres, type PlanificacionSemestre } from "../db/schema/planificaciones-semestres.schema.js";
 import { ConflictError, NotFoundError } from "../utils/errors.js";
+import { exigirSinEjecucionActiva } from "./optimizacion-bloqueos.js";
 
 export type TransaccionPlanificacion = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
@@ -22,6 +23,14 @@ export async function conPlanificacionesEditables<T>(
   resolver: (tx: TransaccionPlanificacion) => Promise<number[]>,
   escribir: (tx: TransaccionPlanificacion) => Promise<T>,
 ): Promise<T> {
+  return conPlanificacionesBloqueadas(resolver, escribir, true);
+}
+
+export async function conPlanificacionesBloqueadas<T>(
+  resolver: (tx: TransaccionPlanificacion) => Promise<number[]>,
+  escribir: (tx: TransaccionPlanificacion) => Promise<T>,
+  exigirPreparacion = false,
+): Promise<T> {
   return db.transaction(async tx => {
     const vinculos = await resolver(tx);
     const ids = [...new Set(vinculos)].sort((primero, segundo) => primero - segundo);
@@ -36,8 +45,9 @@ export async function conPlanificacionesEditables<T>(
     for (const inicial of iniciales) {
       const [planificacion] = await tx.select().from(planificacionesSemestres).where(eq(planificacionesSemestres.id, inicial.id)).for("update");
       if (!planificacion || planificacion.carreraId !== inicial.carreraId) throw new ConflictError("La planificación cambió; vuelva a intentar");
-      exigirPlanificacionEditable(planificacion);
+      if (exigirPreparacion) exigirPlanificacionEditable(planificacion);
     }
+    await exigirSinEjecucionActiva(tx, ids);
     const actuales = await resolver(tx);
     if (vinculos.length !== actuales.length || vinculos.some((id, indice) => id !== actuales[indice])) {
       throw new ConflictError("El vínculo de planificación cambió; vuelva a intentar");

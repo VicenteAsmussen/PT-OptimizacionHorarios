@@ -1,15 +1,21 @@
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "../config/db.js";
 import { carreras, carreraAsignatura, carreraDepartamento, horariosAsignaturas, planificacionesSemestres, ofertasAsignaturas,
-  disponibilidadProfesores, salas, bloquesHorarios } from "../db/schema/index.js";
+  disponibilidadProfesores, salas, bloquesHorarios, ejecucionesOptimizacion } from "../db/schema/index.js";
 import { columnasProfesorSinRut } from "../db/schema/profesores.schema.js";
 import type { ContextoResultado } from "../utils/resultados-horarios.js";
 import { NotFoundError, ConflictError } from "../utils/errors.js";
 import type { TransaccionPlanificacion } from "./planificacion-escritura.js";
 import { exigirBloquesNoReservados, leerBloquesReservados } from "./bloques-reservados.js";
+import { exigirSinEjecucionActiva } from "./optimizacion-bloqueos.js";
+import { z } from "zod";
+import { recursoOptimizacion } from "../validations/optimizacion.validation.js";
+
+const presupuestoPersistido = z.object({ recursos: z.array(recursoOptimizacion) });
+const salidaPersistida = z.object({ asignaciones: z.array(z.object({ ofertaId: z.number().int(), tipoHoraId: z.number().int(), bloqueId: z.number().int(), categoriaId: z.union([z.string(), z.number()]) })) });
 
 const conAsignatura = { asignatura: { with: { tiposHora: { with: { tipoHora: true as const } } } } };
-async function cargar(tx: TransaccionPlanificacion, id: number): Promise<ContextoResultado> {
+export async function cargarContextoResultado(tx: TransaccionPlanificacion, id: number, incorporando = false): Promise<ContextoResultado> {
   const planificacion = await tx.query.planificacionesSemestres.findFirst({ where: eq(planificacionesSemestres.id, id) });
   if (!planificacion) throw new NotFoundError("Planificación no encontrada.");
   const entradas = await tx.query.horariosAsignaturas.findMany({ where: eq(horariosAsignaturas.planificacionSemestreId, id), with: {
@@ -18,10 +24,19 @@ async function cargar(tx: TransaccionPlanificacion, id: number): Promise<Context
   const ofertas = await tx.query.ofertasAsignaturas.findMany({ where: eq(ofertasAsignaturas.planificacionSemestreId, id), with: conAsignatura });
   const malla = await tx.query.carreraAsignatura.findMany({ where: eq(carreraAsignatura.carreraId, planificacion.carreraId), with: conAsignatura });
   const departamentos = await tx.query.carreraDepartamento.findMany({ where: and(eq(carreraDepartamento.carreraId, planificacion.carreraId), eq(carreraDepartamento.esGestionado, true)) });
+  const ejecucionesIds = [...new Set(entradas.map(entrada => entrada.ejecucionOptimizacionId).filter((id): id is string => Boolean(id)))];
+  if (ejecucionesIds.length > 1) throw new ConflictError("Los horarios gestionados pertenecen a ejecuciones diferentes.");
+  const [ejecucion] = ejecucionesIds.length && !incorporando ? await tx.select({ parametros: ejecucionesOptimizacion.parametros, resultado: ejecucionesOptimizacion.resultado }).from(ejecucionesOptimizacion)
+    .where(and(eq(ejecucionesOptimizacion.planificacionSemestreId, id), eq(ejecucionesOptimizacion.id, ejecucionesIds[0]!), eq(ejecucionesOptimizacion.estado, "aplicada"))).limit(1) : [];
+  if (ejecucionesIds.length && !incorporando && !ejecucion) throw new ConflictError("No se encontró la ejecución aplicada que respalda los recursos de esta propuesta.");
+  const parametros = ejecucion ? presupuestoPersistido.safeParse(ejecucion.parametros) : undefined;
+  const salida = ejecucion ? salidaPersistida.safeParse(ejecucion.resultado) : undefined;
+  if (ejecucion && (!parametros?.success || !salida?.success)) throw new ConflictError("El presupuesto de recursos persistido no es válido. No se puede modificar ni publicar esta propuesta.");
   return { planificacion, entradas, ofertas, asignaturasMalla: malla.map(vinculo => vinculo.asignatura),
+    ...(parametros?.success && salida?.success ? { recursosOptimizacion: { categorias: parametros.data.recursos, asignaciones: salida.data.asignaciones } } : {}),
     bloquesReservadosIds: await leerBloquesReservados(tx, planificacion.carreraId),
     departamentosGestionadosIds: departamentos.map(departamento => departamento.departamentoId),
-    bloques: await tx.select().from(bloquesHorarios), salas: await tx.select({ id: salas.id, nombre: salas.nombre, tipo: salas.tipo }).from(salas),
+    bloques: await tx.select().from(bloquesHorarios), salas: await tx.select({ id: salas.id, nombre: salas.nombre, tipo: salas.tipo, capacidad: salas.capacidad }).from(salas),
     disponibilidades: await tx.query.disponibilidadProfesores.findMany({ where: eq(disponibilidadProfesores.planificacionSemestreId, id) }) };
 }
 export interface PersistenciaResultado {
@@ -31,7 +46,7 @@ export interface PersistenciaResultado {
 }
 export const resultadosHorariosRepository = {
   leer(id: number) {
-    return db.transaction(tx => cargar(tx, id), { isolationLevel: "repeatable read", accessMode: "read only" });
+    return db.transaction(tx => cargarContextoResultado(tx, id), { isolationLevel: "repeatable read", accessMode: "read only" });
   },
   async conBloqueo<T>(id: number, operar: (contexto: ContextoResultado, persistencia: PersistenciaResultado) => Promise<T>): Promise<T> {
     return db.transaction(async tx => {
@@ -41,7 +56,8 @@ export const resultadosHorariosRepository = {
       await tx.select({ id: carreras.id }).from(carreras).where(eq(carreras.id, inicial.carreraId)).for("update");
       const [planificacion] = await tx.select().from(planificacionesSemestres).where(eq(planificacionesSemestres.id, id)).for("update");
       if (!planificacion || planificacion.carreraId !== inicial.carreraId) throw new ConflictError("La planificación cambió; vuelva a consultar.");
-      const contexto = await cargar(tx, id);
+      await exigirSinEjecucionActiva(tx, [id]);
+      const contexto = await cargarContextoResultado(tx, id);
       const persistencia: PersistenciaResultado = {
         async mover(cambios) {
           const originales = await tx.select().from(horariosAsignaturas).where(and(eq(horariosAsignaturas.planificacionSemestreId, id), inArray(horariosAsignaturas.id, cambios.map(cambio => cambio.id))));

@@ -127,6 +127,20 @@
       "when": 1793716667531,
       "tag": "0017_bloques_reservados",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1793756990742,
+      "tag": "0018_ejecuciones_optimizacion",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1793759569827,
+      "tag": "0019_trazabilidad_recursos_modelo",
+      "breakpoints": true
     }
   ]
 }

@@ -9,6 +9,14 @@ import { ofertaTipoHora } from "../db/schema/oferta-tipo-hora.schema.js";
 import { disponibilidadProfesores } from "../db/schema/disponibilidad-profesores.schema.js";
 import { horariosAsignaturas } from "../db/schema/horarios-asignaturas.schema.js";
 import { planificacionesSemestresRepository } from "./planificaciones-semestres.repository.js";
+import { conPlanificacionesBloqueadas, type TransaccionPlanificacion } from "./planificacion-escritura.js";
+
+async function periodosProfesor(tx: TransaccionPlanificacion, id: number) {
+  const disponibilidades = await tx.query.disponibilidadProfesores.findMany({ where: eq(disponibilidadProfesores.profesorId, id) });
+  const ofertas = await tx.select({ planificacionSemestreId: ofertasAsignaturas.planificacionSemestreId }).from(ofertasAsignaturas)
+    .innerJoin(ofertaTipoHora, eq(ofertaTipoHora.ofertaId, ofertasAsignaturas.id)).where(eq(ofertaTipoHora.profesorId, id));
+  return [...new Set([...disponibilidades, ...ofertas].map(fila => fila.planificacionSemestreId))].sort((a, b) => a - b);
+}
 
 export const profesoresRepository = {
   async findSeleccion() {
@@ -168,15 +176,14 @@ export const profesoresRepository = {
   },
 
   async delete(id: number): Promise<boolean> {
-    const [deleted] = await db
-      .delete(profesores)
-      .where(eq(profesores.id, id))
-      .returning();
-    return !!deleted;
+    return conPlanificacionesBloqueadas(tx => periodosProfesor(tx, id), async tx => {
+      const [deleted] = await tx.delete(profesores).where(eq(profesores.id, id)).returning();
+      return !!deleted;
+    });
   },
 
   async deleteWithDependencias(id: number, usuarioId?: number | null): Promise<boolean> {
-    return await db.transaction(async (tx) => {
+    return conPlanificacionesBloqueadas(tx => periodosProfesor(tx, id), async tx => {
       await tx.delete(disponibilidadProfesores).where(eq(disponibilidadProfesores.profesorId, id));
       await tx.delete(ofertaTipoHora).where(eq(ofertaTipoHora.profesorId, id));
       if (usuarioId) {

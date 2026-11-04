@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+vi.mock("../src/repositories/optimizacion-bloqueos.js", () => ({ exigirSinEjecucionActiva: vi.fn() }));
 
 const registro = vi.hoisted(() => ({ sentencias: [] as { sql: string; parametros: unknown[] }[], respuestas: [] as (unknown[][] | Error)[], transaccion: vi.fn() }));
 vi.mock("../src/config/db.js", async () => {

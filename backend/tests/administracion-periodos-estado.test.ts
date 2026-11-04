@@ -1,10 +1,15 @@
 import { beforeEach, expect, it, vi } from "vitest";
+// Esta suite aísla las transiciones, la exclusión real se prueba con PostgreSQL aislado.
+vi.mock("../src/repositories/optimizacion-bloqueos.js", () => ({ exigirSinEjecucionActiva: vi.fn() }));
 import { getTableName } from "drizzle-orm";
 import { PgDialect } from "drizzle-orm/pg-core";
 import { administracionPeriodosRepository as repositorio } from "../src/repositories/administracion-periodos.repository.js";
 
 // Independent-verifier regressions: inspect lock/check/write ordering without a database.
-const contexto = vi.hoisted(() => ({ estado: "publicado", horarios: 1, eventos: [] as string[], campos: {} as Record<string, unknown> }));
+const contexto = vi.hoisted(() => ({ estado: "publicado", horarios: 1, eventos: [] as string[], campos: {} as Record<string, unknown>, resultado: {} as any }));
+vi.mock("../src/repositories/resultados-horarios.repository.js", () => ({
+  cargarContextoResultado: vi.fn(async () => { contexto.eventos.push("validacion-resultado"); return structuredClone(contexto.resultado); }),
+}));
 vi.mock("../src/config/db.js", () => {
   const planificacion = () => ({ id: 7, carreraId: 2, codigo: "2026-2", actual: false, estadoPlanificacion: contexto.estado });
   const transaccion = {
@@ -41,7 +46,17 @@ vi.mock("../src/config/db.js", () => {
   };
   return { db: { transaction: async (ejecutar: (tx: typeof transaccion) => Promise<unknown>) => ejecutar(transaccion) } };
 });
-beforeEach(() => { contexto.estado = "publicado"; contexto.horarios = 1; contexto.eventos = []; contexto.campos = {}; });
+beforeEach(() => {
+  contexto.estado = "publicado"; contexto.horarios = 1; contexto.eventos = []; contexto.campos = {};
+  const bloques = [1, 2].map(numero => ({ id: numero, dia: "Lunes", numeroBloque: numero, horaInicio: numero === 1 ? "08:10" : "08:50", horaTermino: numero === 1 ? "08:50" : "09:30" }));
+  const oferta = { id: 10, asignaturaCodigo: "INT", seccion: 1, cupos: 20, asignatura: { codigo: "INT", departamentoId: 1,
+    semestreMalla: 2, requiereSala: true, tiposHora: [{ tipoHoraId: 1, horas: 2 }] } };
+  contexto.resultado = { planificacion: { id: 7, codigo: "2026-2" }, ofertas: [oferta], asignaturasMalla: [oferta.asignatura], bloques,
+    departamentosGestionadosIds: [1], bloquesReservadosIds: [], salas: [{ id: 1, tipo: "Sala", nombre: "Sala 1" }],
+    disponibilidades: bloques.map(bloque => ({ profesorId: 1, bloqueId: bloque.id, planificacionSemestreId: 7 })),
+    entradas: bloques.map(bloque => ({ id: 90 + bloque.id, ofertaId: 10, tipoHoraId: 1, salaId: 1, bloqueId: bloque.id, bloque, oferta,
+      asignacion: { profesorId: 1 }, tipoHora: { id: 1, tipo: "Teórica" } })) };
+});
 it.each(["propuesta", "publicado"] as const)("rejects occupied return from %s after career and plan locks", async estadoAnterior => {
   contexto.estado = estadoAnterior;
   await expect(repositorio.cambiarEstado(7, { estadoAnterior, estadoPlanificacion: "preparacion" })).rejects.toMatchObject({ statusCode: 409 });
@@ -88,4 +103,23 @@ it.each([["publicado", "propuesta"], ["propuesta", "publicado"]] as const)("allo
   await repositorio.cambiarEstado(7, { estadoAnterior, estadoPlanificacion });
   expect(contexto.eventos).toContain("consulta-horarios");
   expect(contexto.campos).toEqual({ estadoPlanificacion });
+});
+it.each(["propuesta", "publicado"] as const)("rechaza carga incompleta al pasar a %s sin escribir", async estadoPlanificacion => {
+  contexto.estado = "preparacion"; contexto.resultado.entradas.pop();
+  await expect(repositorio.cambiarEstado(7, { estadoAnterior: "preparacion", estadoPlanificacion })).rejects.toMatchObject({ statusCode: 409 });
+  expect(contexto.eventos).toContain("validacion-resultado");
+  expect(contexto.eventos).not.toContain("escritura"); expect(contexto.campos).toEqual({});
+});
+it("admite Propuesta completa sin salas físicas y rechaza Publicado hasta asignarlas", async () => {
+  contexto.estado = "preparacion"; contexto.resultado.entradas.forEach((entrada: any) => { entrada.salaId = null; });
+  await repositorio.cambiarEstado(7, { estadoAnterior: "preparacion", estadoPlanificacion: "propuesta" });
+  expect(contexto.campos).toEqual({ estadoPlanificacion: "propuesta" });
+  contexto.campos = {}; contexto.eventos = []; contexto.estado = "propuesta";
+  await expect(repositorio.cambiarEstado(7, { estadoAnterior: "propuesta", estadoPlanificacion: "publicado" })).rejects.toMatchObject({ statusCode: 409 });
+  expect(contexto.campos).toEqual({}); expect(contexto.eventos).not.toContain("escritura");
+});
+it.each(["propuesta", "publicado"] as const)("no elude la validación repitiendo el estado %s", async estadoPlanificacion => {
+  contexto.estado = estadoPlanificacion; contexto.resultado.entradas.pop();
+  await expect(repositorio.cambiarEstado(7, { estadoAnterior: estadoPlanificacion, estadoPlanificacion })).rejects.toMatchObject({ statusCode: 409 });
+  expect(contexto.campos).toEqual({}); expect(contexto.eventos).not.toContain("escritura");
 });

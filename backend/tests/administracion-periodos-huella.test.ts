@@ -1,4 +1,5 @@
 import { beforeEach, expect, it, vi } from "vitest";
+vi.mock("../src/repositories/optimizacion-bloqueos.js", () => ({ exigirSinEjecucionActiva: vi.fn() }));
 import { createHash } from "node:crypto";
 import { getTableName } from "drizzle-orm";
 import { administracionPeriodosRepository as repositorio } from "../src/repositories/administracion-periodos.repository.js";

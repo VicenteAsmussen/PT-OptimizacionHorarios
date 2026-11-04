@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+vi.mock("../src/repositories/optimizacion-bloqueos.js", () => ({ exigirSinEjecucionActiva: vi.fn() }));
 import { createOfertaValidation, updateOfertaValidation } from "../src/validations/ofertas.validation.js";
 import { ConflictError } from "../src/utils/errors.js";
 import type { AlcanceCarrera } from "../src/utils/alcance-carrera.js";
