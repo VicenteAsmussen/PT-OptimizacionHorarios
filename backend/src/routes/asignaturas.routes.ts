@@ -24,12 +24,14 @@ router.get(
 
 router.post(
   "/",
+  authorizeRoles("admin"),
   validateRequest({ body: createAsignaturaValidation }),
   asignaturasController.create
 );
 
 router.put(
   "/:codigo",
+  authorizeRoles("admin"),
   validateRequest({
     params: asignaturaCodigoParamValidation,
     body: updateAsignaturaValidation,
@@ -39,6 +41,7 @@ router.put(
 
 router.delete(
   "/:codigo",
+  authorizeRoles("admin"),
   validateRequest({ params: asignaturaCodigoParamValidation }),
   asignaturasController.delete
 );

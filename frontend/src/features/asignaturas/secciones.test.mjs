@@ -245,7 +245,7 @@ test('mutaciones notifican al padre sin recargar catálogo ni desmontar panel', 
 });
 
 // Exercise the component's real event handlers with deterministic hook state.
-async function componenteConEstado(ruta, nombre = 'default') {
+async function componenteConEstado(ruta, nombre = 'default', dobles = {}) {
   const ts = await import('typescript');
   const React = await import('react');
   const datos = await import('./datos.ts');
@@ -261,6 +261,7 @@ async function componenteConEstado(ruta, nombre = 'default') {
   };
   const exportaciones = {};
   const requerir = modulo => {
+    if (modulo in dobles) return dobles[modulo];
     if (modulo === 'react') return react;
     if (modulo === './datos') return datos;
     if (modulo === './useMutacion') return { useMutacion: () => ({ ocupado: false, error: '', ejecutar() {} }) };
@@ -348,6 +349,35 @@ test('editing a subject displays its hour breakdown without adding editable hour
   assert.equal(elementos(arbol, e => e.type === 'input' && e.props.type === 'number').length, 1, 'only curriculum semester is editable');
   const vacia = renderToStaticMarkup(renderizar({ asignatura: { ...asignatura, tiposHora: [] }, departamentos: [], alCerrar() {}, alCompletar() {} }));
   assert.match(vacia, /Sin tipos de hora registrados/);
+});
+
+test('ver asignatura conserva los datos del editor, deshabilita campos y no permite guardar', async () => {
+  const llamadas = [];
+  const renderizar = await componenteConEstado('./EditarAsignatura.tsx', 'default', {
+    './useMutacion': { useMutacion: () => ({ ocupado: false, error: '', ejecutar: (...argumentos) => llamadas.push(argumentos) }) },
+  });
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const asignatura = { codigo: 'INF100', nombre: 'Álgebra', departamentoId: 1, semestreMalla: 2, esCritica: true,
+    tiposHora: [{ tipoHoraId: 1, horas: 4, tipoHora: { tipo: 'Teoría' } }] };
+  const propiedades = { asignatura, departamentos: [{ id: 1, nombre: 'Departamento' }], alCerrar() {}, alCompletar() {} };
+  const lectura = renderizar({ ...propiedades, soloLectura: true });
+  assert.equal(lectura.props.titulo, 'Ver asignatura');
+  assert.equal(elementos(lectura, e => e.type === 'fieldset')[0].props.disabled, true);
+  assert.equal(elementos(lectura, e => e.type === 'button' && e.props.type === 'submit').length, 0);
+  const html = renderToStaticMarkup(lectura);
+  for (const dato of ['INF100', 'Álgebra', 'Departamento', 'Semestre de malla', 'Asignatura crítica', 'Teoría', '4 h']) {
+    assert.ok(html.includes(dato), dato);
+  }
+  let prevenido = false;
+  elementos(lectura, e => e.type === 'form')[0].props.onSubmit({ preventDefault() { prevenido = true; } });
+  assert.equal(prevenido, true);
+  assert.deepEqual(llamadas, [], 'ni siquiera un envío programático inicia una mutación');
+  const edicion = renderizar(propiedades);
+  assert.equal(edicion.props.titulo, 'Editar asignatura');
+  assert.equal(elementos(edicion, e => e.type === 'fieldset')[0].props.disabled, false);
+  assert.equal(elementos(edicion, e => e.type === 'button' && e.props.type === 'submit').length, 1);
+  elementos(edicion, e => e.type === 'form')[0].props.onSubmit({ preventDefault() {} });
+  assert.equal(llamadas.length, 1, 'administración conserva el envío del formulario');
 });
 
 test('teacher autocomplete selects a suggestion and can be cleared and rewritten directly', async () => {

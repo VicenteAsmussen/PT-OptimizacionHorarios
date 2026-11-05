@@ -5,8 +5,9 @@ import { useMutacion } from './useMutacion';
 import PanelAsignatura from './PanelAsignatura';
 import estilos from './Asignaturas.module.css';
 
-export default function EditarAsignatura({ asignatura, departamentos, alCerrar, alCompletar }: {
+export default function EditarAsignatura({ asignatura, departamentos, alCerrar, alCompletar, soloLectura = false }: {
   asignatura: Asignatura; departamentos: Departamento[]; alCerrar: () => void; alCompletar: () => void;
+  soloLectura?: boolean;
 }) {
   const [nombre, setNombre] = useState(asignatura.nombre);
   const [departamentoId, setDepartamentoId] = useState(asignatura.departamentoId);
@@ -15,6 +16,7 @@ export default function EditarAsignatura({ asignatura, departamentos, alCerrar, 
   const { ocupado, error, ejecutar } = useMutacion();
   function enviar(evento: FormEvent) {
     evento.preventDefault();
+    if (soloLectura) return;
     void ejecutar(async () => {
       if (!nombre.trim()) throw new Error('Ingresa el nombre de la asignatura.');
       if (!departamentos.some(d => d.id === departamentoId)) throw new Error('Selecciona un departamento válido.');
@@ -22,7 +24,7 @@ export default function EditarAsignatura({ asignatura, departamentos, alCerrar, 
       await asignaturasApi.editar(asignatura.codigo, { nombre: nombre.trim(), departamentoId, semestreMalla, esCritica });
     }, alCompletar);
   }
-  return <PanelAsignatura titulo="Editar asignatura" ocupado={ocupado} alCerrar={alCerrar}>
+  return <PanelAsignatura titulo={soloLectura ? 'Ver asignatura' : 'Editar asignatura'} ocupado={ocupado} alCerrar={alCerrar}>
     <p>Código: <strong>{asignatura.codigo}</strong> (no modificable)</p>
     <section aria-label="Horas por tipo" className={estilos.resumenHoras}>
       <h3>Horas por tipo</h3>
@@ -31,7 +33,7 @@ export default function EditarAsignatura({ asignatura, departamentos, alCerrar, 
       </div>)}</dl> : <p>Sin tipos de hora registrados.</p>}
     </section>
     <form onSubmit={enviar}>
-      <fieldset disabled={ocupado} className={estilos.campos}>
+      <fieldset disabled={ocupado || soloLectura} className={estilos.campos}>
         <label>Nombre<input required value={nombre} onChange={e => setNombre(e.target.value)} /></label>
         <label>Departamento<select required value={departamentoId} onChange={e => setDepartamentoId(Number(e.target.value))}>
           {departamentos.map(d => <option key={d.id} value={d.id}>{d.nombre}</option>)}
@@ -40,7 +42,7 @@ export default function EditarAsignatura({ asignatura, departamentos, alCerrar, 
           onChange={e => setSemestreMalla(Number(e.target.value))} /></label>
         <label className={estilos.casilla}><input type="checkbox" checked={esCritica} onChange={e => setEsCritica(e.target.checked)} />Asignatura crítica</label>
         <p>Se conservan las carreras y los tipos de hora asociados.</p>
-        <button className="boton boton--azul" type="submit">{ocupado ? 'Guardando…' : 'Guardar asignatura'}</button>
+        {!soloLectura && <button className="boton boton--azul" type="submit">{ocupado ? 'Guardando…' : 'Guardar asignatura'}</button>}
       </fieldset>
       {error && <p role="alert" className={estilos.error}>{error}</p>}
     </form>

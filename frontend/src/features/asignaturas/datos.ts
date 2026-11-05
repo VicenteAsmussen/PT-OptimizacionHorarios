@@ -1,9 +1,12 @@
-import type { Asignatura, Oferta, ProfesorSeccion, PlanificacionSemestre } from './types.ts';
+import type { Asignatura, Departamento, Oferta, ProfesorSeccion, PlanificacionSemestre } from './types.ts';
 
 const normalizar = (texto: string) => texto.trim().toLocaleLowerCase('es').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-export function filtrarAsignaturas(asignaturas: readonly Asignatura[], busqueda = '', departamento = '', malla = '') {
+export function filtrarAsignaturas(asignaturas: readonly Asignatura[], busqueda = '', departamento = '', malla = '',
+  departamentos: readonly Pick<Departamento, 'id' | 'esGestionado'>[] = []) {
   const consulta = normalizar(busqueda);
-  return asignaturas.filter(a => (!departamento || a.departamentoId === Number(departamento))
+  const esGrupo = departamento === 'gestionados' || departamento === 'no-gestionados';
+  const idsGrupo = new Set(departamentos.filter(d => d.esGestionado === (departamento === 'gestionados')).map(d => d.id));
+  return asignaturas.filter(a => (!departamento || (esGrupo ? idsGrupo.has(a.departamentoId) : a.departamentoId === Number(departamento)))
     && (!malla || a.semestreMalla === Number(malla))
     && (normalizar(a.nombre).includes(consulta) || normalizar(a.codigo).includes(consulta)))
     .sort((a, b) => a.semestreMalla - b.semestreMalla
@@ -73,3 +76,4 @@ export function tiposPendientes(asignatura: Asignatura, oferta: Oferta) {
   return (asignatura.tiposHora ?? []).filter(t => t.horas > 0 && !oferta.asignaciones.some(a => a.tipoHoraId === t.tipoHoraId));
 }
 export const puedeGestionarAsignaturas = (rol?: string) => rol === 'admin' || rol === 'secretaria';
+export const puedeEditarAsignaturas = (rol?: string) => rol === 'admin';

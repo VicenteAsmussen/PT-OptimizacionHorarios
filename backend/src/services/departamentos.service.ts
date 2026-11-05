@@ -5,7 +5,12 @@ import { NotFoundError, ConflictError } from "../utils/errors.js";
 
 export const departamentosService = {
   async getAllDepartamentos(alcance?: AlcanceCarrera) {
-    return await departamentosRepository.findAll(alcance);
+    const departamentos = await departamentosRepository.findAll(alcance);
+    if (!alcance) return departamentos;
+    return departamentos.map(departamento => ({
+      ...departamento,
+      esGestionado: alcance.departamentosGestionadosIds.includes(departamento.id),
+    }));
   },
 
   async getDepartamentoById(id: number, alcance?: AlcanceCarrera) {
