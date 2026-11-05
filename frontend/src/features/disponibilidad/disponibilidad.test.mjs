@@ -217,6 +217,33 @@ const planes = [
 const bloques = [{ id: 20, dia: 'Lunes', numeroBloque: 1, horaInicio: '08:10:00', horaTermino: '08:50:00' },
   { id: 10, dia: 'Lunes', numeroBloque: 2, horaInicio: '08:50:00', horaTermino: '09:30:00' }];
 
+test('sondeo de cálculo bloquea edición y conserva borrador al bloquear, fallar y liberar', async t => {
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  let activa = false, fallar = false, posts = 0;
+  const pagina = await montarPagina({
+    consultar: async id => {
+      if (fallar) throw new Error('Consulta temporalmente no disponible');
+      return { planificaciones: planes, bloques, seleccion: id ? { ...seleccion, planificacionSemestreId: id, editable: !activa, ...(activa ? { bloqueadaPorOptimizacion: true } : {}) } : null };
+    }, enviar: async () => { posts++; },
+  });
+  try {
+    await pagina.esperar();
+    pagina.elementos('grilla')[0].props.alternar(20); pagina.renderizar();
+    pagina.elementos('grilla')[0].props.alternar(10); pagina.renderizar();
+    assert.equal(pagina.boton('Enviar disponibilidad').props.disabled, false);
+    activa = true; t.mock.timers.tick(5000); await pagina.esperar();
+    assert.equal(pagina.elementos('grilla')[0].props.bloqueada, true);
+    assert.deepEqual(pagina.elementos('grilla')[0].props.bloquesIds, [20, 10]);
+    assert.match(pagina.texto(), /Edición bloqueada durante el cálculo/); assert.equal(posts, 0);
+    fallar = true; t.mock.timers.tick(5000); await pagina.esperar();
+    assert.match(pagina.texto(), /El borrador se conserva/);
+    fallar = false; activa = false; t.mock.timers.tick(5000); await pagina.esperar();
+    assert.equal(pagina.elementos('grilla')[0].props.bloqueada, false);
+    assert.deepEqual(pagina.elementos('grilla')[0].props.bloquesIds, [20, 10]);
+    assert.equal(pagina.boton('Enviar disponibilidad').props.disabled, false); assert.equal(posts, 0);
+  } finally { pagina.desmontar(); t.mock.timers.reset(); }
+});
+
 test('page selects the first current career without a placeholder, never autosaves, and preserves failed drafts', async () => {
   const consultas = []; const envios = []; let fallar = false; let resolverEnvio;
   const api = {

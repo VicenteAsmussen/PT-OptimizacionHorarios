@@ -12,6 +12,8 @@ import MiHorarioPage, { RequireMiHorario } from "../features/mi-horario/MiHorari
 import SeguimientoDisponibilidadPage, { RequireSeguimientoDisponibilidad } from "../features/seguimiento-disponibilidad/SeguimientoDisponibilidadPage";
 import AdministracionPeriodosPage, { RequireAdministracionPeriodos } from "../features/administracion-periodos/AdministracionPeriodosPage";
 import ResultadosHorariosPage, { RequireResultadosHorarios } from "../features/resultados-horarios/ResultadosHorariosPage";
+import OptimizacionPage, { RequireOptimizacion } from "../features/optimizacion/OptimizacionPage";
+import { SeguimientoOptimizacion } from "../features/optimizacion/SeguimientoOptimizacion";
 
 export const router = createBrowserRouter([
   { path: "/", element: <Navigate to="/login" replace /> },
@@ -23,10 +25,13 @@ export const router = createBrowserRouter([
     path: "/app",
     element: <RequireAuth />,
     children: [{
-      element: <AppLayout />,
+      element: <SeguimientoOptimizacion><AppLayout /></SeguimientoOptimizacion>,
       children: [
         { index: true, element: <Navigate to="dashboard" replace /> },
         { path: "dashboard", element: <DashboardPage /> },
+        { element: <RequireOptimizacion />, children: [
+          { path: "optimizacion", element: <OptimizacionPage /> },
+        ] },
         { element: <RequireAdministracionPeriodos />, children: [
           { path: "administracion-periodos", element: <AdministracionPeriodosPage /> },
         ] },

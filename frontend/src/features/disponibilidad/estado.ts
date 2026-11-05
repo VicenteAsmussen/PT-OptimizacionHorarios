@@ -23,7 +23,7 @@ export interface EstadoDisponibilidad {
 type Accion = { tipo: 'consultar'; id: number | null }
   | { tipo: 'cargada' | 'guardada'; id: number; seleccion: Seleccion }
   | { tipo: 'fallo'; id: number; mensaje: string }
-  | { tipo: 'permiso'; id: number; editable: boolean; bloquesReservadosIds?: number[] }
+  | { tipo: 'permiso'; id: number; editable: boolean; bloquesReservadosIds?: number[]; bloqueadaPorOptimizacion?: boolean }
   | { tipo: 'alternar'; id: number }
   | { tipo: 'seleccionar_todos'; bloquesIds: number[] }
   | { tipo: 'deseleccionar_todos' }
@@ -42,6 +42,7 @@ export function reducirDisponibilidad(estado: EstadoDisponibilidad, accion: Acci
     if (accion.id !== estado.id || !estado.seleccion) return estado;
     const reservados = accion.bloquesReservadosIds ?? estado.seleccion.bloquesReservadosIds ?? [];
     return { ...estado, seleccion: { ...estado.seleccion, editable: accion.editable,
+      ...(accion.bloqueadaPorOptimizacion === undefined ? {} : { bloqueadaPorOptimizacion: accion.bloqueadaPorOptimizacion }),
       ...(accion.bloquesReservadosIds === undefined ? {} : { bloquesReservadosIds: accion.bloquesReservadosIds }) },
       bloquesIds: estado.modo === 'edicion' && accion.editable
         ? estado.bloquesIds.filter(id => !reservados.includes(id)) : estado.bloquesIds };

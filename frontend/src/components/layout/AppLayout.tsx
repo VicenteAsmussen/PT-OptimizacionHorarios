@@ -9,6 +9,7 @@ import { puedeVerSeguimiento } from "../../features/seguimiento-disponibilidad/e
 import { puedeAdministrarPeriodos } from "../../features/administracion-periodos/modelo";
 import { puedeGestionarHorariosExternos } from "../../features/horarios-externos/permisos";
 import { puedeGestionarResultados } from "../../features/resultados-horarios/permisos";
+import { puedeOptimizar } from "../../features/optimizacion/modelo";
 import logoUBB from "../../assets/logos/LogoUBB.png";
 import iconoSalida from "../../assets/iconos/salida.svg";
 import iconoRetrato from "../../assets/iconos/retrato.svg";
@@ -123,6 +124,11 @@ export default function AppLayout() {
         {puedeGestionarHorariosExternos(usuario?.rol) && (
           <NavLink to="/app/horarios-externos" onClick={() => setNavegacionAbierta(false)}>
             Horarios departamentos externos
+          </NavLink>
+        )}
+        {puedeOptimizar(usuario?.rol) && (
+          <NavLink to="/app/optimizacion" onClick={() => setNavegacionAbierta(false)}>
+            Modelo de optimización
           </NavLink>
         )}
         {puedeGestionarResultados(usuario?.rol) && (

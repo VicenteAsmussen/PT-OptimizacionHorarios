@@ -434,6 +434,18 @@ test('S11 an unavailable third block prevents server preview and saving the whol
   } finally { pagina.cerrar(); }
 });
 
+test('la consulta selecciona solo una planificación autorizada sin alterar la selección anterior', async () => {
+  const a = { ...resultado.planificacion, id: 101, actual: true, carrera: { nombre: 'Carrera A' } };
+  const b = { ...resultado.planificacion, id: 202, actual: false, carrera: { nombre: 'Carrera B' } };
+  for (const [consulta, esperado] of [['', 101], ['?planificacion=202', 202], ['?planificacion=999', null]]) {
+    const pagina = await montar('./ResultadosHorariosPage.tsx', 'ConsultaResultados', {}, { consulta, planificaciones: async () => [a, b] });
+    try {
+      await pagina.asentar();
+      assert.equal(pagina.componente('ContenidoResultados')?.props.id ?? null, esperado);
+    } finally { pagina.cerrar(); }
+  }
+});
+
 // Execute the real component's hooks and handlers with deferred requests, without a DOM or network.
 async function montar(nombreArchivo, nombreFuncion, propiedades, api) {
   const React = await import('react');
@@ -457,6 +469,8 @@ async function montar(nombreArchivo, nombreFuncion, propiedades, api) {
   let indice = 0, sucio = false, arbol;
   const entorno = { React, ...modelo, ...datos, ordenarBloques: disponibilidad.ordenarBloques, ...componentes, ApiError, estilos: {}, resultadosHorariosApi: api, notificaciones,
     useAuth: () => ({ usuario: { id: 1, rol: 'secretaria' } }), Navigate: () => null, Outlet: () => null,
+    useSearchParams: () => [new URLSearchParams(api.consulta ?? '')], Link: () => null,
+    rutaModelo: (id) => `/app/optimizacion?planificacion=${id}`,
     useState(inicial) {
       const posicion = indice++;
       if (!(posicion in valores)) valores[posicion] = typeof inicial === 'function' ? inicial() : inicial;

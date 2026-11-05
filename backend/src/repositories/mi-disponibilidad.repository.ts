@@ -1,10 +1,11 @@
-import { asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import { db } from "../config/db.js";
 import { planificacionesSemestres } from "../db/schema/planificaciones-semestres.schema.js";
 import { ofertasAsignaturas } from "../db/schema/ofertas-asignaturas.schema.js";
 import { ofertaTipoHora } from "../db/schema/oferta-tipo-hora.schema.js";
 import { disponibilidadProfesores } from "../db/schema/disponibilidad-profesores.schema.js";
 import { bloquesHorarios } from "../db/schema/bloques-horarios.schema.js";
+import { ejecucionesOptimizacion } from "../db/schema/ejecuciones-optimizacion.schema.js";
 import { conPlanificacionesEditables, type TransaccionPlanificacion } from "./planificacion-escritura.js";
 import { reemplazarDisponibilidad } from "./disponibilidad.repository.js";
 import { ForbiddenError } from "../utils/errors.js";
@@ -24,6 +25,12 @@ async function contexto(profesorId: number, conexion: TransaccionPlanificacion |
   const propias = ofertas.filter(oferta => oferta.asignaciones.some(asignacion => asignacion.profesorId === profesorId));
   const permitidas = planificaciones.filter(planificacion => (incluirAnteriores || planificacion.actual)
     && propias.some(oferta => oferta.planificacionSemestreId === planificacion.id));
+  // Solo se consulta la señal de bloqueo de las planificaciones asignadas al profesor.
+  const activas = permitidas.length ? await conexion.query.ejecucionesOptimizacion.findMany({
+    columns: { planificacionSemestreId: true },
+    where: and(inArray(ejecucionesOptimizacion.planificacionSemestreId, permitidas.map(fila => fila.id)), eq(ejecucionesOptimizacion.estado, "en_ejecucion")),
+  }) : [];
+  const bloqueadas = new Set(activas.map(fila => fila.planificacionSemestreId));
   const reservasPorCarrera = new Map(await Promise.all([...new Set(permitidas.map(planificacion => planificacion.carreraId))]
     .map(async carreraId => [carreraId, await leerBloquesReservados(conexion, carreraId)] as const)));
   return {
@@ -44,7 +51,8 @@ async function contexto(profesorId: number, conexion: TransaccionPlanificacion |
       return { planificacionSemestreId, bloquesIds: filas.filter(fila => fila.profesorId === profesorId && fila.planificacionSemestreId === planificacionSemestreId).map(fila => fila.bloqueId).sort((a, b) => a - b),
         bloquesReservadosIds: reservasPorCarrera.get(planificacion.carreraId) ?? [],
         minimoBloques: carga.reduce((suma, fila) => suma + fila.horas, 0), carga,
-        editable: planificacion.actual && planificacion.estadoPlanificacion === "preparacion" };
+        editable: planificacion.actual && planificacion.estadoPlanificacion === "preparacion" && !bloqueadas.has(planificacionSemestreId),
+        ...(bloqueadas.has(planificacionSemestreId) ? { bloqueadaPorOptimizacion: true } : {}) };
     },
   };
 }
