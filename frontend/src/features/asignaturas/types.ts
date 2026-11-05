@@ -1,4 +1,4 @@
-export interface Departamento { id: number; nombre: string }
+export interface Departamento { id: number; nombre: string; esGestionado?: boolean }
 export interface Asignatura {
   codigo: string;
   nombre: string;

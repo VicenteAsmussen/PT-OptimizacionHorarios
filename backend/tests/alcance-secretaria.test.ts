@@ -49,10 +49,11 @@ aplicacion.use("/carreras", carrerasRouter);
 aplicacion.use("/departamentos", departamentosRouter);
 aplicacion.use("/disponibilidad", disponibilidadRouter);
 aplicacion.use((error: { statusCode?: number }, _req: Request, res: Response, _next: NextFunction) => res.sendStatus(error.statusCode ?? 500));
-const alcance = { carreraId: 1, asignaturasCodigos: ["LOCAL"], departamentosIds: [4], profesoresIds: [7], ofertasIds: [9] };
+const alcance = { carreraId: 1, asignaturasCodigos: ["LOCAL"], departamentosIds: [4], departamentosGestionadosIds: [4], profesoresIds: [7], ofertasIds: [9] };
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(carrerasRepository.findAlcanceByUsuarioId).mockResolvedValue(alcance);
+  vi.mocked(departamentosRepository.findAll).mockResolvedValue([{ id: 4, nombre: "Departamento local" }] as never);
   vi.mocked(asignaturasRepository.findByCodigo).mockResolvedValue({ codigo: "OTRA" } as never);
   vi.mocked(profesoresRepository.findById).mockResolvedValue({ id: 8, departamentoId: 5 } as never);
   vi.mocked(ofertasRepository.findById).mockResolvedValue({ id: 10, asignaturaCodigo: "OTRA", planificacionSemestreId: 2, planificacionSemestre: { carreraId: 2 }, horarios: [] } as never);
@@ -229,7 +230,9 @@ it("impide quitar la carrera propia y cambiar relaciones hacia recursos ajenos",
 });
 it("filtra catálogos y disponibilidad, y deniega mutaciones de disponibilidad ajena", async () => {
   await carrerasService.getAllCarreras(alcance);
-  await departamentosService.getAllDepartamentos(alcance);
+  expect(await departamentosService.getAllDepartamentos(alcance)).toEqual([
+    { id: 4, nombre: "Departamento local", esGestionado: true },
+  ]);
   await disponibilidadService.getDisponibilidad(undefined, alcance);
   expect(carrerasRepository.findAll).toHaveBeenCalledWith(alcance);
   expect(departamentosRepository.findAll).toHaveBeenCalledWith(alcance);

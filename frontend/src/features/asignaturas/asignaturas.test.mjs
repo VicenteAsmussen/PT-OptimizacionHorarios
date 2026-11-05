@@ -2,6 +2,31 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 const cargar = () => import('./datos.ts');
+test('secretaría consulta el catálogo pero solo administración puede editarlo', async () => {
+  const { puedeGestionarAsignaturas, puedeEditarAsignaturas } = await cargar();
+  assert.equal(puedeGestionarAsignaturas('secretaria'), true);
+  assert.equal(puedeGestionarAsignaturas('admin'), true);
+  assert.equal(puedeEditarAsignaturas('secretaria'), false);
+  assert.equal(puedeEditarAsignaturas('admin'), true);
+  assert.equal(puedeEditarAsignaturas('profesor'), false);
+  assert.equal(puedeEditarAsignaturas(), false);
+});
+test('el selector filtra gestionadas y no gestionadas sin perder los filtros individuales', async () => {
+  const { filtrarAsignaturas } = await cargar();
+  const asignaturas = [
+    { codigo: 'A', nombre: 'Álgebra', departamentoId: 1, semestreMalla: 2 },
+    { codigo: 'B', nombre: 'Bases', departamentoId: 2, semestreMalla: 4 },
+    { codigo: 'C', nombre: 'Cálculo', departamentoId: 3, semestreMalla: 2 },
+  ];
+  const departamentos = [{ id: 1, esGestionado: true }, { id: 2, esGestionado: false }, { id: 3 }];
+  assert.deepEqual(filtrarAsignaturas(asignaturas, '', 'gestionados', '', departamentos), [asignaturas[0]]);
+  assert.deepEqual(filtrarAsignaturas(asignaturas, '', 'no-gestionados', '', departamentos), [asignaturas[1]]);
+  assert.deepEqual(filtrarAsignaturas(asignaturas, 'algebra', 'gestionados', '2', departamentos), [asignaturas[0]]);
+  assert.deepEqual(filtrarAsignaturas(asignaturas, '', 'gestionados', '4', departamentos), []);
+  assert.deepEqual(filtrarAsignaturas(asignaturas, '', 'gestionados', '', []), []);
+  assert.deepEqual(filtrarAsignaturas(asignaturas, '', '2', '4', departamentos), [asignaturas[1]]);
+  assert.equal(filtrarAsignaturas(asignaturas, '', '', '', departamentos).length, 3);
+});
 test('subjects sort by numeric curriculum semester, then name, without mutating input', async () => {
   const { filtrarAsignaturas } = await cargar();
   const asignaturas = Object.freeze([

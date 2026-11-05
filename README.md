@@ -36,7 +36,8 @@ flowchart TD
     F --> G["7. Revisión Secretaría y Publicación Oficial"]
 ```
 
-1. **Gestión Académica**: la secretaría habilita la oferta de asignaturas del semestre y asigna la carga de cada docente dentro del alcance de su carrera.
+1. **Gestión Académica**: la secretaría habilita la oferta de asignaturas del semestre y asigna la carga de cada docente dentro del alcance de su carrera. El catálogo de asignaturas es de solo lectura para secretaría, solo administración puede crear, editar o eliminar asignaturas. La gestión de secciones se mantiene separada del catálogo.
+   En Asignaturas, secretaría puede consultar el detalle con «Ver» y el icono de ojo. El panel muestra los mismos datos que la edición, con campos deshabilitados y sin botón para guardar. También puede elegir «Departamentos gestionados» o «Departamentos no gestionados» dentro del selector Departamento, además de un departamento individual. La clasificación se deriva de la relación del departamento con su carrera, no del nombre ni de una marca en la asignatura. Se combina con la búsqueda y el semestre de malla, «Limpiar filtros» vuelve a mostrar todos los departamentos.
 2. **Disponibilidad Docente**: los profesores ingresan sus bloques de disponibilidad mientras el semestre está en fase de recepción.
 3. **Horarios Externos Pre-modelo**: la importación Excel incorpora ofertas y horarios de departamentos externos antes del modelo; quedan sin sala y sin publicar.
 4. **Optimización Automática**: el motor asigna bloques horarios minimizando choques de asignaturas y respetando preferencias docentes. Al existir horarios generados, la disponibilidad docente queda bloqueada.
