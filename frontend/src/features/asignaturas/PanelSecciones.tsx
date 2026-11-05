@@ -6,6 +6,7 @@ import { useMutacion } from './useMutacion';
 import PanelAsignatura from './PanelAsignatura';
 import SelectorProfesor from './SelectorProfesor';
 import estilos from './Asignaturas.module.css';
+import { AvisoBloqueo, useBloqueoOptimizacion } from '../optimizacion/SeguimientoOptimizacion';
 
 type Accion = { tipo: 'editar'; oferta: Oferta } | { tipo: 'crear' } | { tipo: 'eliminar'; oferta: Oferta };
 type Propiedades = {
@@ -50,7 +51,9 @@ export default function PanelSecciones(propiedades: Propiedades) {
     {...propiedades} />;
 }
 function ContenidoSecciones({ asignatura, semestre, alCerrar, alCambiarOfertas }: Propiedades) {
-  const { etiqueta, puedeEditar, motivo } = estadoSecciones(semestre);
+  const { etiqueta, puedeEditar: editablePorEstado, motivo } = estadoSecciones(semestre);
+  const bloqueoModelo = useBloqueoOptimizacion(semestre.id);
+  const puedeEditar = editablePorEstado && !bloqueoModelo;
   const vigente = useRef(false);
   useEffect(() => {
     vigente.current = true;
@@ -133,6 +136,7 @@ function ContenidoSecciones({ asignatura, semestre, alCerrar, alCambiarOfertas }
     <p className={estilos.estado}>Semestre seleccionado: <strong>{semestre.carrera.nombre} · {semestre.codigo}</strong>{semestre.actual ? ' (actual)' : ''} · {etiqueta}.
       Para cambiarlo, cierra este panel y utiliza el selector de semestre.</p>
     {motivo && <p id="motivo-secciones" role="status" className={estilos.estado}>{motivo}</p>}
+    <AvisoBloqueo bloqueado={bloqueoModelo} />
     <h3 ref={contenido} tabIndex={-1}>{accion?.tipo === 'crear' ? 'Agregar sección'
       : accion?.tipo === 'editar' ? `Editar sección ${accion.oferta.seccion}`
       : accion?.tipo === 'eliminar' ? `Eliminar sección ${accion.oferta.seccion}` : 'Secciones del semestre'}</h3>

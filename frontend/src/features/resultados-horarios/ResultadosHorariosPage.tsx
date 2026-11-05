@@ -1,5 +1,6 @@
 import { useEffect, useReducer, useRef, useState } from 'react';
-import { Navigate, Outlet } from 'react-router-dom';
+import { Link, Navigate, Outlet, useSearchParams } from 'react-router-dom';
+import { rutaModelo } from '../optimizacion/modelo';
 import { useAuth } from '../../hooks/useAuth';
 import { ApiError } from '../../lib/api';
 import { notificaciones } from '../../lib/notificaciones';
@@ -36,6 +37,8 @@ type AvisoImportacion = { tipo: 'error'; errores: ErrorPlanilla[]; sinCambios: b
   | { tipo: 'pendientes'; sesiones: SesionResultado[]; trasImportacion: boolean; omitidas?: number } | { tipo: 'consulta' };
 
 export function ConsultaResultados() {
+  const [consulta] = useSearchParams();
+  const solicitada = consulta.get('planificacion');
   const [planificaciones, setPlanificaciones] = useState<PlanificacionSemestre[] | null>(null);
   const [id, setId] = useState<number | null>(null);
   const [error, setError] = useState('');
@@ -46,10 +49,10 @@ export function ConsultaResultados() {
     const controlador = new AbortController();
     setError(''); setPlanificaciones(null); setId(null);
     resultadosHorariosApi.planificaciones(controlador.signal).then(datos => {
-      if (activo) { setPlanificaciones(datos); setId(planificacionInicial(datos)); }
+      if (activo) { setPlanificaciones(datos); setId(solicitada ? datos.find(p => String(p.id) === solicitada)?.id ?? null : planificacionInicial(datos)); }
     }).catch(fallo => { if (activo) setError(mensajeError(fallo)); });
     return () => { activo = false; controlador.abort(); };
-  }, [intento]);
+  }, [intento, solicitada]);
   const planificacion = planificaciones?.find(p => p.id === id);
   return <section className={estilos.pagina} aria-labelledby="titulo-resultados">
     <header className={estilos.tarjeta}>
@@ -65,7 +68,7 @@ export function ConsultaResultados() {
       : !planificaciones ? <p role="status">Cargando planificaciones…</p>
       : planificaciones.length === 0 ? <p role="status">No hay planificaciones disponibles para tu carrera.</p>
       : !planificacion ? <p role="status">Selecciona una carrera y un período para consultar el horario.</p>
-      : planificacion.estadoPlanificacion === 'preparacion' ? <p className={estilos.tarjeta} role="status">Este período está en Preparación. Todavía no hay una propuesta habilitada para gestionar. La ejecución del modelo se realiza fuera de esta página.</p>
+      : planificacion.estadoPlanificacion === 'preparacion' ? <p className={estilos.tarjeta} role="status">Este período está en Preparación. Todavía no hay una propuesta habilitada para gestionar. <Link to={rutaModelo(planificacion.id)}>Revisar preparación y ejecutar el modelo</Link>.</p>
       : <ContenidoResultados key={planificacion.id} id={planificacion.id} nombreCarrera={planificacion.carrera.nombre} ocupado={ocupado} cambiarOcupado={setOcupado}
           actualizarPlanificacion={datos => setPlanificaciones(actuales => actuales?.map(p => p.id === datos.id ? { ...p, ...datos } : p) ?? null)} />}
   </section>;

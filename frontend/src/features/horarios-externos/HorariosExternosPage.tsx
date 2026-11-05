@@ -8,6 +8,7 @@ import type { CoberturaExterna, DepartamentoExterno, ErrorImportacion, FalloImpo
 import base from '../asignaturas/Asignaturas.module.css';
 import estilos from './HorariosExternos.module.css';
 import ResumenDepartamentos from './ResumenDepartamentos';
+import { AvisoBloqueo, useBloqueoOptimizacion } from '../optimizacion/SeguimientoOptimizacion';
 
 export default function HorariosExternosPage() {
   const { usuario } = useAuth();
@@ -99,7 +100,8 @@ function PaginaImportacion() {
   const planificacion = datos?.planificaciones.find(planificacion => planificacion.actual && planificacion.id === planificacionId);
   const departamentos = useMemo(() => departamentosExternos(datos?.departamentos ?? [], planificacion?.carreraId),
     [datos?.departamentos, planificacion?.carreraId]);
-  const editable = !!planificacion?.actual && planificacion.estadoPlanificacion === 'preparacion';
+  const bloqueoModelo = useBloqueoOptimizacion(planificacionId);
+  const editable = !!planificacion?.actual && planificacion.estadoPlanificacion === 'preparacion' && !bloqueoModelo;
   const coberturaArchivo = resultado && (resultado.cobertura?.length ?? 0) > 0;
   const cobertura = coberturaArchivo ? resultado.cobertura : persistida;
   const faltantes = cobertura?.filter(asignatura => asignatura.estado === 'faltante_obligatoria').length ?? 0;
@@ -131,6 +133,7 @@ function PaginaImportacion() {
       {planificacion && <p>En <strong>{planificacion.codigo}</strong> son obligatorios los niveles {planificacion.codigo.endsWith('-1') ? 'impares' : 'pares'} de la malla. Los demás niveles son opcionales.</p>}
       {planificacion && !departamentos.length && <p>No hay departamentos externos asociados a esta carrera.</p>}
       {planificacion && !editable && <p className={base.estado}>Solo puedes importar en una planificación actual en preparación. La carga guardada sigue disponible para consulta.</p>}
+      <AvisoBloqueo bloqueado={bloqueoModelo} />
       {planificacion && departamentoId === null && departamentos.length > 0 && <ResumenDepartamentos
         key={planificacion.id} planificacionId={planificacion.id} departamentos={departamentos} />}
       {departamentoId !== null && <>

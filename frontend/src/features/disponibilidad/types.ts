@@ -31,6 +31,7 @@ export interface Seleccion {
   minimoBloques: number;
   carga: Carga[];
   editable: boolean;
+  bloqueadaPorOptimizacion?: boolean;
 }
 
 export interface ContextoDisponibilidad {

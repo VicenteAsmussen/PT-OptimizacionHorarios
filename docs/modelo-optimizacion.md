@@ -2,7 +2,7 @@
 
 El módulo `backend/src/optimizacion/index.ts` transforma datos del período en una entrada JSON revisada, ejecuta un proceso Julia y verifica su salida sin consultar la base de datos. Conserva la formulación de `Code_v2.ipynb` y `Formulacion_Matematica_HorariosVA.tex`. No crea secciones, docentes, salas físicas ni una selección global de secciones.
 
-## API para la futura interfaz
+## API para la interfaz
 
 Las rutas requieren autenticación y rol `admin` o `secretaria`. La carrera de secretaría se obtiene de su identidad autenticada. Solo se admite ICINF.
 
@@ -25,9 +25,9 @@ El cuerpo de inicio tiene esta forma, los valores son ilustrativos y deben confi
 }
 ```
 
-Las salas deben coincidir con las categorías acreditadas, sin superar el catálogo físico. Para laboratorios se declaran capacidad y cantidad total departamental, sin crear recintos físicos. No existe un valor operativo implícito de seis laboratorios. La clave de idempotencia pertenece a una planificación, repetirla con otros parámetros devuelve conflicto. Una nueva clave no reemplaza la propuesta ni evita la exclusión de otra ejecución activa.
+Las salas deben coincidir con las categorías acreditadas, sin superar el catálogo físico. Para laboratorios se declaran capacidad y cantidad total departamental, sin crear recintos físicos. El backend no impone seis laboratorios ni capacidad 60. La interfaz utiliza el supuesto explícito de capacidad 60 y cantidad inicial 6 editable, enviado y confirmado por ejecución, no como inventario ni seed. Véase [uso de la interfaz](modelo-optimizacion-frontend.md). La clave de idempotencia pertenece a una planificación, repetirla con otros parámetros devuelve conflicto. Una nueva clave no reemplaza la propuesta ni evita la exclusión de otra ejecución activa.
 
-No hay endpoints para aplicar ni reemplazar. Una solución completa, válida y vigente se incorpora automáticamente como Propuesta, nunca como Publicado. La fase frontend reutilizará la página de resultados, no está incluida en esta implementación.
+No hay endpoints para aplicar ni reemplazar. Una solución completa, válida y vigente se incorpora automáticamente como Propuesta, nunca como Publicado. La interfaz de ejecución reutiliza la página de resultados, sin añadir una grilla al modelo. Véase [uso de la interfaz](modelo-optimizacion-frontend.md).
 
 ## Persistencia, concurrencia e interrupciones
 

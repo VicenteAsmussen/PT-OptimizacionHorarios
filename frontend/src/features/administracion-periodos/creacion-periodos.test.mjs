@@ -51,6 +51,7 @@ async function montar(servicio, componente = 'PaginaAdministracion', propiedades
     if (ruta === '../../lib/notificaciones') return `const notificaciones = globalThis[${JSON.stringify(clave)}].notificaciones;`;
     if (ruta === './VistaPeriodo') return 'const VistaPeriodo = () => null;';
     if (ruta === './SelectorPeriodo') return 'function SelectorPeriodo() { return null; }';
+    if (ruta === '../optimizacion/SeguimientoOptimizacion') return 'const useBloqueoOptimizacion = () => false; const AvisoBloqueo = () => null;';
     if (ruta === './modelo') return linea.replace("'./modelo'", JSON.stringify(new URL('./modelo.ts', import.meta.url).href));
     throw new Error(`Unexpected import: ${ruta}`);
   });

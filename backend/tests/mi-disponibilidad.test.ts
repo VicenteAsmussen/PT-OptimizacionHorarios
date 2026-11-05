@@ -7,6 +7,7 @@ const datos = vi.hoisted(() => ({
   profesor: { id: 7, departamentoId: 99 },
   planificaciones: [] as any[], ofertas: [] as any[], bloques: [] as any[], filas: [] as any[],
   reservas: [] as { carreraId: number; bloqueHorarioId: number }[],
+  ejecucionesActivas: [] as { planificacionSemestreId: number }[],
   bloqueada: false,
   alBloquear: undefined as (() => void) | undefined,
 }));
@@ -29,6 +30,10 @@ vi.mock("../src/config/db.js", () => {
         return datos.filas.find(fila => fila.id === id);
       },
     },
+    ejecucionesOptimizacion: { findMany: async ({ where }: any) => {
+      const parametros = new PgDialect().sqlToQuery(where).params;
+      return datos.ejecucionesActivas.filter(fila => parametros.includes(fila.planificacionSemestreId));
+    } },
   };
   return { db: {
     query: consulta,
@@ -69,6 +74,7 @@ const carga = [
   { ofertaId: 2, asignaturaCodigo: "A", asignaturaNombre: "Álgebra", seccion: 2, tipoHoraId: 2, tipoHoraNombre: "Práctica", horas: 1 },
 ];
 beforeEach(() => {
+  datos.ejecucionesActivas = [];
   datos.reservas = [];
   datos.alBloquear = undefined;
   datos.planificaciones = [{ id: 10, codigo: "2026-2", carreraId: 30, actual: true, estadoPlanificacion: "preparacion", carrera: { nombre: "Otra carrera" } }];
@@ -79,6 +85,23 @@ beforeEach(() => {
   datos.filas = [{ id: 40, profesorId: 7, planificacionSemestreId: 10, bloqueId: 6 }];
 });
 describe("Autoservicio de disponibilidad", () => {
+  it("informa cálculo activo solo en planificación autorizada y conserva la lectura y los datos", async () => {
+    const anteriores = structuredClone(datos.filas);
+    datos.ejecucionesActivas = [{ planificacionSemestreId: 10 }, { planificacionSemestreId: 999 }];
+    const lectura = await request(app).get(`${ruta}?planificacionSemestreId=10`).set("Authorization", "profesor");
+    expect(lectura.status).toBe(200);
+    expect(lectura.body.data.seleccion).toMatchObject({ editable: false, bloqueadaPorOptimizacion: true, bloquesIds: [6], minimoBloques: 5 });
+    expect(lectura.body.data.seleccion).not.toHaveProperty("ejecucionActivaId");
+    expect((await request(app).get(`${ruta}?planificacionSemestreId=999`).set("Authorization", "profesor")).status).toBe(403);
+    const escritura = await request(app).post(ruta).set("Authorization", "profesor").send({ planificacionSemestreId: 10, bloquesIds: [1, 2, 3, 4, 5] });
+    expect(escritura.status).toBe(403);
+    expect(datos.filas).toEqual(anteriores);
+    datos.ejecucionesActivas = [];
+    const posterior = await request(app).get(`${ruta}?planificacionSemestreId=10`).set("Authorization", "profesor");
+    expect(posterior.body.data.seleccion.editable).toBe(true);
+    expect(posterior.body.data.seleccion.bloqueadaPorOptimizacion).toBeUndefined();
+    expect(datos.filas).toEqual(anteriores);
+  });
   it("expone solo reservas de la carrera autorizada sin limpiar disponibilidad anterior ni cambiar el mínimo", async () => {
     datos.reservas = [{ carreraId: 30, bloqueHorarioId: 6 }, { carreraId: 80, bloqueHorarioId: 1 }];
     const lectura = await request(app).get(`${ruta}?planificacionSemestreId=10`).set("Authorization", "profesor");

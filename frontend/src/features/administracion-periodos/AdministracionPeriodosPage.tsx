@@ -10,6 +10,7 @@ import VistaPeriodo from './VistaPeriodo';
 import SelectorPeriodo from './SelectorPeriodo';
 import base from '../asignaturas/Asignaturas.module.css';
 import estilos from './AdministracionPeriodos.module.css';
+import { AvisoBloqueo, useBloqueoOptimizacion } from '../optimizacion/SeguimientoOptimizacion';
 
 export function RequireAdministracionPeriodos() {
   const { usuario } = useAuth();
@@ -36,6 +37,7 @@ function PaginaAdministracion() {
   const codigoVigente = useRef('');
   function cambiarCodigo(valor: string) { codigoVigente.current = valor; setCodigo(valor); }
   const carrera = carreras?.find(fila => fila.id === Number(carreraId));
+  const bloqueoModelo = useBloqueoOptimizacion(null, carrera?.id);
   const codigoValido = codigo.length === 6 && /^[0-9]{4}-[12]$/.test(codigo);
   useEffect(() => {
     let activa = true; vigente.current = true;
@@ -65,7 +67,7 @@ function PaginaAdministracion() {
     try { await refrescarLista(); } finally { terminar(); }
   }
   async function crear() {
-    if (!vigente.current || bloqueo.current || seleccion.current.planificacionId || seleccion.current.carreraId !== carreraId) return;
+    if (!vigente.current || bloqueo.current || bloqueoModelo || seleccion.current.planificacionId || seleccion.current.carreraId !== carreraId) return;
     if (!carrera || !codigoValido || codigo !== codigoVigente.current) return;
     if (!iniciar()) return;
     setCreando(true);
@@ -148,7 +150,7 @@ function PaginaAdministracion() {
       <section aria-labelledby="titulo-creacion" className={`${base.pagina} ${estilos.creacion} ${planificacionId ? estilos.creacionDeshabilitada : ''}`}>
         <h2 id="titulo-creacion">Crear período</h2>
         <form aria-labelledby="titulo-creacion" onSubmit={evento => { evento.preventDefault(); void crear(); }}>
-          <fieldset disabled={ocupado || !carreraId || !!planificacionId} className={base.campos}>
+          <fieldset disabled={ocupado || bloqueoModelo || !carreraId || !!planificacionId} className={base.campos}>
             <legend className={base.soloLectores}>Nuevo período para la carrera seleccionada</legend>
             <label>Código del período<input value={codigo} onChange={evento => cambiarCodigo(evento.target.value)}
               required minLength={6} maxLength={6} pattern="[0-9]{4}-[12]" placeholder="2027-1" aria-describedby="ayuda-creacion" /></label>
@@ -160,6 +162,7 @@ function PaginaAdministracion() {
         </form>
       </section>
     </div>}
+    <AvisoBloqueo bloqueado={bloqueoModelo} />
     {errorLista && <div role="alert" className={base.error}>{errorLista} <button disabled={ocupado} onClick={() => void actualizar()}>Actualizar períodos</button></div>}
     {planificacion && <PanelPeriodo key={planificacion.id} planificacion={planificacion} bloqueado={ocupado}
       alIniciar={() => seleccion.current.planificacionId === String(planificacion.id) && iniciar()} alTerminar={terminar}
@@ -174,6 +177,7 @@ function PanelPeriodo({ planificacion, bloqueado, alIniciar, alTerminar, alActua
   alEliminada: (id: number, codigo: string) => Promise<void>;
 }) {
   const [resumenes, setResumenes] = useState<ResumenesPeriodo | null>(null);
+  const bloqueoModelo = useBloqueoOptimizacion(planificacion.id, planificacion.carreraId);
   const [cargando, setCargando] = useState(true);
   const [ocupado, setOcupado] = useState(false);
   const [error, setError] = useState('');
@@ -213,7 +217,7 @@ function PanelPeriodo({ planificacion, bloqueado, alIniciar, alTerminar, alActua
     finally { enviando.current = false; alTerminar(); }
   }
   async function ejecutar(accion: () => Promise<string | void>, recargar = true) {
-    if (!vigente.current || enviando.current || !alIniciar()) return;
+    if (!vigente.current || enviando.current || bloqueoModelo || !alIniciar()) return;
     enviando.current = true; setOcupado(true);
     consulta.current++; setResumenes(null); setAccion(null); setConfirmacion(''); confirmarEliminacion(null);
     let completada = false;
@@ -273,7 +277,7 @@ function PanelPeriodo({ planificacion, bloqueado, alIniciar, alTerminar, alActua
     {error && <div role="alert" className={base.error}>{error} <button disabled={ocupado || cargando || bloqueado} onClick={() => void reintentar()}>Reintentar</button></div>}
     {cargando && <p role="status">Cargando período…</p>}
     {resumenes && <VistaPeriodo resumenes={resumenes} nuevoEstado={nuevoEstado} accion={accion} confirmacion={confirmacion}
-      bloqueado={ocupado || cargando || bloqueado} alNuevoEstado={setNuevoEstado} alSeleccionarAccion={opcion => { setAccion(opcion); setConfirmacion(''); confirmarEliminacion(null); }}
+      bloqueado={ocupado || cargando || bloqueado || bloqueoModelo} alNuevoEstado={setNuevoEstado} alSeleccionarAccion={opcion => { setAccion(opcion); setConfirmacion(''); confirmarEliminacion(null); }}
       alConfirmacion={setConfirmacion} alReiniciar={reiniciar} alCancelar={() => { setAccion(null); setConfirmacion(''); }} alCambiarEstado={cambiarEstado}
       alMarcarActual={marcarActual} alEliminar={eliminar} confirmacionEliminacion={confirmacionEliminacion}
       alSolicitarEliminacion={() => {

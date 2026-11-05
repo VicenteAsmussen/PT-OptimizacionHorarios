@@ -26,6 +26,7 @@ export default function DisponibilidadPage() {
   const [bloques, setBloques] = useState<Bloque[]>([]);
   const [planificacionId, setPlanificacionId] = useState<number | null>(null);
   const [errorCarga, setErrorCarga] = useState('');
+  const [errorSeguimiento, setErrorSeguimiento] = useState('');
   const [intento, setIntento] = useState(0);
   const [recarga, setRecarga] = useState(0);
   const [estado, dispatch] = useReducer(reducirDisponibilidad, estadoInicial);
@@ -74,8 +75,34 @@ export default function DisponibilidadPage() {
     return () => { activo = false; controlador.abort(); generacion.current++; };
   }, [planificacionId, recarga]);
 
+  useEffect(() => {
+    if (planificacionId === null) return;
+    const id = planificacionId;
+    let activo = true;
+    const controlador = new AbortController();
+    let temporizador: ReturnType<typeof setTimeout>;
+    setErrorSeguimiento('');
+    async function consultarPermiso() {
+      try {
+        if (!enviando.current) {
+          const datos = await disponibilidadApi.consultar(id, controlador.signal);
+          if (!activo) return;
+          const planificacion = datos.planificaciones.find(p => p.id === id && p.actual);
+          dispatch({ tipo: 'permiso', id, editable: datos.seleccion?.editable === true && planificacion?.estadoPlanificacion === 'preparacion',
+            bloqueadaPorOptimizacion: datos.seleccion?.bloqueadaPorOptimizacion === true,
+            bloquesReservadosIds: datos.seleccion?.bloquesReservadosIds });
+          setErrorSeguimiento('');
+        }
+      } catch (fallo) {
+        if (activo) setErrorSeguimiento(`No se pudo actualizar el permiso de edición. ${mensajeError(fallo)} El borrador se conserva.`);
+      } finally { if (activo) temporizador = setTimeout(() => { void consultarPermiso(); }, 5000); }
+    }
+    temporizador = setTimeout(() => { void consultarPermiso(); }, 5000);
+    return () => { activo = false; clearTimeout(temporizador); controlador.abort(); };
+  }, [planificacionId, recarga]);
+
   async function enviar() {
-    if (enviando.current || !puedeEnviar(estado) || estado.id === null) return;
+    if (enviando.current || errorSeguimiento || !puedeEnviar(estado) || estado.id === null) return;
     const id = estado.id;
     const numero = generacion.current;
     enviando.current = true;
@@ -92,7 +119,8 @@ export default function DisponibilidadPage() {
           if (numero === generacion.current) {
             const planificacion = datos.planificaciones.find(p => p.id === id && p.actual);
             dispatch({ tipo: 'permiso', id, editable: datos.seleccion?.editable === true
-              && planificacion?.estadoPlanificacion === 'preparacion',
+               && planificacion?.estadoPlanificacion === 'preparacion',
+              bloqueadaPorOptimizacion: datos.seleccion?.bloqueadaPorOptimizacion === true,
               bloquesReservadosIds: datos.seleccion?.bloquesReservadosIds });
           }
         } catch { /* Conservar el borrador y el error original si falla la consulta. */ }
@@ -120,13 +148,15 @@ export default function DisponibilidadPage() {
           {planificacionId === null ? <p>Selecciona una carrera y período para registrar tu disponibilidad.</p>
             : estado.modo === 'cargando' ? <p role="status">Cargando planilla…</p> : null}
           {estado.error && <p role="alert">{estado.error}</p>}
+          {errorSeguimiento && <p role="alert">{errorSeguimiento}</p>}
+          {seleccion?.bloqueadaPorOptimizacion && <p role="status">Edición bloqueada durante el cálculo del modelo. Puedes leer y navegar. Tu borrador se conserva hasta que termine, el backend valida cada operación.</p>}
           {estado.modo === 'error' && <button type="button" className="boton boton--azul" onClick={() => setRecarga(i => i + 1)}>Reintentar</button>}
           {seleccion && <>
             <p id="conteo-disponibilidad">Seleccionados: <strong>{estado.bloquesIds.filter(id => !reservados.includes(id)).length}</strong> / mínimo {seleccion.minimoBloques} bloques.</p>
             {reservados.length > 0 && <p>Los bloques reservados pertenecen a esta carrera, no se pueden seleccionar ni cuentan para el mínimo.</p>}
             {capacidadInsuficiente && <p role="alert">{`La capacidad utilizable es de ${utilizables.length} ${utilizables.length === 1 ? 'bloque' : 'bloques'} y no cubre el mínimo de ${seleccion.minimoBloques}. Contacta a secretaría.`}</p>}
             {bloques.length === 0 ? <p>No hay bloques horarios disponibles.</p> : <GrillaDisponibilidad bloques={bloques}
-              bloquesIds={estado.bloquesIds} bloquesReservadosIds={reservados} bloqueada={estado.modo !== 'edicion' || !seleccion.editable}
+              bloquesIds={estado.bloquesIds} bloquesReservadosIds={reservados} bloqueada={estado.modo !== 'edicion' || !seleccion.editable || Boolean(errorSeguimiento)}
               guardada={estado.modo === 'guardada'} alternar={id => dispatch({ tipo: 'alternar', id })} />}
           </>}
         </div>
@@ -157,21 +187,22 @@ export default function DisponibilidadPage() {
               </div>
             </details>
             <p role="status" aria-live="polite">{guardando ? 'Enviando disponibilidad…'
+              : seleccion.bloqueadaPorOptimizacion ? 'Solo lectura durante el cálculo del modelo.'
               : !seleccion.editable ? 'Solo lectura: la planificación ya no admite cambios.'
               : estado.modo === 'guardada' ? 'Disponibilidad enviada. Para cambiarla, selecciona Editar disponibilidad.'
               : 'Selección sin enviar. Marca los bloques y luego envía tu disponibilidad.'}</p>
             {estado.modo === 'edicion' && !puedeEnviar(estado) && !capacidadInsuficiente && <p>Selecciona al menos {seleccion.minimoBloques} bloques no reservados antes de enviar.</p>}
             <div className={estilos.acciones} role="group" aria-label="Acciones de disponibilidad">
               <button type="button" className="boton boton--gris"
-                disabled={estado.modo !== 'edicion' || !seleccion.editable || utilizables.length === 0}
+                disabled={estado.modo !== 'edicion' || !seleccion.editable || Boolean(errorSeguimiento) || utilizables.length === 0}
                 onClick={() => dispatch(todosSeleccionados ? { tipo: 'deseleccionar_todos' }
                   : { tipo: 'seleccionar_todos', bloquesIds: utilizables.map(bloque => bloque.id) })}>
                 {todosSeleccionados ? 'Deseleccionar todo' : 'Seleccionar todo'}
               </button>
               {seleccion.editable && (estado.modo === 'guardada'
-                ? <button type="button" className="boton boton--editar" onClick={() => dispatch({ tipo: 'editar' })}>Editar disponibilidad</button>
+                ? <button type="button" className="boton boton--editar" disabled={Boolean(errorSeguimiento)} onClick={() => dispatch({ tipo: 'editar' })}>Editar disponibilidad</button>
                 : <>
-                  <button type="button" className="boton boton--azul" disabled={!puedeEnviar(estado) || capacidadInsuficiente || bloques.length === 0}
+                  <button type="button" className="boton boton--azul" disabled={!puedeEnviar(estado) || Boolean(errorSeguimiento) || capacidadInsuficiente || bloques.length === 0}
                     aria-describedby="conteo-disponibilidad" onClick={enviar}>{guardando ? 'Enviando…' : 'Enviar disponibilidad'}</button>
                   {seleccion.bloquesIds.length > 0 && <button type="button" className="boton boton--gris" disabled={guardando}
                     onClick={() => dispatch({ tipo: 'cancelar' })}>Cancelar edición</button>}

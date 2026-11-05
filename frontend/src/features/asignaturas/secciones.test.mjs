@@ -100,6 +100,7 @@ test('render React muestra estados y motivo accesible; cambios de contexto renue
     if (ruta === './asignaturas.api') return 'const asignaturasApi = {};';
     if (ruta === './PanelAsignatura') return 'const PanelAsignatura = ({ children }) => children;';
     if (ruta === './SelectorProfesor') return 'const SelectorProfesor = () => null;';
+    if (ruta === '../optimizacion/SeguimientoOptimizacion') return 'const useBloqueoOptimizacion = () => false; const AvisoBloqueo = () => null;';
     throw new Error(ruta);
   });
   panel = 'import React from ' + JSON.stringify(pathToFileURL(resolver.resolve('react')).href) + ';\n' + panel;
@@ -266,6 +267,7 @@ async function componenteConEstado(ruta, nombre = 'default') {
     if (modulo === './asignaturas.api') return { asignaturasApi: {} };
     if (modulo === './PanelAsignatura') return { __esModule: true, default: ({ children }) => React.createElement('div', null, children) };
     if (modulo === './SelectorProfesor') return { __esModule: true, default: () => null };
+    if (modulo === '../optimizacion/SeguimientoOptimizacion') return { useBloqueoOptimizacion: () => false, AvisoBloqueo: () => null };
     if (modulo.endsWith('.css')) return {};
     throw new Error(modulo);
   };
