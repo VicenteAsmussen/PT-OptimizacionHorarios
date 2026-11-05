@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { ordenarPeriodosPorFechaAcademica } from '../../lib/periodos';
 import { useAuth } from '../../hooks/useAuth';
 import { ApiError } from '../../lib/api';
 import { planificacionInicial } from '../asignaturas/datos';
@@ -118,7 +119,7 @@ function PaginaImportacion() {
       <div className={base.filtros}>
         <label>Período actual<select disabled value={planificacionId ?? ''}>
           {planificacionId === null && <option value="" disabled hidden>Período actual no disponible</option>}
-          {datos.planificaciones.filter(planificacion => planificacion.actual).map(planificacion => <option key={planificacion.id} value={planificacion.id}>
+          {ordenarPeriodosPorFechaAcademica(datos.planificaciones.filter(planificacion => planificacion.actual)).map(planificacion => <option key={planificacion.id} value={planificacion.id}>
             {planificacion.carrera.nombre} · {planificacion.codigo}
           </option>)}
         </select></label>

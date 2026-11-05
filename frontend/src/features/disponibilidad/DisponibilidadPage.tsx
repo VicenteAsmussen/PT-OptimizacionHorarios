@@ -1,5 +1,6 @@
 import { useEffect, useReducer, useRef, useState } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
+import { ordenarPeriodosPorFechaAcademica } from '../../lib/periodos';
 import { useAuth } from '../../hooks/useAuth';
 import { ApiError } from '../../lib/api';
 import { disponibilidadApi } from './disponibilidad.api';
@@ -170,7 +171,7 @@ export default function DisponibilidadPage() {
               setErrorCarga('');
               setPlanificacionId(id);
             }}>
-            {planificaciones.map(p => <option key={p.id} value={p.id}>{p.carreraNombre} — {p.codigo} — {estadoSecciones(p).etiqueta}</option>)}
+            {ordenarPeriodosPorFechaAcademica(planificaciones).map(p => <option key={p.id} value={p.id}>{p.carreraNombre} — {p.codigo} — {estadoSecciones(p).etiqueta}</option>)}
           </select></label>
           {planificacionSeleccionada && <span className={`${horario.estado} ${planificacionSeleccionada.estadoPlanificacion === 'publicado' ? horario.publicado : horario.propuesta}`}>
             Estado del período: {estadoSecciones(planificacionSeleccionada).etiqueta}

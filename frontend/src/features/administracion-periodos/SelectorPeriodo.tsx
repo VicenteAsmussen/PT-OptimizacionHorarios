@@ -1,5 +1,6 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
+import { ordenarPeriodosPorFechaAcademica } from '../../lib/periodos';
 import type { PlanificacionSemestre } from '../asignaturas/types';
 import { estadosPeriodo } from './modelo';
 import estilos from './AdministracionPeriodos.module.css';
@@ -20,7 +21,8 @@ export default function SelectorPeriodo({ periodos, valor, deshabilitado, alSele
   const lista = useRef<HTMLUListElement>(null);
   const habilitado = useRef(!deshabilitado);
   habilitado.current = !deshabilitado;
-  const valores = ['', ...periodos.map(periodo => String(periodo.id))];
+  const periodosOrdenados = ordenarPeriodosPorFechaAcademica(periodos);
+  const valores = ['', ...periodosOrdenados.map(periodo => String(periodo.id))];
   const indiceActivo = Math.max(0, valores.indexOf(activo));
   const expandido = abierto && !deshabilitado;
   const seleccionado = periodos.find(periodo => String(periodo.id) === valor);
@@ -87,7 +89,7 @@ export default function SelectorPeriodo({ periodos, valor, deshabilitado, alSele
       {valores.map((opcion, indice) => <li key={opcion} id={opcionId(indice)} role="option" aria-selected={valor === opcion}
         className={indice === indiceActivo ? estilos.opcionActiva : undefined}
         onMouseDown={evento => evento.preventDefault()} onClick={() => elegir(opcion)}>
-        {indice === 0 ? 'Selecciona un período' : etiqueta(periodos[indice - 1])}
+        {indice === 0 ? 'Selecciona un período' : etiqueta(periodosOrdenados[indice - 1])}
       </li>)}
     </ul>}
   </div>;

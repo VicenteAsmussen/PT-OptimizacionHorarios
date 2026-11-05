@@ -468,6 +468,7 @@ async function montar(nombreArchivo, nombreFuncion, propiedades, api) {
   const valores = [], efectos = [], pendientes = [];
   let indice = 0, sucio = false, arbol;
   const entorno = { React, ...modelo, ...datos, ordenarBloques: disponibilidad.ordenarBloques, ...componentes, ApiError, estilos: {}, resultadosHorariosApi: api, notificaciones,
+    ordenarPeriodosPorFechaAcademica: (await import('../../lib/periodos.ts')).ordenarPeriodosPorFechaAcademica,
     useAuth: () => ({ usuario: { id: 1, rol: 'secretaria' } }), Navigate: () => null, Outlet: () => null,
     useSearchParams: () => [new URLSearchParams(api.consulta ?? '')], Link: () => null,
     rutaModelo: (id) => `/app/optimizacion?planificacion=${id}`,

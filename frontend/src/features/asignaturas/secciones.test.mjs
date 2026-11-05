@@ -14,7 +14,8 @@ test('semester selector cannot clear the current selection', async () => {
   const codigo = ts.transpileModule(`return (${selector});`, {
     compilerOptions: { jsx: ts.JsxEmit.React, target: ts.ScriptTarget.ES2022 },
   }).outputText;
-  const renderizar = new Function('React', 'cargando', 'planificacionSemestreId', 'datos', 'setSeleccion', 'setPlanificacionSemestreId', codigo);
+  const renderizar = new Function('ordenarPeriodosPorFechaAcademica', 'React', 'cargando', 'planificacionSemestreId', 'datos', 'setSeleccion', 'setPlanificacionSemestreId', codigo)
+    .bind(null, (await import('../../lib/periodos.ts')).ordenarPeriodosPorFechaAcademica);
   const datos = { planificaciones: [{ id: 7, actual: true, codigo: '2026-2', carrera: { nombre: 'Informatica' } }] };
   const seleccionado = renderizar(React, false, 7, datos, () => {}, () => {});
   const html = renderToStaticMarkup(seleccionado);
@@ -81,6 +82,41 @@ test('handlers impiden crear, editar y eliminar bloqueados; cierre ignora result
       }
     }
   }
+});
+
+test('agregar y editar sección muestran el formulario completo en una tarjeta sin cambiar la confirmación de eliminación', async () => {
+  const ts = await import('typescript');
+  const React = await import('react');
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const panel = await fuente('./PanelSecciones.tsx');
+  const formulario = panel.match(/<form onSubmit=\{enviar\}[^]*?<\/form>/)?.[0];
+  assert.ok(formulario);
+  const codigo = ts.transpileModule(`return (${formulario});`, {
+    compilerOptions: { jsx: ts.JsxEmit.React, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  for (const tipo of ['crear', 'editar', 'eliminar']) {
+    const contexto = {
+      accion: { tipo, oferta: { id: 7, seccion: 1 } }, estilos: { tarjetaSeccion: 'tarjeta-seccion', campos: 'campos' },
+      asignatura: { codigo: 'A' }, semestre: { codigo: '2026-2' }, ocupado: false, puedeEditar: true,
+      libres: [1, 2], seccion: '1', cupos: '30', profesoresNoElegibles: [], asignaciones: [], datos: { profesores: [] },
+      EditorAsignaciones: () => null, error: 'Error de prueba', enviar() {}, setSeccion() {}, setCupos() {}, setAsignaciones() {}, setAccion() {},
+    };
+    const arbol = new Function('React', ...Object.keys(contexto), codigo)(React, ...Object.values(contexto));
+    assert.equal(arbol.props.className, tipo === 'eliminar' ? undefined : 'tarjeta-seccion');
+    assert.equal(arbol.props.onSubmit, contexto.enviar);
+    const html = renderToStaticMarkup(arbol);
+    assert.match(html, /Cancelar/);
+    assert.match(html, /Error de prueba/);
+    assert.equal(html.includes('Guardar sección'), tipo !== 'eliminar');
+    assert.equal(html.includes('Confirmar eliminación'), tipo === 'eliminar');
+    assert.equal(html.includes('value="30"'), tipo !== 'eliminar');
+  }
+  const css = await fuente('./Asignaturas.module.css');
+  const tarjeta = css.match(/\.tarjetaSeccion\s*\{([^}]+)\}/)?.[1] ?? '';
+  assert.match(tarjeta, /padding:\s*1rem/);
+  assert.match(tarjeta, /border:\s*1px solid var\(--color-borde\)/);
+  assert.match(tarjeta, /border-radius:\s*0\.5rem/);
+  assert.match(tarjeta, /background:\s*var\(--color-superficie\)/);
 });
 
 test('render React muestra estados y motivo accesible; cambios de contexto renuevan clave', async () => {

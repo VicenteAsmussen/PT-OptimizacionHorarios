@@ -47,6 +47,7 @@ async function montar(archivo, nombre, extras, propiedades = {}) {
     useSyncExternalStore(suscribir, instantanea) { const i = indice++; if (!celdas[i]) celdas[i] = { limpiar: suscribir(() => { sucio = true; }) }; return instantanea(); },
   };
   const entorno = { React, ...hooks, ...modelo, estadoSecciones, planificacionInicial, estilos: {}, Link: 'a', Navigate: 'redirect', Outlet: 'outlet',
+    ordenarPeriodosPorFechaAcademica: (await import('../../lib/periodos.ts')).ordenarPeriodosPorFechaAcademica,
     DisponibilidadOptimizacion: () => null, DiagnosticoOptimizacion: () => null, ...extras };
   const fuente = (await readFile(new URL(archivo, import.meta.url), 'utf8')).replace(/^import .*;\r?\n/gm, '').replace(/^export default /gm, '').replace(/^export /gm, '');
   for (const declaracion of fuente.matchAll(/^(?:async )?function (\w+)/gm)) delete entorno[declaracion[1]];

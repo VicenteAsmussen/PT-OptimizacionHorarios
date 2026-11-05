@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
+import { ordenarPeriodosPorFechaAcademica } from '../../lib/periodos';
 import { useAuth } from '../../hooks/useAuth';
 import { asignaturasApi } from './asignaturas.api';
 import { contarSecciones, estadoSecciones, filtrarAsignaturas, limpiarFiltros, puedeEditarAsignaturas, puedeGestionarAsignaturas, planificacionInicial } from './datos';
@@ -9,6 +10,8 @@ import PanelSecciones from './PanelSecciones';
 import estilos from './Asignaturas.module.css';
 import IconoActualizar from '../../components/IconoActualizar';
 import iconoVer from '../../assets/iconos/ojo.svg';
+import iconoEditar from '../../assets/iconos/editar_Asignatura.svg';
+import iconoSecciones from '../../assets/iconos/secciones.svg';
 
 export function RequireGestionAsignaturas() {
   const { usuario } = useAuth();
@@ -107,14 +110,14 @@ export default function AsignaturasPage() {
         {datos?.departamentos.map(d => <option key={d.id} value={d.id}>{d.nombre}</option>)}
       </select></label>
       <label>Semestre de malla<select value={malla} onChange={e => setMalla(e.target.value)}>
-        <option value="">Todos</option>{Array.from({ length: 14 }, (_, i) => <option key={i + 1} value={i + 1}>{i + 1}</option>)}
+        <option value="">Todos</option>{Array.from({ length: 10 }, (_, i) => <option key={i + 1} value={i + 1}>{i + 1}</option>)}
       </select></label>
       <label>Semestre para secciones<select disabled={cargando} value={planificacionSemestreId ?? ''} onChange={e => {
         setSeleccion(null);
         setPlanificacionSemestreId(e.target.value ? Number(e.target.value) : null);
       }}>
         {planificacionSemestreId === null && <option value="" disabled hidden>Selecciona carrera y semestre</option>}
-        {datos?.planificaciones.map(p => <option key={p.id} value={p.id}>{p.carrera.nombre} · {p.codigo}{p.actual ? ' (actual)' : ''}</option>)}
+        {ordenarPeriodosPorFechaAcademica(datos?.planificaciones ?? []).map(p => <option key={p.id} value={p.id}>{p.carrera.nombre} · {p.codigo}{p.actual ? ' (actual)' : ''}</option>)}
       </select></label>
       <div className={estilos.acciones}><button type="button" className="boton boton--gris" onClick={restablecerFiltros}><IconoActualizar />Limpiar filtros</button></div>
     </div>
@@ -142,20 +145,22 @@ export default function AsignaturasPage() {
           <table className={estilos.tabla}><thead><tr><th scope="col">Código</th><th scope="col">Asignatura</th>
             <th scope="col">Departamento</th><th scope="col">Semestre</th><th scope="col">Secciones{planificacion ? ` · ${planificacion.codigo}` : ''}</th><th scope="col">Acciones</th></tr></thead>
             <tbody>{visibles.map(a => <tr key={a.codigo}><th scope="row">{a.codigo}</th><td>{a.nombre}</td>
-              <td>{a.departamento.nombre}</td><td>{a.semestreMalla}</td><td>
+              <td>{a.departamento.nombre}</td><td><span className={estilos.insignia}>{a.semestreMalla}</span></td><td>
                 {!planificacion ? 'Sin semestre' : conteoVigente?.estado === 'listo'
                   ? (conteoVigente.cantidades.get(a.codigo) ?? 0) === 0
                     ? <span className={estilos.sinSecciones}>Sin secciones</span>
-                    : `${conteoVigente.cantidades.get(a.codigo)} secciones`
+                    : <span className={estilos.insignia}>{conteoVigente.cantidades.get(a.codigo)} secciones</span>
                   : conteoVigente?.estado === 'error' ? 'Conteo no disponible' : 'Cargando conteos…'}
               </td>
               <td><div className={estilos.acciones}>
-                {puedeEditar && <button className="boton boton--azul" type="button" aria-label={`Editar ${a.nombre}`} onClick={() => setSeleccion({ tipo: 'editar', asignatura: a })}>Editar</button>}
+                {puedeEditar && <button className={`boton boton--editar ${estilos.botonConIcono}`} type="button" aria-label={`Editar ${a.nombre}`} onClick={() => setSeleccion({ tipo: 'editar', asignatura: a })}>
+                  <span aria-hidden="true" className={estilos.icono} style={{ maskImage: `url("${iconoEditar}")`, WebkitMaskImage: `url("${iconoEditar}")` }} />Editar</button>}
                 {!puedeEditar && <button className={`boton boton--azul ${estilos.botonVer}`} type="button" aria-label={`Ver ${a.nombre}`} onClick={() => setSeleccion({ tipo: 'ver', asignatura: a })}>
-                  <img src={iconoVer} width="16" height="16" alt="" aria-hidden="true" />Ver
+                  <span aria-hidden="true" className={estilos.icono} style={{ maskImage: `url("${iconoVer}")`, WebkitMaskImage: `url("${iconoVer}")` }} />
                 </button>}
-                <button className="boton boton--gris" type="button" disabled={!planificacion} aria-label={`Gestionar secciones de ${a.nombre}`}
-                  onClick={() => setSeleccion({ tipo: 'secciones', asignatura: a })}>Gestionar secciones</button>
+                <button className={`boton ${estilos.botonConIcono} ${estilos.botonSecciones}`} type="button" disabled={!planificacion} aria-label={`Gestionar secciones de ${a.nombre}`}
+                  onClick={() => setSeleccion({ tipo: 'secciones', asignatura: a })}>
+                  <span aria-hidden="true" className={estilos.icono} style={{ maskImage: `url("${iconoSecciones}")`, WebkitMaskImage: `url("${iconoSecciones}")` }} />Gestionar secciones</button>
               </div></td></tr>)}</tbody>
           </table>
         </div>}

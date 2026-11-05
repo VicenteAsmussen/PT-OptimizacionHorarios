@@ -1,4 +1,5 @@
 import { etiquetaEstado } from './modelo';
+import { ordenarPeriodosPorFechaAcademica } from '../../lib/periodos';
 import type { ContextoHorario } from './types';
 import estilos from './MiHorario.module.css';
 
@@ -16,7 +17,7 @@ export default function EncabezadoMiHorario({ planificaciones, planificacionId, 
     {planificaciones.length > 0 && <div className={estilos.controles}>
       <label className={estilos.selector}>Carrera y período
         <select value={planificacionId ?? ''} onChange={evento => seleccionar(Number(evento.target.value))}>
-          {planificaciones.map(p => <option key={p.id} value={p.id}>{p.carreraNombre} — {p.codigo} — {etiquetaEstado(p)}</option>)}
+          {ordenarPeriodosPorFechaAcademica(planificaciones).map(p => <option key={p.id} value={p.id}>{p.carreraNombre} — {p.codigo} — {etiquetaEstado(p)}</option>)}
         </select>
       </label>
       {planificacion && <span className={`${estilos.estado} ${planificacion.estadoPlanificacion === 'publicado' ? estilos.publicado : estilos.propuesta}`}>
