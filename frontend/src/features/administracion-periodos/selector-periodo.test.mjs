@@ -20,6 +20,7 @@ async function cargar(hooks) {
     if (ruta === 'react') return `const { useEffect, useRef, useState, useId } = globalThis[${JSON.stringify(clave)}].hooks;`;
     if (ruta.endsWith('.css')) return `const ${linea.split(' ')[1]} = new Proxy({}, { get: (_, clave) => clave });`;
     if (ruta === './modelo') return linea.replace("'./modelo'", JSON.stringify(new URL('./modelo.ts', import.meta.url).href));
+    if (ruta === '../../lib/periodos') return linea.replace("'../../lib/periodos'", JSON.stringify(new URL('../../lib/periodos.ts', import.meta.url).href));
     throw new Error(`Unexpected import: ${ruta}`);
   });
   const codigo = ts.transpileModule(`const React = globalThis[${JSON.stringify(clave)}].React;\n${fuente}`, {
@@ -83,6 +84,21 @@ async function montar(cambios = {}, documento = true, conScroll = true) {
   };
 }
 
+test('las opciones de período siguen el orden académico descendente sin mutar datos ni cambiar la selección', async () => {
+  const entradas = Object.freeze([periodos[0], periodos[2], periodos[1]]);
+  const vista = await montar({ periodos: entradas, valor: '8' });
+  try {
+    vista.abrir();
+    const opciones = vista.nodos().filter(nodo => nodo.props.role === 'option');
+    assert.equal(opciones[0].props.children, 'Selecciona un período');
+    assert.deepEqual(opciones.slice(1).map(opcion => renderToStaticMarkup(opcion).match(/\d{4}-[12]/)?.[0]),
+      ['2092-1', '2091-1', '2090-1']);
+    assert.equal(opciones[2].props['aria-selected'], true);
+    assert.deepEqual(vista.seleccionados, []);
+    assert.deepEqual(entradas.map(periodo => periodo.id), [7, 9, 8]);
+  } finally { vista.salir(); }
+});
+
 test('every option shows readable neutral state and only the current option has a separate blue Actual badge', async () => {
   const vista = await montar();
   try {
@@ -91,7 +107,7 @@ test('every option shows readable neutral state and only the current option has 
     assert.equal(etiqueta.props.htmlFor, vista.boton().props.id); assert.equal(etiqueta.props.children, 'Período');
     vista.abrir(); const opciones = vista.nodos().filter(nodo => nodo.props.role === 'option');
     assert.equal(opciones.length, 4); assert.equal(opciones[0].props.children, 'Selecciona un período');
-    for (const [indice, estado] of ['Preparación', 'Propuesta', 'Publicado'].entries()) {
+    for (const [indice, estado] of ['Publicado', 'Propuesta', 'Preparación'].entries()) {
       const html = renderToStaticMarkup(opciones[indice + 1]);
       assert.match(html, new RegExp(`class="[^"]*estadoPeriodo[^"]*"[^>]*>${estado}<`));
       assert.equal((html.match(/class="distintivo"/g) ?? []).length, indice === 1 ? 1 : 0);
@@ -114,17 +130,17 @@ test('keyboard navigation keeps active option visible, commits only on Enter or 
     vista.pulsar('ArrowDown');
     const activo = () => vista.nodos().find(nodo => nodo.props.id === vista.boton().props['aria-activedescendant']);
     assert.match(renderToStaticMarkup(activo()), /2091-1/);
-    vista.pulsar('ArrowDown'); assert.match(renderToStaticMarkup(activo()), /Publicado/);
-    vista.pulsar('ArrowDown'); assert.match(renderToStaticMarkup(activo()), /Publicado/);
+    vista.pulsar('ArrowDown'); assert.match(renderToStaticMarkup(activo()), /Preparación/);
+    vista.pulsar('ArrowDown'); assert.match(renderToStaticMarkup(activo()), /Preparación/);
     vista.pulsar('ArrowUp'); assert.match(renderToStaticMarkup(activo()), /Propuesta/);
     vista.pulsar('Home'); assert.equal(activo().props.children, 'Selecciona un período');
     vista.pulsar('ArrowUp'); assert.equal(activo().props.children, 'Selecciona un período');
-    vista.pulsar('End'); assert.match(renderToStaticMarkup(activo()), /Publicado/);
+    vista.pulsar('End'); assert.match(renderToStaticMarkup(activo()), /Preparación/);
     assert.deepEqual(vista.seleccionados, []); vista.pulsar('Enter');
-    assert.deepEqual(vista.seleccionados, ['9']); assert.equal(vista.boton().props['aria-expanded'], false);
+    assert.deepEqual(vista.seleccionados, ['7']); assert.equal(vista.boton().props['aria-expanded'], false);
     assert.equal(vista.boton().props['aria-activedescendant'], undefined);
-    vista.cambiar({ valor: '9' }); vista.pulsar(' '); vista.pulsar('Home'); vista.pulsar(' ');
-    assert.deepEqual(vista.seleccionados, ['9', '']); assert.ok(vista.scrolls() > 0); assert.ok(vista.focos() > 0);
+    vista.cambiar({ valor: '7' }); vista.pulsar(' '); vista.pulsar('Home'); vista.pulsar(' ');
+    assert.deepEqual(vista.seleccionados, ['7', '']); assert.ok(vista.scrolls() > 0); assert.ok(vista.focos() > 0);
   } finally { vista.salir(); }
 });
 
@@ -139,7 +155,7 @@ test('Escape outside and Tab dismiss without selecting; pointer choice retains t
     vista.abrir(); assert.equal(vista.pulsar('Tab'), false); assert.equal(vista.boton().props['aria-expanded'], false);
     vista.abrir(); const opcion = vista.nodos().filter(nodo => nodo.props.role === 'option')[1];
     let prevenido = false; opcion.props.onMouseDown({ preventDefault() { prevenido = true; } }); assert.equal(prevenido, true);
-    opcion.props.onClick(); vista.dibujar(); assert.deepEqual(vista.seleccionados, ['7']); assert.ok(vista.focos() > focos);
+    opcion.props.onClick(); vista.dibujar(); assert.deepEqual(vista.seleccionados, ['9']); assert.ok(vista.focos() > focos);
   } finally { vista.salir(); }
 });
 
@@ -162,7 +178,7 @@ test('SSR has a labelled collapsed combobox and navigation tolerates absent docu
   assert.match(html, /role="combobox"/); assert.match(html, /aria-expanded="false"/); assert.match(html, /Propuesta/); assert.match(html, /Actual/);
   assert.doesNotMatch(html, /role="listbox"/);
   const vista = await montar({}, false, false);
-  try { vista.pulsar('ArrowUp'); vista.pulsar('End'); vista.pulsar('Enter'); assert.deepEqual(vista.seleccionados, ['9']); }
+  try { vista.pulsar('ArrowUp'); vista.pulsar('End'); vista.pulsar('Enter'); assert.deepEqual(vista.seleccionados, ['7']); }
   finally { vista.salir(); }
 });
 

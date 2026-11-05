@@ -173,6 +173,7 @@ async function montarPagina(api, rol = 'profesor') {
   };
   class ApiError extends Error { constructor(mensaje, status) { super(mensaje); this.status = status; } }
   const modulo = await compilar('./DisponibilidadPage.tsx', {
+    '../../lib/periodos': await import('../../lib/periodos.ts'),
     react: hooks, 'react/jsx-runtime': jsx, 'react-router-dom': { Navigate: 'navigate', Outlet: 'outlet' },
     '../../hooks/useAuth': { useAuth: () => ({ usuario: { id: 4, rol } }) },
     '../../lib/api': { ApiError }, './estado': modelo, './disponibilidad.api': { disponibilidadApi: api },

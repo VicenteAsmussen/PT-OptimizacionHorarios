@@ -1,5 +1,6 @@
 import { useEffect, useReducer, useRef, useState } from 'react';
 import { Link, Navigate, Outlet, useSearchParams } from 'react-router-dom';
+import { ordenarPeriodosPorFechaAcademica } from '../../lib/periodos';
 import { rutaModelo } from '../optimizacion/modelo';
 import { useAuth } from '../../hooks/useAuth';
 import { ApiError } from '../../lib/api';
@@ -61,7 +62,7 @@ export function ConsultaResultados() {
       <div className={estilos.controles}><label>Carrera y período<select value={id ?? ''} disabled={ocupado || !planificaciones}
         onChange={evento => { if (!ocupado) setId(evento.target.value ? Number(evento.target.value) : null); }}>
         <option value="">Seleccionar carrera y período</option>
-        {planificaciones?.map(p => <option key={p.id} value={p.id}>{p.carrera.nombre} · {p.codigo} · {estadoSecciones(p).etiqueta}{p.actual ? ' · Actual' : ''}</option>)}
+        {ordenarPeriodosPorFechaAcademica(planificaciones ?? []).map(p => <option key={p.id} value={p.id}>{p.carrera.nombre} · {p.codigo} · {estadoSecciones(p).etiqueta}{p.actual ? ' · Actual' : ''}</option>)}
       </select></label></div>
     </header>
     {error ? <div className={estilos.tarjeta}><p role="alert">{error}</p><button type="button" className="boton" onClick={() => setIntento(i => i + 1)}>Reintentar</button></div>

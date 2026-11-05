@@ -162,7 +162,7 @@ function ContenidoSecciones({ asignatura, semestre, alCerrar, alCambiarOfertas }
         {Boolean(o.horarios?.length) && <p id={`motivo-horarios-${o.id}`}>No se puede eliminar: tiene horarios asociados.</p>}
       </li>)}</ul>
     </>}
-    {datos && accion && <form onSubmit={enviar}>
+    {datos && accion && <form onSubmit={enviar} className={accion.tipo !== 'eliminar' ? estilos.tarjetaSeccion : undefined}>
       <fieldset disabled={ocupado || !puedeEditar} className={estilos.campos}>
         {accion.tipo === 'eliminar' ? <p>¿Confirmas eliminar la sección {accion.oferta.seccion} de {asignatura.codigo} en {semestre.codigo}? Esta acción no se puede deshacer.</p> : <>
           <label>Sección<select required value={seccion} onChange={e => setSeccion(e.target.value)}>

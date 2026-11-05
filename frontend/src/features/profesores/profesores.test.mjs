@@ -2,6 +2,55 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import * as permisos from "./permisos.ts";
 
+test("Ver, Editar y Eliminar muestran solo iconos y conservan etiquetas y acciones de acceso", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const React = await import("react");
+  const { renderToStaticMarkup } = await import("react-dom/server");
+  const { default: ts } = await import("typescript");
+  const { etiquetaTipoProfesor } = await import("./datos.ts");
+  const fuente = await readFile(new URL("./TablaProfesores.tsx", import.meta.url), "utf8");
+  const componente = fuente.slice(fuente.indexOf("export default function")).replace("export default ", "");
+  const codigo = ts.transpileModule(componente, { compilerOptions: { jsx: ts.JsxEmit.React } }).outputText;
+  const Tabla = new Function("React", "etiquetaTipoProfesor", "puedeAdministrarProfesor", "puedeAdministrarAcceso", "IconoProfesor", "estilos",
+    `${codigo}; return TablaProfesores;`)(React, etiquetaTipoProfesor, permisos.puedeAdministrarProfesor,
+    permisos.puedeAdministrarAcceso, ({ tipo }) => React.createElement("img", { src: `${tipo}.svg`, alt: "" }), {});
+  for (const usuarioId of [null, 7]) {
+    const html = renderToStaticMarkup(React.createElement(Tabla, { rol: "admin", alcance: {}, alAccionar() {},
+      profesores: [{ id: 1, nombre: "Profesor de prueba", tipo: "planta", usuarioId, departamento: { nombre: "Departamento" } }],
+    }));
+    const botones = [...html.matchAll(/<button\b[^]*?<\/button>/g)].map(coincidencia => coincidencia[0]);
+    for (const [etiqueta, icono] of [["Ver", "ver"], ["Editar", "editar"], ["Eliminar", "eliminar"]]) {
+      const boton = botones.find(elemento => elemento.includes(`aria-label="${etiqueta} profesor: Profesor de prueba"`));
+      assert.ok(boton);
+      assert.match(boton, new RegExp(`src="${icono}\\.svg"`));
+      assert.equal(boton.replace(/<[^>]*>/g, "").trim(), "");
+    }
+    for (const [etiqueta, texto] of usuarioId === null ? [["Crear", "Crear"]] : [["Editar", "Editar"], ["Retirar", "Retirar"]]) {
+      const boton = botones.find(elemento => elemento.includes(`aria-label="${etiqueta} acceso: Profesor de prueba"`));
+      assert.ok(boton);
+      assert.equal(boton.replace(/<[^>]*>/g, "").trim(), texto);
+    }
+  }
+});
+
+test("la tabla reserva más ancho para acceso y mantiene sus acciones en una fila", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const css = await readFile(new URL("./Profesores.module.css", import.meta.url), "utf8");
+  const columnaEstado = css.match(/\.tabla tr > :nth-child\(4\)\s*\{([^}]+)\}/)?.[1] ?? "";
+  const columnaProfesor = css.match(/\.tabla tr > :nth-child\(5\)\s*\{([^}]+)\}/)?.[1] ?? "";
+  const columnaAcceso = css.match(/\.tabla tr > :nth-child\(6\)\s*\{([^}]+)\}/)?.[1] ?? "";
+  assert.match(columnaEstado, /width:\s*8rem/);
+  assert.match(columnaProfesor, /width:\s*8rem/);
+  assert.match(columnaProfesor, /padding-inline-end:\s*1\.625rem/);
+  assert.match(columnaAcceso, /width:\s*13rem/);
+  const accionesProfesor = css.match(/\.tabla td:nth-child\(5\) \.acciones\s*\{([^}]+)\}/)?.[1] ?? "";
+  const accionesAcceso = css.match(/\.tabla td:nth-child\(6\) \.acciones\s*\{([^}]+)\}/)?.[1] ?? "";
+  assert.match(accionesProfesor, /min-width:\s*7\.5rem/);
+  assert.match(accionesAcceso, /min-width:\s*12rem/);
+  assert.match(accionesAcceso, /flex-wrap:\s*nowrap/);
+  assert.match(css.match(/\.tablaContenedor\s*\{([^}]+)\}/)?.[1] ?? "", /overflow-x:\s*auto/);
+});
+
 test("RUT normaliza formatos convencionales con paridad backend", async () => {
   const { normalizarRut } = await import("./rut.ts");
   for (const [entrada, esperado] of [

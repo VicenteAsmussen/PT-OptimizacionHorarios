@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, Navigate, Outlet, useSearchParams } from 'react-router-dom';
+import { ordenarPeriodosPorFechaAcademica } from '../../lib/periodos';
 import { useAuth } from '../../hooks/useAuth';
 import { estadoSecciones, planificacionInicial } from '../asignaturas/datos';
 import { puedeOptimizar, prepararRecursos, sugerirRecursos, etiquetasEstado, rutaResultados, crearLaboratoriosModelo, cantidadInicialLaboratoriosModelo, capacidadLaboratoriosModelo, planificacionesModelo, fechaEjecucion } from './modelo';
@@ -35,7 +36,7 @@ export default function OptimizacionPage() {
         if (usuario?.rol === 'admin' && (!e.target.value || disponibles.some(p => String(p.id) === e.target.value))) setConsulta(e.target.value ? { planificacion: e.target.value } : {});
       }}>
         <option value="">Seleccionar carrera y período</option>
-        {disponibles.map(p => <option key={p.id} value={p.id}>{p.carrera.nombre} · {p.codigo} · {estadoSecciones(p).etiqueta}{p.actual ? ' · Actual' : ''}</option>)}
+        {ordenarPeriodosPorFechaAcademica(disponibles).map(p => <option key={p.id} value={p.id}>{p.carrera.nombre} · {p.codigo} · {estadoSecciones(p).etiqueta}{p.actual ? ' · Actual' : ''}</option>)}
       </select></label></div>
     </header>
     {error ? <div role="alert">{error} <button type="button" className="boton" onClick={reintentar}>Reintentar consulta</button></div>

@@ -117,8 +117,9 @@ test('current period is fixed, cannot be changed, and the page uses the requeste
   const codigo = ts.transpileModule(`return (${selector});`, {
     compilerOptions: { jsx: ts.JsxEmit.React, target: ts.ScriptTarget.ES2022 },
   }).outputText;
-  const renderizar = new Function('React', 'importando', 'planificacionId', 'datos',
-    'limpiarArchivo', 'setPersistida', 'setDepartamentoId', 'setPlanificacionId', codigo);
+  const renderizar = new Function('ordenarPeriodosPorFechaAcademica', 'React', 'importando', 'planificacionId', 'datos',
+    'limpiarArchivo', 'setPersistida', 'setDepartamentoId', 'setPlanificacionId', codigo)
+    .bind(null, (await import('../../lib/periodos.ts')).ordenarPeriodosPorFechaAcademica);
   const historica = { id: 6, actual: false, codigo: '2026-1', carrera: { nombre: 'Informatica' } };
   const futura = { id: 8, actual: false, codigo: '2027-1', carrera: { nombre: 'Informatica' } };
   const datos = { planificaciones: [historica,
@@ -171,9 +172,9 @@ test('reloading after the current semester changes uses the new planning for dis
   };
   const cargar = compilarEfecto(carga, ['horariosExternosApi', 'planificacionInicial', 'setDatos', 'setErrorCarga', 'setPlanificacionId']);
   const consultar = compilarEfecto(cobertura, ['planificacionId', 'departamentoId', 'horariosExternosApi', 'setPersistida', 'setErrorCobertura', 'mensajeErrorCobertura']);
-  const renderizar = new Function('React', 'planificacionId', 'datos', ts.transpileModule(`return (${selector});`, {
+  const renderizar = new Function('ordenarPeriodosPorFechaAcademica', 'React', 'planificacionId', 'datos', ts.transpileModule(`return (${selector});`, {
     compilerOptions: { jsx: ts.JsxEmit.React, target: ts.ScriptTarget.ES2022 },
-  }).outputText);
+  }).outputText).bind(null, (await import('../../lib/periodos.ts')).ordenarPeriodosPorFechaAcademica);
   const departamentos = [{ id: 6, nombre: 'Matemática', carreraDepartamentos: [{ carreraId: 1, esGestionado: false }] }];
   const carrera = { id: 1, nombre: 'Informatica' };
   let planificaciones = [

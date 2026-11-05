@@ -1,5 +1,6 @@
 import { useEffect, useReducer, useState } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
+import { ordenarPeriodosPorFechaAcademica } from '../../lib/periodos';
 import { useAuth } from '../../hooks/useAuth';
 import { planificacionInicial } from '../asignaturas/datos';
 import type { PlanificacionSemestre } from '../asignaturas/types';
@@ -67,7 +68,7 @@ function PaginaSeguimiento() {
         <label>Planificación / período
           <select value={estado.planificacionId ?? ''} onChange={evento => enviar({ tipo: 'seleccionar', id: evento.target.value ? Number(evento.target.value) : null })}>
             <option value="">Selecciona una planificación</option>
-            {planificaciones.map(planificacion => <option key={planificacion.id} value={planificacion.id}>
+            {ordenarPeriodosPorFechaAcademica(planificaciones).map(planificacion => <option key={planificacion.id} value={planificacion.id}>
               {planificacion.codigo} — {planificacion.carrera.nombre}
             </option>)}
           </select>

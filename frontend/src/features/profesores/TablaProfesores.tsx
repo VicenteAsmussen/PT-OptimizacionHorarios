@@ -32,9 +32,9 @@ export default function TablaProfesores({ profesores, rol, alcance, alAccionar }
           <td><span className={`${estilos.tipoProfesor} ${profesor.tipo === "planta" ? estilos.tipoPlanta : ""}`}>{etiquetaTipoProfesor(profesor.tipo)}</span></td>
           <td><span className={`${estilos.insignia} ${conAcceso ? estilos.conAcceso : ""}`}>{conAcceso ? "Con acceso" : "Sin acceso"}</span></td>
           <td><div className={estilos.acciones} role="group" aria-label={`Profesor: ${profesor.nombre}`}>
-            {boton("ver", "Ver", "Ver profesor", "ver")}
-            {gestionaProfesor && <>{boton("editar", "Editar", "Editar profesor", "editar", "editar")}
-              {boton("eliminar", "Eliminar", "Eliminar profesor", "eliminar", "eliminar")}</>}
+            {boton("ver", "", "Ver profesor", "ver")}
+            {gestionaProfesor && <>{boton("editar", "", "Editar profesor", "editar", "editar")}
+              {boton("eliminar", "", "Eliminar profesor", "eliminar", "eliminar")}</>}
           </div></td>
           <td>{gestionaAcceso ? <div className={estilos.acciones} role="group" aria-label={`Acceso: ${profesor.nombre}`}>
             {conAcceso ? <>{boton("editarAcceso", "Editar", "Editar acceso", "acceso", "editar")}
