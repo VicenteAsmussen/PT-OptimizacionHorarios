@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import IconoArchivo from '../../components/IconoArchivo';
 import { ordenarPeriodosPorFechaAcademica } from '../../lib/periodos';
 import { useAuth } from '../../hooks/useAuth';
 import { useDesbordamientoTabla } from '../../hooks/useDesbordamientoTabla';
@@ -167,7 +168,7 @@ function PaginaImportacion() {
             <p id="efecto-importacion">El archivo reemplaza las secciones y horarios de este departamento en el período actual de la carrera. Se eliminan las secciones ausentes, también las de asignaturas del otro semestre. No se modifica el catálogo.</p>
             <label className={estilos.confirmacion}><input type="checkbox" checked={confirmado} onChange={evento => setConfirmado(evento.target.checked)} aria-describedby="efecto-importacion" />
               Confirmo el reemplazo de la carga de este departamento.</label>
-            <button className={`boton ${estilos.accionPrincipal}`} type="submit" disabled={!archivo || !confirmado || importando}>{importando ? 'Importando…' : 'Importar horarios'}</button>
+            <button className={`boton ${estilos.accionPrincipal}`} type="submit" disabled={!archivo || !confirmado || importando}><IconoArchivo tipo="importar" />{importando ? 'Importando…' : 'Importar horarios'}</button>
             </div>
           </fieldset>
         </form>

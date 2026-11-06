@@ -25,6 +25,8 @@ export default function ControlesMovimiento({ resultado, sesion, grupo, datos, v
   return <section id="controles-movimiento" className={estilos.editor} aria-labelledby="titulo-movimiento">
     <h3 id="titulo-movimiento">Mover {sesion.asignatura.nombre}</h3>
     <p>{sesion.profesor.nombre} · Sección {sesion.seccion} · {sesion.tipoHora.tipo} · {sesion.dia} {sesion.horaInicio.slice(0, 5)}–{sesion.horaTermino.slice(0, 5)}</p>
+    <p role="status">Disponibilidad de {sesion.profesor.nombre} para {resultado.planificacion.codigo}: {resultado.disponibilidades.filter(d => d.profesorId === sesion.profesorId && d.planificacionSemestreId === resultado.planificacion.id).length} bloques declarados.
+      {!resultado.disponibilidades.some(d => d.profesorId === sesion.profesorId && d.planificacionSemestreId === resultado.planificacion.id) && ' No hay disponibilidad declarada, no se habilitan destinos.'}</p>
     {grupos.length > 1 && <fieldset className={estilos.gruposMovimiento} disabled={ocupado}>
       <legend>Bloques que se moverán</legend>
       <div className={estilos.opcionesGrupos} role="group" aria-label="Grupos de bloques">

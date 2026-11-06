@@ -1,14 +1,27 @@
 .pagina { display: grid; gap: 1.25rem; }
+.encabezado { padding: .25rem 0; }
+.encabezado p { margin-bottom: 0; max-width: 75ch; color: var(--color-gris-texto); }
+.contexto { color: var(--color-azul-texto); font-weight: 600; }
+.cabeceraHorario { padding: 1rem 1.25rem; margin: -1.25rem -1.25rem 1rem; background: var(--color-azul-fondo); border-bottom: 1px solid var(--color-borde); border-radius: .75rem .75rem 0 0; }
+.cabeceraHorario p { margin-bottom: 0; }
+.detalleSesion { min-width: 0; overflow-wrap: anywhere; }
+.detalleSesion dl { display: grid; gap: .75rem; }
+.detalleSesion dl > div { display: grid; grid-template-columns: minmax(0, 9rem) minmax(0, 1fr); gap: .75rem; }
+.detalleSesion dt { font-weight: 600; }
+.detalleSesion dd { margin: 0; }
+.detalleSesion dd p { margin: 0 0 .3rem; }
 .pagina h1 { margin: 0; font-size: var(--tamano-titulo-pagina); }
 .pagina h2, .dialogo h2 { font-size: var(--tamano-titulo-seccion); margin-top: 0; }
 .tarjeta { min-width: 0; padding: 1.25rem; border: 1px solid var(--color-borde); border-radius: .75rem; background: var(--color-superficie); }
 .controles, .acciones { display: flex; flex-wrap: wrap; align-items: end; gap: .75rem; margin: 1rem 0; }
+.barraHorario { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; margin: 1rem 0; }
+.ayudaEdicion { margin: .5rem 0; max-width: 80ch; color: var(--color-gris-texto); }
 .controles label, .importacion label { display: grid; gap: .5rem; flex: 1 1 14rem; }
 .controles select, .importacion input { width: 100%; min-height: 2.75rem; padding: .5rem; font: inherit; color: inherit; background: var(--color-superficie); border: 1px solid var(--color-borde-campo); border-radius: .25rem; }
 .controles select:focus-visible, .importacion input:focus-visible, .destino:focus-visible { outline: 3px solid var(--color-foco); outline-offset: 2px; }
 .estado { display: inline-block; padding: .5rem .75rem; border: 1px solid var(--color-azul-borde); border-radius: .5rem; color: var(--color-azul-texto); background: var(--color-azul-hover); }
 .semestres { display: flex; flex-wrap: nowrap; overflow-x: auto; gap: .5rem; padding: .25rem; margin: 1rem 0; }
-.semestre { flex: 1 0 2.75rem; min-height: 2.75rem; padding: .5rem; border: 1px solid var(--color-borde-campo); border-radius: .375rem; background: var(--color-superficie); color: var(--color-texto); font: inherit; cursor: pointer; }
+.semestre { flex: 0 0 2.5rem; min-height: 2.5rem; padding: .375rem; border: 1px solid var(--color-borde-campo); border-radius: .375rem; background: var(--color-superficie); color: var(--color-texto); font: inherit; cursor: pointer; }
 .semestre[aria-pressed="true"] { background: var(--color-primario); color: var(--color-blanco); border-color: var(--color-primario); font-weight: 700; }
 .semestre:focus-visible { outline: 3px solid var(--color-foco); outline-offset: -3px; }
 .semestre:disabled { opacity: .6; cursor: not-allowed; }
@@ -17,6 +30,7 @@
 .sesionLista, .sesionLista:disabled { background: #e0f2fe; border-color: #7ab8db; color: #184b68; opacity: 1; cursor: default; }
 .sesionLista:not(:disabled) { cursor: pointer; }
 .sesionPendiente { background: #fff6ce; border-color: #c4a441; color: #66500c; }
+.sesionExterna, .sesionExterna:disabled { background: #f3f4f6; border-color: #6b7280; color: #374151; opacity: 1; }
 .tarjetaOcupada, .tarjetaOcupada:disabled { background: #fce8e6; border-color: #cb9292; color: #632222; opacity: 1; }
 .seleccionada, .seleccionada:disabled { background: #e5e7eb; border-color: #6b7280; color: #29313d; outline: 3px solid var(--color-foco); outline-offset: -3px; }
 .vistaPrevia { background: #e5e7eb; border: 2px dashed #6b7280; color: #29313d; pointer-events: none; }
@@ -62,3 +76,4 @@
 .erroresPlanilla th, .erroresPlanilla td { padding: .5rem; border: 1px solid var(--color-borde); text-align: left; }
 @media (max-width: 48rem) { .tarjeta, .dialogo { padding: .75rem; } .acciones > button { flex: 1 1 12rem; } .trayectoMovimiento { grid-template-columns: minmax(0, 1fr); } .flechaMovimiento { transform: rotate(90deg); justify-self: center; } }
 @media (max-width: 30rem) { .opcionesGrupos { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 48rem) { .cabeceraHorario { padding: .75rem; margin: -.75rem -.75rem 1rem; } }

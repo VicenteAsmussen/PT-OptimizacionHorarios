@@ -1,0 +1,130 @@
+.dialogo {
+  box-sizing: border-box;
+  width: min(76rem, calc(100% - 2rem));
+  max-height: calc(100dvh - 2rem);
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-borde);
+  border-radius: .5rem;
+  background: var(--color-superficie);
+  color: var(--color-texto);
+  font-family: var(--fuente-principal);
+  box-shadow: 0 16px 48px rgb(31 41 48 / 18%);
+}
+
+.dialogo[open] { display: flex; flex-direction: column; }
+.dialogo:has([aria-label="Sesiones sin sala"]),
+.dialogo:has([data-dialogo-publicacion]) { width: min(36rem, calc(100% - 2rem)); }
+.dialogo[data-tamano="detalle"] { width: min(34rem, calc(100% - 2rem)); }
+.dialogo::backdrop { background: rgb(31 41 48 / 55%); }
+
+.cabeceraDialogo, .pieDialogo { flex-shrink: 0; padding: 1.25rem 1.5rem; }
+.cabeceraDialogo {
+  border-bottom: 1px solid var(--color-borde);
+  background: var(--color-azul-fondo);
+  color: var(--color-azul-texto);
+}
+.cabeceraDialogo h2, .cabeceraSeccion h2 {
+  margin: 0;
+  font-size: var(--tamano-titulo-seccion);
+  font-weight: var(--peso-titulo-seccion);
+  line-height: 1.4;
+  text-wrap: pretty;
+  overflow-wrap: anywhere;
+}
+.cuerpoDialogo {
+  min-height: 0;
+  min-width: 0;
+  padding: 1.25rem 1.5rem;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scroll-padding: .75rem;
+  overflow-wrap: anywhere;
+}
+.cuerpoDialogo > :first-child, .publicacion > :first-child { margin-top: 0; }
+.cuerpoDialogo > :last-child, .publicacion > :last-child { margin-bottom: 0; }
+.pieDialogo {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: .75rem;
+  border-top: 1px solid var(--color-borde);
+  background: var(--color-superficie);
+}
+
+.gestionSalas {
+  min-width: 0;
+  border: 1px solid var(--color-borde);
+  border-radius: .5rem;
+  background: var(--color-superficie);
+  color: var(--color-texto);
+  font-family: var(--fuente-principal);
+  overflow-wrap: anywhere;
+}
+.cabeceraSeccion { padding: 1.25rem 1.5rem; background: var(--color-azul-fondo); border-radius: .5rem .5rem 0 0; }
+.cabeceraSeccion h2 { color: var(--color-azul-texto); }
+.cabeceraSeccion p { margin: .5rem 0 0; }
+.cabeceraSeccion strong { font-variant-numeric: tabular-nums; }
+.seccionSalas, .importacion, .detallePendientes { padding: 1.25rem 1.5rem; }
+.seccionSalas h3, .importacion h3, .publicacion h3 { margin: 0; font-size: 1rem; font-weight: var(--peso-subtitulo); }
+.acciones { display: flex; flex-wrap: wrap; gap: .75rem; margin: .75rem 0; }
+.ayuda { max-width: 76ch; margin: 0; font-size: var(--tamano-secundario); line-height: 1.55; color: var(--color-gris-texto); }
+.importacion { display: grid; gap: .75rem; border-top: 1px solid var(--color-borde); }
+.importacion label { display: grid; min-width: 0; gap: .5rem; font-size: var(--tamano-etiqueta); font-weight: var(--peso-etiqueta); }
+.importacion input {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  min-height: 2.75rem;
+  padding: .5rem;
+  border: 1px solid var(--color-borde-campo);
+  border-radius: .25rem;
+  background: var(--color-superficie);
+  color: var(--color-texto);
+  font: inherit;
+}
+.importacion input[aria-invalid="true"] { border-color: var(--color-alerta-texto); }
+.importacion button { justify-self: start; }
+.error { margin: 0; padding: .75rem; border-radius: .375rem; background: var(--color-alerta-fondo); color: var(--color-alerta-texto); overflow-wrap: anywhere; }
+.soloLectura, .sinPendientes { margin: 0; padding: 1rem 1.5rem; border-top: 1px solid var(--color-borde); color: var(--color-gris-texto); }
+.detallePendientes { border-top: 1px solid var(--color-borde); }
+.detallePendientes summary { width: fit-content; max-width: 100%; padding: .5rem 0; cursor: pointer; font-weight: var(--peso-subtitulo); }
+.detallePendientes summary:hover { color: var(--color-azul-texto); }
+.pendientes, .tarjetasPendientes { display: grid; gap: .75rem; list-style: none; padding: 0; margin: .75rem 0 0; }
+.pendientes li { min-width: 0; padding: .75rem 0; border-top: 1px solid var(--color-borde); }
+.pendientes button { max-width: 100%; text-align: left; white-space: normal; }
+.pendientes span { display: block; margin-top: .375rem; color: var(--color-gris-texto); font-size: var(--tamano-secundario); }
+.tarjetasPendientes li { min-width: 0; }
+.tarjeta { padding: 1rem; border: 1px solid var(--color-borde); border-radius: .375rem; background: var(--color-superficie); }
+.tarjeta h5 { margin: 0; font-size: 1rem; }
+.tarjeta p { margin: .375rem 0 0; }
+.publicacion h3 { margin-top: 1rem; }
+.publicacion h4 { margin: 1rem 0 .5rem; font-size: 1rem; }
+.horariosReservados { margin-top: .75rem; padding: .5rem .75rem; border: 1px dashed var(--color-azul-borde); border-radius: .375rem; background: var(--color-azul-fondo); color: var(--color-azul-texto); }
+
+.dialogo .accionPrincipal {
+  --boton-fondo: var(--color-primario);
+  --boton-hover: var(--color-azul-texto);
+  --boton-texto: var(--color-blanco);
+  --boton-borde: var(--color-primario);
+}
+.dialogo .accionSecundaria {
+  --boton-fondo: var(--color-superficie);
+  --boton-hover: var(--color-gris-fondo);
+  --boton-texto: var(--color-gris-texto);
+  --boton-borde: var(--color-gris-borde);
+}
+.gestionSalas :focus-visible, .dialogo :focus-visible { outline: 3px solid var(--color-foco); outline-offset: 3px; }
+.dialogo .cuerpoDialogo:focus-visible { outline-offset: -3px; }
+.gestionSalas button, .dialogo button, .detallePendientes summary { touch-action: manipulation; }
+
+@media (max-width: 36rem), (max-height: 30rem) {
+  .cabeceraDialogo, .cuerpoDialogo, .pieDialogo { padding: .75rem 1rem; }
+  .pieDialogo { gap: .5rem; }
+}
+@media (max-width: 36rem) {
+  .cabeceraSeccion, .seccionSalas, .importacion, .detallePendientes, .soloLectura, .sinPendientes { padding: 1rem; }
+  .acciones > button { flex: 1 1 12rem; }
+  .pieDialogo > button { flex: 1 1 auto; }
+  .importacion button { width: 100%; }
+}

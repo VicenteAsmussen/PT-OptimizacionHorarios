@@ -30,6 +30,13 @@ export function gruposMovibles(sesion: SesionResultado, bloques: Bloque[]) {
   }
   return grupos;
 }
+export function inicioParejaDestino(bloques: Bloque[], bloqueId: number) {
+  const elegido = bloques.find(bloque => bloque.id === bloqueId);
+  if (!elegido) return undefined;
+  const numeroInicio = elegido.numeroBloque % 2 === 0 ? elegido.numeroBloque - 1 : elegido.numeroBloque;
+  return bloques.find(bloque => claveDia(bloque.dia) === claveDia(elegido.dia) && bloque.numeroBloque === numeroInicio);
+}
+
 export function bloquesDestino(bloques: Bloque[], inicioId: number, cantidad: number) {
   const inicio = bloques.find(b => b.id === inicioId);
   if (!inicio || cantidad < 2) return [];

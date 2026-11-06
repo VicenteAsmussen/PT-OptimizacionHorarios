@@ -20,6 +20,355 @@ export const resultado = { planificacion: { id: 2, codigo: '2026-2', carreraId: 
   revision: 'a'.repeat(64), bloques: [...bloques, ...bloques.map(b => ({ ...b, id: b.id + 100, dia: 'Martes' }))], sesiones: [sesion], pendientesSala: 1,
   disponibilidades: [...bloques, ...bloques.map(b => ({ ...b, id: b.id + 100 }))].map(b => ({ profesorId: 8, bloqueId: b.id, planificacionSemestreId: 2 })) };
 
+test('S2 tres concurrencias parciales conservan una tarjeta, identidad y carril por sesión', async () => {
+  const { createServer } = await import('vite');
+  const { createElement } = await import('react');
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const servidor = await createServer({ envFile: false, server: { middlewareMode: true }, appType: 'custom' });
+  const sesiones = [sesion,
+    { ...sesion, seccion: 2, idsHorarios: [21, 22], bloquesIds: [87, 84], horaInicio: '08:50', horaTermino: '10:20' },
+    { ...sesion, seccion: 3, idsHorarios: [31, 32, 33], bloquesIds: [84, 81, 78], horaInicio: '09:40', horaTermino: '11:50',
+      salas: [{ id: 1, nombre: 'A101' }, { id: 2, nombre: 'A102' }, { id: 2, nombre: 'A102' }], estadoSala: 'asignada' }];
+  try {
+    const { default: Calendario } = await servidor.ssrLoadModule('/src/features/resultados-horarios/CalendarioResultados.tsx');
+    const html = renderToStaticMarkup(createElement(Calendario, { resultado: { ...resultado, sesiones }, nivel: '3', seleccionar() {} }));
+    assert.equal([...html.matchAll(/data-sesion=/g)].length, 3);
+    for (const carril of [0, 1, 2]) assert.match(html, new RegExp(`data-carril="${carril}"`));
+    for (const texto of ['Sec. 1', 'Sec. 2', 'Sec. 3', 'Estructuras de Datos', 'Salas por tramo']) assert.ok(html.includes(texto), texto);
+    const tarjetas = [...html.matchAll(/<button[^>]*data-sesion=[^>]*>(.*?)<\/button>/gs)].map(m => m[1].replace(/<[^>]*>/g, ''));
+    assert.equal(tarjetas.length, 3);
+    for (const texto of tarjetas) {
+      assert.doesNotMatch(texto, /Docente|100 —|08:10|09:40|A101|A102/);
+      assert.match(texto, /Sec\./);
+    }
+    assert.match(html, /grid-row:2 \/ span 4/);
+    assert.doesNotMatch(html, /title=/);
+  } finally { await servidor.close(); }
+});
+
+test('todas las sesiones usan siglas y conservan identidad, duración y nombres completos accesibles', async () => {
+  const { createServer } = await import('vite');
+  const { createElement } = await import('react');
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const servidor = await createServer({ envFile: false, server: { middlewareMode: true }, appType: 'custom' });
+  const externas = [1, 2, 3].map(seccion => ({ ...sesion, idsHorarios: [seccion * 100, seccion * 100 + 1],
+    bloquesIds: [90, 87], horaTermino: '09:30', seccion, estadoSala: 'externa', editable: false,
+    asignatura: { ...sesion.asignatura, nombre: 'Cálculo Diferencial' } }));
+  const aislada = { ...sesion, idsHorarios: [51, 52], bloquesIds: [78, 75], horaInicio: '11:10', horaTermino: '12:30' };
+  try {
+    const { default: Calendario } = await servidor.ssrLoadModule('/src/features/resultados-horarios/CalendarioResultados.tsx');
+    const renderizar = sesiones => renderToStaticMarkup(createElement(Calendario, { resultado: { ...resultado, sesiones }, nivel: '3', seleccionar() {} }));
+    const html = renderizar([...externas, aislada]);
+    assert.match(html, /repeat\(3, 7rem\)/);
+    const tarjetas = [...html.matchAll(/<button[^>]*data-sesion=[^>]*>(.*?)<\/button>/gs)].map(([etiqueta, contenido]) => ({ etiqueta, contenido }));
+    assert.equal(tarjetas.length, 4);
+    for (const [indice, tarjeta] of tarjetas.slice(0, 3).entries()) {
+      assert.match(tarjeta.etiqueta, /data-compacta="true"/);
+      assert.match(tarjeta.etiqueta, /aria-label="Cálculo Diferencial/);
+      assert.match(tarjeta.etiqueta, /grid-row:2 \/ span 2/);
+      assert.ok(tarjeta.contenido.includes(`<strong>CD</strong><span>Sec. ${indice + 1} · Teo.</span><span>H. ext.</span>`));
+      assert.match(tarjeta.etiqueta, /_sesionExterna_/);
+    }
+    assert.match(tarjetas[3].etiqueta, /data-compacta="true"/);
+    assert.match(tarjetas[3].etiqueta, /aria-label="Estructuras de Datos/);
+    assert.match(tarjetas[3].contenido, /<strong>EDD<\/strong><span>Sec. 1 · Teo\.<\/span><span>Pend\. sala<\/span>/);
+    const distinta = { ...externas[1], asignatura: { ...externas[1].asignatura, codigo: '200', nombre: 'Cálculo Diferenciado' } };
+    const colision = renderizar([externas[0], distinta]);
+    assert.match(colision, /CD · 100/);
+    assert.match(colision, /CD · 200/);
+  } finally { await servidor.close(); }
+});
+
+test('S2 filas compactas usan altura intrínseca sin recortar nombres ni salas variables', async () => {
+  const { createServer } = await import('vite');
+  const { createElement } = await import('react');
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const { readFile } = await import('node:fs/promises');
+  const servidor = await createServer({ envFile: false, server: { middlewareMode: true }, appType: 'custom' });
+  const larga = { ...sesion, idsHorarios: [51, 52], bloquesIds: [90, 87], horaTermino: '09:30', estadoSala: 'asignada',
+    asignatura: { ...sesion.asignatura, nombre: 'Introducción a la administración de sistemas distribuidos y redes de comunicaciones' },
+    profesor: { nombre: 'Docente de sistemas distribuidos y redes' }, salas: [{ id: 1, nombre: 'Laboratorio de redes del edificio de ingeniería' }, { id: 2, nombre: 'Sala de proyectos interdisciplinarios' }] };
+  try {
+    const { default: Calendario } = await servidor.ssrLoadModule('/src/features/resultados-horarios/CalendarioResultados.tsx');
+    const renderizar = sesiones => renderToStaticMarkup(createElement(Calendario, { resultado: { ...resultado, sesiones }, nivel: '3', seleccionar() {} }));
+    const html = renderizar([larga]);
+    assert.match(html, /grid-template-rows:3rem repeat\(6, minmax\(2.75rem, auto\)\)/);
+    assert.match(renderizar([larga, { ...larga, idsHorarios: [61, 62], seccion: 2 }]), /grid-template-rows:3rem repeat\(6, minmax\(2.75rem, auto\)\)/);
+    for (const texto of [larga.asignatura.nombre, 'Sec. 1', 'Teórica', 'Salas por tramo']) assert.ok(html.includes(texto), texto);
+    assert.doesNotMatch(html, />Sala asignada</);
+    const css = await readFile(new URL('./calendario/Calendario.module.css', import.meta.url), 'utf8');
+    const tarjeta = css.match(/\.clase\s*\{([^}]+)\}/)?.[1];
+    assert.match(tarjeta, /min-height:\s*max-content/);
+    assert.match(tarjeta, /overflow:\s*visible/);
+    assert.doesNotMatch(css, /line-clamp|text-overflow:\s*ellipsis/);
+  } finally { await servidor.close(); }
+});
+
+test('S11 reservas continuas ocupan el día completo sin carril extra ni ocultar sesiones', async () => {
+  const { createServer } = await import('vite');
+  const { createElement } = await import('react');
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const servidor = await createServer({ envFile: false, server: { middlewareMode: true }, appType: 'custom' });
+  try {
+    const { distribuirReservas } = await servidor.ssrLoadModule('/src/features/resultados-horarios/calendario/disposicion.ts');
+    const { default: Calendario } = await servidor.ssrLoadModule('/src/features/resultados-horarios/CalendarioResultados.tsx');
+    const ids = [90, 87, 84, 78, 190];
+    const reservas = distribuirReservas(resultado.bloques, ids);
+    assert.deepEqual(reservas.map(r => r.bloquesIds), [[90, 87, 84], [78], [190]]);
+    assert.deepEqual(reservas.map(r => [r.inicio, r.fin]), [[0, 3], [4, 5], [0, 1]]);
+    const contexto = { ...resultado, bloquesReservadosIds: ids };
+    const html = renderToStaticMarkup(createElement(Calendario, { resultado: contexto, nivel: '3', seleccionar() {} }));
+    assert.equal([...html.matchAll(/data-reserva=/g)].length, 3);
+    assert.match(html, /data-reserva="90,87,84"[^>]*grid-column:2 \/ span 1;grid-row:2 \/ span 3/);
+    assert.match(html, /grid-template-columns:7rem repeat\(1, 14rem\) repeat\(1, 14rem\)/);
+    assert.equal([...html.matchAll(/data-sesion=/g)].length, 1);
+    assert.ok(html.includes('Incluye reserva'));
+    const editando = renderToStaticMarkup(createElement(Calendario, { resultado: contexto, nivel: '3', editar: true, seleccionar() {} }));
+    assert.match(editando, /data-reserva="90,87,84"[^>]*grid-column:2 \/ span 2;grid-row:2 \/ span 3/);
+    assert.equal([...editando.matchAll(/data-sesion=/g)].length, 1);
+    const sinClases = renderToStaticMarkup(createElement(Calendario, { resultado: { ...contexto, sesiones: [] }, nivel: '3', seleccionar() {} }));
+    assert.equal([...sinClases.matchAll(/data-reserva=/g)].length, 3);
+    assert.ok(!sinClases.includes('Incluye reserva'));
+  } finally { await servidor.close(); }
+});
+
+test('S12-S13 carriles adaptativos conservados y auxiliar fijo de 6rem para 0 a 4 concurrencias', async () => {
+  const { createServer } = await import('vite');
+  const { createElement } = await import('react');
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const { readFile } = await import('node:fs/promises');
+  const servidor = await createServer({ envFile: false, server: { middlewareMode: true }, appType: 'custom' });
+  try {
+    const { default: Calendario } = await servidor.ssrLoadModule('/src/features/resultados-horarios/CalendarioResultados.tsx');
+    for (const cantidad of [0, 1, 2, 3, 4]) {
+      const sesiones = Array.from({ length: cantidad }, (_, i) => ({ ...sesion, seccion: i + 1, idsHorarios: [i * 10 + 1, i * 10 + 2, i * 10 + 3, i * 10 + 4] }));
+      const ancho = cantidad >= 2 ? 7 : 14;
+      for (const editar of [false, true]) {
+        const html = renderToStaticMarkup(createElement(Calendario, { resultado: { ...resultado, sesiones }, nivel: '3', editar, seleccionar() {} }));
+        const carriles = Math.max(1, cantidad);
+        assert.ok(html.includes(`grid-template-columns:7rem repeat(${carriles}, ${ancho}rem)${editar ? ' 6rem' : ''} repeat(1, 14rem)${editar ? ' 6rem' : ''}`));
+        assert.equal([...html.matchAll(/data-sesion=/g)].length, cantidad);
+        if (cantidad) {
+          const conMovimiento = renderToStaticMarkup(createElement(Calendario, { resultado: { ...resultado, sesiones }, nivel: '3', editar: true, seleccionar() {},
+            movimiento: { sesion: sesiones[0], idsHorarios: sesiones[0].idsHorarios.slice(0, 2), cantidad: 2, inicioId: 190, invalido: false, elegir() {} } }));
+          assert.ok(conMovimiento.includes(`grid-template-columns:7rem repeat(${carriles}, ${ancho}rem) 6rem repeat(1, 14rem) 6rem`));
+        }
+      }
+    }
+    const css = await readFile(new URL('./calendario/Calendario.module.css', import.meta.url), 'utf8');
+    for (const selector of ['destino', 'previa']) {
+      const regla = css.match(new RegExp(`\\.${selector}\\s*\\{([^}]+)\\}`))?.[1];
+      assert.match(regla, /width:\s*(?:calc\()?6rem/, selector);
+    }
+  } finally { await servidor.close(); }
+});
+
+test('S12 la vista previa usa un resumen por grupo sin repetir nombres largos en cada bloque', async () => {
+  const { createServer } = await import('vite');
+  const { createElement } = await import('react');
+  const { renderToStaticMarkup } = await import('react-dom/server');
+  const servidor = await createServer({ envFile: false, server: { middlewareMode: true }, appType: 'custom' });
+  const larga = { ...sesion, asignatura: { ...sesion.asignatura, nombre: 'Introducción a la administración de sistemas distribuidos y redes de comunicaciones' } };
+  try {
+    const { default: Calendario } = await servidor.ssrLoadModule('/src/features/resultados-horarios/CalendarioResultados.tsx');
+    const html = renderToStaticMarkup(createElement(Calendario, { resultado: { ...resultado, sesiones: [larga] }, nivel: '3', editar: true, seleccionar() {},
+      movimiento: { sesion: larga, idsHorarios: [11, 12], cantidad: 2, inicioId: 190, invalido: false, elegir() {} } }));
+    assert.equal([...html.matchAll(/data-resumen-previa=/g)].length, 1);
+    assert.equal([...html.matchAll(/data-bloque-id=/g)].length, 2);
+    assert.match(html, /data-resumen-previa="190"[^>]*grid-column:5;grid-row:2 \/ span 2/);
+    const resumen = html.match(/<div[^>]*data-resumen-previa=[^>]*>(.*?)<\/div>/s)?.[1];
+    assert.ok(resumen?.includes('2 bloques'));
+    assert.ok(resumen?.includes('08:10'));
+    assert.ok(resumen?.includes('Sin guardar'));
+    assert.ok(!resumen?.includes(larga.asignatura.nombre));
+  } finally { await servidor.close(); }
+});
+
+test('S13 destinos compactos conservan estados, razones exactas y distinción estructural de inicios', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const contexto = { ...resultado, bloquesReservadosIds: [178], disponibilidades: resultado.disponibilidades.filter(d => d.bloqueId !== 181) };
+  const original = JSON.stringify(contexto), elecciones = [];
+  const propiedades = { resultado: contexto, nivel: '3', editar: true, seleccionar() {},
+    movimiento: { sesion, idsHorarios: [11, 12], cantidad: 2, inicioId: 190, invalido: false, elegir: id => elecciones.push(id) } };
+  const calendario = await montar('./CalendarioResultados.tsx', 'CalendarioResultados', propiedades, { entorno: {
+    calendario: new Proxy({}, { get: (_, clave) => clave }), estilos: new Proxy({}, { get: (_, clave) => clave }),
+    window: { addEventListener() {}, removeEventListener() {} },
+  } });
+  try {
+    const destino = hora => calendario.buscar('button').find(b => b.props['aria-label']?.startsWith(`Martes ${hora}:`));
+    for (const [hora, etiqueta, razon, deshabilitado, inicioEstado] of [
+      ['08:10–08:50', 'Libre', 'libre con disponibilidad; destino de 2 bloques desde 08:10', false, true],
+      ['08:50–09:30', 'Libre', 'libre con disponibilidad; destino de 2 bloques desde 08:10', false, false],
+      ['09:40–10:20', 'Libre', 'libre con disponibilidad; destino de 2 bloques desde 09:40; falta disponibilidad para todo el grupo', true, false],
+      ['10:20–11:00', 'No disponible', 'sin disponibilidad; destino de 2 bloques desde 09:40; falta disponibilidad para todo el grupo', true, true],
+      ['11:10–11:50', 'Reservado', 'reservado; destino de 2 bloques desde 11:10; el grupo incluye una reserva', true, true],
+      ['11:50–12:30', 'Libre', 'libre con disponibilidad; destino de 2 bloques desde 11:10; el grupo incluye una reserva', true, true],
+    ]) {
+      const boton = destino(hora);
+      assert.equal(calendario.texto(boton), etiqueta);
+      assert.equal(boton.props['aria-label'], `Martes ${hora}: ${razon}`);
+      assert.equal(Boolean(boton.props.disabled), deshabilitado);
+      assert.equal(boton.props['data-inicio-estado'], inicioEstado);
+      boton.props.onClick({ detail: 0 });
+    }
+    const ocupado = calendario.buscar('button').find(b => b.props['aria-label']?.startsWith('Lunes 08:10–08:50: ocupado;'));
+    assert.equal(calendario.texto(ocupado), 'Ocupado');
+    assert.equal(ocupado.props.disabled, true);
+    assert.deepEqual(elecciones, [190, 190]);
+    assert.equal(JSON.stringify(contexto), original);
+    for (const celda of calendario.buscar('div').filter(d => d.props['data-destino-id'])) {
+      assert.doesNotMatch(celda.props.className, /disponible|sinDisponibilidad|destinoSeleccionado/);
+    }
+    assert.equal(calendario.buscar('p').some(p => calendario.texto(p).includes('El destino comienza en el bloque impar')), false);
+    const css = await readFile(new URL('./calendario/Calendario.module.css', import.meta.url), 'utf8');
+    assert.match(css, /\.destino:disabled\s*\{[^}]*border[^}]*dashed/);
+    assert.match(css, /\.destino\[data-inicio-estado="false"\] span\s*\{[^}]*opacity:\s*0/);
+    assert.match(css, /\.destino:hover span[^}]*opacity:\s*1/);
+    assert.match(css, /\.destino:focus-visible span/);
+  } finally { calendario.cerrar(); }
+});
+
+test('S13 anuncios montados sin caja vacía y resúmenes acotados sin cambiar las filas', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const calendario = await montar('./CalendarioResultados.tsx', 'CalendarioResultados', { resultado, nivel: '3', editar: true, seleccionar() {} },
+    { entorno: { calendario: new Proxy({}, { get: (_, clave) => clave }), window: { addEventListener() {}, removeEventListener() {} } } });
+  try {
+    const anuncio = calendario.buscar('div').find(d => d.props['aria-live'] === 'polite');
+    assert.ok(anuncio);
+    assert.equal(anuncio.props.className, 'anuncio');
+    assert.equal(calendario.texto(anuncio), '');
+    assert.equal(calendario.buscar('p').some(p => p.props.role === 'status'), false);
+    assert.ok(calendario.buscar('p').some(p => calendario.texto(p).includes('Arrastra con el mouse, mantén presionado en pantalla táctil, o elige un destino')));
+    const css = await readFile(new URL('./calendario/Calendario.module.css', import.meta.url), 'utf8');
+    assert.match(css, /\.anuncio\s*\{[^}]*position:\s*absolute[^}]*clip-path:\s*inset\(50%\)/);
+    assert.doesNotMatch(css.match(/\.anuncio\s*\{([^}]+)\}/)?.[1], /display:\s*none/);
+    for (const selector of ['resumenPrevia', 'tarjetaArrastre']) {
+      const regla = css.match(new RegExp(`\\.${selector}\\s*\\{([^}]+)\\}`))?.[1];
+      assert.match(regla, /padding:\s*\.25rem/);
+      assert.match(regla, /font-size:\s*\.8125rem/);
+      assert.match(regla, /line-height:\s*1\.2/);
+      assert.doesNotMatch(regla, /overflow:\s*hidden|line-clamp/);
+    }
+    assert.match(css, /\.calendario\[data-editando="true"\] \.clase:not\(:disabled\)[^}]*cursor:\s*grab/);
+    assert.match(css, /\.calendario\[data-editando="true"\] \.clase\[data-arrastrando="true"\]:not\(:disabled\)[^}]*cursor:\s*grabbing/);
+  } finally { calendario.cerrar(); }
+});
+
+test('S13 barra estable alinea acciones y mantiene la instrucción fuera de la franja', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const pagina = await montar('./ResultadosHorariosPage.tsx', 'ContenidoResultados', { id: 2, ocupado: false, actualizarPlanificacion() {} }, {
+    consultar: async () => resultado, entorno: { estilos: new Proxy({}, { get: (_, clave) => clave }) },
+  });
+  try {
+    await pagina.asentar(); pagina.boton('3').props.onClick(); pagina.renderizar();
+    const barra = () => pagina.buscar('div').find(d => d.props.className === 'barraHorario');
+    assert.ok(barra());
+    assert.deepEqual(pagina.buscar('button', barra()).map(pagina.texto), ['Actualizar horario', 'Editar horario']);
+    pagina.boton('Editar horario').props.onClick(); pagina.renderizar();
+    assert.deepEqual(pagina.buscar('button', barra()).map(pagina.texto), ['Actualizar horario', 'Cancelar edición']);
+    assert.equal(pagina.buscar('p', barra()).length, 0);
+    const ayuda = pagina.buscar('p').find(p => pagina.texto(p) === 'Elige una sesión para editar su horario.');
+    assert.ok(ayuda); assert.equal(ayuda.props.role, undefined); assert.equal(ayuda.props['aria-live'], 'polite');
+    const filtros = pagina.buscar('div').find(d => d.props['aria-label'] === 'Semestres de la malla');
+    assert.equal(pagina.buscar('button', filtros).length, 10);
+    pagina.componente('CalendarioResultados').props.seleccionar(sesion); pagina.renderizar();
+    assert.deepEqual(pagina.buscar('button', barra()).map(pagina.texto), ['Actualizar horario', 'Cancelar edición']);
+    pagina.boton('Cancelar edición').props.onClick(); pagina.renderizar();
+    assert.equal(pagina.componente('CalendarioResultados').props.editar, false);
+    assert.equal(pagina.componente('ControlesMovimiento'), undefined);
+    const css = await readFile(new URL('./ResultadosHorarios.module.css', import.meta.url), 'utf8');
+    assert.match(css, /\.barraHorario\s*\{[^}]*display:\s*flex[^}]*align-items:\s*center/);
+  } finally { pagina.cerrar(); }
+});
+
+test('S3-S5 consulta abre cualquier detalle, edición explícita conserva una sesión y termina tras guardar', async () => {
+  const externa = { ...sesion, idsHorarios: [31, 32], estadoSala: 'externa', editable: false };
+  const otra = { ...sesion, idsHorarios: [21, 22], ofertaId: 6 };
+  const llamadas = [];
+  const pagina = await montar('./ResultadosHorariosPage.tsx', 'ContenidoResultados', { id: 2, ocupado: false, actualizarPlanificacion() {} }, {
+    consultar: async () => ({ ...resultado, sesiones: [sesion, otra, externa] }),
+    validarMovimiento: async (_id, datos) => { llamadas.push(['validar', datos]); return { valido: true, problemas: [] }; },
+    mover: async (_id, datos) => { llamadas.push(['mover', datos]); return { ...resultado, revision: 'b'.repeat(64) }; },
+  });
+  try {
+    await pagina.asentar(); pagina.boton('3').props.onClick(); pagina.renderizar();
+    for (const actual of [sesion, externa]) {
+      pagina.componente('CalendarioResultados').props.seleccionar(actual); pagina.renderizar();
+      assert.equal(pagina.componente('DetalleSesionDialogo').props.sesion, actual);
+      assert.equal(pagina.componente('ControlesMovimiento'), undefined);
+      pagina.componente('DetalleSesionDialogo').props.cerrar(); pagina.renderizar();
+    }
+    pagina.boton('Editar horario').props.onClick(); pagina.renderizar();
+    pagina.componente('CalendarioResultados').props.seleccionar(sesion); pagina.renderizar();
+    assert.equal(pagina.componente('ControlesMovimiento').props.sesion.profesor.nombre, 'Docente');
+    pagina.componente('CalendarioResultados').props.seleccionar(otra); pagina.renderizar();
+    assert.equal(pagina.componente('ControlesMovimiento').props.sesion, sesion);
+    pagina.componente('CalendarioResultados').props.movimiento.elegir(190); pagina.renderizar(); await pagina.asentar();
+    assert.deepEqual(llamadas.map(l => l[0]), ['validar']);
+    pagina.componente('ControlesMovimiento').props.confirmar(); await pagina.asentar();
+    assert.deepEqual(llamadas.map(l => l[0]), ['validar', 'mover']);
+    assert.equal(pagina.componente('CalendarioResultados').props.editar, false);
+    assert.equal(pagina.componente('ControlesMovimiento'), undefined);
+    assert.equal(pagina.boton('Editar horario').props.disabled, false);
+  } finally { pagina.cerrar(); }
+});
+
+test('S5 disponibilidad ausente bloquea editar y disponibilidad vacía es un resultado cargado', async () => {
+  for (const disponibilidades of [undefined, []]) {
+    const pagina = await montar('./ResultadosHorariosPage.tsx', 'ContenidoResultados', { id: 2, ocupado: false, actualizarPlanificacion() {} }, {
+      consultar: async () => ({ ...resultado, disponibilidades }),
+    });
+    try {
+      await pagina.asentar();
+      assert.equal(pagina.boton('Editar horario').props.disabled, disponibilidades === undefined);
+      if (disponibilidades) {
+        pagina.componente('GestionSalas').props.seleccionar(sesion); pagina.renderizar();
+        assert.equal(pagina.componente('ControlesMovimiento').props.resultado.disponibilidades.length, 0);
+        assert.equal(pagina.componente('CalendarioResultados').props.movimiento.inicioId, 0);
+      }
+    } finally { pagina.cerrar(); }
+  }
+});
+
+test('S3 el detalle conserva datos completos, salas por tramo y cierre sin peticiones', async () => {
+  const actual = { ...sesion, salas: [{ id: 1, nombre: 'A101' }, { id: 1, nombre: 'A101' }, null, null] };
+  let cierres = 0;
+  const detalle = await montar('./DetalleSesionDialogo.tsx', 'DetalleSesionDialogo', { resultado, sesion: actual, cerrar: () => { cierres++; } }, {});
+  try {
+    assert.equal(detalle.componente('Dialogo').props.titulo, 'Detalle de la sesión');
+    assert.equal(detalle.componente('Dialogo').props.tamano, 'detalle');
+    const texto = detalle.texto(detalle.componente('Dialogo'));
+    for (const dato of ['100 — Estructuras de Datos', 'Docente', 'Sección1', 'Teórica', 'Lunes', '08:10–11:00', '08:10–09:30: A101', '09:40–11:00: Sin sala']) assert.ok(texto.includes(dato), dato);
+    detalle.componente('Dialogo').props.cerrar(); assert.equal(cierres, 1);
+  } finally { detalle.cerrar(); }
+});
+
+test('S6 clic y teclado eligen destinos existentes sin guardar ni seleccionar otras clases', async () => {
+  const elecciones = []; const selecciones = []; let reloj; const eventos = new Map();
+  const contexto = { ...resultado, bloques: resultado.bloques.filter(b => b.id !== 175) };
+  const propiedades = { resultado: contexto, nivel: '3', editar: true, seleccionar: s => selecciones.push(s),
+    movimiento: { sesion, idsHorarios: [11, 12], cantidad: 2, inicioId: 0, invalido: false, elegir: id => elecciones.push(id) } };
+  const calendario = await montar('./CalendarioResultados.tsx', 'CalendarioResultados', propiedades, { entorno: {
+    window: { addEventListener: (tipo, fn) => eventos.set(tipo, fn), removeEventListener() {} }, document: { elementsFromPoint: () => [] },
+    setTimeout: fn => { reloj = fn; return 1; }, clearTimeout: () => { reloj = null; },
+  } });
+  try {
+    const destino = calendario.buscar('button').find(b => b.props['aria-label']?.startsWith('Martes 08:10'));
+    assert.equal(destino.props.disabled, false); destino.props.onClick({ detail: 0 });
+    assert.deepEqual(elecciones, [190]); assert.deepEqual(selecciones, []);
+    const hueco = calendario.buscar('div').find(d => d.props.children?.props?.children === 'Sin bloque');
+    assert.ok(hueco); assert.equal(hueco.props['data-destino-id'], undefined); assert.equal(calendario.buscar('button', hueco).length, 0);
+    calendario.buscar('button').find(b => b.props['data-sesion']).props.onPointerDown({ pointerId: 1, button: 0, isPrimary: true, clientX: 0, clientY: 0,
+      currentTarget: { setPointerCapture() {}, hasPointerCapture: () => true, releasePointerCapture() {} } });
+    reloj(); eventos.get('keydown')({ key: 'Escape' });
+    destino.props.onClick({ detail: 0 });
+    assert.deepEqual(elecciones, [190, 190], 'Escape no debe consumir el siguiente clic de teclado.');
+    propiedades.ocupado = true; calendario.renderizar();
+    calendario.buscar('button').find(b => b.props['aria-label']?.startsWith('Martes 08:10')).props.onClick({ detail: 0 });
+    assert.deepEqual(elecciones, [190, 190]);
+  } finally { calendario.cerrar(); }
+});
+
 test('only secretary/admin manage results and only a current proposal is mutable', async () => {
   const m = await import('./modelo.ts');
   for (const rol of ['secretaria', 'admin']) assert.equal(m.puedeGestionarResultados(rol), true);
@@ -28,6 +377,241 @@ test('only secretary/admin manage results and only a current proposal is mutable
   for (const cambio of [{ actual: false }, { estadoPlanificacion: 'publicado' }, { estadoPlanificacion: 'preparacion' }]) {
     assert.equal(m.puedeEditarResultado({ ...resultado, planificacion: { ...resultado.planificacion, ...cambio } }), false);
   }
+});
+
+test('S6 el CSS reserva el gesto antes del contacto solo en tarjetas habilitadas durante edición', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const css = await readFile(new URL('./calendario/Calendario.module.css', import.meta.url), 'utf8');
+  const reglasTactiles = [...css.matchAll(/([^{}]+)\{([^{}]*)\}/g)]
+    .filter(([, , cuerpo]) => /touch-action\s*:/.test(cuerpo))
+    .map(([, selector, cuerpo]) => [selector.trim(), cuerpo.match(/touch-action\s*:\s*([^;]+)/)[1].trim()]);
+  assert.deepEqual(reglasTactiles, [
+    ['.clase', 'pan-x pan-y'],
+    ['.calendario[data-editando="true"] .clase:not(:disabled)', 'none'],
+  ]);
+  assert.match(css, /\.desplazamiento\s*\{[^}]*overflow:\s*auto\s*;/);
+});
+
+test('S6 consulta conserva tarjetas accesibles y edición deshabilita las que no admiten movimiento', async () => {
+  const propiedades = { resultado: { ...resultado, sesiones: [sesion, { ...sesion, idsHorarios: [21, 22], editable: false }] }, nivel: '3', seleccionar() {}, editar: false, ocupado: false };
+  const calendario = await montar('./CalendarioResultados.tsx', 'CalendarioResultados', propiedades, {
+    entorno: { window: { addEventListener() {}, removeEventListener() {} } },
+  });
+    const tarjetas = () => calendario.buscar('button').filter(b => b.props['data-sesion']);
+  try {
+    assert.equal(calendario.buscar('div').find(d => d.props['aria-label'] === 'Horario semanal').props['data-editando'], false);
+      assert.deepEqual(tarjetas().map(b => Boolean(b.props.disabled)), [false, false]);
+      assert.ok(tarjetas().every(b => b.props['data-arrastrando'] === false));
+    propiedades.editar = true; calendario.renderizar();
+    assert.equal(calendario.buscar('div').find(d => d.props['aria-label'] === 'Horario semanal').props['data-editando'], true);
+    assert.deepEqual(tarjetas().map(b => Boolean(b.props.disabled)), [false, true]);
+    propiedades.ocupado = true; calendario.renderizar();
+    assert.deepEqual(tarjetas().map(b => Boolean(b.props.disabled)), [true, true]);
+  } finally { calendario.cerrar(); }
+});
+
+test('S6 manejadores reales preparan selección antes del long press, drop solo elige y cancelaciones conservan preview', async () => {
+  let reloj; const eventos = new Map(); const elecciones = []; const selecciones = []; let capturas = 0;
+  const ventana = { addEventListener: (tipo, fn) => eventos.set(tipo, fn), removeEventListener: tipo => eventos.delete(tipo) };
+  const propiedades = { resultado, nivel: '3', editar: true, seleccionar: actual => selecciones.push(actual) };
+  const calendario = await montar('./CalendarioResultados.tsx', 'CalendarioResultados', propiedades, { entorno: {
+    window: ventana, document: { elementsFromPoint: () => [{ closest: () => ({ dataset: { destinoId: '190' } }) }] },
+    setTimeout: function (fn) { assert.ok(this === globalThis, 'El temporizador del navegador necesita su receptor global.'); reloj = fn; return 1; },
+    clearTimeout: function () { assert.ok(this === globalThis, 'La cancelación del temporizador necesita su receptor global.'); reloj = null; },
+  } });
+  const evento = (cambios = {}) => ({ pointerId: 1, button: 0, isPrimary: true, clientX: 20, clientY: 80,
+    currentTarget: { setPointerCapture() { capturas++; }, hasPointerCapture: () => true, releasePointerCapture() { capturas--; } }, preventDefault() {}, ...cambios });
+  const tarjeta = () => calendario.buscar('button').find(b => b.props['data-sesion']);
+  const preparar = () => {
+    tarjeta().props.onPointerDown(evento()); calendario.renderizar();
+    propiedades.movimiento = { sesion, idsHorarios: [13, 14], cantidad: 2, inicioId: 184, invalido: false, elegir: id => elecciones.push(id) };
+    calendario.renderizar();
+  };
+  try {
+    assert.equal(typeof tarjeta()?.props.onPointerDown, 'function');
+    preparar(); assert.deepEqual(selecciones, [sesion]); assert.equal(capturas, 0);
+    reloj(); calendario.renderizar(); assert.equal(capturas, 1);
+    eventos.get('pointermove')(evento({ clientX: 500, clientY: 900 }));
+    eventos.get('pointerup')(evento({ clientX: 500, clientY: 900 })); calendario.renderizar();
+    assert.deepEqual(elecciones, [190]); assert.equal(capturas, 0);
+    tarjeta().props.onClick({ detail: 1 }); assert.equal(selecciones.length, 1, 'El click sintético del drag no vuelve a seleccionar.');
+    for (const cancelar of ['pointercancel', 'lostpointercapture', 'scroll', 'Escape', 'unmount']) {
+      preparar(); reloj(); calendario.renderizar();
+      if (cancelar === 'Escape') eventos.get('keydown')({ key: 'Escape', preventDefault() {} });
+      else if (cancelar === 'lostpointercapture') tarjeta().props.onLostPointerCapture(evento());
+      else if (cancelar === 'unmount') calendario.cerrar();
+      else eventos.get(cancelar)(evento());
+      assert.equal(capturas, 0); assert.deepEqual(elecciones, [190]);
+      if (cancelar !== 'unmount') {
+        calendario.renderizar();
+        assert.equal(calendario.buscar('div').some(d => d.props['data-grupo-arrastrado']), false);
+      }
+    }
+  } finally { calendario.cerrar(); }
+});
+
+test('S15 el mouse inicia al arrastrar, el touch conserva la pulsación y el scroll del usuario cancela', async () => {
+  const eventos = new Map(), documento = { elementsFromPoint: () => [{ closest: () => ({ dataset: { destinoId: '187' } }) }] };
+  const elecciones = []; let reloj, capturas = 0;
+  const propiedades = { resultado, nivel: '3', editar: true, seleccionar() {},
+    movimiento: { sesion, idsHorarios: [11, 12], cantidad: 2, inicioId: 0, invalido: false, elegir: id => elecciones.push(id) } };
+  const calendario = await montar('./CalendarioResultados.tsx', 'CalendarioResultados', propiedades, { entorno: {
+    window: { addEventListener: (tipo, fn) => eventos.set(tipo, fn), removeEventListener() {} }, document: documento,
+    setTimeout: fn => { reloj = fn; return 1; }, clearTimeout: () => { reloj = null; },
+  } });
+  const puntero = { pointerId: 1, pointerType: 'mouse', button: 0, isPrimary: true, clientX: 0, clientY: 0, preventDefault() {},
+    currentTarget: { setPointerCapture() { capturas++; }, hasPointerCapture: () => capturas > 0, releasePointerCapture() { capturas--; } } };
+  const iniciar = cambios => calendario.buscar('button').find(b => b.props['data-sesion']).props.onPointerDown({ ...puntero, ...cambios });
+  try {
+    iniciar(); eventos.get('scroll')({ target: documento }); // Reflujo observado al seleccionar, sin acción de scroll.
+    eventos.get('pointermove')({ ...puntero, clientX: 18 });
+    assert.equal(capturas, 1, 'Arrastrar con mouse no exige esperar el temporizador.');
+    eventos.get('pointerup')(puntero); assert.deepEqual(elecciones, [190]);
+    iniciar({ pointerType: 'touch' });
+    eventos.get('pointermove')({ ...puntero, pointerType: 'touch', clientX: 18 });
+    assert.equal(reloj, null); assert.equal(capturas, 0);
+    iniciar({ pointerType: 'touch' }); eventos.get('scroll')({ target: documento });
+    reloj(); assert.equal(capturas, 1, 'La selección no cancela la primera pulsación táctil.');
+    eventos.get('scroll')({ target: documento }); assert.equal(capturas, 0, 'Un scroll durante el arrastre activo sí cancela.');
+    for (const tipo of ['wheel', 'keydown']) {
+      iniciar(); eventos.get(tipo)({ key: 'PageDown' });
+      assert.equal(reloj, null); assert.equal(capturas, 0);
+    }
+    iniciar(); eventos.get('scroll')({ target: {} });
+    assert.equal(reloj, null, 'El scroll interno cancela incluso antes de activar.');
+    assert.deepEqual(elecciones, [190]);
+  } finally { calendario.cerrar(); }
+});
+
+test('S6 desplazamiento previo y disponibilidad sin preparar abortan el gesto inicial', async () => {
+  let reloj; const eventos = new Map(); let destinos = 0;
+  const propiedades = { resultado, nivel: '3', editar: true, seleccionar() {} };
+  const calendario = await montar('./CalendarioResultados.tsx', 'CalendarioResultados', propiedades, { entorno: {
+    window: { addEventListener: (tipo, fn) => eventos.set(tipo, fn), removeEventListener() {} },
+    document: { elementsFromPoint: () => [] }, setTimeout: fn => { reloj = fn; return 1; }, clearTimeout: () => { reloj = null; },
+  } });
+  const evento = { pointerId: 1, button: 0, isPrimary: true, clientX: 0, clientY: 0, currentTarget: { setPointerCapture() { assert.fail('No debe capturar'); } } };
+  try {
+    const tarjeta = calendario.buscar('button').find(b => b.props['data-sesion']);
+    tarjeta.props.onPointerDown(evento);
+    eventos.get('pointermove')({ ...evento, clientY: 20 }); assert.equal(reloj, null);
+    tarjeta.props.onPointerDown(evento); reloj();
+    eventos.get('pointerup')(evento); assert.equal(destinos, 0);
+  } finally { calendario.cerrar(); }
+});
+
+for (const caso of [
+  { nombre: 'sesión editable', externa: false },
+  { nombre: 'sesión externa no movible', externa: true },
+  { nombre: 'botón secundario previo', previo: { button: 2, isPrimary: true } },
+  { nombre: 'botón auxiliar previo', previo: { button: 1, isPrimary: true } },
+  { nombre: 'contacto táctil no primario previo', previo: { button: 0, isPrimary: false } },
+]) test(`S3-S4-S13 el primer clic de consulta abre tras guardar un arrastre sin clic sintético: ${caso.nombre}`, async () => {
+  const externa = { ...sesion, idsHorarios: [31, 32], editable: false, estadoSala: 'externa' };
+  const contexto = { ...resultado, sesiones: [sesion, externa] };
+  const original = JSON.stringify(contexto), consultas = [], destinos = [], eventos = new Map();
+  let reloj, capturas = 0, temporizadores = 0;
+  const propiedades = { resultado: contexto, nivel: '3', editar: true, seleccionar: actual => consultas.push(actual),
+    movimiento: { sesion, idsHorarios: [11, 12], cantidad: 2, inicioId: 0, invalido: false, elegir: id => destinos.push(id) } };
+  const calendario = await montar('./CalendarioResultados.tsx', 'CalendarioResultados', propiedades, { entorno: {
+    window: { addEventListener: (tipo, fn) => eventos.set(tipo, fn), removeEventListener() {} },
+    document: { elementsFromPoint: () => [{ closest: () => ({ dataset: { destinoId: '190' } }) }] },
+    setTimeout: fn => { reloj = fn; temporizadores++; return 1; }, clearTimeout() {},
+  } });
+  const puntero = { pointerId: 1, button: 0, isPrimary: true, clientX: 10, clientY: 20,
+    currentTarget: { setPointerCapture() { capturas++; }, hasPointerCapture: () => true, releasePointerCapture() { capturas--; } } };
+  const tarjetas = () => calendario.buscar('button').filter(b => b.props['data-sesion']);
+  try {
+    tarjetas()[0].props.onPointerDown(puntero); reloj(); calendario.renderizar();
+    assert.equal(capturas, 1);
+    eventos.get('pointerup')(puntero); calendario.renderizar();
+    assert.equal(capturas, 0); assert.deepEqual(destinos, [190]); assert.deepEqual(consultas, []);
+    // Simula el retorno exitoso a consulta, sin emitir el clic sintético del arrastre.
+    propiedades.editar = false; propiedades.movimiento = undefined;
+    propiedades.resultado = { ...contexto, revision: 'b'.repeat(64) }; calendario.renderizar();
+    const tarjeta = tarjetas()[caso.externa ? 1 : 0];
+    assert.equal(Boolean(tarjeta.props.disabled), false);
+    assert.equal(tarjeta.props['aria-haspopup'], 'dialog');
+    if (caso.previo) {
+      tarjeta.props.onPointerDown({ ...puntero, ...caso.previo });
+      tarjeta.props.onClick({ detail: 1 });
+      assert.deepEqual(consultas, [], 'Un contacto no primario o un botón distinto de cero no debe limpiar la supresión pendiente.');
+    }
+    tarjeta.props.onPointerDown(puntero); tarjeta.props.onClick({ detail: 1 });
+    assert.deepEqual(consultas, [caso.externa ? externa : sesion]);
+    assert.deepEqual(destinos, [190]); assert.equal(capturas, 0); assert.equal(temporizadores, 1);
+    assert.equal(JSON.stringify(contexto), original);
+  } finally { calendario.cerrar(); }
+});
+
+test('S6 integración de long press inicial y grupo parcial valida al soltar pero solo confirma una escritura', async () => {
+  const validaciones = []; const escrituras = []; let reloj; const eventos = new Map(); let bloqueBajoPuntero = '190';
+  const original = JSON.stringify(resultado);
+  const pagina = await montar('./ResultadosHorariosPage.tsx', 'ContenidoResultados', { id: 2, ocupado: false, actualizarPlanificacion() {} }, {
+    consultar: async () => resultado,
+    validarMovimiento: async (_id, datos) => { validaciones.push(datos); return { valido: true, problemas: [] }; },
+    mover: async (_id, datos) => { escrituras.push(datos); return { ...resultado, revision: 'c'.repeat(64) }; },
+  });
+  let calendario;
+  try {
+    await pagina.asentar(); pagina.boton('3').props.onClick(); pagina.renderizar();
+    pagina.boton('Editar horario').props.onClick(); pagina.renderizar();
+    const propiedades = { ...pagina.componente('CalendarioResultados').props };
+    calendario = await montar('./CalendarioResultados.tsx', 'CalendarioResultados', propiedades, { entorno: {
+      window: { addEventListener: (tipo, fn) => eventos.set(tipo, fn), removeEventListener() {} },
+      document: { elementsFromPoint: () => [{ closest: () => ({ dataset: { destinoId: bloqueBajoPuntero } }) }] },
+      setTimeout: fn => { reloj = fn; return 1; }, clearTimeout: () => { reloj = null; },
+    } });
+    const sincronizar = () => { pagina.renderizar(); Object.assign(propiedades, pagina.componente('CalendarioResultados').props); calendario.renderizar(); };
+    const puntero = { pointerId: 8, button: 0, isPrimary: true, clientX: 5, clientY: 800,
+      currentTarget: { setPointerCapture() {}, hasPointerCapture: () => true, releasePointerCapture() {} } };
+    const iniciar = () => calendario.buscar('button').find(b => b.props['data-sesion']).props.onPointerDown(puntero);
+    const columnasIniciales = calendario.buscar('div').find(d => d.props['aria-label'] === 'Horario semanal').props.style.gridTemplateColumns;
+    iniciar(); sincronizar();
+    assert.equal(calendario.buscar('div').find(d => d.props['aria-label'] === 'Horario semanal').props.style.gridTemplateColumns, columnasIniciales,
+      'Preparar la disponibilidad no debe mover la tarjeta bajo el puntero.');
+    assert.equal(pagina.componente('ControlesMovimiento').props.sesion, sesion);
+    assert.ok(calendario.buscar('p').some(p => calendario.texto(p).includes('Disponibilidad de Docente')));
+    assert.deepEqual(validaciones, []); reloj(); calendario.renderizar();
+    const guia = () => calendario.buscar('div').find(d => d.props['data-grupo-arrastrado']);
+    assert.ok(guia()); assert.equal(calendario.texto(guia()), '4 bloques08:10VálidoSin guardar');
+    assert.match(guia().props['aria-label'], /Sesión completa.*4 bloques.*08:10–11:00/);
+    assert.equal(calendario.buscar('button').find(b => b.props['data-sesion']).props['data-arrastrando'], true);
+    assert.equal(calendario.texto(calendario.buscar('div').find(d => d.props['aria-live'] === 'polite')),
+      'Arrastrando el grupo seleccionado. Suelta sobre el inicio del destino para previsualizar.');
+    assert.equal(calendario.buscar('div').find(d => d.props['aria-label'] === 'Horario semanal').props.style.gridTemplateColumns, columnasIniciales);
+    assert.equal(guia().props['data-destino-valido'], true);
+    for (const bloque of ['175', '187', '184', '190']) {
+      bloqueBajoPuntero = bloque;
+      eventos.get('pointermove')({ ...puntero, clientX: Number(bloque), clientY: 400, preventDefault() {} }); calendario.renderizar(); pagina.renderizar();
+      assert.equal(guia().props['data-destino-valido'], bloque !== '175');
+      assert.equal(guia().props['data-destino-arrastre'], bloque === '187' ? 190 : bloque === '175' ? 178 : Number(bloque));
+      assert.match(calendario.texto(guia()), bloque === '175' ? /No válido/ : /Válido/);
+      assert.deepEqual(validaciones, []); assert.deepEqual(escrituras, []);
+      assert.equal(pagina.componente('ControlesMovimiento').props.datos.bloqueInicioId, 0);
+    }
+    eventos.get('pointerup')(puntero); sincronizar(); await pagina.asentar();
+    assert.equal(guia(), undefined);
+    assert.equal(calendario.buscar('button').find(b => b.props['data-sesion']).props['data-arrastrando'], false);
+    assert.equal(calendario.texto(calendario.buscar('div').find(d => d.props['aria-live'] === 'polite')), '');
+    assert.equal(calendario.buscar('p').some(p => calendario.texto(p).includes('Arrastre terminado.')), false);
+    assert.deepEqual(validaciones, [{ revision: resultado.revision, idsHorarios: [11, 12, 13, 14], bloqueInicioId: 190 }]);
+    assert.deepEqual(escrituras, []); assert.equal(JSON.stringify(resultado), original);
+    pagina.componente('ControlesMovimiento').props.cambiarGrupo(2); sincronizar();
+    iniciar(); reloj(); calendario.renderizar();
+    assert.equal(calendario.texto(guia()), '2 bloques08:10VálidoSin guardar');
+    assert.match(guia().props['aria-label'], /Grupo parcial.*2 bloques.*09:40–11:00/);
+    assert.match(guia().props.style.gridRow, /span 2/);
+    eventos.get('keydown')({ key: 'Escape' }); calendario.renderizar();
+    assert.equal(guia(), undefined); assert.equal(validaciones.length, 1);
+    iniciar(); reloj(); eventos.get('pointerup')(puntero); sincronizar(); await pagina.asentar();
+    assert.deepEqual(validaciones.at(-1), { revision: resultado.revision, idsHorarios: [13, 14], bloqueInicioId: 190 });
+    assert.deepEqual(escrituras, []);
+    pagina.componente('ControlesMovimiento').props.confirmar(); await pagina.asentar();
+    assert.deepEqual(escrituras, [validaciones.at(-1)]);
+    assert.equal(pagina.componente('CalendarioResultados').props.editar, false);
+    assert.equal(JSON.stringify(resultado), original);
+  } finally { calendario?.cerrar(); pagina.cerrar(); }
 });
 
 test('room-assigned and external sessions are green read-only and cannot confirm movement', async () => {
@@ -52,6 +636,58 @@ test('laboratories are ready, noneditable and labeled only Laboratorio', async (
   assert.equal(m.esSesionLista(laboratorio), true);
   assert.equal(m.puedeMoverSesion(resultado, laboratorio), false);
   assert.equal(m.puedeConfirmarMovimiento(resultado, laboratorio, { revision: resultado.revision, idsHorarios: [11, 12], bloqueInicioId: 190 }, null), false);
+});
+
+test('S15 el anclaje usa la pareja del día por número institucional, nunca por ID ni duración redondeada', async () => {
+  const m = await import('./modelo.ts');
+  for (const cantidad of [2, 3, 4]) {
+    for (const id of [190, 187]) {
+      const inicio = m.inicioParejaDestino(resultado.bloques, id);
+      assert.equal(inicio?.id, 190);
+      assert.equal(m.bloquesDestino(resultado.bloques, inicio.id, cantidad).length, cantidad);
+    }
+  }
+  assert.equal(m.inicioParejaDestino(resultado.bloques, 181)?.id, 184);
+  assert.equal(m.inicioParejaDestino(resultado.bloques, 999), undefined);
+  assert.equal(m.inicioParejaDestino(resultado.bloques.filter(b => b.id !== 190), 187), undefined);
+});
+
+for (const cantidad of [2, 3, 4]) test(`S15 clic, teclado y drop sobre ambas mitades conservan ${cantidad} bloques`, async () => {
+  const elecciones = [], eventos = new Map(); let reloj, apuntado = '187';
+  const propiedades = { resultado, nivel: '3', editar: true, seleccionar() {},
+    movimiento: { sesion, idsHorarios: sesion.idsHorarios.slice(0, cantidad), cantidad, inicioId: 0, invalido: false, elegir: id => elecciones.push(id) } };
+  const calendario = await montar('./CalendarioResultados.tsx', 'CalendarioResultados', propiedades, { entorno: {
+    window: { addEventListener: (tipo, fn) => eventos.set(tipo, fn), removeEventListener() {} },
+    document: { elementsFromPoint: () => [{ closest: () => ({ dataset: { destinoId: apuntado } }) }] },
+    setTimeout: fn => { reloj = fn; return 1; }, clearTimeout() {},
+  } });
+  const puntero = { pointerId: 1, button: 0, isPrimary: true, clientX: 5, clientY: 5,
+    currentTarget: { setPointerCapture() {}, hasPointerCapture: () => true, releasePointerCapture() {} } };
+  const boton = numero => calendario.buscar('button').find(b => b.props['aria-label']?.startsWith(`Martes ${numero === 1 ? '08:10' : '08:50'}`));
+  try {
+    for (const numero of [1, 2]) {
+      assert.equal(boton(numero).props.disabled, false);
+      boton(numero).props.onClick({ detail: 0 });
+      boton(numero).props.onClick({ detail: 1 });
+      apuntado = numero === 1 ? '190' : '187';
+      calendario.buscar('button').find(b => b.props['data-sesion']).props.onPointerDown(puntero);
+      reloj(); eventos.get('pointerup')(puntero); calendario.renderizar();
+      // El clic posterior a soltar no vuelve a elegir, el siguiente contacto es explícito.
+      boton(numero).props.onClick({ detail: 1 });
+    }
+    assert.deepEqual(elecciones, Array(6).fill(190));
+    for (const contexto of [
+      { ...resultado, bloquesReservadosIds: [187] },
+      { ...resultado, disponibilidades: resultado.disponibilidades.filter(d => d.bloqueId !== 190) },
+      { ...resultado, bloques: resultado.bloques.filter(b => b.id !== 190) },
+    ]) {
+      propiedades.resultado = contexto; calendario.renderizar();
+      assert.equal(boton(2).props.disabled, true);
+    }
+    propiedades.resultado = resultado; calendario.renderizar();
+    const ultimo = calendario.buscar('button').find(b => b.props['aria-label']?.startsWith('Martes 11:50'));
+    assert.equal(ultimo.props.disabled, cantidad !== 2, 'No se retrocede otra pareja para hacer caber el grupo.');
+  } finally { calendario.cerrar(); }
 });
 
 test('movement targets are green only when the full group is free and available', async () => {
@@ -170,7 +806,7 @@ test('public API uses only proposal-result endpoints and preserves revision-boun
   } finally { globalThis.fetch = anterior; }
 });
 
-test('calendar renders green read-only sessions and inline controls without a movement popup', async () => {
+test('calendar distinguishes neutral external sessions and ready managed sessions without changing consultation', async () => {
   const { createServer } = await import('vite');
   const { createElement } = await import('react');
   const { renderToStaticMarkup } = await import('react-dom/server');
@@ -181,17 +817,13 @@ test('calendar renders green read-only sessions and inline controls without a mo
     const reserva = renderToStaticMarkup(createElement(Calendario, { resultado: conReservas, nivel: '', seleccionar() {},
       movimiento: { sesion, idsHorarios: [11, 12], cantidad: 2, inicioId: 190, invalido: false, elegir() {} },
     }));
-    assert.equal([...reserva.matchAll(/>Reservado</g)].length, 2);
-    assert.match(reserva, /Clase en bloque reservado/);
+    assert.equal([...reserva.matchAll(/data-reserva=/g)].length, 2);
+    assert.match(reserva, /Incluye reserva/);
     assert.match(reserva, /aria-label="Estructuras de Datos, sección 1, Teórica, Docente, Sala pendiente"/);
     assert.match(reserva, /<button[^>]*disabled=""[^>]*aria-label="Martes 08:10–08:50: [^"]*grupo incluye una reserva/);
     assert.match(reserva, /aria-label="Martes 08:50–09:30: reservado/);
     assert.doesNotMatch(reserva, /Vista previa sin guardar/);
-    for (const [, contenido] of reserva.matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/g)) {
-      if (!contenido.includes('>Reservado<')) continue;
-      assert.match(contenido, /<div class="[^"]*contenidoCelda[^"]*"><span class="[^"]*reserva[^"]*">/,
-        'La reserva no debe agregar altura fuera del contenedor de clases ni del control de destino.');
-    }
+    assert.match(reserva, /class="[^"]*reserva/);
     const vacio = renderToStaticMarkup(createElement(Calendario, { resultado: conReservas, nivel: '5', seleccionar() {} }));
     assert.equal([...vacio.matchAll(/>Reservado</g)].length, 2);
     assert.doesNotMatch(vacio, /Clase en bloque reservado|aria-label="Estructuras/);
@@ -200,12 +832,16 @@ test('calendar renders green read-only sessions and inline controls without a mo
     const laboratorio = { ...sesion, idsHorarios: [40, 41], bloquesIds: [78, 75], estadoSala: 'laboratorio', tipoHora: { id: 3, tipo: 'Laboratorio' } };
     const html = renderToStaticMarkup(createElement(Calendario, { resultado: { ...resultado, sesiones: [sesion, externa, asignada, laboratorio] }, nivel: '', seleccionar: () => {} }));
     for (const texto of ['Horario semanal', 'Estructuras de Datos', 'Sala pendiente', 'Horario externo', 'Docente', 'A-101']) assert.ok(html.includes(texto), texto);
-    assert.doesNotMatch(html, /Horario externo fijo|aria-haspopup|<dialog/);
+    assert.doesNotMatch(html, /Horario externo fijo|<dialog/);
+    assert.match(html, /aria-haspopup="dialog"/);
     const protegidas = [...html.matchAll(/<button\b[^>]*sesionLista[^>]*>/g)].map(([boton]) => boton);
-    assert.equal(protegidas.length, 6);
-    assert.equal(protegidas.every(b => b.includes('disabled=""')), true);
+    assert.equal(protegidas.length, 2);
+    assert.equal(protegidas.every(b => !b.includes('disabled=""')), true);
+    const externas = [...html.matchAll(/<button\b[^>]*sesionExterna[^>]*>/g)].map(([boton]) => boton);
+    assert.equal(externas.length, 1);
+    assert.equal(externas.every(b => !b.includes('disabled=""') && b.includes('aria-haspopup="dialog"')), true);
     const pendientes = [...html.matchAll(/<button\b[^>]*sesionPendiente[^>]*>/g)].map(([boton]) => boton);
-    assert.equal(pendientes.length, 4);
+    assert.equal(pendientes.length, 1);
     assert.equal(pendientes.every(b => !b.includes('disabled=""')), true);
     for (const estadoPlanificacion of ['propuesta', 'publicado']) {
       const exenta = { ...sesion, estadoSala: 'noRequiere', salas: sesion.salas.map(() => null) };
@@ -214,17 +850,16 @@ test('calendar renders green read-only sessions and inline controls without a mo
         nivel: '', seleccionar() {},
       }));
       const tarjetas = [...exentoHtml.matchAll(/<button\b[^>]*aria-label="Estructuras[^>]*>/g)].map(([boton]) => boton);
-      assert.equal(tarjetas.length, exenta.bloquesIds.length);
+      assert.equal(tarjetas.length, 1);
       for (const tarjeta of tarjetas) {
         assert.match(tarjeta, /sesionLista/);
         assert.doesNotMatch(tarjeta, /sesionPendiente/);
-        assert.equal(tarjeta.includes('disabled=""'), estadoPlanificacion === 'publicado',
-          'El color de una sesión exenta no debe cambiar su permiso de movimiento.');
+        assert.equal(tarjeta.includes('disabled=""'), false, 'La consulta admite detalle aun en períodos publicados.');
       }
       assert.match(exentoHtml, /No requiere sala/);
     }
     const tarjetasLaboratorio = [...html.matchAll(/<button\b[^>]*aria-label="[^"]*Laboratorio[^"]*"[^>]*>[\s\S]*?<\/button>/g)];
-    assert.equal(tarjetasLaboratorio.length, 2);
+    assert.equal(tarjetasLaboratorio.length, 1);
     for (const [tarjeta] of tarjetasLaboratorio) assert.doesNotMatch(tarjeta, /sala/i);
     const semana = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'].flatMap((dia, indice) =>
       bloques.map(bloque => ({ ...bloque, id: bloque.id + indice * 100, dia })));
@@ -232,16 +867,15 @@ test('calendar renders green read-only sessions and inline controls without a mo
       const grilla = renderToStaticMarkup(createElement(Calendario, {
         resultado: { ...resultado, bloques: semana }, nivel: '', seleccionar: () => {}, movimiento,
       }));
-      assert.match(grilla, /<table[^>]*tablaResultados[^>]*style="min-width:58rem"/);
-      assert.match(grilla, /<colgroup><col class="[^"]*columnaHora[^"]*"\/>((?:<col\/>){5})<\/colgroup>/);
+      assert.match(grilla, /grid-template-columns:7rem/);
+      assert.match(grilla, /grid-template-rows:3rem repeat\(6, minmax\(2.75rem, auto\)\)/);
       if (movimiento) {
         const destinos = [...grilla.matchAll(/<button\b[^>]*class="[^"]*_destino_[^"]*"[^>]*>[\s\S]*?<\/button>/g)].map(([b]) => b);
         assert.equal(destinos.length, semana.length);
-        assert.equal(destinos.every(b => /aria-label="[^"]+"/.test(b) && b.endsWith('></button>')), true);
-        assert.doesNotMatch(grilla, />Disponible<|>No disponible<|>Destino seleccionado</);
-        assert.match(grilla, /<button\b[^>]*tarjetaOcupada/);
-        assert.match(grilla, /sinDisponibilidad[^>]*><button[^>]*aria-label="Lunes 08:10–08:50: ocupado"/);
-        assert.match(grilla, /disponible[^>]*><button[^>]*aria-label="Martes 08:10–08:50: libre con disponibilidad"/);
+        assert.equal(destinos.every(b => /aria-label="[^"]+"/.test(b)), true);
+        assert.match(grilla, />Libre</);
+        assert.match(grilla, /<button[^>]*sinDisponibilidad[^>]*aria-label="Lunes 08:10–08:50: ocupado;/);
+        assert.match(grilla, /<button[^>]*disponible[^>]*aria-label="Martes 08:10–08:50: libre con disponibilidad;/);
       }
     }
     const { default: Controles } = await servidor.ssrLoadModule('/src/features/resultados-horarios/ControlesMovimiento.tsx');
@@ -285,8 +919,8 @@ test('selected group is grey and its unsaved destination preview does not mutate
       resultado, nivel: '3', seleccionar() {}, movimiento: proyeccion,
     }));
     const html = renderizar(movimiento);
-    assert.equal([...html.matchAll(/<button\b[^>]*seleccionada[^>]*aria-pressed="true"/g)].length, 2);
-    assert.equal([...html.matchAll(/role="note"/g)].length, 2);
+    assert.doesNotMatch(html, /data-grupo-origen=|origen-movimiento-calendario|Origen ·/);
+    assert.equal([...html.matchAll(/role="note"/g)].length, 1);
     assert.match(html, /Vista previa sin guardar: Estructuras de Datos/);
     assert.match(html, /data-bloque-id="190"/);
     assert.match(html, /data-bloque-id="187"/);
@@ -296,9 +930,9 @@ test('selected group is grey and its unsaved destination preview does not mutate
     assert.doesNotMatch(renderizar({ ...movimiento, inicioId: 175 }), /role="note"/);
     assert.doesNotMatch(renderizar(undefined), /role="note"|seleccionada/);
     const completa = renderizar({ ...movimiento, idsHorarios: sesion.idsHorarios, cantidad: 4 });
-    assert.equal([...completa.matchAll(/role="note"/g)].length, 4);
+    assert.equal([...completa.matchAll(/role="note"/g)].length, 1);
     const otraMitad = renderizar({ ...movimiento, idsHorarios: [13, 14] });
-    assert.equal([...otraMitad.matchAll(/<button\b[^>]*seleccionada[^>]*aria-pressed="true"/g)].length, 2);
+    assert.doesNotMatch(otraMitad, /data-grupo-origen=|origen-movimiento-calendario|Origen ·/);
     assert.equal(JSON.stringify(resultado), original);
     const css = await readFile(new URL('./ResultadosHorarios.module.css', import.meta.url), 'utf8');
     assert.match(css, /\.seleccionada[^{}]*\{[^}]*background:\s*#e5e7eb\s*;/);
@@ -321,14 +955,15 @@ test('S11 cells show their own availability while only odd starts admit a full g
     const renderizar = (datos = contexto, seleccion = movimiento) => renderToStaticMarkup(createElement(Calendario, {
       resultado: datos, nivel: '3', seleccionar() {}, movimiento: seleccion,
     }));
-    const celdas = html => [...html.matchAll(/<td\b[^>]*>[\s\S]*?<\/td>/g)].map(([celda]) => celda);
+    const celdas = html => [...html.matchAll(/<div\b[^>]*data-destino-id[^>]*>[\s\S]*?<\/button>/g)].map(([celda]) => celda);
     const celda = (html, hora) => celdas(html).find(c => c.includes(`aria-label="Martes ${hora}:`));
     const html = renderizar();
     for (const hora of ['08:10–08:50', '08:50–09:30', '09:40–10:20']) assert.match(celda(html, hora), /class="[^"]*disponible/);
-    assert.match(celda(html, '08:50–09:30'), /<button[^>]*disabled=""[^>]*aria-label="[^"]*inicio impar requerido/);
+    assert.doesNotMatch(celda(html, '08:50–09:30'), /disabled=""/);
+    assert.match(celda(html, '08:50–09:30'), /aria-label="[^"]*destino de 3 bloques desde 08:10/);
     assert.doesNotMatch(celda(html, '08:10–08:50'), /<button[^>]*disabled/);
-    assert.equal([...html.matchAll(/role="note"/g)].length, 3);
-    assert.equal([...html.matchAll(/<button\b[^>]*seleccionada/g)].length, 3);
+    assert.equal([...html.matchAll(/role="note"/g)].length, 1);
+    assert.doesNotMatch(html, /data-grupo-origen=|origen-movimiento-calendario|Origen ·/);
     for (const id of [190, 187, 184]) assert.match(html, new RegExp(`data-bloque-id="${id}"`));
     const sinTercero = { ...contexto, disponibilidades: contexto.disponibilidades.filter(d => d.bloqueId !== 184) };
     const invalido = renderizar(sinTercero);
@@ -410,7 +1045,7 @@ test('S11 period state is immediately beside refresh and the removed paragraph s
     assert.equal(pagina.buscar('p').some(p => pagina.texto(p).startsWith('Las tarjetas celestes están listas:')), false);
     const controles = pagina.buscar('div').find(div => div.props.children?.some?.(hijo => hijo?.props?.onClick === pagina.boton('Actualizar horario').props.onClick));
     assert.ok(controles);
-    assert.equal(controles.props.children.length, 2);
+    assert.equal(controles.props.children.length, 3);
     assert.equal(pagina.texto(controles.props.children[1]), 'Estado: Propuesta');
   } finally { pagina.cerrar(); }
 });
@@ -457,7 +1092,7 @@ async function montar(nombreArchivo, nombreFuncion, propiedades, api) {
   const { ApiError } = await import('../../lib/api.ts');
   const fuente = (await readFile(new URL(nombreArchivo, import.meta.url), 'utf8'))
     .replace(/^import .*;\r?\n/gm, '').replace(/^export default function /gm, 'function ').replace(/^export /gm, '');
-  const componentes = Object.fromEntries(['CalendarioResultados', 'GestionSalas', 'ControlesMovimiento', 'PublicacionDialogo', 'Dialogo'].map(nombre => [nombre, () => null]));
+  const componentes = Object.fromEntries(['CalendarioResultados', 'GestionSalas', 'ControlesMovimiento', 'PublicacionDialogo', 'Dialogo', 'DetalleSesionDialogo'].map(nombre => [nombre, () => null]));
   const avisos = [], avisosCerrados = [];
   let siguienteAviso = 0;
   const notificaciones = Object.fromEntries(['exito', 'error', 'advertencia'].map(tipo => [tipo, (mensaje, id) => {
@@ -467,7 +1102,8 @@ async function montar(nombreArchivo, nombreFuncion, propiedades, api) {
   notificaciones.cerrar = id => avisosCerrados.push(id);
   const valores = [], efectos = [], pendientes = [];
   let indice = 0, sucio = false, arbol;
-  const entorno = { React, ...modelo, ...datos, ordenarBloques: disponibilidad.ordenarBloques, ...componentes, ApiError, estilos: {}, resultadosHorariosApi: api, notificaciones,
+  const auxiliares = { ...(await import('./calendario/disposicion.ts').catch(() => ({}))), ...(await import('./calendario/gesto.ts').catch(() => ({}))), ...(await import('./calendario/presentacion.ts')), ...(await import('../mi-horario/modelo.ts')) };
+  const entorno = { React, ...auxiliares, ...modelo, ...datos, claveDia: disponibilidad.claveDia, ordenarBloques: disponibilidad.ordenarBloques, ...componentes, ApiError, estilos: {}, calendario: {}, MarcadorReserva: () => null, IconoArchivo: () => null, resultadosHorariosApi: api, notificaciones,
     ordenarPeriodosPorFechaAcademica: (await import('../../lib/periodos.ts')).ordenarPeriodosPorFechaAcademica,
     useAuth: () => ({ usuario: { id: 1, rol: 'secretaria' } }), Navigate: () => null, Outlet: () => null,
     useSearchParams: () => [new URLSearchParams(api.consulta ?? '')], Link: () => null,
@@ -490,11 +1126,12 @@ async function montar(nombreArchivo, nombreFuncion, propiedades, api) {
     useEffect(efecto, dependencias) {
       const posicion = indice++;
       const anterior = efectos[posicion];
-      if (!anterior || dependencias.some((valor, i) => !Object.is(valor, anterior.dependencias[i]))) {
+      if (!anterior || dependencias?.some((valor, i) => !Object.is(valor, anterior.dependencias?.[i]))) {
         pendientes.push(() => { anterior?.limpiar?.(); efectos[posicion] = { dependencias, limpiar: efecto() }; });
       }
     },
   };
+  Object.assign(entorno, api.entorno);
   delete entorno[nombreFuncion];
   const codigo = ts.transpileModule(`export function crear(entorno) { const { ${Object.keys(entorno).join(', ')} } = entorno;
     ${fuente}\n return ${nombreFuncion}; }`, {
@@ -620,6 +1257,7 @@ test('selecting a session projects availability onto the same semester calendar 
   });
   try {
     await pagina.asentar(); pagina.boton('3').props.onClick(); pagina.renderizar();
+    pagina.boton('Editar horario').props.onClick(); pagina.renderizar();
     pagina.componente('CalendarioResultados').props.seleccionar(sesion); pagina.renderizar();
     assert.equal(pagina.buscar(pagina.componentes.CalendarioResultados).length, 1);
     const calendario = pagina.componente('CalendarioResultados');
@@ -631,7 +1269,7 @@ test('selecting a session projects availability onto the same semester calendar 
   } finally { pagina.cerrar(); }
 });
 
-for (const accion of ['cancel', 'semester', 'group', 'session', 'refresh']) test(`inline ${accion} invalidates pending previews without saving`, async () => {
+for (const accion of ['cancel', 'semester', 'group', 'refresh']) test(`inline ${accion} invalidates pending previews without saving`, async () => {
   const solicitudes = [];
   let guardados = 0;
   let lecturas = 0;
@@ -643,6 +1281,7 @@ for (const accion of ['cancel', 'semester', 'group', 'session', 'refresh']) test
   });
   try {
     await pagina.asentar(); pagina.boton('3').props.onClick(); pagina.renderizar();
+    pagina.boton('Editar horario').props.onClick(); pagina.renderizar();
     pagina.componente('CalendarioResultados').props.seleccionar(sesion); pagina.renderizar();
     pagina.componente('CalendarioResultados').props.movimiento.elegir(190); pagina.renderizar();
     assert.equal(solicitudes.length, 1);
@@ -705,7 +1344,7 @@ test('visual group choices show origin and full destination ranges and preserve 
   } finally { pagina.cerrar(); }
 });
 
-test('two-block sessions hide the redundant whole-group choice and render exactly two grey origin and destination blocks', async () => {
+test('two-block sessions omit redundant choices and identify the exact origin group and two unsaved destination blocks', async () => {
   const { createServer } = await import('vite');
   const { createElement } = await import('react');
   const { renderToStaticMarkup } = await import('react-dom/server');
@@ -723,11 +1362,11 @@ test('two-block sessions hide the redundant whole-group choice and render exactl
     const { default: Calendario } = await servidor.ssrLoadModule('/src/features/resultados-horarios/CalendarioResultados.tsx');
     const html = renderToStaticMarkup(createElement(Calendario, { resultado: contexto, nivel: '3', seleccionar() {},
       movimiento: { sesion: doble, idsHorarios: doble.idsHorarios, cantidad: 2, inicioId: 190, invalido: false, elegir() {} } }));
-    assert.equal([...html.matchAll(/<button\b[^>]*seleccionada[^>]*aria-pressed="true"/g)].length, 2);
-    assert.equal([...html.matchAll(/role="note"/g)].length, 2);
+    assert.doesNotMatch(html, /data-grupo-origen=|origen-movimiento-calendario|Origen ·/);
+    assert.equal([...html.matchAll(/role="note"/g)].length, 1);
     assert.match(html, /data-bloque-id="190"/); assert.match(html, /data-bloque-id="187"/);
     assert.doesNotMatch(html, /data-bloque-id="184"/);
-    assert.match(html, /<button[^>]*disabled=""[^>]*aria-label="Martes 08:50–09:30: [^"]*inicio impar requerido/);
+    assert.match(html, /<button[^>]*aria-pressed="true"[^>]*aria-label="Martes 08:50–09:30: [^"]*destino de 2 bloques desde 08:10/);
     assert.equal(JSON.stringify(contexto), original);
   } finally { await servidor.close(); }
 });
@@ -935,14 +1574,15 @@ test('semester strip keeps ten buttons in one horizontal scrollable row', async 
   assert.match(css, /\.semestres\s*\{[^}]*display:\s*flex\s*;[^}]*flex-wrap:\s*nowrap\s*;[^}]*overflow-x:\s*auto\s*;/);
 });
 
-test('calendar palette uses light blue ready cards, yellow pending cards and pastel destination colors', async () => {
+test('calendar palette distinguishes neutral external cards, blue managed ready cards and yellow pending cards', async () => {
   const { readFile } = await import('node:fs/promises');
   const css = await readFile(new URL('./ResultadosHorarios.module.css', import.meta.url), 'utf8');
-  for (const [clase, color] of [['sesionLista', '#e0f2fe'], ['sesionPendiente', '#fff6ce'],
+  for (const [clase, color] of [['sesionExterna', '#f3f4f6'], ['sesionLista', '#e0f2fe'], ['sesionPendiente', '#fff6ce'],
     ['disponible', '#e5f6e9'], ['sinDisponibilidad', '#fce8e6'], ['invalido', '#fce8e6'], ['tarjetaOcupada', '#fce8e6']]) {
     assert.match(css, new RegExp(`\\.${clase}[^{}]*\\{[^}]*background:\\s*${color}\\s*;`));
   }
   assert.ok(css.indexOf('.tarjetaOcupada') > css.indexOf('.sesionPendiente'));
+  assert.match(css, /\.sesionExterna[^{}]*\{[^}]*border-color:\s*#6b7280;[^}]*color:\s*#374151;[^}]*opacity:\s*1/);
 });
 
 test('results calendar fixes day widths without changing the shared professor calendar styles', async () => {
@@ -963,6 +1603,7 @@ test('inline movement effects discard late previews and preserve validation on s
   });
   try {
     await pagina.asentar(); pagina.boton('3').props.onClick(); pagina.renderizar();
+    pagina.boton('Editar horario').props.onClick(); pagina.renderizar();
     pagina.componente('CalendarioResultados').props.seleccionar(sesion); pagina.renderizar();
     const elegir = id => { pagina.componente('CalendarioResultados').props.movimiento.elegir(id); pagina.renderizar(); };
     elegir(190); elegir(184); elegir(190);
@@ -1001,6 +1642,7 @@ for (const tipo of ['rejected', 'unknown']) test(`real save locks duplicate subm
   try {
     lecturas[0].resolver(resultado); await pagina.asentar();
     pagina.boton('3').props.onClick(); pagina.renderizar();
+    pagina.boton('Editar horario').props.onClick(); pagina.renderizar();
     pagina.componente('CalendarioResultados').props.seleccionar(sesion); pagina.renderizar();
     pagina.componente('ControlesMovimiento').props.cambiarGrupo(1); pagina.renderizar();
     pagina.componente('CalendarioResultados').props.movimiento.elegir(190); pagina.renderizar(); await pagina.asentar();
@@ -1474,6 +2116,7 @@ test('a successful unfiltered movement keeps the selected level and updates only
   });
   try {
     await pagina.asentar(); pagina.boton('3').props.onClick(); pagina.renderizar();
+    pagina.boton('Editar horario').props.onClick(); pagina.renderizar();
     pagina.componente('CalendarioResultados').props.seleccionar(sesion); pagina.renderizar();
     pagina.componente('ControlesMovimiento').props.cambiarGrupo(1); pagina.renderizar();
     pagina.componente('CalendarioResultados').props.movimiento.elegir(190); pagina.renderizar(); await pagina.asentar();
