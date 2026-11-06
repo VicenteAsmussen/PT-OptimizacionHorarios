@@ -96,8 +96,8 @@ test('agregar y editar sección muestran el formulario completo en una tarjeta s
   }).outputText;
   for (const tipo of ['crear', 'editar', 'eliminar']) {
     const contexto = {
-      accion: { tipo, oferta: { id: 7, seccion: 1 } }, estilos: { tarjetaSeccion: 'tarjeta-seccion', campos: 'campos' },
-      asignatura: { codigo: 'A' }, semestre: { codigo: '2026-2' }, ocupado: false, puedeEditar: true,
+      accion: { tipo, oferta: { id: 7, seccion: 1 } }, estilos: { tarjetaSeccion: 'tarjeta-seccion', campos: 'campos', pieFormulario: 'pieFormulario' },
+      asignatura: { codigo: 'A' }, semestre: { codigo: '2026-2' }, ocupado: false, puedeEditar: true, contenido: { current: null },
       libres: [1, 2], seccion: '1', cupos: '30', profesoresNoElegibles: [], asignaciones: [], datos: { profesores: [] },
       EditorAsignaciones: () => null, error: 'Error de prueba', enviar() {}, setSeccion() {}, setCupos() {}, setAsignaciones() {}, setAccion() {},
     };
@@ -110,6 +110,9 @@ test('agregar y editar sección muestran el formulario completo en una tarjeta s
     assert.equal(html.includes('Guardar sección'), tipo !== 'eliminar');
     assert.equal(html.includes('Confirmar eliminación'), tipo === 'eliminar');
     assert.equal(html.includes('value="30"'), tipo !== 'eliminar');
+    assert.match(html, new RegExp(`<h3[^>]*>${tipo === 'crear' ? 'Agregar sección' : tipo === 'editar' ? 'Editar sección 1' : 'Eliminar sección 1'}</h3>`));
+    assert.ok(html.indexOf('</h3>') < html.indexOf('<fieldset'));
+    assert.match(html, /class="[^"]*pieFormulario/);
   }
   const css = await fuente('./Asignaturas.module.css');
   const tarjeta = css.match(/\.tarjetaSeccion\s*\{([^}]+)\}/)?.[1] ?? '';
@@ -387,33 +390,94 @@ test('editing a subject displays its hour breakdown without adding editable hour
   assert.match(vacia, /Sin tipos de hora registrados/);
 });
 
-test('ver asignatura conserva los datos del editor, deshabilita campos y no permite guardar', async () => {
+test('ver asignatura presenta una ficha completa sin controles de edición ni posibilidad de guardar', async () => {
   const llamadas = [];
   const renderizar = await componenteConEstado('./EditarAsignatura.tsx', 'default', {
     './useMutacion': { useMutacion: () => ({ ocupado: false, error: '', ejecutar: (...argumentos) => llamadas.push(argumentos) }) },
   });
   const { renderToStaticMarkup } = await import('react-dom/server');
-  const asignatura = { codigo: 'INF100', nombre: 'Álgebra', departamentoId: 1, semestreMalla: 2, esCritica: true,
+  const asignatura = { codigo: 'INF100', nombre: 'Álgebra', departamentoId: 1, departamento: { id: 1, nombre: 'Departamento' }, semestreMalla: 2, esCritica: true,
     tiposHora: [{ tipoHoraId: 1, horas: 4, tipoHora: { tipo: 'Teoría' } }] };
   const propiedades = { asignatura, departamentos: [{ id: 1, nombre: 'Departamento' }], alCerrar() {}, alCompletar() {} };
   const lectura = renderizar({ ...propiedades, soloLectura: true });
   assert.equal(lectura.props.titulo, 'Ver asignatura');
-  assert.equal(elementos(lectura, e => e.type === 'fieldset')[0].props.disabled, true);
+  assert.equal(elementos(lectura, e => e.props?.['aria-label'] === 'Identificación de la asignatura').length, 1);
+  assert.equal(elementos(lectura, e => ['fieldset', 'input', 'select', 'form'].includes(e.type)).length, 0);
+  assert.equal(elementos(lectura, e => e.type === 'dl').length, 2, 'ficha de datos y desglose de horas');
   assert.equal(elementos(lectura, e => e.type === 'button' && e.props.type === 'submit').length, 0);
   const html = renderToStaticMarkup(lectura);
   for (const dato of ['INF100', 'Álgebra', 'Departamento', 'Semestre de malla', 'Asignatura crítica', 'Teoría', '4 h']) {
     assert.ok(html.includes(dato), dato);
   }
-  let prevenido = false;
-  elementos(lectura, e => e.type === 'form')[0].props.onSubmit({ preventDefault() { prevenido = true; } });
-  assert.equal(prevenido, true);
-  assert.deepEqual(llamadas, [], 'ni siquiera un envío programático inicia una mutación');
+  assert.deepEqual(llamadas, [], 'la consulta no inicia mutaciones');
   const edicion = renderizar(propiedades);
   assert.equal(edicion.props.titulo, 'Editar asignatura');
   assert.equal(elementos(edicion, e => e.type === 'fieldset')[0].props.disabled, false);
   assert.equal(elementos(edicion, e => e.type === 'button' && e.props.type === 'submit').length, 1);
   elementos(edicion, e => e.type === 'form')[0].props.onSubmit({ preventDefault() {} });
   assert.equal(llamadas.length, 1, 'administración conserva el envío del formulario');
+});
+
+test('editar asignatura agrupa Cancelar y Guardar al final y conserva el bloqueo durante el envío', async () => {
+  for (const ocupado of [false, true]) {
+    let cierres = 0;
+    const renderizar = await componenteConEstado('./EditarAsignatura.tsx', 'default', {
+      './useMutacion': { useMutacion: () => ({ ocupado, error: '', ejecutar() {} }) },
+    });
+    const asignatura = { codigo: 'A', nombre: 'Álgebra', departamentoId: 1, semestreMalla: 2, esCritica: false, tiposHora: [] };
+    const arbol = renderizar({ asignatura, departamentos: [], alCerrar() { cierres++; }, alCompletar() {} });
+    const cancelar = botonConTexto(arbol, 'Cancelar');
+    const guardar = botonConTexto(arbol, ocupado ? 'Guardando…' : 'Guardar asignatura');
+    assert.ok(cancelar); assert.ok(guardar);
+    assert.equal(cancelar.props.type, 'button');
+    assert.equal(guardar.props.type, 'submit');
+    const pie = elementos(arbol, e => e.type === 'div' && e.props.children?.includes?.(cancelar))[0];
+    assert.ok(pie?.props.children.includes(guardar), 'ambas acciones comparten el pie');
+    assert.equal(elementos(arbol, e => e.type === 'fieldset')[0].props.disabled, ocupado);
+    if (!ocupado) { cancelar.props.onClick(); assert.equal(cierres, 1, 'cancelar cierra sin otra confirmación'); }
+  }
+});
+
+test('las asignaciones se apilan en móvil sin duplicar selectores y conservan semántica de tabla', async () => {
+  const renderizar = await componenteConEstado('./PanelSecciones.tsx', 'EditorAsignaciones');
+  const tiposHora = ['Teoría', 'Laboratorio'].map((tipo, indice) => ({ tipoHoraId: indice + 1, horas: indice + 2, tipoHora: { tipo } }));
+  const arbol = renderizar({ asignatura: { tiposHora }, profesores: [], asignaciones: [], alCambiar() {} });
+  assert.equal(elementos(arbol, e => e.props?.role === 'table').length, 1);
+  assert.equal(elementos(arbol, e => e.props?.contexto).length, 2, 'un único selector por tipo en todos los anchos');
+  const css = await fuente('./Asignaturas.module.css');
+  const movil = css.slice(css.indexOf('@media (max-width: 40rem)'));
+  assert.match(movil, /\.tablaAsignaciones\s*\{[^}]*min-width:\s*0/);
+  assert.match(movil, /\.tablaAsignaciones tbody tr\s*\{[^}]*display:\s*grid/);
+  assert.match(movil, /\.tablaAsignaciones td:last-child\s*\{[^}]*grid-column:\s*1\s*\/\s*-1/);
+  assert.match(movil, /\.asignacionesContenedor\s*\{[^}]*overflow:\s*visible/);
+});
+
+test('el contexto de secciones agrupa identificación y ayudas sin ocultar restricciones', async () => {
+  const panel = await fuente('./PanelSecciones.tsx');
+  assert.match(panel, /<div className=\{estilos.contextoPanel\}>/);
+  assert.match(panel, /semestre\.carrera\.nombre/);
+  assert.match(panel, /semestre\.codigo/);
+  assert.match(panel, /\{etiqueta\}/);
+  assert.match(panel, /id="motivo-secciones" role="status"/);
+  assert.match(panel, /<div className=\{estilos.ayudaFormulario\}>/);
+  for (const texto of ['Puedes guardar con profesores pendientes.', 'Solo se permiten profesores del departamento de la asignatura.', 'Máximo de 5 secciones alcanzado.', 'No se puede eliminar: tiene horarios asociados.']) {
+    assert.ok(panel.includes(texto), texto);
+  }
+});
+
+test('los textos de secciones conservan contexto y reglas sin repetir período ni acciones', async () => {
+  const panel = await fuente('./PanelSecciones.tsx');
+  assert.match(panel, /<p role="status">\{datos.ofertas.length\} de 5 secciones<\/p>/);
+  assert.match(panel, /aria-label=\{`Editar sección \$\{o.seccion\}`\}/);
+  assert.match(panel, /aria-label=\{`Eliminar sección \$\{o.seccion\}`\}/);
+  assert.match(panel, /\}>Editar<\/button>/);
+  assert.match(panel, /\}>Eliminar<\/button>/);
+  assert.match(panel, /Al elegir el primer profesor se completan los tipos vacíos\. Puedes cambiarlos\./);
+  assert.match(panel, /Cada tipo de hora admite un profesor\./);
+  const pagina = await fuente('./AsignaturasPage.tsx');
+  assert.match(pagina, /El período determina las secciones, no el catálogo\./);
+  assert.doesNotMatch(pagina, /El catálogo de asignaturas se conserva entre semestres\./);
+  assert.match(pagina, /placeholder="Ej\.: Álgebra o MAT101"/);
 });
 
 test('teacher autocomplete selects a suggestion and can be cleared and rewritten directly', async () => {

@@ -25,26 +25,37 @@ export default function EditarAsignatura({ asignatura, departamentos, alCerrar, 
     }, alCompletar);
   }
   return <PanelAsignatura titulo={soloLectura ? 'Ver asignatura' : 'Editar asignatura'} ocupado={ocupado} alCerrar={alCerrar}>
-    <p>Código: <strong>{asignatura.codigo}</strong> (no modificable)</p>
+    {soloLectura ? <section className={estilos.identidad} aria-label="Identificación de la asignatura">
+      <h3 className={estilos.nombreIdentidad}>{asignatura.nombre}</h3>
+      <p>{asignatura.departamento.nombre}</p>
+      <p className={estilos.codigoIdentidad}>Código: <strong>{asignatura.codigo}</strong></p>
+    </section> : <p>Código: <strong>{asignatura.codigo}</strong> (no modificable)</p>}
+    {soloLectura && <dl className={estilos.detalleAsignatura}>
+      <div><dt>Semestre de malla</dt><dd>{asignatura.semestreMalla}</dd></div>
+      <div><dt>Asignatura crítica</dt><dd>{asignatura.esCritica ? 'Sí' : 'No'}</dd></div>
+    </dl>}
     <section aria-label="Horas por tipo" className={estilos.resumenHoras}>
       <h3>Horas por tipo</h3>
       {asignatura.tiposHora?.length ? <dl>{asignatura.tiposHora.map(tipo => <div key={tipo.tipoHoraId}>
         <dt>{tipo.tipoHora.tipo}</dt><dd>{tipo.horas} h</dd>
       </div>)}</dl> : <p>Sin tipos de hora registrados.</p>}
     </section>
-    <form onSubmit={enviar}>
-      <fieldset disabled={ocupado || soloLectura} className={estilos.campos}>
-        <label>Nombre<input required value={nombre} onChange={e => setNombre(e.target.value)} /></label>
-        <label>Departamento<select required value={departamentoId} onChange={e => setDepartamentoId(Number(e.target.value))}>
+    {!soloLectura && <form onSubmit={enviar}>
+      <fieldset disabled={ocupado} className={`${estilos.campos} ${estilos.camposAsignatura}`}>
+        <label className={estilos.campoCompleto}>Nombre<input required value={nombre} onChange={e => setNombre(e.target.value)} /></label>
+        <label className={estilos.campoCompleto}>Departamento<select required value={departamentoId} onChange={e => setDepartamentoId(Number(e.target.value))}>
           {departamentos.map(d => <option key={d.id} value={d.id}>{d.nombre}</option>)}
         </select></label>
         <label>Semestre de malla<input type="number" required min="1" max="14" step="1" value={semestreMalla}
           onChange={e => setSemestreMalla(Number(e.target.value))} /></label>
         <label className={estilos.casilla}><input type="checkbox" checked={esCritica} onChange={e => setEsCritica(e.target.checked)} />Asignatura crítica</label>
-        <p>Se conservan las carreras y los tipos de hora asociados.</p>
-        {!soloLectura && <button className="boton boton--azul" type="submit">{ocupado ? 'Guardando…' : 'Guardar asignatura'}</button>}
+        <p className={`${estilos.ayudaFormulario} ${estilos.campoCompleto}`}>Se conservan las carreras y los tipos de hora asociados.</p>
+        <div className={`${estilos.acciones} ${estilos.pieFormulario} ${estilos.campoCompleto}`}>
+          <button className={`boton boton--gris ${estilos.accionSecundaria}`} type="button" onClick={alCerrar}>Cancelar</button>
+          <button className={`boton ${estilos.accionPrincipal}`} type="submit">{ocupado ? 'Guardando…' : 'Guardar asignatura'}</button>
+        </div>
       </fieldset>
       {error && <p role="alert" className={estilos.error}>{error}</p>}
-    </form>
+    </form>}
   </PanelAsignatura>;
 }

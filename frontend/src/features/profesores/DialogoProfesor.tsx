@@ -48,21 +48,28 @@ export default function DialogoProfesor({ titulo, confirmar = "Guardar", destruc
     alCompletar();
   }
 
-  return <dialog ref={dialogo} className={estilos.dialogo} aria-labelledby="titulo-dialogo-profesor"
+  return <dialog ref={dialogo} className={`${estilos.dialogo} ${destructivo ? estilos.dialogoConfirmacion : guardar ? estilos.dialogoFormulario : estilos.dialogoConsulta}`} aria-labelledby="titulo-dialogo-profesor"
     onCancel={(evento) => { evento.preventDefault(); if (!bloqueo.current) alCerrar(); }}>
-    <h2 id="titulo-dialogo-profesor">{titulo}</h2>
-    <form onSubmit={enviar} aria-busy={ocupado} aria-describedby={error ? "error-profesor" : undefined}>
-      <fieldset disabled={ocupado} className={estilos.campos}>{children}</fieldset>
-      {error && <p id="error-profesor" role="alert" className={estilos.error}>{error}</p>}
-      <div className={estilos.acciones}>
-        <button type="button" className="boton boton--gris" disabled={ocupado} onClick={alCerrar} autoFocus={destructivo}>
+    <header className={estilos.cabeceraDialogo}>
+      <h2 id="titulo-dialogo-profesor">{titulo}</h2>
+      <button type="button" className={`boton boton--gris ${estilos.accionSecundaria}`} disabled={ocupado} onClick={alCerrar}>Cerrar</button>
+    </header>
+    <form onSubmit={enviar} className={estilos.formularioDialogo} aria-busy={ocupado} aria-describedby={error ? "error-profesor" : undefined}>
+      <div className={estilos.cuerpoDialogo}>
+        <fieldset disabled={ocupado} className={estilos.campos}>
+          {destructivo ? <div className={estilos.avisoConfirmacion}>{children}</div> : children}
+        </fieldset>
+        {error && <p id="error-profesor" role="alert" className={estilos.error}>{error}</p>}
+      </div>
+      <footer className={`${estilos.acciones} ${estilos.pieDialogo}`}>
+        <button type="button" className={`boton boton--gris ${estilos.accionSecundaria}`} disabled={ocupado} onClick={alCerrar} autoFocus={destructivo}>
           {guardar ? "Cancelar" : "Cerrar"}
         </button>
         {guardar && <button type="submit" disabled={ocupado}
-          className={`boton ${destructivo ? "boton--eliminar" : "boton--azul"}`}>
+          className={`boton ${destructivo ? "boton--eliminar" : estilos.accionPrincipal}`}>
           {ocupado ? "Guardando…" : confirmar}
         </button>}
-      </div>
+      </footer>
     </form>
   </dialog>;
 }

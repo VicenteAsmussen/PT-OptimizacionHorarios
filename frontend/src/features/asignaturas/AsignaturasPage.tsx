@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { mantenerFocoEnTabla } from '../../lib/focoTabla';
+import { useDesbordamientoTabla } from '../../hooks/useDesbordamientoTabla';
 import { Navigate, Outlet } from 'react-router-dom';
 import { ordenarPeriodosPorFechaAcademica } from '../../lib/periodos';
 import { useAuth } from '../../hooks/useAuth';
@@ -37,6 +39,7 @@ export default function AsignaturasPage() {
   const solicitudConteos = useRef(0);
   const solicitud = useRef(0);
   const titulo = useRef<HTMLHeadingElement>(null);
+  const { referencia, desborda } = useDesbordamientoTabla();
   const cargar = useCallback(async () => {
     const numero = ++solicitud.current;
     setCargando(true);
@@ -99,8 +102,19 @@ export default function AsignaturasPage() {
       <h1 id="titulo-asignaturas" tabIndex={-1} ref={titulo}>Asignaturas</h1>
       <p>{puedeEditar ? 'Edita' : 'Consulta'} las asignaturas de tu alcance y gestiona sus secciones por semestre y carrera.</p>
     </div></header>
-    <div className={estilos.filtros}>
-      <label>Buscar por nombre o código<input type="search" placeholder="Buscar por nombre o código" value={busqueda} onChange={e => setBusqueda(e.target.value)} /></label>
+    <section className={estilos.contextoSecciones} aria-labelledby="titulo-contexto-secciones">
+      <div><h2 id="titulo-contexto-secciones">Contexto de secciones</h2>
+        <p>El período determina las secciones, no el catálogo.</p></div>
+      <label>Semestre para secciones<select disabled={cargando} value={planificacionSemestreId ?? ''} onChange={e => {
+        setSeleccion(null);
+        setPlanificacionSemestreId(e.target.value ? Number(e.target.value) : null);
+      }}>
+        {planificacionSemestreId === null && <option value="" disabled hidden>Selecciona carrera y semestre</option>}
+        {ordenarPeriodosPorFechaAcademica(datos?.planificaciones ?? []).map(p => <option key={p.id} value={p.id}>{p.carrera.nombre} · {p.codigo}{p.actual ? ' (actual)' : ''}</option>)}
+      </select></label>
+    </section>
+    <div className={estilos.filtros} role="group" aria-label="Filtros del catálogo">
+      <label>Buscar por nombre o código<input type="search" placeholder="Ej.: Álgebra o MAT101" value={busqueda} onChange={e => setBusqueda(e.target.value)} /></label>
       <label>Departamento<select value={departamento} onChange={e => setDepartamento(e.target.value)}>
         <option value="">Todos los departamentos</option>
         {usuario?.rol === 'secretaria' && <>
@@ -111,13 +125,6 @@ export default function AsignaturasPage() {
       </select></label>
       <label>Semestre de malla<select value={malla} onChange={e => setMalla(e.target.value)}>
         <option value="">Todos</option>{Array.from({ length: 10 }, (_, i) => <option key={i + 1} value={i + 1}>{i + 1}</option>)}
-      </select></label>
-      <label>Semestre para secciones<select disabled={cargando} value={planificacionSemestreId ?? ''} onChange={e => {
-        setSeleccion(null);
-        setPlanificacionSemestreId(e.target.value ? Number(e.target.value) : null);
-      }}>
-        {planificacionSemestreId === null && <option value="" disabled hidden>Selecciona carrera y semestre</option>}
-        {ordenarPeriodosPorFechaAcademica(datos?.planificaciones ?? []).map(p => <option key={p.id} value={p.id}>{p.carrera.nombre} · {p.codigo}{p.actual ? ' (actual)' : ''}</option>)}
       </select></label>
       <div className={estilos.acciones}><button type="button" className="boton boton--gris" onClick={restablecerFiltros}><IconoActualizar />Limpiar filtros</button></div>
     </div>
@@ -130,7 +137,7 @@ export default function AsignaturasPage() {
         ? 'Selecciona carrera y semestre para gestionar secciones. No se elige automáticamente si hay varias carreras actuales.'
         : `No hay planificaciones disponibles. Puedes ${puedeEditar ? 'editar' : 'consultar'} asignaturas, pero no gestionar secciones.`}</p>}
       {planificacion && <>
-        <p className={estilos.contexto}>Secciones en <strong>{planificacion.carrera.nombre} · {planificacion.codigo}</strong> · {estadoSecciones(planificacion).etiqueta}. El catálogo de asignaturas se conserva entre semestres.</p>
+        <p className={estilos.contexto}>Secciones en <strong>{planificacion.carrera.nombre} · {planificacion.codigo}</strong> · {estadoSecciones(planificacion).etiqueta}.</p>
         {(!conteoVigente || conteoVigente.estado === 'cargando') && <p role="status">Cargando conteos de secciones…</p>}
         {conteoVigente?.estado === 'error' && <div role="alert" className={estilos.error}>
           <p>Conteo no disponible en {planificacion.codigo}: {conteoVigente.mensaje}</p>
@@ -141,29 +148,32 @@ export default function AsignaturasPage() {
       <p role="status">{visibles.length} de {datos.asignaturas.length} asignaturas</p>
       {!visibles.length ? <p className={estilos.estado}>{datos.asignaturas.length
         ? 'No hay asignaturas que coincidan con los filtros.' : 'No hay asignaturas disponibles para tu carrera.'}</p>
-        : <div className={estilos.tablaContenedor} tabIndex={0} role="region" aria-label="Tabla de asignaturas">
+        : <>
+          {desborda && <p id="ayuda-tabla-asignaturas" className={estilos.ayudaTabla}>Desplaza la tabla para ver más columnas.<span className={estilos.soloLectores}> Con la tabla enfocada, usa las flechas del teclado.</span></p>}
+          <div className={estilos.tablaContenedor} tabIndex={0} role="region" aria-label="Tabla de asignaturas" aria-describedby={desborda ? 'ayuda-tabla-asignaturas' : undefined} ref={referencia} onFocusCapture={mantenerFocoEnTabla}>
           <table className={estilos.tabla}><thead><tr><th scope="col">Código</th><th scope="col">Asignatura</th>
             <th scope="col">Departamento</th><th scope="col">Semestre</th><th scope="col">Secciones{planificacion ? ` · ${planificacion.codigo}` : ''}</th><th scope="col">Acciones</th></tr></thead>
             <tbody>{visibles.map(a => <tr key={a.codigo}><th scope="row">{a.codigo}</th><td>{a.nombre}</td>
-              <td>{a.departamento.nombre}</td><td><span className={estilos.insignia}>{a.semestreMalla}</span></td><td>
+              <td>{a.departamento.nombre}</td><td>{a.semestreMalla}</td><td>
                 {!planificacion ? 'Sin semestre' : conteoVigente?.estado === 'listo'
                   ? (conteoVigente.cantidades.get(a.codigo) ?? 0) === 0
                     ? <span className={estilos.sinSecciones}>Sin secciones</span>
                     : <span className={estilos.insignia}>{conteoVigente.cantidades.get(a.codigo)} secciones</span>
                   : conteoVigente?.estado === 'error' ? 'Conteo no disponible' : 'Cargando conteos…'}
               </td>
-              <td><div className={estilos.acciones}>
-                {puedeEditar && <button className={`boton boton--editar ${estilos.botonConIcono}`} type="button" aria-label={`Editar ${a.nombre}`} onClick={() => setSeleccion({ tipo: 'editar', asignatura: a })}>
-                  <span aria-hidden="true" className={estilos.icono} style={{ maskImage: `url("${iconoEditar}")`, WebkitMaskImage: `url("${iconoEditar}")` }} />Editar</button>}
-                {!puedeEditar && <button className={`boton boton--azul ${estilos.botonVer}`} type="button" aria-label={`Ver ${a.nombre}`} onClick={() => setSeleccion({ tipo: 'ver', asignatura: a })}>
-                  <span aria-hidden="true" className={estilos.icono} style={{ maskImage: `url("${iconoVer}")`, WebkitMaskImage: `url("${iconoVer}")` }} />
-                </button>}
-                <button className={`boton ${estilos.botonConIcono} ${estilos.botonSecciones}`} type="button" disabled={!planificacion} aria-label={`Gestionar secciones de ${a.nombre}`}
+              <td><div className={estilos.acciones} role="group" aria-label={`Acciones de ${a.nombre}`}>
+                <button className={`boton ${estilos.botonConIcono} ${estilos.accionPrincipal}`} type="button" disabled={!planificacion} aria-label={`Gestionar secciones de ${a.nombre}`}
                   onClick={() => setSeleccion({ tipo: 'secciones', asignatura: a })}>
                   <span aria-hidden="true" className={estilos.icono} style={{ maskImage: `url("${iconoSecciones}")`, WebkitMaskImage: `url("${iconoSecciones}")` }} />Gestionar secciones</button>
+                {puedeEditar && <button className={`boton boton--gris ${estilos.botonConIcono} ${estilos.accionSecundaria}`} type="button" aria-label={`Editar ${a.nombre}`} onClick={() => setSeleccion({ tipo: 'editar', asignatura: a })}>
+                  <span aria-hidden="true" className={estilos.icono} style={{ maskImage: `url("${iconoEditar}")`, WebkitMaskImage: `url("${iconoEditar}")` }} />Editar</button>}
+                {!puedeEditar && <button className={`boton boton--gris ${estilos.botonVer} ${estilos.accionSecundaria}`} type="button" aria-label={`Ver ${a.nombre}`} title={`Ver ${a.nombre}`} onClick={() => setSeleccion({ tipo: 'ver', asignatura: a })}>
+                  <span aria-hidden="true" className={estilos.icono} style={{ maskImage: `url("${iconoVer}")`, WebkitMaskImage: `url("${iconoVer}")` }} />
+                </button>}
               </div></td></tr>)}</tbody>
           </table>
-        </div>}
+          </div>
+        </>}
       {(seleccion?.tipo === 'ver' || (puedeEditar && seleccion?.tipo === 'editar')) && <EditarAsignatura key={seleccion.asignatura.codigo} asignatura={seleccion.asignatura}
         soloLectura={seleccion.tipo === 'ver'}
         departamentos={datos.departamentos} alCerrar={() => setSeleccion(null)} alCompletar={() => {
