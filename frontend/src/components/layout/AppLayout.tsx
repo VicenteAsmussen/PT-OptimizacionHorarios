@@ -13,6 +13,9 @@ import { puedeOptimizar } from "../../features/optimizacion/modelo";
 import logoUBB from "../../assets/logos/LogoUBB.png";
 import iconoSalida from "../../assets/iconos/salida.svg";
 import iconoRetrato from "../../assets/iconos/retrato.svg";
+import iconoDisponibilidad from "../../assets/iconos/Mi-Disponibilidad.svg";
+import iconoMiHorario from "../../assets/iconos/Mi-horario.svg";
+import iconoPanelPrincipal from "../../assets/iconos/panel-principal.svg";
 
 const consultaMovil = "(max-width: 48rem)";
 
@@ -103,8 +106,9 @@ export default function AppLayout() {
     <>
       <p className="sidebar-title" id="titulo-navegacion">Horarios académicos</p>
       <nav aria-label="Navegación principal">
-        <NavLink to="/app/dashboard" end onClick={() => setNavegacionAbierta(false)}>
-          Panel principal
+        <NavLink to="/app/dashboard" end className="enlace-con-icono" onClick={() => setNavegacionAbierta(false)}>
+          <img className="sidebar-icono" src={iconoPanelPrincipal} alt="" aria-hidden="true" width="20" height="20" />
+          <span>Panel principal</span>
         </NavLink>
         {puedeGestionarAsignaturas(usuario?.rol) && (
           <NavLink to="/app/asignaturas" onClick={() => setNavegacionAbierta(false)}>
@@ -137,13 +141,15 @@ export default function AppLayout() {
           </NavLink>
         )}
         {puedeRegistrarDisponibilidad(usuario?.rol) && (
-          <NavLink to="/app/disponibilidad" onClick={() => setNavegacionAbierta(false)}>
-            Mi disponibilidad
+          <NavLink to="/app/disponibilidad" className="enlace-con-icono" onClick={() => setNavegacionAbierta(false)}>
+            <img className="sidebar-icono" src={iconoDisponibilidad} alt="" aria-hidden="true" width="20" height="20" />
+            <span>Mi disponibilidad</span>
           </NavLink>
         )}
         {puedeConsultarMiHorario(usuario?.rol) && (
-          <NavLink to="/app/mi-horario" onClick={() => setNavegacionAbierta(false)}>
-            Mi horario
+          <NavLink to="/app/mi-horario" className="enlace-con-icono" onClick={() => setNavegacionAbierta(false)}>
+            <img className="sidebar-icono" src={iconoMiHorario} alt="" aria-hidden="true" width="20" height="20" />
+            <span>Mi horario</span>
           </NavLink>
         )}
         {puedeVerSeguimiento(usuario?.rol) && (
