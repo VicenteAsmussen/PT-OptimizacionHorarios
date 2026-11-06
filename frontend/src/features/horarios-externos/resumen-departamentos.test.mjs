@@ -40,7 +40,8 @@ test('summary renders loaded counts and zero counts, loading and errors distinct
   fuente = fuente.replace(/^import .* from '([^']+)';$/gm, (linea, ruta) => {
     if (ruta === 'react') return linea.replace("'react'", JSON.stringify(pathToFileURL(resolver.resolve('react')).href));
     if (linea.startsWith('import type')) return '';
-    if (ruta.endsWith('.css')) return 'const base = {};';
+    if (ruta.endsWith('.css')) return `const ${linea.includes('import estilos') ? 'estilos' : 'base'} = {};`;
+    if (ruta === '../../hooks/useDesbordamientoTabla') return 'const useDesbordamientoTabla = () => ({ referencia() {}, desborda: false });';
     if (ruta === './datos') return 'const cargarResumenDepartamentos = () => {}; const mensajeErrorCobertura = () => "";';
     if (ruta === './horarios-externos.api') return 'const horariosExternosApi = {};';
     throw new Error(ruta);

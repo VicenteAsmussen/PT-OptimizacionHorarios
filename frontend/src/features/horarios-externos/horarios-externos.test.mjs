@@ -58,9 +58,9 @@ test('una reserva recibida por HTTP muestra fila, columna y motivo sin anunciar 
   assert.ok(estado.archivo);
   assert.match(estado.mensaje, /No se guardó ninguna fila ni se modificó la carga anterior/);
   assert.doesNotMatch(estado.mensaje, /completada|correctamente/);
-  const tabla = pagina.match(/<table className=\{base.tabla\}><caption>Corrige estos errores[^]*?<\/table>/)?.[0];
+  const tabla = pagina.match(/<table className=\{(?:base|estilos).tabla\}><caption>Corrige estos errores[^]*?<\/table>/)?.[0];
   assert.ok(tabla);
-  const renderizar = new Function('React', 'base', 'errores', ts.transpileModule(`return (${tabla});`, {
+  const renderizar = new Function('React', 'estilos', 'errores', ts.transpileModule(`return (${tabla});`, {
     compilerOptions: { jsx: ts.JsxEmit.React, target: ts.ScriptTarget.ES2022 },
   }).outputText);
   const html = renderToStaticMarkup(renderizar(React, {}, estado.errores));

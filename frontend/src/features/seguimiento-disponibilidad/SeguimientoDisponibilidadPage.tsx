@@ -2,6 +2,7 @@ import { useEffect, useReducer, useState } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { ordenarPeriodosPorFechaAcademica } from '../../lib/periodos';
 import { useAuth } from '../../hooks/useAuth';
+import { useDesbordamientoTabla } from '../../hooks/useDesbordamientoTabla';
 import { planificacionInicial } from '../asignaturas/datos';
 import type { PlanificacionSemestre } from '../asignaturas/types';
 import { estadoEnvio, estadoInicial, puedeVerSeguimiento, reducirSeguimiento } from './estado';
@@ -25,6 +26,7 @@ function PaginaSeguimiento() {
   const [errorCarga, setErrorCarga] = useState('');
   const [intento, setIntento] = useState(0);
   const [estado, enviar] = useReducer(reducirSeguimiento, estadoInicial);
+  const { referencia, desborda } = useDesbordamientoTabla();
 
   useEffect(() => {
     let activo = true;
@@ -54,39 +56,46 @@ function PaginaSeguimiento() {
   }, [estado.planificacionId, estado.revision]);
 
   const enviadas = estado.filas?.filter(fila => fila.enviada).length ?? 0;
-  return <div className={estilos.tarjetas}>
-    <section className={base.pagina} aria-labelledby="titulo-seguimiento">
+  return <section className={base.pagina} aria-labelledby="titulo-seguimiento">
     <header className={base.cabecera}><div>
       <h1 id="titulo-seguimiento">Seguimiento de disponibilidad</h1>
-      <p>Profesores con carga asignada en la planificación, solo de los departamentos que gestiona tu carrera.</p>
+      <p>Revisa qué profesores han enviado su disponibilidad.</p>
     </div></header>
     {!planificaciones && !errorCarga && <p role="status">Cargando planificaciones…</p>}
     {errorCarga && <div className={base.error} role="alert"><p>{errorCarga}</p>
       <button type="button" className="boton" onClick={() => setIntento(valor => valor + 1)}>Reintentar carga</button></div>}
     {planificaciones && (planificaciones.length === 0 ? <p className={base.estado}>No hay una planificación actual para consultar.</p> : <>
-      <div className={base.filtros}>
-        <label>Planificación / período
-          <select value={estado.planificacionId ?? ''} onChange={evento => enviar({ tipo: 'seleccionar', id: evento.target.value ? Number(evento.target.value) : null })}>
+      <section className={estilos.contexto} aria-labelledby="titulo-contexto-seguimiento">
+        <div><h2 id="titulo-contexto-seguimiento">Contexto de consulta</h2>
+          <p id="ayuda-contexto-seguimiento">Profesores con carga asignada en el período seleccionado, solo de los departamentos que gestiona tu carrera.</p>
+        </div>
+        <label>Carrera y período
+          <select aria-describedby="ayuda-contexto-seguimiento" value={estado.planificacionId ?? ''} onChange={evento => enviar({ tipo: 'seleccionar', id: evento.target.value ? Number(evento.target.value) : null })}>
             <option value="">Selecciona una planificación</option>
             {ordenarPeriodosPorFechaAcademica(planificaciones).map(planificacion => <option key={planificacion.id} value={planificacion.id}>
               {planificacion.codigo} — {planificacion.carrera.nombre}
             </option>)}
           </select>
         </label>
-        <div className={estilos.actualizar}><button type="button" className="boton" disabled={estado.planificacionId === null}
-          onClick={() => enviar({ tipo: 'recargar' })}><IconoActualizar />Actualizar</button></div>
-      </div>
-      {estado.filas && <p role="status">{estado.filas.length} profesores · {enviadas} con disponibilidad enviada · {estado.filas.length - enviadas} sin enviar</p>}
+      </section>
     </>)}
-    </section>
-    {planificaciones && planificaciones.length > 0 && <section className={base.pagina} aria-label="Seguimiento de profesores">
+    {planificaciones && planificaciones.length > 0 && <>
+      <div className={estilos.cabeceraResultados}>
+        <h2>Disponibilidad de profesores</h2>
+        <button type="button" className="boton boton--gris" disabled={estado.planificacionId === null}
+          onClick={() => enviar({ tipo: 'recargar' })}><IconoActualizar />Actualizar</button>
+      </div>
+      {estado.filas && <p role="status" className={estilos.resumen}>{estado.filas.length} profesores · {enviadas} con disponibilidad enviada · <strong className={estado.filas.length > enviadas ? estilos.pendientesResumen : undefined}>{estado.filas.length - enviadas} sin enviar</strong></p>}
       {estado.planificacionId === null ? <p className={base.estado}>Selecciona una planificación para ver a sus profesores.</p> : <>
         {estado.error && <div className={base.error} role="alert"><p>{estado.error}</p>
           <button type="button" className="boton" onClick={() => enviar({ tipo: 'recargar' })}>Reintentar consulta</button></div>}
         {!estado.filas && !estado.error && <p role="status">Cargando disponibilidad…</p>}
         {estado.filas && <>
           {estado.filas.length === 0 ? <p className={base.estado}>No hay profesores con carga asignada de tus departamentos gestionados en esta planificación.</p>
-            : <div className={base.tablaContenedor} role="region" aria-label="Disponibilidad de profesores" tabIndex={0}>
+            : <>
+              {desborda && <p id="ayuda-tabla-seguimiento" className={base.ayudaTabla}>Desplaza la tabla para ver más columnas.<span className={base.soloLectores}> Con la tabla enfocada, usa las flechas del teclado.</span></p>}
+              <div className={estilos.tablaContenedor} role="region" aria-label="Disponibilidad de profesores" tabIndex={0}
+                ref={referencia} aria-describedby={desborda ? 'ayuda-tabla-seguimiento' : undefined}>
               <table className={estilos.tabla}>
                 <caption className={base.soloLectores}>Disponibilidad enviada por profesor y mínimo de bloques de la planificación seleccionada</caption>
                 <thead><tr><th scope="col">Profesor</th><th scope="col">Departamento</th><th scope="col">Estado</th><th scope="col">Bloques enviados / mínimo</th></tr></thead>
@@ -96,9 +105,9 @@ function PaginaSeguimiento() {
                   <td>{fila.bloquesEnviados} / {fila.minimoBloques}</td>
                 </tr>)}</tbody>
               </table>
-            </div>}
+            </div></>}
         </>}
       </>}
-    </section>}
-  </div>;
+    </>}
+  </section>;
 }
