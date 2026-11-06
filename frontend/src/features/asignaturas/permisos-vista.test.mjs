@@ -19,7 +19,7 @@ async function renderizarFragmento(patron, contexto) {
 
 test('la vista oculta edición a secretaría y conserva edición para administración', async () => {
   for (const rol of ['secretaria', 'admin']) {
-    const html = await renderizarFragmento(/<div className=\{estilos.acciones\}>\s*\{puedeEditar &&[^]*?<\/div>/, {
+    const html = await renderizarFragmento(/<div className=\{estilos.acciones\} role="group"[^]*?<\/div>/, {
       estilos: { botonVer: 'boton-ver-prueba', botonConIcono: 'boton-con-icono' }, puedeEditar: puedeEditarAsignaturas(rol),
       iconoVer: 'ojo.svg', iconoEditar: 'editar_Asignatura.svg', iconoSecciones: 'secciones.svg', a: { nombre: 'Álgebra' },
       planificacion: { id: 1 }, setSeleccion() {},
@@ -35,8 +35,8 @@ test('la vista oculta edición a secretaría y conserva edición para administra
 test('las acciones de asignaturas muestran los SVG elegidos sin perder textos, permisos ni el estado deshabilitado', async () => {
   for (const rol of ['secretaria', 'admin']) {
     for (const planificacion of [null, { id: 1 }]) {
-      const html = await renderizarFragmento(/<div className=\{estilos.acciones\}>\s*\{puedeEditar &&[^]*?<\/div>/, {
-        estilos: { botonVer: 'boton-ver-prueba', botonConIcono: 'boton-con-icono', botonSecciones: 'boton-secciones' },
+      const html = await renderizarFragmento(/<div className=\{estilos.acciones\} role="group"[^]*?<\/div>/, {
+        estilos: { botonVer: 'boton-ver-prueba', botonConIcono: 'boton-con-icono', accionPrincipal: 'principal', accionSecundaria: 'secundaria' },
         puedeEditar: puedeEditarAsignaturas(rol), iconoVer: 'ojo.svg', iconoEditar: 'editar_Asignatura.svg',
         iconoSecciones: 'secciones.svg', a: { nombre: 'Álgebra' }, planificacion, setSeleccion() {},
       });
@@ -46,7 +46,7 @@ test('las acciones de asignaturas muestran los SVG elegidos sin perder textos, p
       if (editar) {
         assert.match(editar, /mask-image:url\(&quot;editar_Asignatura\.svg&quot;\)/);
         assert.match(editar, /aria-hidden="true"/);
-        assert.match(editar, /boton--editar/);
+        assert.match(editar, /secundaria/);
         assert.match(editar, />Editar<\/button>/);
         assert.match(editar, /boton-con-icono/);
       }
@@ -56,19 +56,19 @@ test('las acciones de asignaturas muestran los SVG elegidos sin perder textos, p
       assert.match(secciones, /aria-hidden="true"/);
       assert.match(secciones, />Gestionar secciones<\/button>/);
       assert.match(secciones, /boton-con-icono/);
-      assert.match(secciones, /boton-secciones/);
+      assert.match(secciones, /principal/);
+      assert.equal(botones[0], secciones);
       assert.equal(secciones.includes('disabled=""'), planificacion === null);
       assert.equal(html.includes('mask-image:url(&quot;ojo.svg&quot;)'), rol === 'secretaria');
     }
   }
   const css = await readFile(new URL('./Asignaturas.module.css', import.meta.url), 'utf8');
-  const botonSecciones = css.match(/\.acciones \.botonSecciones\s*\{([^}]+)\}/)?.[1] ?? '';
-  assert.match(botonSecciones, /--boton-fondo:\s*#FEF3C7/i);
-  assert.match(botonSecciones, /--boton-hover:\s*#FDE68A/i);
-  assert.match(botonSecciones, /--boton-texto:\s*#78350F/i);
-  assert.match(botonSecciones, /--boton-borde:\s*#B45309/i);
+  const principal = css.match(/\.accionPrincipal\s*\{([^}]+)\}/)?.[1] ?? '';
+  assert.match(principal, /--boton-fondo:\s*var\(--color-primario\)/);
+  assert.match(principal, /--boton-texto:\s*var\(--color-blanco\)/);
+  assert.doesNotMatch(css, /#FEF3C7|#FDE68A|#78350F|#B45309/i);
   const profesores = await readFile(new URL('../profesores/Profesores.module.css', import.meta.url), 'utf8');
-  for (const clase of ['botonConIcono', 'icono']) {
+  for (const clase of ['botonConIcono', 'icono', 'accionPrincipal', 'accionSecundaria']) {
     const patron = new RegExp(`\\.${clase}\\s*\\{([^}]+)\\}`);
     const regla = css.match(patron)?.[1]?.replace(/\s+/g, ' ').trim();
     assert.ok(regla);
@@ -77,7 +77,7 @@ test('las acciones de asignaturas muestran los SVG elegidos sin perder textos, p
 });
 
 test('el botón Ver muestra solo el icono y conserva su nombre accesible', async () => {
-  const html = await renderizarFragmento(/<div className=\{estilos.acciones\}>\s*\{puedeEditar &&[^]*?<\/div>/, {
+  const html = await renderizarFragmento(/<div className=\{estilos.acciones\} role="group"[^]*?<\/div>/, {
     estilos: { botonVer: 'boton-ver-prueba', botonConIcono: 'boton-con-icono' }, puedeEditar: false,
     iconoVer: 'ojo.svg', iconoEditar: 'editar_Asignatura.svg', iconoSecciones: 'secciones.svg',
     a: { nombre: 'Álgebra' }, planificacion: { id: 1 }, setSeleccion() {},
@@ -95,7 +95,7 @@ test('el botón Ver muestra solo el icono y conserva su nombre accesible', async
   assert.match(regla, /gap:\s*0\.5rem/);
 });
 
-test('semestre y secciones usan etiquetas del mismo estilo que Profesores sin cambiar sus valores', async () => {
+test('semestre se muestra como texto y cero secciones es un estado neutro, no un error', async () => {
   for (const cantidad of [0, 2]) {
     const html = await renderizarFragmento(/<table className=\{estilos.tabla\}>[^]*?<\/table>/, {
       estilos: { insignia: 'insignia-prueba', sinSecciones: 'sin-secciones-prueba' },
@@ -103,7 +103,7 @@ test('semestre y secciones usan etiquetas del mismo estilo que Profesores sin ca
       planificacion: { id: 1, codigo: '2026-2' }, conteoVigente: { estado: 'listo', cantidades: new Map([['MAT101', cantidad]]) },
       puedeEditar: true, iconoVer: 'ojo.svg', iconoEditar: 'editar_Asignatura.svg', iconoSecciones: 'secciones.svg', setSeleccion() {},
     });
-    assert.match(html, /<span class="insignia-prueba">3<\/span>/);
+    assert.match(html, /<td>3<\/td>/);
     assert.ok(html.includes(cantidad === 0
       ? '<span class="sin-secciones-prueba">Sin secciones</span>'
       : '<span class="insignia-prueba">2 secciones</span>'));
@@ -114,27 +114,35 @@ test('semestre y secciones usan etiquetas del mismo estilo que Profesores sin ca
   assert.ok(etiqueta);
   assert.equal(etiqueta.replace(/\s+/g, ' ').trim(),
     profesores.match(/\.insignia, \.tipoProfesor\s*\{([^}]+)\}/)?.[1].replace(/\s+/g, ' ').trim());
-  const semestre = css.match(/\.tabla td:nth-child\(4\) \.insignia\s*\{([^}]+)\}/)?.[1];
-  assert.ok(semestre);
-  assert.equal(semestre.replace(/\s+/g, ' ').trim(),
-    profesores.match(/\.tipoPlanta\s*\{([^}]+)\}/)?.[1].replace(/\s+/g, ' ').trim());
+  assert.doesNotMatch(css, /\.tabla td:nth-child\(4\) \.insignia/);
   const sinSecciones = css.match(/\.sinSecciones\s*\{([^}]+)\}/g)?.at(-1) ?? '';
-  assert.match(sinSecciones, /background:\s*var\(--color-alerta-fondo\)/);
-  assert.match(sinSecciones, /color:\s*var\(--color-alerta-texto\)/);
-  assert.match(sinSecciones, /border-color:\s*var\(--color-eliminar-borde\)/);
+  assert.doesNotMatch(sinSecciones, /--color-alerta|--color-eliminar/);
 });
 
-test('los filtros comparten la distribución responsive de Profesores y Limpiar filtros tiene su propia fila', async () => {
+test('los filtros del catálogo tienen tres columnas y separan el contexto del período', async () => {
   const css = await readFile(new URL('./Asignaturas.module.css', import.meta.url), 'utf8');
-  const profesores = await readFile(new URL('../profesores/Profesores.module.css', import.meta.url), 'utf8');
   const columnas = fuente => fuente.match(/\.filtros\s*\{[^}]*grid-template-columns:\s*([^;]+);/)?.[1];
-  assert.equal(columnas(css), columnas(profesores));
+  assert.equal(columnas(css), 'minmax(12rem, 2fr) minmax(12rem, 2fr) minmax(8rem, 1fr)');
   for (const [ancho, esperado] of [[75, 'repeat(2, minmax(0, 1fr))'], [40, 'minmax(0, 1fr)']]) {
     const patron = new RegExp(`@media\\s*\\(max-width:\\s*${ancho}rem\\)\\s*\\{[^]*?\\.filtros\\s*\\{([^}]+)\\}`);
     const regla = css.match(patron)?.[1] ?? '';
     assert.ok(regla.includes(`grid-template-columns: ${esperado};`));
   }
   assert.match(css.match(/\.filtros > \.acciones\s*\{([^}]+)\}/)?.[1] ?? '', /grid-column:\s*1\s*\/\s*-1/);
+  const pagina = await readFile(new URL('./AsignaturasPage.tsx', import.meta.url), 'utf8');
+  const html = await renderizarFragmento(/<section className=\{estilos.contextoSecciones\}[^]*?<\/section>/, {
+    estilos: {}, cargando: false, planificacionSemestreId: 7,
+    datos: { planificaciones: [{ id: 7, carrera: { nombre: 'Informática' }, codigo: '2026-2' }] },
+    ordenarPeriodosPorFechaAcademica: valores => valores, setSeleccion() {}, setPlanificacionSemestreId() {},
+  });
+  assert.match(html, /Contexto de secciones/);
+  assert.match(html, /Semestre para secciones/);
+  assert.doesNotMatch(html, /Buscar por nombre|Limpiar filtros|Semestre de malla/);
+  const finCabecera = pagina.indexOf('</header>');
+  const contexto = pagina.indexOf('estilos.contextoSecciones');
+  const filtros = pagina.indexOf('estilos.filtros');
+  assert.ok(finCabecera < contexto && contexto < filtros,
+    'el contexto de carrera y semestre debe estar debajo del título y antes de los filtros');
 });
 
 test('el filtro de semestre de malla ofrece Todos y los semestres del 1 al 10', async () => {

@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import * as permisos from "./permisos.ts";
 
-test("Ver, Editar y Eliminar muestran solo iconos y conservan etiquetas y acciones de acceso", async () => {
+test("Editar profesor sigue siendo principal con solo icono y las acciones de acceso conservan su texto", async () => {
   const { readFile } = await import("node:fs/promises");
   const React = await import("react");
   const { renderToStaticMarkup } = await import("react-dom/server");
@@ -11,9 +11,10 @@ test("Ver, Editar y Eliminar muestran solo iconos y conservan etiquetas y accion
   const fuente = await readFile(new URL("./TablaProfesores.tsx", import.meta.url), "utf8");
   const componente = fuente.slice(fuente.indexOf("export default function")).replace("export default ", "");
   const codigo = ts.transpileModule(componente, { compilerOptions: { jsx: ts.JsxEmit.React } }).outputText;
-  const Tabla = new Function("React", "etiquetaTipoProfesor", "puedeAdministrarProfesor", "puedeAdministrarAcceso", "IconoProfesor", "estilos",
+  const Tabla = new Function("React", "etiquetaTipoProfesor", "puedeAdministrarProfesor", "puedeAdministrarAcceso", "IconoProfesor", "estilos", "mantenerFocoEnTabla", "useDesbordamientoTabla",
     `${codigo}; return TablaProfesores;`)(React, etiquetaTipoProfesor, permisos.puedeAdministrarProfesor,
-    permisos.puedeAdministrarAcceso, ({ tipo }) => React.createElement("img", { src: `${tipo}.svg`, alt: "" }), {});
+    permisos.puedeAdministrarAcceso, ({ tipo }) => React.createElement("img", { src: `${tipo}.svg`, alt: "" }),
+    { accionPrincipal: "principal", accionSecundaria: "secundaria" }, () => {}, () => ({ referencia() {}, desborda: false }));
   for (const usuarioId of [null, 7]) {
     const html = renderToStaticMarkup(React.createElement(Tabla, { rol: "admin", alcance: {}, alAccionar() {},
       profesores: [{ id: 1, nombre: "Profesor de prueba", tipo: "planta", usuarioId, departamento: { nombre: "Departamento" } }],
@@ -24,7 +25,10 @@ test("Ver, Editar y Eliminar muestran solo iconos y conservan etiquetas y accion
       assert.ok(boton);
       assert.match(boton, new RegExp(`src="${icono}\\.svg"`));
       assert.equal(boton.replace(/<[^>]*>/g, "").trim(), "");
+      assert.match(boton, etiqueta === "Editar" ? /principal/ : /secundaria/);
+      assert.match(boton, new RegExp(`title="${etiqueta} profesor: Profesor de prueba"`));
     }
+    assert.match(botones[0], /aria-label="Editar profesor/);
     for (const [etiqueta, texto] of usuarioId === null ? [["Crear", "Crear"]] : [["Editar", "Editar"], ["Retirar", "Retirar"]]) {
       const boton = botones.find(elemento => elemento.includes(`aria-label="${etiqueta} acceso: Profesor de prueba"`));
       assert.ok(boton);
@@ -33,19 +37,18 @@ test("Ver, Editar y Eliminar muestran solo iconos y conservan etiquetas y accion
   }
 });
 
-test("la tabla reserva más ancho para acceso y mantiene sus acciones en una fila", async () => {
+test("la tabla conserva grupos de acciones horizontales y espacio para Editar visible", async () => {
   const { readFile } = await import("node:fs/promises");
   const css = await readFile(new URL("./Profesores.module.css", import.meta.url), "utf8");
   const columnaEstado = css.match(/\.tabla tr > :nth-child\(4\)\s*\{([^}]+)\}/)?.[1] ?? "";
   const columnaProfesor = css.match(/\.tabla tr > :nth-child\(5\)\s*\{([^}]+)\}/)?.[1] ?? "";
   const columnaAcceso = css.match(/\.tabla tr > :nth-child\(6\)\s*\{([^}]+)\}/)?.[1] ?? "";
   assert.match(columnaEstado, /width:\s*8rem/);
-  assert.match(columnaProfesor, /width:\s*8rem/);
-  assert.match(columnaProfesor, /padding-inline-end:\s*1\.625rem/);
+  assert.match(columnaProfesor, /width:\s*11rem/);
   assert.match(columnaAcceso, /width:\s*13rem/);
   const accionesProfesor = css.match(/\.tabla td:nth-child\(5\) \.acciones\s*\{([^}]+)\}/)?.[1] ?? "";
   const accionesAcceso = css.match(/\.tabla td:nth-child\(6\) \.acciones\s*\{([^}]+)\}/)?.[1] ?? "";
-  assert.match(accionesProfesor, /min-width:\s*7\.5rem/);
+  assert.match(accionesProfesor, /min-width:\s*10rem/);
   assert.match(accionesAcceso, /min-width:\s*12rem/);
   assert.match(accionesAcceso, /flex-wrap:\s*nowrap/);
   assert.match(css.match(/\.tablaContenedor\s*\{([^}]+)\}/)?.[1] ?? "", /overflow-x:\s*auto/);
@@ -182,7 +185,7 @@ test("formato de detalle agrupa cuerpo corto y largo, DV K y ausencia sin invent
 test("RUT solo en detalle ver, tabla sin RUT y búsqueda rotulada nombre o RUT", async () => {
   const { readFile } = await import("node:fs/promises");
   const acciones = await readFile(new URL("./AccionesProfesor.tsx", import.meta.url), "utf8");
-  const bloqueVer = acciones.match(/accion === "ver" \? <dl>([\s\S]*?)<\/dl>/)?.[1];
+  const bloqueVer = acciones.match(/accion === "ver" \? <div\b[^>]*>([\s\S]*?)<\/dl>\s*<\/div>/)?.[1];
   assert.ok(bloqueVer);
   assert.match(bloqueVer, /<dt>RUT<\/dt><dd>\{formatearRut\(profesor\.rut\)\}<\/dd>/);
   assert.equal(acciones.match(/<dt>RUT<\/dt>/g)?.length, 1);
@@ -191,7 +194,7 @@ test("RUT solo en detalle ver, tabla sin RUT y búsqueda rotulada nombre o RUT",
   assert.doesNotMatch(tabla, /\brut\b/i);
   const pagina = await readFile(new URL("./ProfesoresPage.tsx", import.meta.url), "utf8");
   assert.match(pagina, /<label>Buscar por nombre o RUT<input/);
-  assert.match(pagina, /placeholder="Buscar por nombre o RUT"/);
+  assert.match(pagina, /placeholder="Ej\.: Ana Pérez o 12\.345\.678-5"/);
 });
 
 // La proyección elimina campos adicionales aunque el servidor los incluya.
@@ -313,5 +316,142 @@ test("admin no depende de alcance; otros roles no administran", () => {
   for (const rol of ["admin", "profesor", undefined]) {
     assert.equal(permisos.puedeAdministrarProfesor(rol, propio), rol === "admin");
     assert.equal(permisos.puedeAdministrarAcceso(rol, propio), rol === "admin");
+  }
+});
+
+async function prepararDialogo(propiedades) {
+  const React = await import("react");
+  const { readFile } = await import("node:fs/promises");
+  const { default: ts } = await import("typescript");
+  const fuente = await readFile(new URL("./DialogoProfesor.tsx", import.meta.url), "utf8");
+  const codigo = ts.transpileModule(fuente.slice(fuente.indexOf("export default function")).replace("export default ", ""), {
+    compilerOptions: { jsx: ts.JsxEmit.React },
+  }).outputText;
+  const estilos = new Proxy({}, { get: (_, nombre) => nombre });
+  const Dialogo = new Function("React", "useRef", "useEffect", "useState", "ApiError", "estilos", `${codigo}; return DialogoProfesor;`)(
+    React, valor => ({ current: valor }), () => {}, valor => [valor, () => {}], Error, estilos);
+  return Dialogo({ titulo: "Prueba", children: React.createElement("input", { "aria-label": "Campo de prueba" }),
+    alCerrar() {}, alCompletar() {}, ...propiedades });
+}
+function nodosDialogo(arbol, condicion) {
+  if (!arbol || typeof arbol !== "object") return [];
+  const hijos = [arbol.props?.children].flat(Infinity);
+  return [...(condicion(arbol) ? [arbol] : []), ...hijos.flatMap(hijo => nodosDialogo(hijo, condicion))];
+}
+
+test("el popup separa encabezado, cuerpo desplazable y pie sin cambiar las salidas", async () => {
+  let cierres = 0;
+  const arbol = await prepararDialogo({ guardar: async () => {}, alCerrar() { cierres++; } });
+  const cabecera = nodosDialogo(arbol, e => e.type === "header")[0];
+  const cuerpo = nodosDialogo(arbol, e => e.props.className === "cuerpoDialogo")[0];
+  const pie = nodosDialogo(arbol, e => e.type === "footer")[0];
+  assert.ok(cabecera); assert.ok(cuerpo); assert.ok(pie);
+  assert.equal(nodosDialogo(cabecera, e => e.type === "h2")[0].props.id, arbol.props["aria-labelledby"]);
+  assert.equal(nodosDialogo(cuerpo, e => e.type === "input").length, 1);
+  const cerrar = nodosDialogo(cabecera, e => e.type === "button")[0];
+  const cancelar = nodosDialogo(pie, e => e.type === "button" && e.props.type === "button")[0];
+  assert.ok(cerrar); assert.ok(cancelar);
+  cerrar.props.onClick(); cancelar.props.onClick();
+  arbol.props.onCancel({ preventDefault() {} });
+  assert.equal(cierres, 3, "Cerrar, Cancelar y Escape mantienen salida directa");
+});
+
+test("la confirmación y la consulta usan anchos propios, el formulario conserva su ancho mayor", async () => {
+  for (const [propiedades, clase] of [[{ destructivo: true, guardar: async () => {} }, "dialogoConfirmacion"], [{}, "dialogoConsulta"], [{ guardar: async () => {} }, "dialogoFormulario"]]) {
+    const arbol = await prepararDialogo(propiedades);
+    assert.ok(arbol.props.className.includes(clase));
+  }
+  const { readFile } = await import("node:fs/promises");
+  const css = await readFile(new URL("./Profesores.module.css", import.meta.url), "utf8");
+  for (const [clase, ancho] of [["dialogoConfirmacion", 26], ["dialogoConsulta", 32], ["dialogoFormulario", 38]]) {
+    assert.match(css, new RegExp(`\\.${clase}\\s*\\{[^}]*--ancho-dialogo:\\s*${ancho}rem`));
+  }
+});
+
+test("los campos agrupan etiqueta, control y ayuda, y separan datos del acceso", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const fuente = await readFile(new URL("./FormularioProfesor.tsx", import.meta.url), "utf8");
+  assert.match(fuente, /<h3 id="titulo-datos-profesor">Datos del profesor<\/h3>/);
+  assert.match(fuente, /<h3 id="titulo-acceso-profesor">Acceso al sistema<\/h3>/);
+  assert.match(fuente, /<div className=\{`\$\{estilos.campo\} \$\{estilos.campoCompleto\}`\}>\s*<label htmlFor="profesor-nombre">/);
+  assert.match(fuente, /<div className=\{estilos.campo\}>\s*<label htmlFor="profesor-clave">/);
+  const css = await readFile(new URL("./Profesores.module.css", import.meta.url), "utf8");
+  assert.match(css, /\.campo\s*\{[^}]*gap:\s*0\.375rem/);
+});
+
+test("Guardar destaca en azul y las confirmaciones mantienen su variante destructiva", async () => {
+  const arbol = await prepararDialogo({ guardar: async () => {} });
+  const guardar = nodosDialogo(arbol, e => e.type === "button" && e.props.type === "submit")[0];
+  assert.match(guardar.props.className, /accionPrincipal/);
+  const confirmacion = await prepararDialogo({ destructivo: true, guardar: async () => {} });
+  const eliminar = nodosDialogo(confirmacion, e => e.type === "button" && e.props.type === "submit")[0];
+  assert.match(eliminar.props.className, /boton--eliminar/);
+  assert.doesNotMatch(eliminar.props.className, /accionPrincipal/);
+});
+
+test("la ficha de profesor distingue identidad y datos con el nombre destacado", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const fuente = await readFile(new URL("./AccionesProfesor.tsx", import.meta.url), "utf8");
+  assert.match(fuente, /<dl className=\{estilos.detalleProfesor\}>/);
+  const css = await readFile(new URL("./Profesores.module.css", import.meta.url), "utf8");
+  assert.match(css, /\.detalleProfesor dt\s*\{[^}]*font-size:\s*var\(--tamano-etiqueta\)/);
+  assert.match(fuente, /className=\{estilos.identidad\}/);
+  assert.match(fuente, /className=\{estilos.nombreIdentidad\}>\{profesor.nombre\}/);
+  assert.match(css, /\.nombreIdentidad\s*\{[^}]*font-weight:/);
+});
+
+test("encabezado y pie se diferencian del cuerpo blanco con superficies institucionales", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const css = await readFile(new URL("./Profesores.module.css", import.meta.url), "utf8");
+  assert.match(css, /\.cabeceraDialogo\s*\{[^}]*background:\s*var\(--color-azul-fondo\)/);
+  assert.match(css, /\.pieDialogo\s*\{[^}]*background:\s*var\(--color-gris-fondo\)/);
+  const asignaturas = await readFile(new URL("../asignaturas/Asignaturas.module.css", import.meta.url), "utf8");
+  assert.match(asignaturas, /\.cabeceraPanel\s*\{[^}]*background:\s*var\(--color-azul-fondo\)/);
+  assert.match(asignaturas, /\.pieFormulario\s*\{[^}]*background:\s*var\(--color-gris-fondo\)/);
+});
+
+test("los campos cortos comparten fila y acceso tiene un bloque secundario propio", async () => {
+  const { readFile } = await import("node:fs/promises");
+  const fuente = await readFile(new URL("./FormularioProfesor.tsx", import.meta.url), "utf8");
+  assert.ok(fuente.indexOf('htmlFor="profesor-rut"') < fuente.indexOf('htmlFor="profesor-tipo"'));
+  assert.ok(fuente.indexOf('htmlFor="profesor-tipo"') < fuente.indexOf('htmlFor="profesor-departamento"'));
+  assert.match(fuente, /estilos.grupoAcceso/);
+  const css = await readFile(new URL("./Profesores.module.css", import.meta.url), "utf8");
+  assert.match(css, /\.grupoCampos\s*\{[^}]*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(css, /\.grupoCampos\.grupoAcceso\s*\{[^}]*background:\s*var\(--color-gris-fondo\)/);
+  assert.match(css.slice(css.indexOf('@media (max-width: 40rem)')), /\.grupoCampos[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/);
+});
+
+test("las confirmaciones resaltan la consecuencia sin añadir otra confirmación", async () => {
+  const arbol = await prepararDialogo({ destructivo: true, guardar: async () => {} });
+  assert.equal(nodosDialogo(arbol, e => e.props.className === "avisoConfirmacion").length, 1);
+  assert.equal(nodosDialogo(arbol, e => e.type === "button" && e.props.type === "submit").length, 1);
+  const { readFile } = await import("node:fs/promises");
+  const css = await readFile(new URL("./Profesores.module.css", import.meta.url), "utf8");
+  assert.match(css, /\.avisoConfirmacion\s*\{[^}]*border-inline-start:[^}]*--color-eliminar-borde/);
+});
+
+test("la consulta conserva todos los datos sin repetir la identidad en la ficha", async () => {
+  const React = await import("react");
+  const { renderToStaticMarkup } = await import("react-dom/server");
+  const { readFile } = await import("node:fs/promises");
+  const { default: ts } = await import("typescript");
+  const { etiquetaTipoProfesor } = await import("./datos.ts");
+  const { formatearRut } = await import("./rut.ts");
+  const fuente = await readFile(new URL("./AccionesProfesor.tsx", import.meta.url), "utf8");
+  const codigo = ts.transpileModule(fuente.slice(fuente.indexOf("export default function")).replace("export default ", ""), {
+    compilerOptions: { jsx: ts.JsxEmit.React },
+  }).outputText;
+  const Componente = new Function("React", "useState", "errorClaveAcceso", "DialogoProfesor", "estilos", "etiquetaTipoProfesor", "formatearRut", `${codigo}; return AccionesProfesor;`)(
+    React, valor => [valor, () => {}], () => "", ({ children }) => React.createElement("div", null, children), {}, etiquetaTipoProfesor, formatearRut);
+  for (const usuario of [null, { correo: "docente@example.cl" }]) {
+    const html = renderToStaticMarkup(React.createElement(Componente, { accion: "ver", profesor: {
+      nombre: "Ana Pérez", rut: "6-K", departamento: { nombre: "Departamento sintético" }, tipo: "planta", usuarioId: usuario ? 7 : null, usuario,
+    }, alcance: {}, alCerrar() {}, alCompletar() {} }));
+    for (const dato of ["Ana Pérez", "Departamento sintético", "Planta", "6-K", usuario ? "Con acceso" : "Sin acceso"]) {
+      assert.equal(html.split(dato).length - 1, 1, dato);
+    }
+    assert.equal(html.includes("docente@example.cl"), Boolean(usuario));
+    assert.doesNotMatch(html, /<(?:input|select)\b/);
   }
 });

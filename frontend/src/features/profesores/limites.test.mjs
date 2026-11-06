@@ -64,3 +64,22 @@ test("formularios conectan límites nativos, ayuda accesible y helpers antes de 
     } else assert.match(fuente, /prepararCambiosAcceso\(correo, clave,/);
   }
 });
+
+test("el mensaje de contraseña solo muestra superficie de error cuando hay un error real", async () => {
+  const React = await import("react");
+  const { renderToStaticMarkup } = await import("react-dom/server");
+  const { default: ts } = await import("typescript");
+  const fuente = await readFile(new URL("./FormularioProfesor.tsx", import.meta.url), "utf8");
+  const fragmento = fuente.match(/<p id="error-profesor-clave"[^]*?<\/p>/)?.[0];
+  assert.ok(fragmento);
+  const codigo = ts.transpileModule(`return (${fragmento});`, {
+    compilerOptions: { jsx: ts.JsxEmit.React },
+  }).outputText;
+  for (const errorClave of ["", "La contraseña supera 72 bytes."]) {
+    const html = renderToStaticMarkup(new Function("React", "errorClave", "estilos", codigo)(React, errorClave, { error: "error-visible" }));
+    assert.equal(html.includes('class="error-visible"'), Boolean(errorClave));
+    assert.equal(html.includes('role="alert"'), Boolean(errorClave));
+    assert.ok(html.includes('id="error-profesor-clave"'));
+    if (errorClave) assert.ok(html.includes(errorClave));
+  }
+});

@@ -54,43 +54,59 @@ export default function FormularioProfesor({ profesor, departamentos, rol, alcan
 
   return <DialogoProfesor titulo={profesor ? "Editar profesor" : "Agregar profesor"}
     guardar={guardar} alCerrar={alCerrar} alCompletar={alCompletar}>
-    <label htmlFor="profesor-nombre">Nombre</label>
-    <input id="profesor-nombre" required maxLength={100} placeholder="Ej.: Ana Pérez" value={nombre} onChange={(evento) => setNombre(evento.target.value)} autoFocus />
-    <label htmlFor="profesor-rut">RUT</label>
-    <input id="profesor-rut" type="text" required autoComplete="off" placeholder="Ej.: 12.345.678-5" aria-describedby="ayuda-profesor-rut"
-      maxLength={12} pattern="(?:[0-9]{1,8}|[0-9]{1,3}[.][0-9]{3}|[0-9]{1,2}[.][0-9]{3}[.][0-9]{3})-[0-9Kk]"
-      title="Ingresa un RUT con guion obligatorio y puntos opcionales, por ejemplo 12.345.678-5."
-      value={rut} onChange={(evento) => setRut(evento.target.value)} />
-    <p id="ayuda-profesor-rut" className={estilos.ayuda}>El guion es obligatorio; los puntos son opcionales y el dígito verificador puede ser K.</p>
-    <label htmlFor="profesor-departamento">Departamento</label>
-    <select id="profesor-departamento" required value={departamentoId} onChange={(evento) => cambiarDepartamento(Number(evento.target.value))}>
-      {!destinos.length && <option value="">Sin departamentos disponibles</option>}
-      {destinos.map((departamento) => <option key={departamento.id} value={departamento.id}>{departamento.nombre}</option>)}
-    </select>
-    <label htmlFor="profesor-tipo">Tipo</label>
-    <select id="profesor-tipo" value={tipo} disabled={rol === "secretaria"}
-      onChange={(evento) => setTipo(evento.target.value as TipoProfesor)}>
-      <option value="part time">Part time</option><option value="planta">Planta</option>
-    </select>
-    {rol === "secretaria" && <p className={estilos.ayuda}>{profesor
-      ? "Secretaría solo administra profesores part time."
-      : "Solo se permite crear docentes part time."} Los accesos se gestionan únicamente en departamentos propios.</p>}
-    {!profesor && permiteAcceso && <>
+    <section className={estilos.grupoCampos} aria-labelledby="titulo-datos-profesor">
+      <h3 id="titulo-datos-profesor">Datos del profesor</h3>
+      <div className={`${estilos.campo} ${estilos.campoCompleto}`}>
+        <label htmlFor="profesor-nombre">Nombre</label>
+        <input id="profesor-nombre" required maxLength={100} placeholder="Ej.: Ana Pérez" value={nombre} onChange={(evento) => setNombre(evento.target.value)} autoFocus />
+      </div>
+      <div className={estilos.campo}>
+        <label htmlFor="profesor-rut">RUT</label>
+        <input id="profesor-rut" type="text" required autoComplete="off" placeholder="Ej.: 12.345.678-5" aria-describedby="ayuda-profesor-rut"
+          maxLength={12} pattern="(?:[0-9]{1,8}|[0-9]{1,3}[.][0-9]{3}|[0-9]{1,2}[.][0-9]{3}[.][0-9]{3})-[0-9Kk]"
+          title="Ingresa un RUT con guion obligatorio y puntos opcionales, por ejemplo 12.345.678-5."
+          value={rut} onChange={(evento) => setRut(evento.target.value)} />
+        <p id="ayuda-profesor-rut" className={estilos.ayuda}>El guion es obligatorio; los puntos son opcionales y el dígito verificador puede ser K.</p>
+      </div>
+      <div className={estilos.campo}>
+        <label htmlFor="profesor-tipo">Tipo</label>
+        <select id="profesor-tipo" value={tipo} disabled={rol === "secretaria"}
+          onChange={(evento) => setTipo(evento.target.value as TipoProfesor)}>
+          <option value="part time">Part time</option><option value="planta">Planta</option>
+        </select>
+      </div>
+      <div className={`${estilos.campo} ${estilos.campoCompleto}`}>
+        <label htmlFor="profesor-departamento">Departamento</label>
+        <select id="profesor-departamento" required value={departamentoId} onChange={(evento) => cambiarDepartamento(Number(evento.target.value))}>
+          {!destinos.length && <option value="">Sin departamentos disponibles</option>}
+          {destinos.map((departamento) => <option key={departamento.id} value={departamento.id}>{departamento.nombre}</option>)}
+        </select>
+      </div>
+      {rol === "secretaria" && <p className={`${estilos.ayuda} ${estilos.campoCompleto}`}>{profesor
+        ? "Secretaría solo administra profesores part time."
+        : "Solo se permite crear docentes part time."} Los accesos se gestionan únicamente en departamentos propios.</p>}
+    </section>
+    {!profesor && permiteAcceso && <section className={`${estilos.grupoCampos} ${estilos.grupoAcceso}`} aria-labelledby="titulo-acceso-profesor">
+      <h3 id="titulo-acceso-profesor">Acceso al sistema</h3>
       <label className={estilos.casilla}><input type="checkbox" checked={crearAcceso}
         onChange={(evento) => { setCrearAcceso(evento.target.checked); setCorreo(""); setClave(""); }} />Crear acceso al sistema</label>
       {crearAcceso && <>
-        <label htmlFor="profesor-correo">Correo electrónico</label>
-        <input id="profesor-correo" type="email" autoComplete="off" maxLength={254} required value={correo} onChange={(evento) => setCorreo(evento.target.value)} />
-        <label htmlFor="profesor-clave">Contraseña inicial</label>
-        <input id="profesor-clave" type="password" autoComplete="new-password" required maxLength={72}
-          aria-describedby="ayuda-profesor-clave error-profesor-clave" aria-invalid={!!errorClave}
-          value={clave} onChange={(evento) => {
-            setClave(evento.target.value);
-            evento.target.setCustomValidity(errorClaveAcceso(evento.target.value));
-          }} />
-        <p id="ayuda-profesor-clave" className={estilos.ayuda}>Máximo 72 bytes UTF-8; algunos caracteres, como acentos y emojis, ocupan más de un byte.</p>
-        <p id="error-profesor-clave" role={errorClave ? "alert" : undefined} className={estilos.error}>{errorClave}</p>
+        <div className={estilos.campo}>
+          <label htmlFor="profesor-correo">Correo electrónico</label>
+          <input id="profesor-correo" type="email" autoComplete="off" maxLength={254} required value={correo} onChange={(evento) => setCorreo(evento.target.value)} />
+        </div>
+        <div className={estilos.campo}>
+          <label htmlFor="profesor-clave">Contraseña inicial</label>
+          <input id="profesor-clave" type="password" autoComplete="new-password" required maxLength={72}
+            aria-describedby="ayuda-profesor-clave error-profesor-clave" aria-invalid={!!errorClave}
+            value={clave} onChange={(evento) => {
+              setClave(evento.target.value);
+              evento.target.setCustomValidity(errorClaveAcceso(evento.target.value));
+            }} />
+          <p id="ayuda-profesor-clave" className={estilos.ayuda}>Máximo 72 bytes UTF-8; algunos caracteres, como acentos y emojis, ocupan más de un byte.</p>
+          <p id="error-profesor-clave" role={errorClave ? "alert" : undefined} className={errorClave ? estilos.error : undefined}>{errorClave}</p>
+        </div>
       </>}
-    </>}
+    </section>}
   </DialogoProfesor>;
 }

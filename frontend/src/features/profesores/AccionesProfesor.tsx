@@ -7,6 +7,7 @@ import { puedeAdministrarAcceso, puedeAdministrarProfesor } from "./permisos";
 import { profesoresApi } from "./profesores.api";
 import { formatearRut } from "./rut";
 import type { AlcanceProfesores, Profesor } from "./types";
+import estilos from "./Profesores.module.css";
 
 export type AccionProfesor = "ver" | "editar" | "eliminar" | "crearAcceso" | "editarAcceso" | "eliminarAcceso";
 interface Props {
@@ -46,27 +47,37 @@ export default function AccionesProfesor({ accion, profesor, rol, alcance, alCer
     guardar={accion === "ver" ? undefined : guardar} alCerrar={alCerrar} alCompletar={alCompletar}>
     {esFormulario ? <>
       <p>Profesor: <strong>{profesor.nombre}</strong></p>
-      <label htmlFor="acceso-correo">Correo electrónico</label>
-      <input id="acceso-correo" type="email" autoComplete="off" maxLength={254} required={accion === "crearAcceso"}
-        value={correo} onChange={(evento) => setCorreo(evento.target.value)} autoFocus />
-      <label htmlFor="acceso-clave">{accion === "crearAcceso" ? "Contraseña inicial" : "Nueva contraseña (opcional)"}</label>
-      <input id="acceso-clave" type="password" autoComplete="new-password" required={accion === "crearAcceso"} maxLength={72}
-        aria-describedby="ayuda-acceso-clave error-acceso-clave" aria-invalid={!!errorClave}
-        value={clave} onChange={(evento) => {
-          setClave(evento.target.value);
-          evento.target.setCustomValidity(errorClaveAcceso(evento.target.value));
-        }} />
-      <p id="ayuda-acceso-clave">Máximo 72 bytes UTF-8; algunos caracteres, como acentos y emojis, ocupan más de un byte.</p>
-      <p id="error-acceso-clave" role={errorClave ? "alert" : undefined}>{errorClave}</p>
-      {accion === "editarAcceso" && <p>Deja la contraseña vacía para conservarla. Puedes cambiar solo el correo o solo la contraseña.</p>}
-    </> : accion === "ver" ? <dl>
-      <dt>Nombre</dt><dd>{profesor.nombre}</dd>
-      <dt>RUT</dt><dd>{formatearRut(profesor.rut)}</dd>
-      <dt>Departamento</dt><dd>{profesor.departamento.nombre}</dd>
-      <dt>Tipo</dt><dd>{etiquetaTipoProfesor(profesor.tipo)}</dd>
-      <dt>Acceso al sistema</dt><dd>{profesor.usuarioId === null ? "Sin acceso" : "Con acceso"}</dd>
-      {profesor.usuario && <><dt>Correo electrónico</dt><dd>{profesor.usuario.correo}</dd></>}
-    </dl> : <>
+      <div className={estilos.campo}>
+        <label htmlFor="acceso-correo">Correo electrónico</label>
+        <input id="acceso-correo" type="email" autoComplete="off" maxLength={254} required={accion === "crearAcceso"}
+          value={correo} onChange={(evento) => setCorreo(evento.target.value)} autoFocus />
+      </div>
+      <div className={estilos.campo}>
+        <label htmlFor="acceso-clave">{accion === "crearAcceso" ? "Contraseña inicial" : "Nueva contraseña (opcional)"}</label>
+        <input id="acceso-clave" type="password" autoComplete="new-password" required={accion === "crearAcceso"} maxLength={72}
+          aria-describedby="ayuda-acceso-clave error-acceso-clave" aria-invalid={!!errorClave}
+          value={clave} onChange={(evento) => {
+            setClave(evento.target.value);
+            evento.target.setCustomValidity(errorClaveAcceso(evento.target.value));
+          }} />
+        <p id="ayuda-acceso-clave" className={estilos.ayuda}>Máximo 72 bytes UTF-8; algunos caracteres, como acentos y emojis, ocupan más de un byte.</p>
+        <p id="error-acceso-clave" role={errorClave ? "alert" : undefined}>{errorClave}</p>
+        {accion === "editarAcceso" && <p className={estilos.ayuda}>Deja la contraseña vacía para conservarla. Puedes cambiar solo el correo o solo la contraseña.</p>}
+      </div>
+    </> : accion === "ver" ? <div className={estilos.fichaProfesor}>
+      <section className={estilos.identidad} aria-label="Identificación del profesor">
+        <h3 className={estilos.nombreIdentidad}>{profesor.nombre}</h3>
+        <p>{profesor.departamento.nombre}</p>
+        <div className={estilos.etiquetasIdentidad}>
+          <span className={estilos.tipoProfesor}>{etiquetaTipoProfesor(profesor.tipo)}</span>
+          <span className={estilos.insignia}>{profesor.usuarioId === null ? "Sin acceso" : "Con acceso"}</span>
+        </div>
+      </section>
+      <dl className={estilos.detalleProfesor}>
+        <div><dt>RUT</dt><dd>{formatearRut(profesor.rut)}</dd></div>
+        {profesor.usuario && <div><dt>Correo electrónico</dt><dd>{profesor.usuario.correo}</dd></div>}
+      </dl>
+    </div> : <>
       <p>¿Confirmas que deseas {accion === "eliminar" ? "eliminar al profesor" : "retirar el acceso al sistema de"} <strong>{profesor.nombre}</strong>?</p>
       <p>{accion === "eliminar" ? "Esta acción no se puede deshacer. Si existen horarios asociados, el servidor impedirá la eliminación."
         : "El profesor se conservará, pero ya no podrá iniciar sesión con este acceso."}</p>

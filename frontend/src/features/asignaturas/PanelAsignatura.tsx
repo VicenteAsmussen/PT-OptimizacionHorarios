@@ -19,9 +19,9 @@ export default function PanelAsignatura({ titulo, ocupado, alCerrar, children }:
   }, []);
   return <dialog ref={dialogo} className={estilos.panel} aria-labelledby="titulo-panel-asignatura"
     aria-busy={ocupado} onCancel={evento => { evento.preventDefault(); if (!ocupado) alCerrar(); }}>
-    <header className={estilos.cabecera}>
+    <header className={`${estilos.cabecera} ${estilos.cabeceraPanel}`}>
       <h2 id="titulo-panel-asignatura">{titulo}</h2>
-      <button type="button" className="boton boton--gris" disabled={ocupado} onClick={alCerrar} autoFocus>Cerrar</button>
+      <button type="button" className={`boton boton--gris ${estilos.accionSecundaria}`} disabled={ocupado} onClick={alCerrar} autoFocus>Cerrar</button>
     </header>
     {children}
   </dialog>;
