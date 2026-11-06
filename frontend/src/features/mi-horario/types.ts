@@ -7,6 +7,9 @@ export interface Planificacion extends PlanificacionBase {
 }
 export interface ClaseHorario {
   id: number;
+  ofertaId?: number;
+  tipoHoraId?: number;
+  salaId?: number | null;
   bloqueId: number;
   planificacionSemestreId: number;
   oferta: { asignatura: { nombre: string }; seccion: number };

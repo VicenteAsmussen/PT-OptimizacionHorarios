@@ -11,16 +11,17 @@ interface Propiedades {
 
 export default function EncabezadoMiHorario({ planificaciones, planificacionId, seleccionar }: Propiedades) {
   const planificacion = planificaciones.find(p => p.id === planificacionId);
-  return <header className={estilos.tarjeta}>
+  return <header className={estilos.encabezado}>
     <h1 id="titulo-mi-horario">Mi horario</h1>
-    <p>Consulta tus clases asignadas por carrera y período. Esta página es de solo lectura.</p>
+    <p>Consulta tus clases y selecciona una para ver su detalle.</p>
     {planificaciones.length > 0 && <div className={estilos.controles}>
       <label className={estilos.selector}>Carrera y período
         <select value={planificacionId ?? ''} onChange={evento => seleccionar(Number(evento.target.value))}>
           {ordenarPeriodosPorFechaAcademica(planificaciones).map(p => <option key={p.id} value={p.id}>{p.carreraNombre} — {p.codigo} — {etiquetaEstado(p)}</option>)}
         </select>
       </label>
-      {planificacion && <span className={`${estilos.estado} ${planificacion.estadoPlanificacion === 'publicado' ? estilos.publicado : estilos.propuesta}`}>
+      {planificacion && <span className={`${estilos.estado} ${planificacion.estadoPlanificacion === 'publicado' ? estilos.publicado
+        : planificacion.estadoPlanificacion === 'propuesta' ? estilos.propuesta : estilos.preparacion}`}>
         Estado del período: {etiquetaEstado(planificacion)}
       </span>}
     </div>}

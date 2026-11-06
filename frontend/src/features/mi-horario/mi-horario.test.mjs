@@ -101,7 +101,7 @@ test('calendar renders real read-only cells with all class details and no editin
     }));
     assert.equal([...reservado.matchAll(/>Reservado</g)].length, 2);
     assert.match(reservado, /Clase en bloque reservado/);
-    assert.match(reservado, /aria-label="Álgebra, Sección 2, Cátedra"/);
+    assert.match(reservado, /aria-label="Álgebra, Sección 2, Cátedra, Lunes, 08:10–09:00, sin sala"/);
     assert.equal([...reservado.matchAll(/aria-haspopup="dialog"/g)].length, 1);
     const celdasReservadas = [...reservado.matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/g)]
       .map(([, contenido]) => contenido).filter(contenido => contenido.includes('>Reservado<'));
@@ -116,15 +116,15 @@ test('calendar renders real read-only cells with all class details and no editin
     const abreviado = renderToStaticMarkup(createElement(Calendario, {
       bloques, horarios: [{ ...clase, oferta: { ...clase.oferta, asignatura: { nombre: 'Introducción a la Programación' } } }], planificacionId: 10,
     }));
-    assert.match(abreviado, /<strong title="Introducción a la Programación">IALP<\/strong>/);
-    assert.match(abreviado, /aria-label="Introducción a la Programación, Sección 2, Cátedra"/);
+    assert.match(abreviado, /<strong title="Introducción a la Programación">Introducción a la Programación<\/strong>/);
+    assert.match(abreviado, /aria-label="Introducción a la Programación, Sección 2, Cátedra, Lunes, 08:10–09:00, sin sala"/);
     assert.match(abreviado, /<th scope="col">Horario<\/th>/);
     assert.match(abreviado, /<th scope="row">08:10–09:00<\/th>/);
     assert.match(abreviado, /<th scope="row">09:10–10:00<\/th>/);
     const celdas = [...abreviado.matchAll(/<td\b[^>]*>([\s\S]*?)<\/td>/g)];
     assert.ok(celdas.length > 0);
     for (const [, contenido] of celdas) {
-      assert.doesNotMatch(contenido, /\d{2}:\d{2}/);
+      assert.match(contenido, /class="[^"]*horasSesion[^"]*">08:10–09:00<\/span>|^<div class="[^"]*contenidoCelda[^"]*"><\/div>$|Sin bloque/);
       assert.match(contenido, /^<div class="[^"]*contenidoCelda[^\"]*">[\s\S]*<\/div>$/);
     }
 
@@ -134,8 +134,8 @@ test('calendar renders real read-only cells with all class details and no editin
       }));
       assert.match(compacto, /<span>sec 2<\/span>/);
       assert.ok(compacto.includes(`<span title="${tipo}">${abreviatura}</span>`));
-      assert.match(compacto, /<span>Sala A-101<\/span>/);
-      assert.ok(compacto.includes(`aria-label="Álgebra, Sección 2, ${tipo}"`));
+      assert.match(compacto, /<span class="[^"]*salaClase[^"]*">Sala A-101<\/span>/);
+      assert.ok(compacto.includes(`aria-label="Álgebra, Sección 2, ${tipo}, Lunes, 08:10–09:00, Sala A-101"`));
     }
 
     const { default: EncabezadoMiHorario } = await servidor.ssrLoadModule('/src/features/mi-horario/EncabezadoMiHorario.tsx');
@@ -159,15 +159,23 @@ test('calendar renders real read-only cells with all class details and no editin
         assert.ok(detalle.includes(texto), `Missing class detail: ${texto}`);
       }
       assert.match(detalle, /<button[^>]*>Cerrar<\/button>/);
+      assert.match(detalle, /<header[^>]*class="[^"]*cabeceraDialogo/);
+      assert.match(detalle, /<footer[^>]*class="[^"]*pieDialogo/);
       assert.doesNotMatch(detalle, /<input|<select|<form|contenteditable/i);
     }
   } finally { await servidor.close(); }
 });
 
-test('calendar rows use the same compact cell height even when empty or containing several classes', async () => {
+test('las celdas crecen con clases simultáneas sin ocultarlas en un scroll interno', async () => {
   const css = await readFile(new URL('./MiHorario.module.css', import.meta.url), 'utf8');
-  assert.match(css, /\.contenidoCelda\s*\{[^}]*height:\s*3rem\s*;[^}]*overflow-y:\s*auto\s*;/);
-  assert.match(css, /\.calendario tbody tr\s*\{[^}]*height:\s*3\.25rem\s*;/);
+  const contenido = css.match(/\.consulta \.contenidoCelda\s*\{([^}]+)\}/)[1];
+  assert.match(contenido, /min-height:/);
+  assert.match(contenido, /(?:^|;)\s*height:\s*auto/);
+  assert.doesNotMatch(contenido, /overflow-y:\s*auto/);
+  assert.match(css, /\.dialogo\[open\]\s*\{[^}]*display:\s*flex/);
+  assert.match(css, /\.contenidoCelda\s*\{[^}]*height:\s*3rem\s*;[^}]*overflow-y:\s*auto\s*;/,
+    'El calendario administrativo conserva sus alturas y desplazamiento originales.');
+  assert.match(css, /@media \(max-width: 40rem\)[^]*\.consulta \.calendario tbody th\s*\{[^}]*position:\s*static/);
 });
 
 test('changing planning immediately clears old data and ignores stale responses', async () => {
@@ -285,16 +293,19 @@ test('preparation is selectable and shows the exact notice without requesting or
   } finally { pagina.cerrar(); }
 });
 
-test('el marcador reservado tiene la misma altura que la tarjeta de clase y centra su contenido', async () => {
+test('la reserva aislada es más baja y conserva centrado y estilo del calendario administrativo', async () => {
   const css = await readFile(new URL('./MiHorario.module.css', import.meta.url), 'utf8');
-  const clase = css.match(/\.clase\s*\{([^}]+)\}/)[1];
-  const reserva = css.match(/\.reserva\s*\{([^}]+)\}/)[1];
-  const altura = clase.match(/(?:^|;)\s*height:\s*([^;]+);/)[1];
-  assert.match(reserva, new RegExp(`(?:^|;)\\s*height:\\s*${altura.replace('.', '\\.')}\\s*;`));
-  assert.match(reserva, /align-content:\s*center\s*;/);
-  assert.match(reserva, /text-align:\s*center\s*;/);
-  assert.match(reserva, /width:\s*100%\s*;/);
-  assert.match(reserva, /line-height:\s*1\.2\s*;/);
+  const clase = css.match(/\.consulta \.clase\s*\{([^}]+)\}/)[1];
+  const reserva = css.match(/\.consulta \.reserva\s*\{([^}]+)\}/)[1];
+  const altura = parseFloat(clase.match(/(?:^|;)\s*min-height:\s*([^;]+);/)[1]);
+  const alturaReserva = parseFloat(reserva.match(/(?:^|;)\s*min-height:\s*([^;]+);/)[1]);
+  assert.ok(alturaReserva < altura);
+  assert.equal(alturaReserva, 1.5);
+  const base = css.match(/(?:^|\n)\.reserva\s*\{([^}]+)\}/)[1];
+  assert.match(base, /align-content:\s*center\s*;/);
+  assert.match(base, /text-align:\s*center\s*;/);
+  assert.match(base, /width:\s*100%\s*;/);
+  assert.match(base, /line-height:\s*1\.2\s*;/);
 });
 
 test('las reservas usan la paleta institucional con borde discontinuo y contraste suficiente en todas las grillas', async () => {
@@ -304,7 +315,7 @@ test('las reservas usan la paleta institucional con borde discontinuo y contrast
     ['../disponibilidad/Disponibilidad.module.css', 'reservado'],
   ]) {
     const css = await readFile(new URL(ruta, import.meta.url), 'utf8');
-    const reglas = [...css.matchAll(new RegExp(`\\.${selector}\\s*\\{([^}]+)\\}`, 'g'))];
+    const reglas = [...css.matchAll(new RegExp(`(?:^|\\n)\\.${selector}\\s*\\{([^}]+)\\}`, 'g'))];
     assert.equal(reglas.length, 1, 'La reserva conserva la misma paleta del sitio sin sobrescribirla según el tema del sistema.');
     const regla = reglas[0][1];
     assert.match(regla, /background:\s*var\(--color-azul-fondo\)/);
