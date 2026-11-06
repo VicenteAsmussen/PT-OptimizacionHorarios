@@ -27,7 +27,7 @@ export function presentacionCobertura(estado: CoberturaExterna['estado'], sinGua
   switch (estado) {
     case 'cargada': return { color: 'verde', texto: sinGuardar ? 'Datos válidos en el archivo (sin guardar)' : 'Cargada' };
     case 'faltante_obligatoria': return { color: 'rojo', texto: 'Obligatoria faltante' };
-    case 'faltante_opcional': return { color: 'amarillo', texto: 'Opcional no cargada' };
+    case 'faltante_opcional': return { color: 'amarillo', texto: 'Otro semestre, sin carga' };
     case 'invalida': return { color: 'rojo', texto: 'Datos inválidos (sin guardar)' };
   }
 }

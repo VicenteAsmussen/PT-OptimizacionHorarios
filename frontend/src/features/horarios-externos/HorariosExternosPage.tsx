@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { ordenarPeriodosPorFechaAcademica } from '../../lib/periodos';
 import { useAuth } from '../../hooks/useAuth';
+import { useDesbordamientoTabla } from '../../hooks/useDesbordamientoTabla';
 import { ApiError } from '../../lib/api';
 import { planificacionInicial } from '../asignaturas/datos';
 import { departamentosExternos, mensajeErrorCobertura, presentacionCobertura } from './datos';
@@ -36,6 +37,8 @@ function PaginaImportacion() {
   const vigente = useRef(true);
   const controlArchivo = useRef<HTMLInputElement>(null);
   const resumen = useRef<HTMLDivElement>(null);
+  const tablaErrores = useDesbordamientoTabla();
+  const tablaCobertura = useDesbordamientoTabla();
 
   useEffect(() => {
     vigente.current = true;
@@ -116,13 +119,18 @@ function PaginaImportacion() {
     {errorCarga && <div role="alert" className={base.error}><p>{errorCarga}</p>
       <button type="button" className="boton" onClick={() => setIntento(valor => valor + 1)}>Reintentar carga</button></div>}
     {datos && <>
-      <div className={base.filtros}>
+      <section className={estilos.contexto} aria-labelledby="titulo-contexto-carga">
+        <div><h2 id="titulo-contexto-carga">Contexto de carga</h2>
+          {planificacion && <p>Son obligatorios los niveles <strong>{planificacion.codigo.endsWith('-1') ? 'impares' : 'pares'}</strong> de la malla. Los demás corresponden al otro semestre del año.</p>}
+        </div>
         <label>Período actual<select disabled value={planificacionId ?? ''}>
           {planificacionId === null && <option value="" disabled hidden>Período actual no disponible</option>}
           {ordenarPeriodosPorFechaAcademica(datos.planificaciones.filter(planificacion => planificacion.actual)).map(planificacion => <option key={planificacion.id} value={planificacion.id}>
             {planificacion.carrera.nombre} · {planificacion.codigo}
           </option>)}
         </select></label>
+      </section>
+      <div className={estilos.seleccion}>
         <label>Departamento externo<select disabled={!planificacion || importando} value={departamentoId ?? ''} onChange={evento => {
           limpiarArchivo(); setPersistida(null); setDepartamentoId(evento.target.value ? Number(evento.target.value) : null);
         }}><option value="">Selecciona un departamento</option>
@@ -131,7 +139,6 @@ function PaginaImportacion() {
       </div>
       {!datos.planificaciones.some(planificacion => planificacion.actual) && <p>No hay planificaciones actuales disponibles. Los períodos anteriores se consultan en Asignaturas.</p>}
       {planificacionId === null && datos.planificaciones.filter(planificacion => planificacion.actual).length > 1 && <p role="alert">No se pudo determinar un único período actual para esta cuenta. No se elige una carrera automáticamente.</p>}
-      {planificacion && <p>En <strong>{planificacion.codigo}</strong> son obligatorios los niveles {planificacion.codigo.endsWith('-1') ? 'impares' : 'pares'} de la malla. Los demás niveles son opcionales.</p>}
       {planificacion && !departamentos.length && <p>No hay departamentos externos asociados a esta carrera.</p>}
       {planificacion && !editable && <p className={base.estado}>Solo puedes importar en una planificación actual en preparación. La carga guardada sigue disponible para consulta.</p>}
       <AvisoBloqueo bloqueado={bloqueoModelo} />
@@ -144,7 +151,8 @@ function PaginaImportacion() {
         <form className={estilos.carga} onSubmit={evento => { evento.preventDefault(); void importar(); }}>
           <fieldset disabled={!editable || importando || !persistida || !persistida.length}>
             <legend>Archivo del departamento</legend>
-            <label>Excel (.xlsx, máximo 10 MB)<input ref={controlArchivo} type="file" accept=".xlsx" onChange={evento => {
+            <div className={estilos.cuerpoCarga}>
+            <label>Archivo Excel<input ref={controlArchivo} type="file" accept=".xlsx" aria-describedby="ayuda-archivo-externo" onChange={evento => {
               limpiarResultado();
               const seleccionado = evento.target.files?.[0] ?? null;
               if (seleccionado && (!seleccionado.name.toLowerCase().endsWith('.xlsx') || seleccionado.size > 10 * 1024 * 1024)) {
@@ -152,38 +160,50 @@ function PaginaImportacion() {
               }
               setArchivo(seleccionado);
             }} /></label>
-            {archivo && <p>Archivo seleccionado: <strong>{archivo.name}</strong></p>}
-            <p id="efecto-importacion">El archivo reemplaza las secciones y horarios de este departamento en el período actual de la carrera. Se eliminan las secciones ausentes, incluso de asignaturas opcionales. No se modifica el catálogo.</p>
+            <p id="ayuda-archivo-externo" className={estilos.ayuda}>Formato .xlsx, máximo 10 MB.</p>
+            {archivo && <p className={estilos.archivoSeleccionado}>Archivo seleccionado: <strong>{archivo.name}</strong></p>}
+            </div>
+            <div className={estilos.pieCarga}>
+            <p id="efecto-importacion">El archivo reemplaza las secciones y horarios de este departamento en el período actual de la carrera. Se eliminan las secciones ausentes, también las de asignaturas del otro semestre. No se modifica el catálogo.</p>
             <label className={estilos.confirmacion}><input type="checkbox" checked={confirmado} onChange={evento => setConfirmado(evento.target.checked)} aria-describedby="efecto-importacion" />
               Confirmo el reemplazo de la carga de este departamento.</label>
-            <button className="boton boton--azul" type="submit" disabled={!archivo || !confirmado || importando}>{importando ? 'Importando…' : 'Importar horarios'}</button>
+            <button className={`boton ${estilos.accionPrincipal}`} type="submit" disabled={!archivo || !confirmado || importando}>{importando ? 'Importando…' : 'Importar horarios'}</button>
+            </div>
           </fieldset>
         </form>
         <div ref={resumen} tabIndex={-1} aria-live="polite">
           {mensaje && <p role={rechazado || !resultado ? 'alert' : 'status'} className={rechazado ? base.error : base.estado}>{mensaje}</p>}
           {resultado && !rechazado && <p>{resultado.ofertasCreadas} secciones creadas · {resultado.ofertasActualizadas} actualizadas · {resultado.ofertasEliminadas} eliminadas · {resultado.horariosCreados} bloques guardados.</p>}
         </div>
-        {!!errores.length && <div className={base.tablaContenedor} role="region" aria-label="Errores de importación" tabIndex={0}>
-          <table className={base.tabla}><caption>Corrige estos errores en el archivo</caption>
-            <thead><tr><th>Asignatura</th><th>Fila</th><th>Columna</th><th>Valor</th><th>Detalle</th></tr></thead>
+        {!!errores.length && <>
+        {tablaErrores.desborda && <p id="ayuda-errores-externos" className={base.ayudaTabla}>Desplaza la tabla para ver más columnas.<span className={base.soloLectores}> Con la tabla enfocada, usa las flechas del teclado.</span></p>}
+        <div className={`${estilos.tablaContenedor} ${estilos.errores}`} role="region" aria-label="Errores de importación" tabIndex={0}
+          ref={tablaErrores.referencia} aria-describedby={tablaErrores.desborda ? 'ayuda-errores-externos' : undefined}>
+          <table className={estilos.tabla}><caption>Corrige estos errores en el archivo</caption>
+            <thead><tr><th scope="col">Asignatura</th><th scope="col">Fila</th><th scope="col">Columna</th><th scope="col">Valor</th><th scope="col">Detalle</th></tr></thead>
             <tbody>{errores.map((error, indice) => <tr key={indice}><th scope="row">{error.codigoAsignatura ? `${error.codigoAsignatura} · ${error.nombreAsignatura ?? ''}` : 'Archivo'}</th>
               <td>{error.fila || '—'}</td><td>{error.columna}</td><td>{error.valor ?? '—'}</td><td>{error.mensaje}</td></tr>)}</tbody>
           </table>
-        </div>}
+        </div></>}
         {cobertura && <>
-          <h2>{coberturaArchivo ? 'Resultado del archivo' : 'Carga guardada'}</h2>
+          <div className={estilos.cabeceraResultado}>
+            <h2>{coberturaArchivo ? 'Resultado del archivo' : 'Carga guardada'}</h2>
+            <button type="button" className="boton boton--gris" disabled={importando} onClick={() => { limpiarArchivo(); setActualizacion(valor => valor + 1); }}>Consultar carga guardada</button>
+          </div>
           {rechazado && coberturaArchivo && <p>Este resultado describe el archivo rechazado, no la carga guardada. Ninguna fila del archivo se guardó.</p>}
-          <p>{cobertura.filter(asignatura => asignatura.estado === 'cargada').length} asignaturas con horarios · {faltantes} obligatorias faltantes · {cobertura.filter(asignatura => asignatura.estado === 'faltante_opcional').length} opcionales no cargadas.</p>
-          {!cobertura.length ? <p>No hay asignaturas de este departamento en la malla de la carrera.</p> : <div className={base.tablaContenedor} role="region" aria-label="Cobertura de asignaturas" tabIndex={0}>
-            <table className={base.tabla}><thead><tr><th scope="col">Código</th><th scope="col">Asignatura</th><th scope="col">Nivel semestral</th><th scope="col">Secciones con horarios</th><th scope="col">Estado</th></tr></thead>
+          <p className={estilos.recuento}>{cobertura.filter(asignatura => asignatura.estado === 'cargada').length} asignaturas con horarios · <strong>{faltantes} obligatorias faltantes</strong> · {cobertura.filter(asignatura => asignatura.estado === 'faltante_opcional').length} de otro semestre sin carga.</p>
+          {!cobertura.length ? <p>No hay asignaturas de este departamento en la malla de la carrera.</p> : <>
+          {tablaCobertura.desborda && <p id="ayuda-cobertura-externa" className={base.ayudaTabla}>Desplaza la tabla para ver más columnas.<span className={base.soloLectores}> Con la tabla enfocada, usa las flechas del teclado.</span></p>}
+          <div className={estilos.tablaContenedor} role="region" aria-label="Cobertura de asignaturas" tabIndex={0}
+            ref={tablaCobertura.referencia} aria-describedby={tablaCobertura.desborda ? 'ayuda-cobertura-externa' : undefined}>
+            <table className={`${estilos.tabla} ${estilos.tablaCobertura}`}><thead><tr><th scope="col">Código</th><th scope="col">Asignatura</th><th scope="col">Nivel semestral</th><th scope="col">Secciones con horarios</th><th scope="col">Estado</th></tr></thead>
               <tbody>{cobertura.map(asignatura => {
                 const estado = presentacionCobertura(asignatura.estado, rechazado && !!coberturaArchivo);
-                return <tr key={asignatura.codigo} className={estilos[estado.color]}><th scope="row">{asignatura.codigo}</th><td>{asignatura.nombre}</td><td>{asignatura.semestreMalla}</td>
-                  <td>{asignatura.secciones.join(', ') || '—'}</td><td>{estado.texto}</td></tr>;
+                return <tr key={asignatura.codigo}><th scope="row">{asignatura.codigo}</th><td>{asignatura.nombre}</td><td>{asignatura.semestreMalla}</td>
+                  <td>{asignatura.secciones.join(', ') || '—'}</td><td><span className={estilos[estado.color]}>{estado.texto}</span></td></tr>;
               })}</tbody>
             </table>
-          </div>}
-          <button type="button" className="boton boton--gris" disabled={importando} onClick={() => { limpiarArchivo(); setActualizacion(valor => valor + 1); }}>Consultar carga guardada</button>
+          </div></>}
         </>}
       </>}
     </>}
