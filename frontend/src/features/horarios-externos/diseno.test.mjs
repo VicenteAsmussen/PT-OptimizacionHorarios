@@ -22,7 +22,7 @@ async function vista({ seleccionado = 2, resultado = null, rechazado = false, de
     useMemo: calcular => calcular(), useRef: valor => ({ current: valor }),
     useDesbordamientoTabla: () => ({ referencia() {}, desborda }),
     ordenarPeriodosPorFechaAcademica, departamentosExternos, presentacionCobertura,
-    useBloqueoOptimizacion: () => bloqueado, AvisoBloqueo: () => null,
+    useBloqueoOptimizacion: () => bloqueado, AvisoBloqueo: () => null, IconoArchivo: () => null,
     ResumenDepartamentos: () => React.createElement('p', null, 'Resumen global'), base: estilos, estilos };
   const codigo = ts.transpileModule(componente, { compilerOptions: { jsx: ts.JsxEmit.React, target: ts.ScriptTarget.ES2022 } }).outputText;
   const Pagina = new Function(...Object.keys(dependencias), `${codigo}; return PaginaImportacion;`)(...Object.values(dependencias));

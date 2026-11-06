@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react';
 import { resultadosHorariosApi } from './resultados-horarios.api';
 import { puedePublicar } from './modelo';
+import IconoArchivo from '../../components/IconoArchivo';
 import type { Problema, ResultadoHorario, ValidacionPublicacion } from './types';
 import Dialogo from './Dialogo';
-import estilos from './ResultadosHorarios.module.css';
+import estilos from './SuperficiesResultados.module.css';
 
 function desglosarSalas(resultado: ResultadoHorario, problemas: Problema[]) {
   const idsSinSala = new Set(problemas.filter(p => p.codigo === 'sala').flatMap(p => p.idsHorarios ?? []));
@@ -45,7 +46,7 @@ export default function PublicacionDialogo({ resultado, ocupado, cerrar, confirm
     return () => { activo = false; controlador.abort(); };
   }, [resultado.planificacion.id, resultado.revision]);
   return <Dialogo titulo="Publicar horario" ocupado={ocupado} cerrar={cerrar}>
-    <div data-dialogo-publicacion>
+    <div data-dialogo-publicacion className={estilos.publicacion}>
     {error ? <p role="alert" className={estilos.error}>{error}</p> : !validacion ? <p role="status">Validando publicación…</p> : <>
       {validacion.revision !== resultado.revision && <p role="alert">El horario cambió. Cierra y actualiza antes de publicar.</p>}
       {validacion.problemas.length > 0 && <>
@@ -85,8 +86,8 @@ export default function PublicacionDialogo({ resultado, ocupado, cerrar, confirm
       </>}
     </>}
     </div>
-    <button type="button" className="boton boton--azul" disabled={ocupado || !puedePublicar(resultado, validacion)} onClick={() => {
+    <button type="button" className={`boton ${estilos.accionPrincipal}`} disabled={ocupado || !puedePublicar(resultado, validacion)} onClick={() => {
       if (puedePublicar(resultado, validacion)) confirmar(resultado.revision);
-    }}>{ocupado ? 'Publicando…' : 'Confirmar publicación'}</button>
+    }}><IconoArchivo tipo="publicar" />{ocupado ? 'Publicando…' : 'Confirmar publicación'}</button>
   </Dialogo>;
 }

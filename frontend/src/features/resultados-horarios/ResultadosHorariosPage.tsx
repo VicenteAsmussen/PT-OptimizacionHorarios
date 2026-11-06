@@ -1,5 +1,6 @@
 import { useEffect, useReducer, useRef, useState } from 'react';
 import { Link, Navigate, Outlet, useSearchParams } from 'react-router-dom';
+import IconoArchivo from '../../components/IconoArchivo';
 import { ordenarPeriodosPorFechaAcademica } from '../../lib/periodos';
 import { rutaModelo } from '../optimizacion/modelo';
 import { useAuth } from '../../hooks/useAuth';
@@ -15,6 +16,7 @@ import GestionSalas from './GestionSalas';
 import ControlesMovimiento from './ControlesMovimiento';
 import PublicacionDialogo from './PublicacionDialogo';
 import Dialogo from './Dialogo';
+import DetalleSesionDialogo from './DetalleSesionDialogo';
 import estilos from './ResultadosHorarios.module.css';
 
 export function RequireResultadosHorarios() {
@@ -56,15 +58,18 @@ export function ConsultaResultados() {
   }, [intento, solicitada]);
   const planificacion = planificaciones?.find(p => p.id === id);
   return <section className={estilos.pagina} aria-labelledby="titulo-resultados">
-    <header className={estilos.tarjeta}>
+    <header className={estilos.encabezado}>
       <h1 id="titulo-resultados" tabIndex={-1}>Gestión del horario</h1>
       <p>Revisa la propuesta semanal de la carrera, ajusta sesiones, gestiona salas y publica el horario.</p>
+    </header>
+    <section className={estilos.tarjeta} aria-label="Contexto de carrera y período">
       <div className={estilos.controles}><label>Carrera y período<select value={id ?? ''} disabled={ocupado || !planificaciones}
         onChange={evento => { if (!ocupado) setId(evento.target.value ? Number(evento.target.value) : null); }}>
         <option value="">Seleccionar carrera y período</option>
         {ordenarPeriodosPorFechaAcademica(planificaciones ?? []).map(p => <option key={p.id} value={p.id}>{p.carrera.nombre} · {p.codigo} · {estadoSecciones(p).etiqueta}{p.actual ? ' · Actual' : ''}</option>)}
       </select></label></div>
-    </header>
+      {planificacion && <p className={estilos.contexto}>{planificacion.carrera.nombre} · {planificacion.codigo}{planificacion.actual ? ' · Período actual' : ' · Período histórico'}</p>}
+    </section>
     {error ? <div className={estilos.tarjeta}><p role="alert">{error}</p><button type="button" className="boton" onClick={() => setIntento(i => i + 1)}>Reintentar</button></div>
       : !planificaciones ? <p role="status">Cargando planificaciones…</p>
       : planificaciones.length === 0 ? <p role="status">No hay planificaciones disponibles para tu carrera.</p>
@@ -82,6 +87,8 @@ export function ContenidoResultados({ id, nombreCarrera, ocupado, cambiarOcupado
   const [estado, dispatch] = useReducer(reducirResultados, { ...estadoInicial, id });
   const [nivel, setNivel] = useState('1');
   const [seleccionada, setSeleccionada] = useState<SesionResultado | null>(null);
+  const [editando, setEditando] = useState(false);
+  const [detalle, setDetalle] = useState<SesionResultado | null>(null);
   const [grupo, setGrupo] = useState(0);
   const [destino, setDestino] = useState(0);
   const [edicion, setEdicion] = useState(0);
@@ -120,7 +127,8 @@ export function ContenidoResultados({ id, nombreCarrera, ocupado, cambiarOcupado
   }, [id, estado.secuencia]);
   const resultado = estado.resultado;
   const sesionActual = resultado?.sesiones.find(s => s.idsHorarios.join(',') === seleccionada?.idsHorarios.join(','));
-  const sesionMovimiento = resultado && sesionActual && puedeMoverSesion(resultado, sesionActual) ? sesionActual : null;
+  const disponibilidadCargada = Array.isArray(resultado?.disponibilidades);
+  const sesionMovimiento = editando && disponibilidadCargada && resultado && sesionActual && puedeMoverSesion(resultado, sesionActual) ? sesionActual : null;
   const datos: Movimiento = { revision: resultado?.revision ?? '', idsHorarios: sesionMovimiento && resultado ? gruposMovibles(sesionMovimiento, resultado.bloques)[grupo] ?? [] : [], bloqueInicioId: destino };
   const clave = claveMovimiento(id, datos);
   const disponible = Boolean(resultado && sesionMovimiento && estadoDestino(resultado, sesionMovimiento, destino, datos.idsHorarios.length) === 'disponible');
@@ -138,13 +146,21 @@ export function ContenidoResultados({ id, nombreCarrera, ocupado, cambiarOcupado
   }, [clave, sesionMovimiento?.idsHorarios.join(','), disponible, ocupado, edicion]);
   function cancelarMovimiento() {
     if (bloqueo.current) return;
-    setSeleccionada(null); setGrupo(0); setDestino(0); setValidacion(null); setErrorMovimiento(''); setEdicion(e => e + 1);
+    limpiarMovimiento();
+  }
+  function limpiarMovimiento() {
+    setEditando(false); setSeleccionada(null); setGrupo(0); setDestino(0); setValidacion(null); setErrorMovimiento(''); setEdicion(e => e + 1);
   }
   function seleccionarSesion(sesion: SesionResultado) {
-    if (!resultado || bloqueo.current) return;
+    if (!resultado || bloqueo.current || !disponibilidadCargada || seleccionada) return;
     const actual = resultado.sesiones.find(s => s.idsHorarios.join(',') === sesion.idsHorarios.join(','));
     if (!actual || !puedeMoverSesion(resultado, actual)) return;
-    cancelarMovimiento(); setSeleccionada(actual); setNivel(String(actual.asignatura.semestreMalla)); setPublicando(false);
+    cancelarMovimiento(); setEditando(true); setDetalle(null); setSeleccionada(actual); setNivel(String(actual.asignatura.semestreMalla)); setPublicando(false);
+  }
+  function consultarSesion(sesion: SesionResultado) {
+    if (bloqueo.current) return;
+    if (editando) seleccionarSesion(sesion);
+    else setDetalle(sesion);
   }
   function elegirDestino(inicioId: number) {
     if (bloqueo.current || inicioId === destino) return;
@@ -169,7 +185,7 @@ export function ContenidoResultados({ id, nombreCarrera, ocupado, cambiarOcupado
     avisoActual.current = notificaciones[tipo](mensaje, avisoActual.current ?? undefined);
   }
   function recargar() {
-    setSeleccionada(null); setPublicando(false); dispatch({ tipo: 'seleccionar', id });
+    limpiarMovimiento(); setDetalle(null); setPublicando(false); dispatch({ tipo: 'seleccionar', id });
   }
   function actualizar() {
     cerrarAviso(); setAvisoImportacion(null); recargar();
@@ -186,7 +202,7 @@ export function ContenidoResultados({ id, nombreCarrera, ocupado, cambiarOcupado
     try {
       const respuesta = await operacion();
       if (!vivo.current) return;
-      setSeleccionada(null); setPublicando(false);
+      limpiarMovimiento(); setDetalle(null); setPublicando(false);
       if (esImportacion) importacionPorInformar.current = { mensaje: respuesta.mensaje, omitidas: respuesta.omitidas ?? 0 };
       else mostrarAviso('exito', respuesta.mensaje);
       if (respuesta.resultado) {
@@ -268,10 +284,19 @@ export function ContenidoResultados({ id, nombreCarrera, ocupado, cambiarOcupado
     {estado.error ? <div className={estilos.tarjeta}><p role="alert">{estado.error}</p><button type="button" className="boton" onClick={actualizar}>Reintentar consulta</button></div>
       : !resultado ? <p role="status">Cargando horario…</p> : <>
         <section className={estilos.tarjeta} aria-labelledby="titulo-semana">
+          <header className={estilos.cabeceraHorario}>
           <h2 id="titulo-semana">Horario semanal de la carrera</h2>
+          <p className={estilos.contexto}>{nombreCarrera} · {resultado.planificacion.codigo}</p>
+          </header>
           {!puedeEditarResultado(resultado) && <p>Solo lectura: únicamente se modifica la planificación actual en Propuesta. Los horarios externos permanecen fijos.</p>}
-          <div className={estilos.controles}><button type="button" className="boton" disabled={ocupado} onClick={actualizar}>Actualizar horario</button>
-            <span className={estilos.estado}>Estado: {estadoSecciones(resultado.planificacion).etiqueta}</span></div>
+          <div className={estilos.barraHorario}><button type="button" className="boton" disabled={ocupado} onClick={actualizar}>Actualizar horario</button>
+            <span className={estilos.estado}>Estado: {estadoSecciones(resultado.planificacion).etiqueta}</span>
+            {!editando ? <button type="button" className="boton boton--azul" disabled={ocupado || !puedeEditarResultado(resultado) || !disponibilidadCargada}
+              onClick={() => { if (!bloqueo.current && puedeEditarResultado(resultado) && disponibilidadCargada) { setEditando(true); setDetalle(null); } }}>Editar horario</button>
+              : <button type="button" className="boton" disabled={ocupado} onClick={cancelarMovimiento}>Cancelar edición</button>}
+          </div>
+          {editando && !sesionMovimiento && <p className={estilos.ayudaEdicion} aria-live="polite">Elige una sesión para editar su horario.</p>}
+          {!disponibilidadCargada && <p role="status">La disponibilidad no está cargada. Actualiza el horario antes de editar.</p>}
           <div className={estilos.semestres} role="group" aria-label="Semestres de la malla">
             {Array.from({ length: 10 }, (_, i) => String(i + 1)).map(semestre => <button key={semestre} type="button"
               className={estilos.semestre} aria-label={`Ver semestre ${semestre}`} aria-pressed={nivel === semestre}
@@ -282,10 +307,11 @@ export function ContenidoResultados({ id, nombreCarrera, ocupado, cambiarOcupado
             cambiarGrupo={cambiarGrupo} cancelar={cancelarMovimiento} confirmar={confirmarMovimiento} />}
           {sesionesVisibles(resultado, nivel).length === 0 && <p role="status">No hay clases asignadas para el semestre {nivel}.</p>}
           {sesionesVisibles(resultado, nivel).length > 0 &&
-            <CalendarioResultados resultado={resultado} nivel={nivel} ocupado={ocupado} seleccionar={seleccionarSesion}
+            <CalendarioResultados resultado={resultado} nivel={nivel} ocupado={ocupado} editar={editando} seleccionar={consultarSesion}
               movimiento={sesionMovimiento ? { sesion: sesionMovimiento, idsHorarios: datos.idsHorarios, cantidad: datos.idsHorarios.length, inicioId: destino,
                 invalido: !disponible || visible?.valido === false || Boolean(errorMovimiento), elegir: elegirDestino } : undefined} />}
         </section>
+        {detalle && <DetalleSesionDialogo resultado={resultado} sesion={detalle} cerrar={() => setDetalle(null)} />}
         <GestionSalas key={resultado.revision} resultado={resultado} ocupado={ocupado || Boolean(sesionMovimiento)} seleccionar={seleccionarSesion} exportar={exportar} verPendientes={verPendientes}
           importar={archivo => { void ejecutar(async () => {
             const importacion = await resultadosHorariosApi.importar(id, resultado.revision, archivo);
@@ -296,7 +322,7 @@ export function ContenidoResultados({ id, nombreCarrera, ocupado, cambiarOcupado
           }, true); }} />
         <section className={estilos.tarjeta} aria-labelledby="titulo-publicar"><h2 id="titulo-publicar">Publicación</h2>
           {puedeEditarResultado(resultado) ? <><p>Revisa los requisitos de toda la planificación antes de confirmar. Publicar bloquea la edición.</p>
-            <button type="button" className="boton boton--azul" disabled={ocupado || Boolean(sesionMovimiento)} onClick={() => { if (!sesionMovimiento && !bloqueo.current) setPublicando(true); }}>Revisar y publicar</button></>
+            <button type="button" className="boton boton--azul" disabled={ocupado || Boolean(sesionMovimiento)} onClick={() => { if (!sesionMovimiento && !bloqueo.current) setPublicando(true); }}><IconoArchivo tipo="publicar" />Revisar y publicar</button></>
             : <p>Este horario es de solo lectura. La reapertura no está disponible.</p>}
         </section>
         {publicando && <PublicacionDialogo key={resultado.revision} resultado={resultado} ocupado={ocupado} cerrar={() => setPublicando(false)}
