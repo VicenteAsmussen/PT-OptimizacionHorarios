@@ -48,6 +48,8 @@ async function montar(archivo, nombre, extras, propiedades = {}) {
   };
   const entorno = { React, ...hooks, ...modelo, estadoSecciones, planificacionInicial, estilos: {}, Link: 'a', Navigate: 'redirect', Outlet: 'outlet',
     ordenarPeriodosPorFechaAcademica: (await import('../../lib/periodos.ts')).ordenarPeriodosPorFechaAcademica,
+    useAuth: () => ({ usuario: { id: 9, rol: 'secretaria' } }), profesoresApi: { listar: async () => [] },
+    IconoModelo: () => null, IconoActualizar: () => null,
     DisponibilidadOptimizacion: () => null, DiagnosticoOptimizacion: () => null, ...extras };
   const fuente = (await readFile(new URL(archivo, import.meta.url), 'utf8')).replace(/^import .*;\r?\n/gm, '').replace(/^export default /gm, '').replace(/^export /gm, '');
   for (const declaracion of fuente.matchAll(/^(?:async )?function (\w+)/gm)) delete entorno[declaracion[1]];
@@ -129,19 +131,21 @@ const planificacionesPrueba = [
   { id: 2, carreraId: 1, carrera: { id: 1, nombre: 'Carrera autorizada' }, codigo: '2026-2', actual: true, estadoPlanificacion: 'preparacion' },
   { id: 1, carreraId: 1, carrera: { id: 1, nombre: 'Carrera autorizada' }, codigo: '2025-2', actual: false, estadoPlanificacion: 'publicado' },
 ];
-test('aviso de ejecución aparece bajo el título principal y antes del selector', async () => {
+test('encabezado y contexto están separados sin repetir la condición de preparación', async () => {
   const vista = await selector('admin', '2');
   const cabecera = vista.nodos().find(n => n.type === 'header');
   const hijos = React.Children.toArray(cabecera.props.children);
   assert.equal(hijos[0].type, 'h1');
-  assert.match(texto(hijos[1]), /Solo puedes ejecutar el modelo cuando la planificación está en Preparación/);
+  assert.equal(nodos(cabecera).some(n => n.type === 'select'), false);
+  assert.equal(vista.nodos().filter(n => n.type === 'select').length, 1);
+  assert.doesNotMatch(vista.texto(), /Solo puedes ejecutar el modelo cuando/);
   vista.salir();
 });
 test('preparación omite detalles técnicos y mantiene visibles los motivos que impiden ejecutar', async () => {
   const { vista, preparacion, posts } = await pagina();
   preparacion({ ...preparar(), puedeEjecutar: false, bloqueos: ['Ya existen horarios gestionados.'] });
   vista.boton('Actualizar preparación').props.onClick(); await vista.asentar();
-  assert.match(vista.texto(), /Salas para el modelo/);
+  assert.match(vista.texto(), /Recursos para esta ejecución/);
   assert.doesNotMatch(vista.texto(), /Bloqueos informados por el backend/);
   assert.match(textoVisible(vista.arbol()), /Ya existen horarios gestionados/);
   assert.doesNotMatch(vista.texto(), /Detalles de preparación|revision-consultada|Límite del solver|Procedencia de las categorías/);
@@ -226,7 +230,9 @@ test('seguimiento muestra inicio y término sin identificadores ni detalles téc
   assert.ok(primerPlano.includes(modelo.fechaEjecucion(ejecucion.finalizadaEn)));
   assert.doesNotMatch(vista.texto(), /Detalles técnicos|ID de ejecución|revision-ejecutada|Versión del modelo|Estado del solver|Recursos declarados en esta ejecución/);
   assert.ok(!primerPlano.includes('Estado del solver')); assert.match(primerPlano, /La propuesta no está publicada/);
-  assert.equal(vista.nodos().filter(n => n.type === 'a' && texto(n) === 'Ver resultado').length, 1); vista.salir();
+  assert.equal(vista.nodos().filter(n => n.type === 'a' && texto(n) === 'Ver horario generado').length, 1);
+  assert.doesNotMatch(primerPlano, /Recargar o salir de esta página/);
+  assert.match(primerPlano, /Última ejecución/); vista.salir();
 });
 test('confirmación agrupa casilla y texto y limita el tamaño del checkbox frente a estilos globales', async () => {
   const { vista } = await pagina();
@@ -263,18 +269,23 @@ test('salas rechaza cantidades fuera del catálogo sin POST ni cambios de seguim
   vista.boton('Actualizar preparación').props.onClick(); await vista.asentar();
   assert.equal(vista.nodos().find(n => n.type === 'input' && n.props.type === 'number').props.max, 10000); vista.salir();
 });
-test('disponibilidad usa tabla accesible compacta, sin inventar nombres y en orden ascendente', async () => {
-  const vista = await montar('./DiagnosticoOptimizacion.tsx', 'DisponibilidadOptimizacion', {}, { filas: [{ profesorId: 7, bloquesDisponibles: 20 }, { profesorId: 8, bloquesDisponibles: 4 }] });
+test('disponibilidad muestra nombres del catálogo autorizado sin cambiar el orden de los bloques', async () => {
+  const vista = await montar('./DiagnosticoOptimizacion.tsx', 'DisponibilidadOptimizacion', {}, {
+    filas: [{ profesorId: 7, bloquesDisponibles: 20 }, { profesorId: 8, bloquesDisponibles: 4 }],
+    catalogoDocentes: { estado: 'disponible', nombres: { 7: 'Docente de prueba A', 8: 'Docente de prueba B' } },
+  });
   const html = renderToStaticMarkup(vista.arbol());
   assert.match(html, /<caption>/); assert.match(html, /scope="col"/); assert.match(html, /scope="row"/);
-  assert.ok(html.indexOf('Docente 8') < html.indexOf('Docente 7')); assert.match(html, /después de reservas/); vista.salir();
+  assert.ok(html.indexOf('Docente de prueba B') < html.indexOf('Docente de prueba A'));
+  assert.doesNotMatch(html, /Código de docente|Código 8/);
+  assert.match(html, /después de reservas/); assert.match(html, /catálogo actual/); vista.salir();
 });
 test('diagnóstico aplicado omite solo la frase duplicada y mantiene errores y faltantes visibles', async () => {
   const datos = { codigo: 'aplicada', mensaje: 'Solución completa, válida y vigente incorporada como Propuesta. No está publicada.', errores: ['Error verificable'],
     faltantes: [{ ofertaId: 1, asignaturaCodigo: 'INF', seccion: 1, tipoHoraId: 1, horas: 2 }], certificadoPrioridad: { prioridadCertificada: false } };
   const vista = await montar('./DiagnosticoOptimizacion.tsx', 'DiagnosticoOptimizacion', {}, { datos, resumirAplicada: true });
   assert.ok(!vista.texto().includes(datos.mensaje)); assert.match(vista.texto(), /Error verificable/); assert.match(vista.texto(), /INF/);
-  assert.ok(vista.nodos().some(n => n.type === 'details' && texto(n).includes('cota'))); vista.salir();
+  assert.ok(vista.nodos().some(n => n.type === 'details' && texto(n).includes('Detalle del análisis de carga'))); vista.salir();
 });
 test('diagnósticos no aplicados y mensajes nuevos permanecen visibles, sin ocultar bloqueantes', async () => {
   for (const codigo of ['carga_incompleta', 'infactible', 'limite_tiempo', 'error', 'interrumpida', 'datos_desactualizados', 'aplicada']) {
@@ -301,8 +312,8 @@ test('diagnóstico renderiza faltantes por asignatura/sección/componente y disp
     disponibilidadDocente: [{ profesorId: 7, bloquesDisponibles: 20 }, { profesorId: 8, bloquesDisponibles: 4 }],
   } });
   const html = renderToStaticMarkup(vista.arbol());
-  assert.match(html, /INF1/); assert.match(html, /<td>2<\/td><td>T<\/td><td>4<\/td>/);
-  assert.ok(html.indexOf('Docente 8') < html.indexOf('Docente 7')); assert.match(html, /no identifica responsables/);
+  assert.match(html, /INF1/); assert.match(html, /<td>2<\/td><td>T<\/td><td class="numero-modelo">4<\/td>/);
+  assert.ok(html.indexOf('ID 8') < html.indexOf('ID 7')); assert.match(html, /no identifica responsables/);
   vista.salir();
 });
 
@@ -328,7 +339,173 @@ test('layout notifica con acceso al resultado si se navega y solo redirige si si
     await seguimiento.actualizar(2); await vista.asentar();
     assert.equal(navegaciones.length, ruta === '/app/optimizacion' ? 1 : 0);
     assert.equal(avisos.length, 1);
-    if (ruta !== '/app/optimizacion') assert.ok(vista.nodos().some(n => n.type === 'a' && n.props.to === modelo.rutaResultados(2)));
+    if (ruta !== '/app/optimizacion') {
+      assert.ok(vista.nodos().some(n => n.type === 'a' && n.props.to === modelo.rutaResultados(2) && texto(n) === 'Ver horario generado'));
+      const aviso = vista.nodos().find(n => n.type === 'aside' && n.props['aria-label'] === 'Resultado del modelo');
+      assert.doesNotMatch(texto(aviso), /Planificación 2|e1/);
+    }
     vista.salir();
   }
+});
+
+test('preparación inicial prioriza recursos y mantiene el estado vacío sin un panel dominante', async () => {
+  const { vista, posts } = await pagina();
+  const titulos = vista.nodos().filter(n => n.type === 'h2').map(texto);
+  assert.equal(titulos[0], 'Recursos para esta ejecución');
+  assert.match(vista.texto(), /No hay ejecuciones registradas/);
+  assert.doesNotMatch(vista.texto(), /Recargar o salir/);
+  const formulario = vista.nodos().find(n => n.type === 'fieldset');
+  assert.ok(formulario.props['aria-describedby']?.includes('ayuda-recursos-modelo'));
+  const tabla = vista.nodos().find(n => n.props.className?.includes('tabla-salas-modelo'));
+  assert.equal(tabla.props.tabIndex, 0); assert.equal(tabla.props.role, 'region');
+  assert.equal(posts(), 0); vista.salir();
+});
+
+test('inicio incierto distingue la última ejecución histórica de la solicitud pendiente', async () => {
+  const almacen = memoria();
+  const anterior = crearSeguimiento({ iniciar: async () => { throw new Error('Respuesta perdida'); } }, almacen, 'cuenta');
+  await assert.rejects(anterior.iniciar(2, [recurso]));
+  const seguimiento = crearSeguimiento({ ultima: async () => ejecutar('aplicada') }, almacen, 'cuenta');
+  let vista;
+  const cancelar = seguimiento.suscribir(() => vista?.dibujar());
+  vista = await montar('./OptimizacionPage.tsx', 'PreparacionModelo', {
+    useOptimizacion: () => ({ seguimiento, filas: seguimiento.estado() }), optimizacionApi: { preparar: async () => preparar() },
+  }, { id: 2 });
+  try {
+    assert.equal(vista.nodos().find(n => n.type === 'h2').props.children, 'Inicio sin confirmar');
+    assert.match(vista.texto(), /Última ejecución registrada, no confirma la solicitud pendiente/);
+    assert.equal(vista.boton('Reenviar la misma solicitud').props.disabled, false);
+    assert.equal(vista.nodos().find(n => n.type === 'fieldset').props.disabled, true);
+  } finally { cancelar(); vista.salir(); }
+});
+
+test('ejecución activa prioriza seguimiento, explica continuidad y mantiene recursos bloqueados', async () => {
+  const { vista, posts } = await pagina({ ultima: async () => ejecutar('en_ejecucion') });
+  assert.equal(vista.nodos().filter(n => n.type === 'h2').map(texto)[0], 'Ejecución en curso');
+  assert.match(vista.texto(), /Recargar o salir de esta página no cancela el cálculo/);
+  assert.equal(vista.nodos().find(n => n.type === 'fieldset').props.disabled, true);
+  assert.equal(vista.boton('Cancelar'), undefined);
+  assert.equal(posts(), 0); vista.salir();
+});
+
+test('diagnósticos distinguen disponibilidad ejecutada y de preparación sin ocultar faltantes', async () => {
+  const disponibilidad = [{ profesorId: 8, bloquesDisponibles: 4 }];
+  const preparacion = await montar('./DiagnosticoOptimizacion.tsx', 'DisponibilidadOptimizacion', {}, {
+    filas: disponibilidad, titulo: 'Disponibilidad docente de la preparación',
+  });
+  assert.match(preparacion.texto(), /Disponibilidad docente de la preparación/);
+  const diagnostico = await montar('./DiagnosticoOptimizacion.tsx', 'DiagnosticoOptimizacion', {}, { datos: {
+    fase: 'solver', disponibilidadDocente: disponibilidad, errores: ['Revisar datos'],
+    faltantes: [{ ofertaId: 3, asignaturaCodigo: 'INF1', seccion: 2, tipoHoraId: 1, componente: 'T', horas: 4 }],
+  } });
+  const html = renderToStaticMarkup(diagnostico.arbol());
+  assert.match(html, /Disponibilidad considerada en la ejecución/);
+  assert.match(html, /Etapa del cálculo/); assert.doesNotMatch(html, /Fase informada por el backend/);
+  assert.match(html, /Bloques pendientes/); assert.match(html, /INF1/); assert.match(html, /Revisar datos/);
+  preparacion.salir(); diagnostico.salir();
+});
+
+test('nombres pendientes, no disponibles o fuera de catálogo conservan los bloques del diagnóstico', async () => {
+  for (const estado of ['cargando', 'error', 'disponible']) {
+    const vista = await montar('./DiagnosticoOptimizacion.tsx', 'DisponibilidadOptimizacion', {}, {
+      filas: [{ profesorId: 42, bloquesDisponibles: 12 }], catalogoDocentes: { estado, nombres: {} },
+    });
+    const html = renderToStaticMarkup(vista.arbol());
+    assert.match(html, /ID 42/); assert.match(html, />12<\/td>/);
+    assert.match(html, estado === 'cargando' ? /Consultando nombre/ : /Nombre no disponible/);
+    if (estado === 'error') assert.match(html, /No se pudieron consultar los nombres/);
+    vista.salir();
+  }
+});
+
+test('el catálogo de nombres es solo de presentación y su fallo no impide preparar ni ejecutar', async () => {
+  let consultas = 0;
+  for (const falla of [false, true]) {
+    const seguimiento = crearSeguimiento({ ultima: async () => null, iniciar: async () => ejecutar('en_ejecucion') }, memoria(), 'cuenta');
+    let vista;
+    const cancelar = seguimiento.suscribir(() => vista?.dibujar());
+    vista = await montar('./OptimizacionPage.tsx', 'PreparacionModelo', {
+      useOptimizacion: () => ({ seguimiento, filas: seguimiento.estado() }),
+      profesoresApi: { listar: async () => { consultas++; if (falla) throw new Error('Catálogo no disponible'); return [{ id: 7, nombre: 'Docente de prueba A', rut: 'no-conservar' }]; } },
+      optimizacionApi: { preparar: async () => ({ ...preparar(), disponibilidadDocente: [{ profesorId: 7, bloquesDisponibles: 20 }] }) },
+    }, { id: 2 });
+    try {
+      const disponibilidad = vista.nodos().find(n => n.type?.name === 'DisponibilidadOptimizacion');
+      assert.deepEqual(disponibilidad.props.catalogoDocentes, falla ? { estado: 'error', nombres: {} } : { estado: 'disponible', nombres: { 7: 'Docente de prueba A' } });
+      assert.equal(vista.nodos().find(n => n.type === 'fieldset').props.disabled, false);
+      vista.nodos().find(n => n.type === 'input' && n.props.type === 'checkbox').props.onChange({ target: { checked: true } }); await vista.asentar();
+      assert.equal(vista.boton('Iniciar ejecución').props.disabled, false);
+    } finally { cancelar(); vista.salir(); }
+  }
+  assert.equal(consultas, 2);
+});
+
+test('disponibilidad principal es contextual y la histórica queda secundaria solo al preparar otro intento', async () => {
+  for (const [estado, puedeEjecutar, preparacionVisible, secundaria] of [
+    ['aplicada', false, false, false], ['en_ejecucion', false, false, false],
+    ['error', false, false, false], ['carga_incompleta', true, true, true],
+  ]) {
+    const p = await pagina({ ultima: async () => ejecutar(estado) });
+    p.preparacion({ ...preparar(), puedeEjecutar, disponibilidadDocente: [{ profesorId: 7, bloquesDisponibles: 20 }] });
+    p.vista.boton('Actualizar preparación').props.onClick(); await p.vista.asentar();
+    assert.equal(p.vista.nodos().some(n => n.type?.name === 'DisponibilidadOptimizacion'), preparacionVisible);
+    const diagnostico = p.vista.nodos().find(n => n.type?.name === 'DiagnosticoOptimizacion');
+    assert.equal(diagnostico.props.disponibilidadSecundaria, secundaria);
+    p.vista.salir();
+  }
+  const anterior = await montar('./DiagnosticoOptimizacion.tsx', 'DiagnosticoOptimizacion', {}, {
+    datos: { errores: ['Error visible'], faltantes: [{ ofertaId: 3, asignaturaCodigo: 'INF1', seccion: 2, tipoHoraId: 1, horas: 4 }], disponibilidadDocente: [{ profesorId: 7, bloquesDisponibles: 20 }] },
+    disponibilidadSecundaria: true,
+  });
+  assert.match(textoVisible(anterior.arbol()), /Error visible/); assert.match(textoVisible(anterior.arbol()), /INF1/);
+  assert.match(renderToStaticMarkup(anterior.arbol()), /Detalle de disponibilidad del intento anterior/);
+  anterior.salir();
+});
+
+test('salas usan controles compactos solo en escritorio con puntero preciso', async () => {
+  const css = await readFile(new URL('./optimizacion.css', import.meta.url), 'utf8');
+  assert.match(css, /@media\s*\(min-width:\s*48rem\)\s*and\s*\(pointer:\s*fine\)/);
+  assert.match(css, /\.tabla-salas-modelo input\[type="number"\]\s*\{[^}]*min-height:\s*1\.75rem;[^}]*padding:\s*0 \.5rem/);
+  assert.match(css, /\.tabla-salas-modelo tbody tr\s*\{[^}]*height:\s*2\.25rem/);
+  assert.match(css, /\.tabla-salas-modelo td\s*\{[^}]*padding:\s*\.125rem/);
+  assert.match(css, /\.tabla-salas-modelo\s*\{\s*max-width:\s*56rem/);
+  assert.match(css, /\.tabla-salas-modelo td\s*\{[^}]*padding:\s*\.125rem \.5rem/);
+  assert.match(css, /\.tabla-salas-modelo thead th\s*\{[^}]*padding-block:\s*\.375rem/);
+  assert.match(css, /\.tabla-salas-modelo tr > :first-child\s*\{[^}]*padding-inline-start:\s*1rem/);
+  assert.match(css, /@media\s*\(any-pointer:\s*coarse\)\s*\{[^}]*\.campo-cantidad-sala-modelo\s*\{[^}]*min-height:\s*2\.75rem/);
+  assert.match(css, /@media\s*\(any-pointer:\s*coarse\)\s*\{[\s\S]*?\.tabla-salas-modelo input\[type="number"\]\s*\{[^}]*min-height:\s*2\.25rem/);
+  assert.match(css, /@media\s*\(max-width:\s*30rem\)\s*\{[^}]*\.tabla-disponibilidad-modelo th:first-child\s*\{\s*width:\s*55%/);
+});
+
+test('cantidad de salas conserva una zona de activación mayor que el cuadro visible', async () => {
+  const { vista } = await pagina();
+  const etiqueta = vista.nodos().find(n => n.type === 'label' && n.props.className === 'campo-cantidad-sala-modelo');
+  assert.ok(etiqueta);
+  const cantidad = nodos(etiqueta).find(n => n.type === 'input');
+  assert.equal(cantidad.props['aria-label'], 'Cantidad AC, Sala, capacidad 32');
+  assert.equal(cantidad.props.value, '2'); assert.equal(cantidad.props.max, 4);
+  const css = await readFile(new URL('./optimizacion.css', import.meta.url), 'utf8');
+  assert.match(css, /\.campo-cantidad-sala-modelo\s*\{[^}]*align-items:\s*center/);
+  vista.salir();
+});
+
+test('una consulta de nombres pendiente no mezcla catálogos al cambiar de cuenta', async () => {
+  let cuenta = 9;
+  const resolver = [];
+  const seguimiento = crearSeguimiento({ ultima: async () => null }, memoria(), 'cuenta');
+  const vista = await montar('./OptimizacionPage.tsx', 'PreparacionModelo', {
+    useAuth: () => ({ usuario: { id: cuenta, rol: 'secretaria' } }),
+    useOptimizacion: () => ({ seguimiento, filas: seguimiento.estado() }),
+    profesoresApi: { listar: () => new Promise(resolve => resolver.push(resolve)) },
+    optimizacionApi: { preparar: async () => preparar() },
+  }, { id: 2 });
+  try {
+    cuenta = 10; vista.dibujar(); await vista.asentar();
+    resolver[0]([{ id: 7, nombre: 'Docente de otra cuenta' }]); await vista.asentar();
+    let disponibilidad = vista.nodos().find(n => n.type?.name === 'DisponibilidadOptimizacion');
+    assert.deepEqual(disponibilidad.props.catalogoDocentes, { estado: 'cargando', nombres: {} });
+    resolver[1]([{ id: 8, nombre: 'Docente de la cuenta actual' }]); await vista.asentar();
+    disponibilidad = vista.nodos().find(n => n.type?.name === 'DisponibilidadOptimizacion');
+    assert.deepEqual(disponibilidad.props.catalogoDocentes, { estado: 'disponible', nombres: { 8: 'Docente de la cuenta actual' } });
+  } finally { vista.salir(); }
 });

@@ -9,6 +9,7 @@ import type { EstadoSeguimiento } from './seguimiento';
 import { optimizacionApi } from './optimizacion.api';
 import { destinoAlTerminar, etiquetasEstado, puedeOptimizar, rutaModelo, rutaResultados } from './modelo';
 import type { Ejecucion } from './types';
+import IconoModelo from './IconoModelo';
 
 const Contexto = createContext<{
   seguimiento: ReturnType<typeof crearSeguimiento>; planificaciones: PlanificacionSemestre[] | null; error: string; reintentar: () => void;
@@ -70,16 +71,21 @@ function SeguimientoCuenta({ children }: { children: ReactNode }) {
     return () => { activo = false; clearTimeout(temporizador); };
   }, [habilitado, planificaciones, seguimiento]);
   const activas = Object.values(filas).filter(f => f.ejecucion?.estado === 'en_ejecucion');
+  function contextoPlanificacion(id: number) {
+    const planificacion = planificaciones?.find(p => p.id === id);
+    return planificacion ? ` · ${planificacion.carrera.nombre} · ${planificacion.codigo}` : '';
+  }
   return <Contexto.Provider value={{ seguimiento, planificaciones, error, reintentar: () => setIntento(i => i + 1) }}>
     {habilitado && activas.length > 0 && <aside className="aviso-optimizacion" aria-label="Ejecuciones del modelo">
-      <p role="status">El modelo está calculando. Puedes navegar y consultar, las ediciones de sus entradas están bloqueadas por el backend.</p>
-      {activas.map(f => <p key={f.ejecucion!.id}><Link to={rutaModelo(f.ejecucion!.planificacionSemestreId)}>Seguir ejecución {f.ejecucion!.id}</Link>
+      <p role="status">El modelo está calculando. Puedes navegar y consultar, los datos utilizados no se pueden editar hasta que termine.</p>
+      {activas.map(f => <p key={f.ejecucion!.id}><Link to={rutaModelo(f.ejecucion!.planificacionSemestreId)}>Seguir cálculo{contextoPlanificacion(f.ejecucion!.planificacionSemestreId)}</Link>
         {f.error && <span role="alert"> · Seguimiento sin confirmar: {f.error}</span>}</p>)}
     </aside>}
     {habilitado && aviso && <aside className="aviso-optimizacion" aria-label="Resultado del modelo">
-      <p role="status">{etiquetasEstado[aviso.estado]} · Planificación {aviso.planificacionSemestreId}.</p>
-      <Link to={aviso.estado === 'aplicada' ? rutaResultados(aviso.planificacionSemestreId) : rutaModelo(aviso.planificacionSemestreId)}>
-        {aviso.estado === 'aplicada' ? 'Ver resultado' : 'Ver diagnóstico'}</Link>{' '}
+      <p role="status"><strong>{etiquetasEstado[aviso.estado]}</strong>{contextoPlanificacion(aviso.planificacionSemestreId)}</p>
+      <Link className="enlace-modelo" to={aviso.estado === 'aplicada' ? rutaResultados(aviso.planificacionSemestreId) : rutaModelo(aviso.planificacionSemestreId)}>
+        {aviso.estado === 'aplicada' && <IconoModelo tipo="ver" />}
+        {aviso.estado === 'aplicada' ? 'Ver horario generado' : 'Ver diagnóstico'}</Link>{' '}
       <button type="button" className="boton" onClick={() => setAviso(null)}>Cerrar aviso</button>
     </aside>}
     {children}
