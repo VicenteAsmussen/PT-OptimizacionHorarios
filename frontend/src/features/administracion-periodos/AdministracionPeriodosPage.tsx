@@ -29,16 +29,18 @@ function PaginaAdministracion() {
   const [planificacionId, setPlanificacionId] = useState('');
   const [ocupado, setOcupado] = useState(false);
   const [codigo, setCodigo] = useState('');
+  const [codigoRevisado, setCodigoRevisado] = useState(false);
   const [creando, setCreando] = useState(false);
   const [errorLista, setErrorLista] = useState('');
   const vigente = useRef(false);
   const bloqueo = useRef(false);
   const seleccion = useRef({ carreraId: '', planificacionId: '' });
   const codigoVigente = useRef('');
-  function cambiarCodigo(valor: string) { codigoVigente.current = valor; setCodigo(valor); }
+  function cambiarCodigo(valor: string) { codigoVigente.current = valor; setCodigo(valor); setCodigoRevisado(false); }
   const carrera = carreras?.find(fila => fila.id === Number(carreraId));
   const bloqueoModelo = useBloqueoOptimizacion(null, carrera?.id);
   const codigoValido = codigo.length === 6 && /^[0-9]{4}-[12]$/.test(codigo);
+  const mostrarErrorCodigo = codigoRevisado && !codigoValido && !!carrera && !planificacionId;
   useEffect(() => {
     let activa = true; vigente.current = true;
     setPlanificaciones(null); setCarreras(null); setError(''); setCarreraId(''); setPlanificacionId('');
@@ -120,8 +122,8 @@ function PaginaAdministracion() {
       {carreras && planificaciones &&
       <fieldset disabled={ocupado} className={base.campos}>
         <legend className={base.soloLectores}>Carrera</legend>
-        <div className={base.filtros}>
-          <label>Carrera<select value={carreraId} onChange={evento => {
+        <div className={`${base.filtros} ${estilos.filtrosCarrera}`}>
+          <label>Carrera<select name="carrera" value={carreraId} onChange={evento => {
             if (bloqueo.current) return;
             seleccion.current = { carreraId: evento.target.value, planificacionId: '' };
             setCarreraId(evento.target.value); setPlanificacionId(''); cambiarCodigo('');
@@ -134,7 +136,7 @@ function PaginaAdministracion() {
     </section>
     {carreras && planificaciones && <div className={estilos.seleccionCreacion}>
       <section className={base.pagina} aria-labelledby="titulo-seleccion">
-        <h2 id="titulo-seleccion">Seleccionar período a editar</h2>
+        <h2 id="titulo-seleccion">Seleccionar período</h2>
         <fieldset disabled={ocupado} className={base.campos}>
           <legend className={base.soloLectores}>Período de la carrera seleccionada</legend>
           <SelectorPeriodo key={carreraId} deshabilitado={ocupado || !carreraId} valor={planificacionId}
@@ -145,21 +147,25 @@ function PaginaAdministracion() {
               setPlanificacionId(valor); cambiarCodigo('');
             }} />
         </fieldset>
-        <p>Selecciona un período existente para gestionarlo</p>
       </section>
       <section aria-labelledby="titulo-creacion" className={`${base.pagina} ${estilos.creacion} ${planificacionId ? estilos.creacionDeshabilitada : ''}`}>
         <h2 id="titulo-creacion">Crear período</h2>
-        <form aria-labelledby="titulo-creacion" onSubmit={evento => { evento.preventDefault(); void crear(); }}>
+        <form aria-labelledby="titulo-creacion" aria-busy={creando} onSubmit={evento => { evento.preventDefault(); void crear(); }}>
           <fieldset disabled={ocupado || bloqueoModelo || !carreraId || !!planificacionId} className={base.campos}>
             <legend className={base.soloLectores}>Nuevo período para la carrera seleccionada</legend>
-            <label>Código del período<input value={codigo} onChange={evento => cambiarCodigo(evento.target.value)}
-              required minLength={6} maxLength={6} pattern="[0-9]{4}-[12]" placeholder="2027-1" aria-describedby="ayuda-creacion" /></label>
+            <label>Código del período<input name="codigo" autoComplete="off" spellCheck={false} value={codigo}
+              onChange={evento => cambiarCodigo(evento.target.value)} onBlur={() => setCodigoRevisado(true)}
+              required minLength={6} maxLength={6} pattern="[0-9]{4}-[12]" placeholder="2027-1"
+              aria-invalid={mostrarErrorCodigo || undefined}
+              aria-describedby={`ayuda-creacion${mostrarErrorCodigo ? ' error-codigo' : ''}`} /></label>
+            {mostrarErrorCodigo && <p id="error-codigo" role="alert" className={estilos.errorCodigo}>Usa el formato AAAA-1 o AAAA-2, por ejemplo, 2027-1.</p>}
+            <p id="ayuda-creacion" className={estilos.ayuda}>Se creará en Preparación y quedará como período actual de la carrera.</p>
             <div className={`${base.acciones} ${estilos.accionesCreacion}`}>
-              <button type="submit" disabled={ocupado || !carrera || !codigoValido || !!planificacionId}>{creando ? 'Creando período…' : 'Crear período'}</button>
-              <span id="ayuda-creacion">Se creará como actual.</span>
+              <button type="submit" className={`boton ${base.accionPrincipal}`} disabled={ocupado || !carrera || !codigoValido || !!planificacionId}>{creando ? 'Creando período…' : 'Crear período'}</button>
             </div>
           </fieldset>
         </form>
+        {planificacionId && <p className={estilos.ayuda}>La creación se habilita al quitar la selección del período.</p>}
       </section>
     </div>}
     <AvisoBloqueo bloqueado={bloqueoModelo} />
@@ -275,7 +281,7 @@ function PanelPeriodo({ planificacion, bloqueado, alIniciar, alTerminar, alActua
   }
   return <>
     {error && <div role="alert" className={base.error}>{error} <button disabled={ocupado || cargando || bloqueado} onClick={() => void reintentar()}>Reintentar</button></div>}
-    {cargando && <p role="status">Cargando período…</p>}
+    {(cargando || ocupado) && <p role="status" className={estilos.estadoLectura}>{ocupado ? 'Aplicando cambios…' : 'Cargando período…'}</p>}
     {resumenes && <VistaPeriodo resumenes={resumenes} nuevoEstado={nuevoEstado} accion={accion} confirmacion={confirmacion}
       bloqueado={ocupado || cargando || bloqueado || bloqueoModelo} alNuevoEstado={setNuevoEstado} alSeleccionarAccion={opcion => { setAccion(opcion); setConfirmacion(''); confirmarEliminacion(null); }}
       alConfirmacion={setConfirmacion} alReiniciar={reiniciar} alCancelar={() => { setAccion(null); setConfirmacion(''); }} alCambiarEstado={cambiarEstado}

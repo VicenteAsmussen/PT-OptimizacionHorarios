@@ -95,9 +95,25 @@ test('catalog includes careers without periods and keeps the initial choice expl
   assert.deepEqual(vista.avisos, []);
   assert.doesNotMatch(texto(vista), /Selecciona la carrera e ingresa|Será el actual|no se copian/);
   const boton = vista.nodos().find(nodo => nodo.type === 'button' && nodo.props.type === 'submit');
-  const acciones = vista.nodos().find(nodo => nodo.type === 'div' && React.Children.toArray(nodo.props.children).some(hijo => hijo?.type === 'button' && hijo.props.type === 'submit'));
-  assert.ok(nodos(acciones).some(nodo => nodo.type === 'span' && nodo.props.children === 'Se creará como actual.'));
+  assert.ok(vista.nodos().some(nodo => nodo.props.id === 'ayuda-creacion' && nodo.props.children === 'Se creará en Preparación y quedará como período actual de la carrera.'));
   assert.equal(boton.props.disabled, true);
+});
+
+test('el código muestra su formato junto al campo después de revisarlo, sin crear ni notificar', async () => {
+  const { vista, llamadas } = await pagina(); await seleccionar(vista, '1', '2027-3');
+  let campo = vista.nodos().find(nodo => nodo.type === 'input');
+  assert.equal(campo.props['aria-invalid'], undefined);
+  campo.props.onBlur(); await vista.estabilizar();
+  campo = vista.nodos().find(nodo => nodo.type === 'input');
+  assert.equal(campo.props['aria-invalid'], true);
+  assert.match(campo.props['aria-describedby'], /error-codigo/);
+  assert.ok(vista.nodos().some(nodo => nodo.props.id === 'error-codigo' && /AAAA-1.*AAAA-2/.test(nodo.props.children)));
+  enviar(vista); await vista.estabilizar();
+  assert.deepEqual(llamadas.crear, []); assert.deepEqual(vista.avisos, []);
+  campo.props.onChange({ target: { value: '2027-1' } }); await vista.estabilizar();
+  assert.equal(vista.nodos().find(nodo => nodo.type === 'input').props['aria-invalid'], undefined);
+  assert.ok(!vista.nodos().some(nodo => nodo.props.id === 'error-codigo'));
+  assert.equal(vista.nodos().find(nodo => nodo.type === 'button' && nodo.props.type === 'submit').props.disabled, false);
 });
 test('creates once, refreshes current markers and selects the created career/period', async () => {
   const solicitud = diferida(); let lecturas = 0; const envios = [];
