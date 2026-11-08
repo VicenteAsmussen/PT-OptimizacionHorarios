@@ -15,6 +15,7 @@ export default function SelectorProfesor({ profesores, profesorId, alSeleccionar
   const busqueda = edicion?.profesorId === profesorId ? edicion.texto : seleccionado?.nombre ?? '';
   const resultados = buscarProfesores(profesores, busqueda);
   const mostrar = abierto && profesorId === null && busqueda.trim().length > 0;
+  const mostrarResultados = mostrar && resultados.length > 0;
   const indiceActivo = resultados.length ? Math.min(activo, resultados.length - 1) : -1;
   function seleccionar(id: number) {
     alSeleccionar(id);
@@ -24,9 +25,9 @@ export default function SelectorProfesor({ profesores, profesorId, alSeleccionar
   return <div className={estilos.selector}>
     <label htmlFor={`${identificador}-buscar`} className={estilos.soloLectores}>Profesor de {contexto}</label>
     <input id={`${identificador}-buscar`} type="search" role="combobox" value={busqueda} autoComplete="off"
-      placeholder="Escribe nombre o RUT" aria-autocomplete="list" aria-expanded={mostrar}
-      aria-controls={mostrar ? `${identificador}-resultados` : undefined}
-      aria-activedescendant={mostrar && indiceActivo >= 0 ? `${identificador}-opcion-${resultados[indiceActivo].id}` : undefined}
+      placeholder="Escribe nombre o RUT" aria-autocomplete="list" aria-expanded={mostrarResultados}
+      aria-controls={mostrarResultados ? `${identificador}-resultados` : undefined}
+      aria-activedescendant={mostrarResultados && indiceActivo >= 0 ? `${identificador}-opcion-${resultados[indiceActivo].id}` : undefined}
       aria-describedby={`${identificador}-estado`} onFocus={() => setAbierto(true)} onBlur={() => setAbierto(false)}
       onChange={e => {
         setEdicion({ profesorId: null, texto: e.target.value });

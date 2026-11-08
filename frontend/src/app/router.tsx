@@ -56,7 +56,11 @@ export const router = createBrowserRouter([
         { element: <RequireHorariosExternos />, children: [
           { path: "horarios-externos", element: <HorariosExternosPage /> },
         ] },
-        { path: "*", element: <p>Página no encontrada</p> },
+        { path: "*", element: <section aria-labelledby="titulo-pagina-no-encontrada">
+          <h1 id="titulo-pagina-no-encontrada">Página no encontrada</h1>
+          <p>La dirección no corresponde a una página del sistema.</p>
+          <Link to="/app/dashboard">Volver al panel principal</Link>
+        </section> },
       ],
     }],
   },

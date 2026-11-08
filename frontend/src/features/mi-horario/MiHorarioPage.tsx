@@ -62,11 +62,11 @@ function ConsultaMiHorario() {
       seleccionar={id => dispatch({ tipo: 'seleccionar', id })} />
     {errorContexto ? <div className={estilos.tarjeta}><p role="alert">{errorContexto}</p>
       <button type="button" className="boton boton--azul" onClick={() => setIntento(i => i + 1)}>Reintentar</button></div>
-      : contexto === null ? <p role="status">Cargando planificaciones.</p>
+      : contexto === null ? <p role="status">Cargando planificaciones…</p>
       : contexto.planificaciones.length === 0 ? <p className={estilos.tarjeta} role="status">No tienes períodos con asignaciones docentes.</p>
       : <div className={estilos.tarjeta} aria-live="polite">
           {estadoPlanificacion === 'preparacion' ? <p role="status">Este período está en Preparación. El horario aún no está habilitado para consulta.</p>
-            : estado.modo === 'cargando' ? <p role="status">Cargando horario.</p>
+            : estado.modo === 'cargando' ? <p role="status">Cargando horario…</p>
             : estado.modo === 'error' ? <><p role="alert">{estado.error}</p>
               <button type="button" className="boton boton--azul" onClick={() => {
                 if (estado.id !== null) dispatch({ tipo: 'seleccionar', id: estado.id });
