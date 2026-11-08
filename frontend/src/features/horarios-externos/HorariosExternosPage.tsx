@@ -4,6 +4,7 @@ import { ordenarPeriodosPorFechaAcademica } from '../../lib/periodos';
 import { useAuth } from '../../hooks/useAuth';
 import { useDesbordamientoTabla } from '../../hooks/useDesbordamientoTabla';
 import { ApiError } from '../../lib/api';
+import { notificaciones } from '../../lib/notificaciones';
 import { planificacionInicial } from '../asignaturas/datos';
 import { departamentosExternos, mensajeErrorCobertura, presentacionCobertura } from './datos';
 import { horariosExternosApi } from './horarios-externos.api';
@@ -34,8 +35,10 @@ function PaginaImportacion() {
   const [mensaje, setMensaje] = useState('');
   const [rechazado, setRechazado] = useState(false);
   const [actualizacion, setActualizacion] = useState(0);
+  const [errorArchivo, setErrorArchivo] = useState('');
   const enviando = useRef(false);
   const vigente = useRef(true);
+  const avisoImportacion = useRef<{ activo: boolean; id?: string | number }>({ activo: false });
   const controlArchivo = useRef<HTMLInputElement>(null);
   const resumen = useRef<HTMLDivElement>(null);
   const tablaErrores = useDesbordamientoTabla();
@@ -45,6 +48,11 @@ function PaginaImportacion() {
     vigente.current = true;
     return () => { vigente.current = false; };
   }, []);
+  useEffect(() => {
+    const actual = { activo: true, id: undefined as string | number | undefined };
+    avisoImportacion.current = actual;
+    return () => { actual.activo = false; limpiarAviso(actual); };
+  }, [planificacionId, departamentoId]);
   useEffect(() => {
     let activo = true;
     setDatos(null); setErrorCarga('');
@@ -66,7 +74,12 @@ function PaginaImportacion() {
     return () => { activo = false; };
   }, [planificacionId, departamentoId, actualizacion]);
 
+  function limpiarAviso(actual = avisoImportacion.current) {
+    if (actual.id !== undefined) notificaciones.cerrar(actual.id);
+    actual.id = undefined;
+  }
   function limpiarResultado() {
+    limpiarAviso(); setErrorArchivo('');
     setResultado(null); setErrores([]); setMensaje(''); setRechazado(false); setConfirmado(false);
   }
   function limpiarArchivo() {
@@ -76,13 +89,15 @@ function PaginaImportacion() {
   }
   async function importar() {
     if (enviando.current || !archivo || !confirmado || !editable || !persistida || planificacionId === null || departamentoId === null) return;
+    const avisoActual = avisoImportacion.current;
+    limpiarAviso();
     enviando.current = true; setImportando(true); setMensaje(''); setResultado(null); setErrores([]); setRechazado(false);
     try {
       const respuesta = await horariosExternosApi.importar(planificacionId, departamentoId, archivo);
       if (!vigente.current) return;
       setResultado(respuesta); setArchivo(null); setConfirmado(false);
       if (controlArchivo.current) controlArchivo.current.value = '';
-      setMensaje('Importación completada. Los horarios se guardaron correctamente.');
+      if (avisoActual.activo) avisoActual.id = notificaciones.exito('Importación completada. Los horarios se guardaron correctamente.');
       setActualizacion(valor => valor + 1);
     } catch (fallo) {
       if (!vigente.current) return;
@@ -92,7 +107,7 @@ function PaginaImportacion() {
         setErrores(erroresArchivo); setResultado(detalle?.data ?? null); setRechazado(true);
         setMensaje('Importación rechazada. No se guardó ninguna fila ni se modificó la carga anterior. Corrige el archivo y vuelve a enviarlo.');
       } else {
-        // A lost response does not prove that the transaction failed.
+        // Una respuesta perdida no demuestra que la transacción haya fallado.
         setMensaje(`${fallo instanceof Error ? fallo.message : 'No se pudo confirmar la importación.'} Consulta la carga guardada antes de reintentar.`);
         setActualizacion(valor => valor + 1);
       }
@@ -153,15 +168,17 @@ function PaginaImportacion() {
           <fieldset disabled={!editable || importando || !persistida || !persistida.length}>
             <legend>Archivo del departamento</legend>
             <div className={estilos.cuerpoCarga}>
-            <label>Archivo Excel<input ref={controlArchivo} type="file" accept=".xlsx" aria-describedby="ayuda-archivo-externo" onChange={evento => {
+            <label>Archivo Excel<input ref={controlArchivo} type="file" accept=".xlsx" aria-invalid={!!errorArchivo}
+              aria-describedby={errorArchivo ? 'ayuda-archivo-externo error-archivo-externo' : 'ayuda-archivo-externo'} onChange={evento => {
               limpiarResultado();
               const seleccionado = evento.target.files?.[0] ?? null;
               if (seleccionado && (!seleccionado.name.toLowerCase().endsWith('.xlsx') || seleccionado.size > 10 * 1024 * 1024)) {
-                setArchivo(null); evento.target.value = ''; setMensaje('Selecciona un archivo .xlsx de hasta 10 MB.'); return;
+                setArchivo(null); evento.target.value = ''; setErrorArchivo('Selecciona un archivo .xlsx de hasta 10 MB.'); return;
               }
               setArchivo(seleccionado);
             }} /></label>
             <p id="ayuda-archivo-externo" className={estilos.ayuda}>Formato .xlsx, máximo 10 MB.</p>
+            {errorArchivo && <p id="error-archivo-externo" role="alert" className={base.error}>{errorArchivo}</p>}
             {archivo && <p className={estilos.archivoSeleccionado}>Archivo seleccionado: <strong>{archivo.name}</strong></p>}
             </div>
             <div className={estilos.pieCarga}>

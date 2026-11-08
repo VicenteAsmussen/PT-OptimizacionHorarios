@@ -56,10 +56,11 @@ test('handlers impiden crear, editar y eliminar bloqueados; cierre ignora result
         asignatura: { codigo: 'A' }, semestre: { id: 2 }, contenido: { current: null },
         setAccion: valor => llamadas.push(['accion', valor]), setSeccion() {}, setCupos() {}, setAsignaciones() {},
         setGuardado: () => llamadas.push(['guardado']), cargar: () => llamadas.push(['cargar']),
+        limpiarError() {},
         alCambiarOfertas: () => llamadas.push(['conteos']),
         prepararOferta: () => ({ seccion: 1, cupos: 0, asignaciones: [{ tipoHoraId: 1, profesorId: 1 }] }),
         asignaturasApi: Object.fromEntries(['crearOferta', 'editarOferta', 'eliminarOferta'].map(nombre => [nombre, async (...args) => llamadas.push([nombre, ...args])])),
-        ejecutar: (operacion, completar) => { guardar = operacion; terminar = completar; },
+        ejecutar: (operacion, completar, validar) => { validar?.(); guardar = operacion; terminar = completar; },
       };
       const reales = await handlers(contexto);
       reales.abrir(accion);
@@ -99,7 +100,7 @@ test('agregar y editar sección muestran el formulario completo en una tarjeta s
       accion: { tipo, oferta: { id: 7, seccion: 1 } }, estilos: { tarjetaSeccion: 'tarjeta-seccion', campos: 'campos', pieFormulario: 'pieFormulario' },
       asignatura: { codigo: 'A' }, semestre: { codigo: '2026-2' }, ocupado: false, puedeEditar: true, contenido: { current: null },
       libres: [1, 2], seccion: '1', cupos: '30', profesoresNoElegibles: [], asignaciones: [], datos: { profesores: [] },
-      EditorAsignaciones: () => null, error: 'Error de prueba', enviar() {}, setSeccion() {}, setCupos() {}, setAsignaciones() {}, setAccion() {},
+      EditorAsignaciones: () => null, error: 'Error de prueba', enviar() {}, limpiarError() {}, setSeccion() {}, setCupos() {}, setAsignaciones() {}, setAccion() {},
     };
     const arbol = new Function('React', ...Object.keys(contexto), codigo)(React, ...Object.values(contexto));
     assert.equal(arbol.props.className, tipo === 'eliminar' ? undefined : 'tarjeta-seccion');

@@ -101,7 +101,8 @@ function PreparacionModelo({ id }: { id: number }) {
       await seguimiento.iniciar(id, recursos);
       if (vivo.current) setIntento(i => i + 1);
     } catch (fallo) {
-      if (vivo.current) setError(fallo instanceof Error ? fallo.message : 'No se pudo confirmar el inicio.');
+      // El seguimiento conserva el fallo remoto y su recuperación, sin duplicarlo en recursos.
+      if (vivo.current && !seguimiento.estado()[id]?.error) setError(fallo instanceof Error ? fallo.message : 'No se pudo confirmar el inicio.');
     }
   }
   const seguimientoPrimero = Boolean(ejecucion || estado?.incierta || estado?.error);

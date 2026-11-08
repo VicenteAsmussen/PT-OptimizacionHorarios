@@ -5,7 +5,11 @@ import { readFile } from 'node:fs/promises';
 // Ejecuta el manejador de la página con la API HTTP real y un transporte simulado.
 async function prepararImportacion(respuesta) {
   const ts = await import('typescript');
-  const { api, ApiError } = await import('../../lib/api.ts');
+  // Node 22 necesita transformar las propiedades de parámetro de ApiError.
+  const codigoApi = ts.transpileModule(await readFile(new URL('../../lib/api.ts', import.meta.url), 'utf8'), {
+    compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
+  }).outputText;
+  const { api, ApiError } = await import(`data:text/javascript;base64,${Buffer.from(codigoApi).toString('base64')}`);
   const pagina = (await readFile(new URL('./HorariosExternosPage.tsx', import.meta.url), 'utf8')).replace(/\r\n/g, '\n');
   const fuente = pagina.match(/  async function importar\(\) \{[^]*?\n  \}/)?.[0];
   assert.ok(fuente);
@@ -13,6 +17,7 @@ async function prepararImportacion(respuesta) {
   const estado = { resultado: null, errores: [], mensaje: '', rechazado: false, importando: false,
     archivo: new Blob(['planilla simulada']), confirmado: true, actualizacion: 0 };
   const solicitudes = [];
+  const avisos = [];
   const setters = ['Importando', 'Mensaje', 'Resultado', 'Errores', 'Rechazado', 'Archivo', 'Confirmado', 'Actualizacion'];
   const nombres = setters.map(nombre => `set${nombre}`);
   const valores = setters.map(nombre => valor => {
@@ -25,10 +30,12 @@ async function prepararImportacion(respuesta) {
     return api(`horarios/excel/externos?planificacionSemestreId=${planificacionId}&departamentoId=${departamentoId}`, { method: 'POST', body: cuerpo });
   } };
   const importar = new Function('enviando', 'archivo', 'confirmado', 'editable', 'persistida',
-    'planificacionId', 'departamentoId', 'horariosExternosApi', 'vigente', 'controlArchivo', 'resumen', 'ApiError', ...nombres,
+    'planificacionId', 'departamentoId', 'horariosExternosApi', 'vigente', 'controlArchivo', 'resumen', 'ApiError',
+    'avisoImportacion', 'limpiarAviso', 'notificaciones', ...nombres,
     ts.transpileModule(`${fuente}\nreturn importar;`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText)(
     enviando, estado.archivo, true, true, anterior, 7, 6, apiPagina, { current: true }, { current: null },
-    { current: { focus() {} } }, ApiError, ...valores);
+    { current: { focus() {} } }, ApiError, { current: { activo: true } }, () => {},
+    { exito: mensaje => { avisos.push(mensaje); return 1; } }, ...valores);
   const fetchAnterior = globalThis.fetch;
   globalThis.fetch = async (ruta, opciones) => {
     solicitudes.push({ ruta, opciones });
@@ -41,7 +48,7 @@ async function prepararImportacion(respuesta) {
   assert.equal(solicitudes.length, 1);
   assert.equal(solicitudes[0].opciones.credentials, 'include');
   assert.deepEqual(anterior, [{ codigo: 'ANTERIOR', estado: 'cargada', secciones: [3] }]);
-  return { estado, pagina };
+  return { estado, pagina, avisos };
 }
 
 test('una reserva recibida por HTTP muestra fila, columna y motivo sin anunciar éxito ni sustituir la carga guardada', async () => {
@@ -82,14 +89,15 @@ for (const [nombre, respuesta] of [
 
 test('la importación confirmada conserva el flujo anterior de éxito y consulta actualizada', async () => {
   const resultado = { ofertasCreadas: 1, ofertasActualizadas: 0, ofertasEliminadas: 0, horariosCreados: 2, cobertura: [], errores: [] };
-  const { estado } = await prepararImportacion({ status: 200, cuerpo: resultado });
+  const { estado, avisos } = await prepararImportacion({ status: 200, cuerpo: resultado });
   assert.deepEqual(estado.resultado, resultado);
   assert.equal(estado.rechazado, false);
   assert.deepEqual(estado.errores, []);
   assert.equal(estado.archivo, null);
   assert.equal(estado.confirmado, false);
   assert.equal(estado.actualizacion, 1);
-  assert.match(estado.mensaje, /Importación completada/);
+  assert.equal(estado.mensaje, '');
+  assert.deepEqual(avisos, ['Importación completada. Los horarios se guardaron correctamente.']);
 });
 
 test('external department selection belongs to the selected career, not a global flag', async () => {

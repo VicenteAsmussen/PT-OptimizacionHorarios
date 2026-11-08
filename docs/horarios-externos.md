@@ -21,6 +21,8 @@ En períodos `-1` son obligatorios los niveles impares, en `-2`, los pares. Se u
 2. Confirma el reemplazo de la carga del departamento para la carrera y período actuales.
 3. Pulsa **Importar horarios** y revisa el resultado.
 
+La confirmación breve de importación aparece en una notificación Sonner, sin duplicarse en la página. Los recuentos de secciones y bloques, la cobertura y los errores por fila permanecen en pantalla. La validación de formato y tamaño aparece junto al archivo. Al cambiar de contexto o salir de la página, se cierra la notificación de esa importación.
+
 Solo se importa en una planificación actual en preparación. El archivo reemplaza la carga: actualiza secciones coincidentes, crea nuevas y elimina las ausentes, también las opcionales. Los horarios quedan sin sala. No cambia el catálogo ni los nombres de profesores, y se ignoran códigos fuera del alcance autorizado.
 
 Si falta una asignatura obligatoria o hay datos inválidos en una fila pertinente, **no se guarda nada**. El resultado marca las filas válidas como **sin guardar** y detalla faltantes y errores por asignatura, fila, columna, valor y motivo. Corrige el archivo y vuelve a enviarlo. Usa **Consultar carga guardada** para revisar lo que ya existe sin importar de nuevo.
@@ -30,6 +32,8 @@ Los bloques reservados pertenecen a la carrera, no al período ni al departament
 Si se pierde la respuesta, consulta la carga guardada antes de reintentar, el servidor pudo haber completado la importación. La pantalla vuelve a consultar los datos al abrirse o cambiar de contexto.
 
 Si falla la consulta de cobertura, se bloquea la selección de archivo y aparece **Reintentar consulta**, con el estado HTTP cuando está disponible. Ante un 404, comprueba la dirección y versión del backend antes de reintentar.
+
+Si la importación se confirmó pero falla esa consulta posterior, el guardado sigue confirmado y se conservan sus recuentos y cobertura del archivo. El fallo de lectura y la opción de reintento permanecen en la página, sin anunciar una importación fallida ni generar otra notificación. La advertencia de respuesta perdida también permanece hasta consultar la carga guardada o iniciar otra selección.
 
 ## API y verificación
 
