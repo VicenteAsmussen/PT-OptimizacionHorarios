@@ -58,6 +58,22 @@ input:disabled {
   outline-offset: 3px;
 }
 
+.salto-contenido {
+  position: fixed;
+  inset-block-start: 0.75rem;
+  inset-inline-start: 0.75rem;
+  z-index: 1000;
+  padding: 0.625rem 1rem;
+  border-radius: 0.25rem;
+  background: var(--color-superficie);
+  color: var(--color-primario);
+  transform: translateY(calc(-100% - 1rem));
+}
+
+.salto-contenido:focus {
+  transform: translateY(0);
+}
+
 h1,
 h2 {
   color: var(--color-primario);
@@ -87,7 +103,7 @@ h2 {
 .sidebar {
   grid-area: sidebar;
   min-width: 0;
-  padding: 1.5rem;
+  padding: 1.5rem 1rem;
   border-right: 1px solid var(--color-sidebar);
   background: var(--color-sidebar);
   color: var(--color-texto-inverso);
@@ -95,18 +111,34 @@ h2 {
 }
 
 .sidebar-title {
-  margin-top: 0;
+  margin: 0 0 1rem;
   font-size: var(--tamano-subtitulo);
   font-weight: var(--peso-subtitulo);
 }
 
+.sidebar-grupo {
+  margin-top: 1.125rem;
+}
+
+.sidebar-grupo-titulo {
+  margin: 0 0 0.375rem;
+  padding-inline: 0.5rem;
+  color: var(--color-texto-inverso);
+  font-size: var(--tamano-secundario);
+  font-weight: var(--peso-secundario);
+}
+
 .sidebar nav a {
+  position: relative;
   display: block;
+  min-height: 2.5rem;
   padding: 0.5rem;
   border-radius: 0.25rem;
   text-decoration: none;
   font-size: var(--tamano-navegacion);
   font-weight: var(--peso-navegacion);
+  line-height: 1.4;
+  touch-action: manipulation;
 }
 
 .sidebar nav a:hover {
@@ -116,21 +148,47 @@ h2 {
 
 .sidebar nav a.enlace-con-icono {
   display: flex;
-  align-items: center;
-  gap: 0.625rem;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.sidebar nav a span:last-child {
+  min-width: 0;
+  overflow-wrap: normal;
 }
 
 .sidebar-icono {
   width: 1.25rem;
   height: 1.25rem;
+  margin-block-start: 0.075rem;
   flex-shrink: 0;
   filter: brightness(0) invert(1);
+}
+
+.sidebar nav a[href="/app/optimizacion"] .sidebar-icono {
+  padding: 0.0625rem;
 }
 
 .sidebar nav a[aria-current="page"] {
   background: var(--color-sidebar-activo);
   color: var(--color-texto-inverso);
   font-weight: var(--peso-navegacion);
+}
+
+.sidebar nav a[aria-current="page"]::before {
+  content: "";
+  position: absolute;
+  inset-block: 0.5rem;
+  inset-inline-start: 0;
+  width: 3px;
+  border-radius: 0.125rem;
+  background: var(--color-blanco);
+}
+
+@media (any-pointer: coarse) {
+  .sidebar nav a {
+    min-height: 2.75rem;
+  }
 }
 
 .app-body {
