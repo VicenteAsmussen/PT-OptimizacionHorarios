@@ -42,7 +42,7 @@ function nodos(elemento) {
 test('state and reset cards render short guidance and four explicit actions, with no scope selector', async () => {
   const Vista = await cargarVista();
   const html = renderToStaticMarkup(React.createElement(Vista, propiedades));
-  assert.equal((html.match(/<section/g) ?? []).length, 2);
+  assert.equal((html.match(/<section/g) ?? []).length, 4);
   assert.equal((html.match(/<select/g) ?? []).length, 1, 'only the state select remains');
   for (const texto of ['Reiniciar ofertas gestionadas', 'Reiniciar ofertas externas', 'Reiniciar horarios gestionados', 'Reiniciar horarios externos']) assert.ok(html.includes(texto));
   assert.doesNotMatch(html, /Alcance del reinicio|Todas las ofertas/);
@@ -160,21 +160,23 @@ test('final flow disables both advanced states with external-only schedules and 
   nodos(crear('publicado')).find(elemento => elemento.type === 'form').props.onSubmit({ preventDefault() {} });
   assert.equal(cambios, 1);
 });
-test('card headers show current state and career badges, with concise schedule-before-offer guidance', async () => {
+test('el contexto distingue el período, la carrera, el estado y la marca actual', async () => {
   const Vista = await cargarVista();
   const elemento = Vista(propiedades);
   const html = renderToStaticMarkup(elemento);
   const elementos = nodos(elemento);
-  const cabeceras = elementos.filter(elemento => elemento.type === 'header');
-  assert.equal(cabeceras.length, 2);
-  assert.match(renderToStaticMarkup(cabeceras[0]), /Estado del período[^]*Estado actual:[^]*Publicado/);
-  assert.match(renderToStaticMarkup(cabeceras[1]), /Reiniciar datos[^]*Carrera:[^]*Career A/);
+  const contexto = elementos.find(elemento => elemento.props['aria-labelledby'] === 'titulo-periodo');
+  assert.ok(contexto);
+  assert.match(renderToStaticMarkup(contexto), /Período 2099-2[^]*Career A/);
+  assert.match(renderToStaticMarkup(contexto), /Estado de planificación: <\/span>Publicado/);
+  assert.match(renderToStaticMarkup(contexto), /No es el actual/);
+  assert.match(html, /Estado de planificación<\/h2>/);
   assert.doesNotMatch(html, /Solo afecta a/);
   assert.match(html, /<ol[^]*Orden de reinicio[^]*Reiniciar horarios[^]*Reiniciar ofertas[^]*<\/ol>/);
-  assert.match(html, /mismo grupo: gestionadas o externas/);
+  assert.match(html, /mismo grupo/);
   assert.match(html, /no se pueden deshacer/);
   const etiquetas = elementos.filter(elemento => elemento.type === 'button' && String(elemento.props.children).startsWith('Reiniciar ')).map(elemento => elemento.props.children);
-  assert.deepEqual(etiquetas, ['Reiniciar horarios gestionados', 'Reiniciar horarios externos', 'Reiniciar ofertas gestionadas', 'Reiniciar ofertas externas']);
+  assert.deepEqual(etiquetas, ['Reiniciar horarios gestionados', 'Reiniciar ofertas gestionadas', 'Reiniciar horarios externos', 'Reiniciar ofertas externas']);
 });
 test('page renders its short description immediately below the title', async () => {
   const Pagina = await cargarVista('./AdministracionPeriodosPage.tsx');
@@ -187,9 +189,10 @@ test('current action works in every state without submitting state form; busy/cu
   for (const estado of ['preparacion', 'propuesta', 'publicado']) for (const actual of [true, false]) for (const bloqueado of [true, false]) {
     const datos = structuredClone(resumenes); Object.assign(datos.todas.planificacion, { estadoPlanificacion: estado, actual });
     const elemento = Vista({ ...propiedades, resumenes: datos, bloqueado, alMarcarActual: () => llamadas++ });
-    const boton = nodos(elemento).find(nodo => nodo.type === 'button' && nodo.props.children === (actual ? 'Es actual' : 'Marcar como actual'));
+    const boton = nodos(elemento).find(nodo => nodo.type === 'button' && nodo.props.children === 'Marcar como actual');
     assert.doesNotMatch(renderToStaticMarkup(elemento), /Puedes marcar este período como actual/);
-    assert.equal(boton.props.type, 'button'); assert.equal(boton.props.disabled, actual || bloqueado);
+    if (actual) { assert.equal(boton, undefined); assert.match(renderToStaticMarkup(elemento), />Actual<\/span>/); continue; }
+    assert.equal(boton.props.type, 'button'); assert.equal(boton.props.disabled, bloqueado);
     const anteriores = llamadas; boton.props.onClick(); assert.equal(llamadas - anteriores, actual || bloqueado ? 0 : 1);
   }
 });
@@ -210,38 +213,56 @@ test('delete keeps irreversible warning and exact confirmation without the long 
   }
 });
 
-test('state current and delete actions share one right-aligned wrapping row outside forms', async () => {
+test('el cambio de estado, la marca actual y la eliminación tienen superficies separadas', async () => {
   const Vista = await cargarVista();
   const elemento = Vista(propiedades); const elementos = nodos(elemento);
   const html = renderToStaticMarkup(elemento);
-  assert.doesNotMatch(html, /<h3>Período actual<\/h3>|<h3>Eliminar período<\/h3>/);
-  const etiquetas = ['Cambiar estado', 'Marcar como actual', 'Eliminar período'];
-  const fila = elementos.find(nodo => nodo.type === 'div' && etiquetas.every(etiqueta =>
-    React.Children.toArray(nodo.props.children).some(hijo => hijo.type === 'button' && hijo.props.children === etiqueta)));
-  assert.ok(fila, 'all three actions must be siblings');
-  const formulario = elementos.find(nodo => nodo.type === 'form');
-  const estado = nodos(fila).find(nodo => nodo.props.children === 'Cambiar estado');
-  assert.equal(estado.props.type, 'submit'); assert.equal(estado.props.form, formulario.props.id);
-  assert.ok(formulario.props.id);
+  const secciones = elementos.filter(nodo => nodo.type === 'section');
+  const superficie = etiqueta => secciones.find(seccion => nodos(seccion).some(nodo => nodo.type === 'button' && nodo.props.children === etiqueta));
+  const contexto = superficie('Marcar como actual');
+  const estado = superficie('Cambiar estado');
+  const eliminacion = superficie('Eliminar período');
+  assert.equal(contexto.props['aria-labelledby'], 'titulo-periodo');
+  assert.equal(estado.props['aria-labelledby'], 'titulo-estado');
+  assert.equal(eliminacion.props['aria-labelledby'], 'titulo-eliminacion');
+  assert.match(html, /class="boton boton--eliminar"[^>]*>Eliminar período/);
+  assert.equal(nodos(estado).find(nodo => nodo.type === 'button').props.type, 'submit');
   for (const formulario of elementos.filter(nodo => nodo.type === 'form')) {
     assert.equal(nodos(formulario).filter(nodo => nodo.type === 'form').length, 1);
     assert.ok(!nodos(formulario).some(nodo => ['Marcar como actual', 'Eliminar período'].includes(nodo.props.children)));
   }
   const css = await readFile(new URL('./AdministracionPeriodos.module.css', import.meta.url), 'utf8');
-  assert.match(css, /\.accionesPeriodo\s*\{[^}]*display:\s*flex[^}]*flex-wrap:\s*wrap[^}]*justify-content:\s*flex-end/);
+  assert.match(css, /\.gruposReinicio\s*\{[^}]*grid-template-columns:\s*repeat\(2,/);
+  assert.match(css, /@media[^]*\.gruposReinicio[^}]*grid-template-columns:\s*minmax\(0, 1fr\)/);
+  assert.match(css, /\.pagina[^}]*\.filtrosCarrera\s*\{[^}]*grid-template-columns:\s*minmax\(0,/);
 });
 
-test('current-period actions follow the preparation notice without a redundant current paragraph', async () => {
+test('la marca actual se muestra una vez y no se mezcla con las condiciones de transición', async () => {
   const Vista = await cargarVista();
   const datos = structuredClone(resumenes); datos.todas.planificacion.actual = true;
   const elemento = Vista({ ...propiedades, resumenes: datos });
   const html = renderToStaticMarkup(elemento);
   assert.doesNotMatch(html, /Este es el período actual de la carrera\./);
-  assert.match(html, /Para volver a Preparación, elimina primero los horarios gestionados\. Los externos pueden conservarse\.<\/p><\/form><div/);
-  const seccion = React.Children.toArray(elemento.props.children).find(nodo => nodo.type === 'section');
-  const hijos = React.Children.toArray(seccion.props.children);
-  const indiceFormulario = hijos.findIndex(nodo => nodo.type === 'form');
-  assert.equal(hijos[indiceFormulario + 1].type, 'div');
-  assert.deepEqual(React.Children.toArray(hijos[indiceFormulario + 1].props.children).map(nodo => nodo.props.children),
-    ['Cambiar estado', 'Es actual', 'Eliminar período']);
+  assert.match(html, /Para volver a Preparación, elimina primero los horarios gestionados\. Los externos pueden conservarse\./);
+  assert.equal((html.match(/>Actual<\/span>/g) ?? []).length, 1);
+  assert.doesNotMatch(html, /Es actual<\/button>/);
+});
+
+test('cada grupo conserva sus acciones y asocia el motivo de bloqueo a su botón', async () => {
+  const Vista = await cargarVista();
+  const datos = structuredClone(resumenes); datos.externas.horarios = 0; datos.externas.ofertas = 0;
+  const elementos = nodos(Vista({ ...propiedades, resumenes: datos }));
+  for (const [alcance, etiquetas] of Object.entries({ gestionadas: ['Reiniciar horarios gestionados', 'Reiniciar ofertas gestionadas'], externas: ['Reiniciar horarios externos', 'Reiniciar ofertas externas'] })) {
+    const grupo = elementos.find(nodo => nodo.props['aria-labelledby'] === `titulo-reinicio-${alcance}`);
+    assert.ok(grupo);
+    assert.deepEqual(nodos(grupo).filter(nodo => nodo.type === 'button').map(nodo => nodo.props.children), etiquetas);
+    for (const boton of nodos(grupo).filter(nodo => nodo.type === 'button')) {
+      const ayuda = elementos.find(nodo => nodo.props.id === boton.props['aria-describedby']);
+      assert.ok(ayuda);
+      if (boton.props.disabled) assert.match(renderToStaticMarkup(ayuda), /Reinicia primero|No hay/);
+    }
+  }
+  const eliminar = elementos.find(nodo => nodo.type === 'button' && nodo.props.children === 'Eliminar período');
+  const motivo = elementos.find(nodo => nodo.props.id === eliminar.props['aria-describedby']);
+  assert.match(renderToStaticMarkup(motivo), /Preparación|ofertas/);
 });

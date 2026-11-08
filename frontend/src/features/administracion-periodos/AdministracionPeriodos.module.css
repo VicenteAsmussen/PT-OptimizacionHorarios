@@ -1,6 +1,8 @@
-.pagina { display: grid; gap: 1.5rem; min-width: 0; overflow-wrap: anywhere; }
+.pagina { display: grid; gap: 1rem; min-width: 0; overflow-wrap: anywhere; }
 .pagina h1, .pagina h2 { margin-top: 0; }
+.pagina > section, .seleccionCreacion > section { padding: 1.25rem; }
 .pagina select { max-width: 40rem; }
+.pagina .filtrosCarrera { grid-template-columns: minmax(0, 32rem); }
 .cabeceraTarjeta { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem 1rem; margin-bottom: 1rem; }
 .cabeceraTarjeta h2 { margin: 0; }
 .distintivo {
@@ -9,13 +11,21 @@
   font-size: var(--tamano-secundario); font-weight: 700; overflow-wrap: anywhere;
 }
 .descripcion { margin: 0 0 1.25rem; }
-.seleccionCreacion { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.5rem; align-items: start; }
+.seleccionCreacion { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; align-items: start; }
 .creacionDeshabilitada { background: var(--color-borde); }
 .creacionDeshabilitada fieldset { opacity: 0.55; }
 .creacion input { max-width: 20rem; }
 .creacion p { margin: 0.75rem 0; }
 .accionesCreacion { align-items: center; }
-.accionesPeriodo { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.75rem; margin-top: 1rem; }
+.contextoPeriodo { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem 1.5rem; }
+.contextoPeriodo h2 { margin: 0; }
+.nombreCarrera { margin: 0.25rem 0 0; color: var(--color-gris-texto); }
+.identidadPeriodo { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; min-width: 0; }
+.contextoPeriodo > .ayuda { flex-basis: 100%; margin: 0; }
+.ayuda { margin: 0.5rem 0 0.75rem; font-size: var(--tamano-secundario); color: var(--color-gris-texto); }
+.pagina .errorCodigo { margin: 0; padding: 0; background: transparent; color: var(--color-alerta-texto); font-size: var(--tamano-secundario); }
+.pagina input[aria-invalid="true"] { border-color: var(--color-alerta-texto); }
+.pagina .estadoLectura { margin: 0; padding: 0.75rem 1rem; border-inline-start: 3px solid var(--color-primario); background: var(--color-azul-fondo); color: var(--color-azul-texto); }
 .selectorPeriodo { position: relative; display: grid; gap: 0.5rem; min-width: 0; }
 .botonPeriodo {
   display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; width: 100%; min-height: 2.75rem;
@@ -34,7 +44,7 @@
 .listaPeriodos li { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; min-height: 2.75rem; padding: 0.5rem; cursor: pointer; }
 .listaPeriodos li:hover, .opcionActiva { outline: 2px solid var(--color-azul-texto); outline-offset: -2px; }
 .listaPeriodos [aria-selected="true"] { font-weight: 700; }
-.notaEstado { margin: 0; }
+.notaEstado { margin: 0; font-size: var(--tamano-secundario); color: var(--color-gris-texto); }
 .pasos { display: flex; flex-wrap: wrap; gap: 0.75rem 1rem; padding: 0; margin: 0 0 0.5rem; list-style: none; }
 .pasos li { display: flex; align-items: center; gap: 0.5rem; font-weight: 700; }
 .numeroPaso {
@@ -42,15 +52,24 @@
   background: var(--color-azul-fondo); color: var(--color-azul-texto); flex-shrink: 0;
 }
 .flechaPaso { color: var(--color-azul-texto); }
-.acciones { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
-.acciones button { min-height: 2.75rem; white-space: normal; }
-.acciones p { margin: 0.5rem 0 0; }
+.gruposReinicio { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+.grupoReinicio { min-width: 0; padding: 1rem; border: 1px solid var(--color-borde); border-radius: 0.375rem; }
+.grupoReinicio h3 { margin: 0 0 0.75rem; font-size: var(--tamano-subtitulo); color: var(--color-azul-texto); }
+.accionReinicio + .accionReinicio { margin-top: 0.75rem; padding-top: 0.75rem; border-top: 1px solid var(--color-borde); }
+.accionReinicio button { width: 100%; min-height: 2.75rem; white-space: normal; }
+.accionReinicio .ayuda { margin: 0.5rem 0 0; }
+.zonaEliminacion { border-inline-start: 3px solid var(--color-alerta-texto); }
+.zonaEliminacion h2 { color: var(--color-alerta-texto); }
 .confirmacion { margin-top: 1rem; padding: 1rem; border: 2px solid var(--color-alerta-texto); border-radius: 0.375rem; }
 .confirmacion h3 { margin: 0; }
 .confirmacion p { margin: 0.25rem 0; }
+.confirmacion input { max-width: 20rem; }
 @media (max-width: 40rem) {
   .seleccionCreacion { grid-template-columns: minmax(0, 1fr); }
-  .acciones { grid-template-columns: minmax(0, 1fr); }
+  .gruposReinicio { grid-template-columns: minmax(0, 1fr); }
+  .contextoPeriodo { align-items: flex-start; }
+  .identidadPeriodo { width: 100%; }
+  .pagina button { max-width: 100%; white-space: normal; }
   .pasos { flex-direction: column; }
   .flechaPaso { display: none; }
 }
