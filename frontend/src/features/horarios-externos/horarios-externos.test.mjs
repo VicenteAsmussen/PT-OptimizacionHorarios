@@ -143,7 +143,7 @@ test('current period is fixed, cannot be changed, and the page uses the requeste
   assert.doesNotMatch(renderToStaticMarkup(sinActual), /2026-1|2027-1/);
   assert.match(pagina, /<h1 id="titulo-horarios-externos">Horarios departamentos externos<\/h1>/);
   const layout = await readFile(new URL('../../components/layout/AppLayout.tsx', import.meta.url), 'utf8');
-  assert.match(layout, />\s*Horarios departamentos externos\s*<\/NavLink>/);
+  assert.match(layout, /<span>Horarios departamentos externos<\/span>/);
 });
 test('coverage failures expose HTTP status instead of hiding missing-route responses', async () => {
   const { mensajeErrorCobertura } = await import('./datos.ts');

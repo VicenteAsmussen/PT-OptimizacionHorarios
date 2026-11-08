@@ -16,6 +16,12 @@ import iconoRetrato from "../../assets/iconos/retrato.svg";
 import iconoDisponibilidad from "../../assets/iconos/Mi-Disponibilidad.svg";
 import iconoMiHorario from "../../assets/iconos/Mi-horario.svg";
 import iconoPanelPrincipal from "../../assets/iconos/panel-principal.svg";
+import iconoAsignaturas from "../../assets/iconos/asignaturas.svg";
+import iconoProfesores from "../../assets/iconos/Profesores.svg";
+import iconoSeguimiento from "../../assets/iconos/Seguimiento-Disponibilidad.svg";
+import iconoHorariosExternos from "../../assets/iconos/Horario-Departamentos-Externos.svg";
+import iconoModelo from "../../assets/iconos/modelo-optimizacion.svg";
+import iconoGestionHorario from "../../assets/iconos/gestion-horario.svg";
 
 const consultaMovil = "(max-width: 48rem)";
 
@@ -110,35 +116,59 @@ export default function AppLayout() {
           <img className="sidebar-icono" src={iconoPanelPrincipal} alt="" aria-hidden="true" width="20" height="20" />
           <span>Panel principal</span>
         </NavLink>
-        {puedeGestionarAsignaturas(usuario?.rol) && (
-          <NavLink to="/app/asignaturas" onClick={() => setNavegacionAbierta(false)}>
-            Asignaturas
-          </NavLink>
+        {(puedeGestionarAsignaturas(usuario?.rol) || puedeGestionarProfesores(usuario?.rol)) && (
+          <section className="sidebar-grupo" aria-labelledby="titulo-catalogos">
+            <h2 className="sidebar-grupo-titulo" id="titulo-catalogos">Catálogos</h2>
+            {puedeGestionarAsignaturas(usuario?.rol) && (
+              <NavLink to="/app/asignaturas" className="enlace-con-icono" onClick={() => setNavegacionAbierta(false)}>
+                <img className="sidebar-icono" src={iconoAsignaturas} alt="" aria-hidden="true" width="20" height="20" />
+                <span>Asignaturas</span>
+              </NavLink>
+            )}
+            {puedeGestionarProfesores(usuario?.rol) && (
+              <NavLink to="/app/profesores" className="enlace-con-icono" onClick={() => setNavegacionAbierta(false)}>
+                <img className="sidebar-icono" src={iconoProfesores} alt="" aria-hidden="true" width="20" height="20" />
+                <span>Profesores</span>
+              </NavLink>
+            )}
+          </section>
         )}
-        {puedeAdministrarPeriodos(usuario?.rol) && (
-          <NavLink to="/app/administracion-periodos" onClick={() => setNavegacionAbierta(false)}>
-            Administración de períodos
-          </NavLink>
-        )}
-        {puedeGestionarProfesores(usuario?.rol) && (
-          <NavLink to="/app/profesores" onClick={() => setNavegacionAbierta(false)}>
-            Profesores
-          </NavLink>
-        )}
-        {puedeGestionarHorariosExternos(usuario?.rol) && (
-          <NavLink to="/app/horarios-externos" onClick={() => setNavegacionAbierta(false)}>
-            Horarios departamentos externos
-          </NavLink>
-        )}
-        {puedeOptimizar(usuario?.rol) && (
-          <NavLink to="/app/optimizacion" onClick={() => setNavegacionAbierta(false)}>
-            Modelo de optimización
-          </NavLink>
-        )}
-        {puedeGestionarResultados(usuario?.rol) && (
-          <NavLink to="/app/resultados-horarios" onClick={() => setNavegacionAbierta(false)}>
-            Gestión del horario
-          </NavLink>
+        {(puedeAdministrarPeriodos(usuario?.rol) || puedeVerSeguimiento(usuario?.rol) ||
+          puedeGestionarHorariosExternos(usuario?.rol) || puedeOptimizar(usuario?.rol) ||
+          puedeGestionarResultados(usuario?.rol)) && (
+          <section className="sidebar-grupo" aria-labelledby="titulo-planificacion">
+            <h2 className="sidebar-grupo-titulo" id="titulo-planificacion">Planificación</h2>
+            {puedeAdministrarPeriodos(usuario?.rol) && (
+              <NavLink to="/app/administracion-periodos" className="enlace-con-icono" onClick={() => setNavegacionAbierta(false)}>
+                <span className="sidebar-icono" aria-hidden="true" />
+                <span>Administración de períodos</span>
+              </NavLink>
+            )}
+            {puedeVerSeguimiento(usuario?.rol) && (
+              <NavLink to="/app/seguimiento-disponibilidad" className="enlace-con-icono" onClick={() => setNavegacionAbierta(false)}>
+                <img className="sidebar-icono" src={iconoSeguimiento} alt="" aria-hidden="true" width="20" height="20" />
+                <span>Seguimiento de disponibilidad</span>
+              </NavLink>
+            )}
+            {puedeGestionarHorariosExternos(usuario?.rol) && (
+              <NavLink to="/app/horarios-externos" className="enlace-con-icono" onClick={() => setNavegacionAbierta(false)}>
+                <img className="sidebar-icono" src={iconoHorariosExternos} alt="" aria-hidden="true" width="20" height="20" />
+                <span>Horarios departamentos externos</span>
+              </NavLink>
+            )}
+            {puedeOptimizar(usuario?.rol) && (
+              <NavLink to="/app/optimizacion" className="enlace-con-icono" onClick={() => setNavegacionAbierta(false)}>
+                <img className="sidebar-icono" src={iconoModelo} alt="" aria-hidden="true" width="20" height="20" />
+                <span>Modelo de optimización</span>
+              </NavLink>
+            )}
+            {puedeGestionarResultados(usuario?.rol) && (
+              <NavLink to="/app/resultados-horarios" className="enlace-con-icono" onClick={() => setNavegacionAbierta(false)}>
+                <img className="sidebar-icono" src={iconoGestionHorario} alt="" aria-hidden="true" width="20" height="20" />
+                <span>Gestión del horario</span>
+              </NavLink>
+            )}
+          </section>
         )}
         {puedeRegistrarDisponibilidad(usuario?.rol) && (
           <NavLink to="/app/disponibilidad" className="enlace-con-icono" onClick={() => setNavegacionAbierta(false)}>
@@ -152,17 +182,13 @@ export default function AppLayout() {
             <span>Mi horario</span>
           </NavLink>
         )}
-        {puedeVerSeguimiento(usuario?.rol) && (
-          <NavLink to="/app/seguimiento-disponibilidad" onClick={() => setNavegacionAbierta(false)}>
-            Seguimiento de disponibilidad
-          </NavLink>
-        )}
       </nav>
     </>
   );
 
   return (
     <div className="app-layout">
+      <a className="salto-contenido" href="#contenido-principal">Saltar al contenido</a>
       <header className="topbar">
         <div className="topbar-institucion">
           <button
@@ -240,7 +266,7 @@ export default function AppLayout() {
         <aside className="sidebar" ref={navegacionEscritorio}>{navegacion}</aside>
       )}
       <div className="app-body">
-        <main className="main-content"><Outlet /></main>
+        <main id="contenido-principal" className="main-content" tabIndex={-1}><Outlet /></main>
       </div>
     </div>
   );
