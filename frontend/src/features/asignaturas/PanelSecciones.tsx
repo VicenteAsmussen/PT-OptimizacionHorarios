@@ -69,7 +69,7 @@ function ContenidoSecciones({ asignatura, semestre, alCerrar, alCambiarOfertas }
   const [asignaciones, setAsignaciones] = useState<Asignaciones>([]);
   const solicitud = useRef(0);
   const contenido = useRef<HTMLHeadingElement>(null);
-  const { ocupado, error, ejecutar } = useMutacion();
+  const { ocupado, error, ejecutar, limpiarError } = useMutacion();
   const cargar = useCallback(async () => {
     const numero = ++solicitud.current;
     setCargando(true);
@@ -104,6 +104,7 @@ function ContenidoSecciones({ asignatura, semestre, alCerrar, alCambiarOfertas }
   function abrir(nueva: Accion) {
     if (!vigente.current || !puedeEditar || ocupado) return;
     if (nueva.tipo === 'eliminar' && nueva.oferta.horarios?.length) return;
+    limpiarError();
     setAccion(nueva);
     setSeccion(String(nueva.tipo === 'crear' ? libres[0] : nueva.oferta.seccion));
     setCupos(String(nueva.tipo === 'crear' ? 0 : nueva.oferta.cupos));
@@ -121,15 +122,17 @@ function ContenidoSecciones({ asignatura, semestre, alCerrar, alCambiarOfertas }
     evento.preventDefault();
     if (!vigente.current || !puedeEditar || ocupado || !accion || !datos) return;
     if (accion.tipo === 'eliminar' && accion.oferta.horarios?.length) return;
+    let payload: ReturnType<typeof prepararOferta>;
     void ejecutar(async () => {
       if (accion.tipo === 'eliminar') {
         await asignaturasApi.eliminarOferta(accion.oferta.id);
       } else {
-        const payload = prepararOferta({ seccion, cupos, asignaciones }, datos.profesores, libres);
         if (accion.tipo === 'crear') await asignaturasApi.crearOferta(asignatura.codigo, semestre.id, payload);
         else await asignaturasApi.editarOferta(accion.oferta.id, payload);
       }
-    }, completar);
+    }, completar, () => {
+      if (accion.tipo !== 'eliminar') payload = prepararOferta({ seccion, cupos, asignaciones }, datos.profesores, libres);
+    });
   }
   return <PanelAsignatura titulo={`Secciones · ${asignatura.codigo}`} ocupado={ocupado} alCerrar={alCerrar}>
     <div className={estilos.contextoPanel}>
@@ -164,7 +167,7 @@ function ContenidoSecciones({ asignatura, semestre, alCerrar, alCambiarOfertas }
         {Boolean(o.horarios?.length) && <p id={`motivo-horarios-${o.id}`}>No se puede eliminar: tiene horarios asociados.</p>}
       </li>)}</ul>
     </>}
-    {datos && accion && <form onSubmit={enviar} className={accion.tipo !== 'eliminar' ? estilos.tarjetaSeccion : undefined}>
+    {datos && accion && <form onSubmit={enviar} onChange={limpiarError} className={accion.tipo !== 'eliminar' ? estilos.tarjetaSeccion : undefined}>
       <h3 ref={contenido} tabIndex={-1}>{accion.tipo === 'crear' ? 'Agregar sección'
         : accion.tipo === 'editar' ? `Editar sección ${accion.oferta.seccion}` : `Eliminar sección ${accion.oferta.seccion}`}</h3>
       <fieldset disabled={ocupado || !puedeEditar} className={estilos.campos}>
@@ -181,10 +184,11 @@ function ContenidoSecciones({ asignatura, semestre, alCerrar, alCambiarOfertas }
             Profesores de otro departamento: {profesoresNoElegibles.join(', ')}. Reemplaza esas asignaciones o limpia sus campos antes de guardar.
           </p>}
           <EditorAsignaciones key={`${accion.tipo}-${accion.tipo === 'editar' ? accion.oferta.id : 'nueva'}`}
-            asignatura={asignatura} profesores={datos.profesores} asignaciones={asignaciones} alCambiar={setAsignaciones} />
+            asignatura={asignatura} profesores={datos.profesores} asignaciones={asignaciones}
+            alCambiar={valor => { limpiarError(); setAsignaciones(valor); }} />
         </>}
         <div className={`${estilos.acciones} ${estilos.pieFormulario}`}>
-          <button type="button" className={`boton boton--gris ${estilos.accionSecundaria}`} onClick={() => setAccion(null)}>Cancelar</button>
+          <button type="button" className={`boton boton--gris ${estilos.accionSecundaria}`} onClick={() => { limpiarError(); setAccion(null); }}>Cancelar</button>
           <button type="submit" className={`boton ${accion.tipo === 'eliminar' ? 'boton--eliminar' : estilos.accionPrincipal}`}>
             {ocupado ? 'Guardando…' : accion.tipo === 'eliminar' ? 'Confirmar eliminación' : 'Guardar sección'}
           </button>

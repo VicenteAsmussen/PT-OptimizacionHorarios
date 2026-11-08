@@ -91,6 +91,58 @@ test('preparación muestra revisión, sugerencias y confirma parámetros antes d
   assert.equal(posts(), 1); assert.match(vista.texto(), /En ejecución/); vista.salir();
 });
 
+test('el fallo de inicio se conserva una sola vez en seguimiento, con recuperación si la respuesta es incierta', async () => {
+  for (const status of [409, 500]) {
+    const mensaje = status === 409 ? 'Las entradas cambiaron, revisa la preparación.' : 'No se pudo confirmar la respuesta del modelo.';
+    let solicitudes = 0;
+    const { vista, seguimiento } = await pagina({ iniciar: async () => {
+      solicitudes++;
+      throw Object.assign(new Error(mensaje), { status });
+    } });
+    try {
+      vista.nodos().find(n => n.type === 'input' && n.props.type === 'checkbox').props.onChange({ target: { checked: true } });
+      await vista.asentar();
+      vista.nodos().find(n => n.type === 'form').props.onSubmit({ preventDefault() {} });
+      await vista.asentar();
+      const alertas = vista.nodos().filter(n => n.props.role === 'alert' && texto(n).includes(mensaje));
+      assert.equal(alertas.length, 1, 'el error remoto no se repite en recursos y seguimiento');
+      assert.equal(solicitudes, 1);
+      assert.equal(seguimiento.estado()[2].error, mensaje);
+      assert.equal(seguimiento.estado()[2].incierta, status === 500);
+      assert.ok(vista.boton('Actualizar preparación y seguimiento'));
+      assert.equal(Boolean(vista.boton('Reenviar la misma solicitud')), status === 500);
+      if (status === 500) assert.match(vista.texto(), /se conservarán la misma clave y los parámetros originales/);
+      vista.dibujar();
+      assert.equal(solicitudes, 1, 'dibujar no reenvía la solicitud');
+    } finally { vista.salir(); }
+  }
+});
+
+test('un fallo local previo al inicio permanece junto al formulario sin enviarse al servidor', async () => {
+  let solicitudes = 0;
+  const seguimiento = crearSeguimiento({ ultima: async () => null, iniciar: async () => { solicitudes++; } }, {
+    getItem: () => null,
+    setItem: () => { throw new Error('Almacenamiento no disponible'); },
+  }, 'cuenta');
+  let vista;
+  const cancelar = seguimiento.suscribir(() => vista?.dibujar());
+  vista = await montar('./OptimizacionPage.tsx', 'PreparacionModelo', {
+    useOptimizacion: () => ({ seguimiento, filas: seguimiento.estado() }),
+    optimizacionApi: { preparar: async () => preparar() },
+  }, { id: 2 });
+  try {
+    vista.nodos().find(n => n.type === 'input' && n.props.type === 'checkbox').props.onChange({ target: { checked: true } });
+    await vista.asentar();
+    vista.nodos().find(n => n.type === 'form').props.onSubmit({ preventDefault() {} });
+    await vista.asentar();
+    assert.equal(solicitudes, 0);
+    const alertas = vista.nodos().filter(n => n.props.role === 'alert');
+    assert.equal(alertas.length, 1);
+    assert.match(texto(alertas[0]), /Habilita el almacenamiento de sesión/);
+    assert.equal(seguimiento.estado()[2].error, '');
+  } finally { cancelar(); vista.salir(); }
+});
+
 test('reenvía la solicitud persistida tras recarga aunque falle la preparación', async () => {
   const almacen = memoria(); let solicitudOriginal; const enviadas = [];
   const anterior = crearSeguimiento({ iniciar: async (_id, datos) => { solicitudOriginal = datos; throw new Error('Respuesta perdida'); } }, almacen, 'cuenta');

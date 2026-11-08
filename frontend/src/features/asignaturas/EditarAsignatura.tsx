@@ -13,16 +13,17 @@ export default function EditarAsignatura({ asignatura, departamentos, alCerrar, 
   const [departamentoId, setDepartamentoId] = useState(asignatura.departamentoId);
   const [semestreMalla, setSemestreMalla] = useState(asignatura.semestreMalla);
   const [esCritica, setEsCritica] = useState(asignatura.esCritica);
-  const { ocupado, error, ejecutar } = useMutacion();
+  const { ocupado, error, ejecutar, limpiarError } = useMutacion();
   function enviar(evento: FormEvent) {
     evento.preventDefault();
     if (soloLectura) return;
     void ejecutar(async () => {
+      await asignaturasApi.editar(asignatura.codigo, { nombre: nombre.trim(), departamentoId, semestreMalla, esCritica });
+    }, alCompletar, () => {
       if (!nombre.trim()) throw new Error('Ingresa el nombre de la asignatura.');
       if (!departamentos.some(d => d.id === departamentoId)) throw new Error('Selecciona un departamento válido.');
       if (!Number.isInteger(semestreMalla) || semestreMalla < 1 || semestreMalla > 14) throw new Error('El semestre de malla debe estar entre 1 y 14.');
-      await asignaturasApi.editar(asignatura.codigo, { nombre: nombre.trim(), departamentoId, semestreMalla, esCritica });
-    }, alCompletar);
+    });
   }
   return <PanelAsignatura titulo={soloLectura ? 'Ver asignatura' : 'Editar asignatura'} ocupado={ocupado} alCerrar={alCerrar}>
     {soloLectura ? <section className={estilos.identidad} aria-label="Identificación de la asignatura">
@@ -40,7 +41,7 @@ export default function EditarAsignatura({ asignatura, departamentos, alCerrar, 
         <dt>{tipo.tipoHora.tipo}</dt><dd>{tipo.horas} h</dd>
       </div>)}</dl> : <p>Sin tipos de hora registrados.</p>}
     </section>
-    {!soloLectura && <form onSubmit={enviar}>
+    {!soloLectura && <form onSubmit={enviar} onChange={limpiarError}>
       <fieldset disabled={ocupado} className={`${estilos.campos} ${estilos.camposAsignatura}`}>
         <label className={estilos.campoCompleto}>Nombre<input required value={nombre} onChange={e => setNombre(e.target.value)} /></label>
         <label className={estilos.campoCompleto}>Departamento<select required value={departamentoId} onChange={e => setDepartamentoId(Number(e.target.value))}>

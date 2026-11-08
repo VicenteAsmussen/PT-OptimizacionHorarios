@@ -16,6 +16,26 @@ Solo se editan planificaciones actuales en `preparacion`. Se conserva el alcance
 
 Las asignaciones anteriores no se eliminan automáticamente. Si una sección conserva profesores de otro departamento, al editarla se muestran sus nombres en un aviso: reemplaza esas asignaciones o limpia sus campos antes de guardar, incluso si solo cambias los cupos.
 
+En la edición de asignaturas y la gestión de secciones, las validaciones se muestran junto al formulario. Las confirmaciones breves y los fallos de guardado se anuncian solo mediante Sonner, sin duplicarlos en el panel. Un nuevo intento reemplaza el aviso anterior y cerrar el panel retira sus fallos. La confirmación permanece brevemente aunque guardar cierre el panel.
+
+Cancelar una sección o cambiar sus datos retira los errores del intento anterior. La selección de profesor también limpia la validación anterior, aunque se realice con un botón en lugar de escribir en el campo.
+
+La aplicación mantiene un único Toaster global. Su contenedor acompaña al diálogo modal abierto y vuelve al documento al cerrarlo, sin reiniciar los avisos. Así las notificaciones no quedan detrás del fondo modal ni fuera de su interacción con teclado.
+
+Si el guardado se confirma pero falla la recarga de secciones, el panel conserva el error y aclara que los cambios ya se guardaron. **Reintentar carga** actualiza la lista sin repetir el guardado.
+
+## Verificar las notificaciones en navegador
+
+Desde `frontend`, con las dependencias instaladas y Edge o Chromium disponible:
+
+```powershell
+node --experimental-strip-types --experimental-transform-types --test src/components/notificaciones/navegador.test.mjs
+```
+
+La prueba abre un perfil temporal nuevo y un servidor exclusivo en loopback, sin iniciar el backend ni acceder a una base de datos. Usa el formulario y Sonner reales con una respuesta de guardado simulada. Comprueba el diálogo nativo a 390 px, la visibilidad mediante hit-test, el árbol accesible, el cierre con Tab y Espacio, la validación local y la conservación del aviso al cerrar y reabrir el panel. Los procesos y el perfil temporal se retiran al terminar.
+
+Si el navegador no está en una ubicación reconocida, configura `NAVEGADOR_PRUEBAS` con la ruta de su ejecutable. Sin navegador instalado se informa una prueba omitida, no una comprobación aprobada. `OPENCODE_TMPDIR` permite elegir la carpeta temporal, de lo contrario se usa la del sistema. Esta prueba no demuestra anuncios de NVDA o Narrador ni reemplaza la revisión manual con esos lectores.
+
 ## Datos de la API
 
 Al crear o actualizar una oferta, usa `asignaciones` en lugar del antiguo `profesorId`:

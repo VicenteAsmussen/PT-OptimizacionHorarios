@@ -16,7 +16,7 @@ async function vista({ seleccionado = 2, resultado = null, rechazado = false, de
   const fuente = await readFile(new URL('./HorariosExternosPage.tsx', import.meta.url), 'utf8');
   const componente = fuente.slice(fuente.indexOf('function PaginaImportacion()'));
   const valores = [{ planificaciones: [planificacion], departamentos: [departamento] }, '', 0, 7,
-    seleccionado, cobertura, '', null, false, false, resultado, [], '', rechazado, 0];
+    seleccionado, cobertura, '', null, false, false, resultado, [], '', rechazado, 0, ''];
   let indice = 0;
   const dependencias = { React, useState: () => [valores[indice++], () => {}], useEffect() {},
     useMemo: calcular => calcular(), useRef: valor => ({ current: valor }),
