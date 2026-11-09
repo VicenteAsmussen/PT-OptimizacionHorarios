@@ -87,7 +87,7 @@ function PreparacionModelo({ id }: { id: number }) {
       .finally(() => { if (actual) setCargando(false); });
     void seguimiento.actualizar(id);
     return () => { actual = false; controlador.abort(); };
-  }, [id, intento, seguimiento, activa]);
+  }, [id, intento, seguimiento, activa, ejecucion?.id]);
   const bloqueado = activa || estado?.enviando || estado?.incierta;
   async function iniciar() {
     if (activa || estado?.enviando) return;

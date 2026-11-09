@@ -58,6 +58,20 @@ describe.skipIf(!habilitado)("Ejecuciones en PostgreSQL aislado", () => {
     expect(await cliente`select id from ejecuciones_optimizacion`).toHaveLength(1);
     await expect(iniciar("peticion-distinta")).rejects.toMatchObject({ statusCode: 409 });
   });
+  it("claves distintas simultáneas y recursos incompatibles conservan un único intento", async () => {
+    const respuestas = await Promise.allSettled([iniciar("clave-paralela-uno"), iniciar("clave-paralela-dos")]);
+    const aceptadas = respuestas.flatMap(respuesta => respuesta.status === "fulfilled" ? [respuesta.value] : []);
+    const rechazadas = respuestas.flatMap(respuesta => respuesta.status === "rejected" ? [respuesta.reason] : []);
+    expect(aceptadas).toHaveLength(1); expect(rechazadas).toHaveLength(1);
+    expect(rechazadas[0]).toMatchObject({ statusCode: 409 });
+    const guardadas = await cliente`select * from ejecuciones_optimizacion order by id`;
+    expect(guardadas).toHaveLength(1);
+    const solicitud = parametros(aceptadas[0]!.ejecucion.claveIdempotencia);
+    solicitud.recursos[0]!.cantidad = 2;
+    await expect(repositorio.iniciar(1, solicitud, propietario, "prueba-aislada", captura => ({ revision: captura.revision })))
+      .rejects.toMatchObject({ statusCode: 409 });
+    expect(await cliente`select * from ejecuciones_optimizacion order by id`).toEqual(guardadas);
+  });
   it("bloquea ediciones durante cálculo sin modificar horarios ni publicados", async () => {
     const anterior = await estadoProtegido();
     await iniciar();
@@ -102,5 +116,85 @@ describe.skipIf(!habilitado)("Ejecuciones en PostgreSQL aislado", () => {
     await expect(repositorio.aplicar(ejecucion.id, propietario, {}, () => { throw new Error("Salida incompleta"); })).rejects.toThrow("Salida incompleta");
     await repositorio.terminar(ejecucion.id, propietario, "carga_incompleta", {}, { faltantes: [{ asignatura: "INT", seccion: 1, componente: "Teórica", bloques: 2 }] });
     expect(await estadoProtegido()).toEqual(anterior);
+  });
+  it("conserva el error hasta aceptar otro intento y solo retiene la ejecución actual del período", async () => {
+    const anterior = await estadoProtegido();
+    const { ejecucion: fallida } = await iniciar();
+    const diagnostico = { codigo: "error", mensaje: "El modelo no pudo completar el cálculo." };
+    await repositorio.terminar(fallida.id, propietario, "error", null, diagnostico);
+    expect(await repositorio.ultima(1)).toMatchObject({ id: fallida.id, estado: "error", diagnostico });
+    expect((await iniciar()).ejecucion.id).toBe(fallida.id);
+    await expect(repositorio.iniciar(1, parametros("entrada-invalida"), propietario, "prueba-aislada", () => {
+      throw new Error("Recursos inválidos");
+    })).rejects.toThrow("Recursos inválidos");
+    expect((await repositorio.ultima(1))?.id).toBe(fallida.id);
+    const copia = randomUUID();
+    await cliente`insert into ejecuciones_optimizacion select ${copia},2,clave_idempotencia,revision_solicitud,revision_entrada,version_modelo,propietario,estado,entrada,parametros,resultado,diagnostico,iniciada_en,finalizada_en,vigente_hasta from ejecuciones_optimizacion where id=${fallida.id}`;
+    const respuestas = await Promise.all([iniciar("nuevo-intento"), iniciar("nuevo-intento")]);
+    expect(respuestas[0].ejecucion.id).not.toBe(fallida.id);
+    expect(respuestas[0].ejecucion.id).toBe(respuestas[1].ejecucion.id);
+    expect(respuestas.filter(respuesta => respuesta.nueva)).toHaveLength(1);
+    expect(await cliente`select id from ejecuciones_optimizacion where planificacion_semestre_id=1`).toHaveLength(1);
+    expect((await repositorio.ultima(2))?.id).toBe(copia);
+    await expect(repositorio.consultar(fallida.id)).rejects.toMatchObject({ statusCode: 404 });
+    expect(await estadoProtegido()).toEqual(anterior);
+  });
+  it("el reinicio gestionado borra resultado e intentos anteriores, conserva externos y permite una nueva ejecución", async () => {
+    const anteriores = await cliente`select * from horarios_asignaturas order by id`;
+    const { ejecucion } = await iniciar();
+    const asignaciones = [1, 2].map(bloqueId => ({ ofertaId: 1, tipoHoraId: 1, bloqueId, categoriaId: "AA-Sala-90" }));
+    expect(await repositorio.aplicar(ejecucion.id, propietario, { completa: true, asignaciones }, () => asignaciones.map(({ categoriaId, ...horario }) => ({ ...horario, categoriaOptimizacionId: categoriaId })))).toBe(true);
+    const antigua = randomUUID(); const otroPeriodo = randomUUID();
+    for (const [id, periodo] of [[antigua, 1], [otroPeriodo, 2]] as const) {
+      await cliente`insert into ejecuciones_optimizacion select ${id},${periodo},${id},revision_solicitud,revision_entrada,version_modelo,propietario,'error',entrada,parametros,null,diagnostico,iniciada_en,finalizada_en,vigente_hasta from ejecuciones_optimizacion where id=${ejecucion.id}`;
+    }
+    const resumen = await administracion.resumen(1, "gestionadas");
+    await administracion.reiniciar(1, { objetivo: "horarios", alcance: "gestionadas", confirmacion: "2099-2", huella: resumen.huella });
+    expect(await repositorio.ultima(1)).toBeNull();
+    expect((await repositorio.ultima(2))?.id).toBe(otroPeriodo);
+    expect(await cliente`select * from horarios_asignaturas order by id`).toEqual(anteriores);
+    expect(await cliente`select * from ofertas_asignaturas`).toHaveLength(3);
+    expect(await cliente`select * from oferta_tipo_hora`).toHaveLength(3);
+    await administracion.cambiarEstado(1, { estadoAnterior: "propuesta", estadoPlanificacion: "preparacion" });
+    const nueva = await iniciar("despues-del-reinicio");
+    expect(nueva.ejecucion.id).not.toBe(ejecucion.id);
+    expect(await cliente`select id from ejecuciones_optimizacion where planificacion_semestre_id=1`).toHaveLength(1);
+  });
+  it("el reinicio gestionado limpia el fallo sin horarios y el externo no elimina la ejecución", async () => {
+    const { ejecucion } = await iniciar();
+    await repositorio.terminar(ejecucion.id, propietario, "error", null, { mensaje: "Error de cálculo" });
+    const externo = await administracion.resumen(1, "externas");
+    await administracion.reiniciar(1, { objetivo: "horarios", alcance: "externas", confirmacion: "2099-2", huella: externo.huella });
+    expect((await repositorio.ultima(1))?.id).toBe(ejecucion.id);
+    const resumen = await administracion.resumen(1, "gestionadas");
+    expect(resumen.horarios).toBe(0);
+    await administracion.reiniciar(1, { objetivo: "horarios", alcance: "gestionadas", confirmacion: "2099-2", huella: resumen.huella });
+    expect(await repositorio.ultima(1)).toBeNull();
+  });
+  it.each(["inicio", "reinicio"])("un fallo de escritura durante %s conserva íntegro el intento previo y sus horarios", async paso => {
+    const { ejecucion } = await iniciar();
+    if (paso === "inicio") {
+      await repositorio.terminar(ejecucion.id, propietario, "error", null, { mensaje: "Error conservado" });
+    } else {
+      const asignaciones = [1, 2].map(bloqueId => ({ ofertaId: 1, tipoHoraId: 1, bloqueId, categoriaOptimizacionId: "AA-Sala-90" }));
+      expect(await repositorio.aplicar(ejecucion.id, propietario, {}, () => asignaciones)).toBe(true);
+    }
+    const anterior = await estadoProtegido();
+    const intentos = await cliente`select * from ejecuciones_optimizacion order by id`;
+    const resumen = await administracion.resumen(1, "gestionadas");
+    // El fallo se inyecta solo en esta base sintética, después de eliminar los datos previos.
+    await cliente.unsafe("CREATE FUNCTION fallo_retencion_aislado() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'Fallo aislado de escritura'; END $$");
+    try {
+      const evento = paso === "inicio" ? "INSERT" : "DELETE";
+      await cliente.unsafe(`CREATE TRIGGER fallo_retencion_aislado BEFORE ${evento} ON ejecuciones_optimizacion FOR EACH ROW EXECUTE FUNCTION fallo_retencion_aislado()`);
+      const operacion = paso === "inicio" ? iniciar("nuevo-intento-con-fallo")
+        : administracion.reiniciar(1, { objetivo: "horarios", alcance: "gestionadas", confirmacion: "2099-2", huella: resumen.huella });
+      await expect(operacion).rejects.toThrow();
+      expect(await estadoProtegido()).toEqual(anterior);
+      expect(await cliente`select * from ejecuciones_optimizacion order by id`).toEqual(intentos);
+    } finally {
+      await cliente.unsafe("DROP TRIGGER IF EXISTS fallo_retencion_aislado ON ejecuciones_optimizacion");
+      await cliente.unsafe("DROP FUNCTION fallo_retencion_aislado()");
+    }
   });
 });

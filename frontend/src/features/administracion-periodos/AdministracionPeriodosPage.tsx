@@ -250,7 +250,7 @@ function PanelPeriodo({ planificacion, bloqueado, alIniciar, alTerminar, alActua
     if (!puedeReiniciar(accion, resumen) || !confirmarReinicio(resumen, planificacion.id, accion.alcance, confirmacion)) return;
     void ejecutar(async () => {
       const resultado = await servicio.reiniciar(planificacion.id, { alcance: accion.alcance, objetivo: accion.objetivo, confirmacion, huella: resumen.huella });
-      return `Reinicio completado: ${resultado.ofertas} ofertas, ${resultado.asignaciones} asignaciones y ${resultado.horarios} bloques eliminados.`;
+      return `Reinicio completado: ${resultado.ofertas} ofertas, ${resultado.asignaciones} asignaciones y ${resultado.horarios} bloques eliminados.${accion.objetivo === 'horarios' && accion.alcance === 'gestionadas' && (resumen.ejecuciones ?? 0) > 0 ? ' Se eliminaron los registros de ejecución del modelo.' : ''}`;
     });
   }
   function cambiarEstado() {

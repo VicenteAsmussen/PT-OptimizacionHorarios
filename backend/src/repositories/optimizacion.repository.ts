@@ -91,6 +91,8 @@ export const optimizacionRepository = {
       exigirInicioOptimizacion(captura.planificacion, captura.horariosGestionados);
       await exigirSinEjecucionActiva(tx, [id]);
       const entrada = adaptar(captura);
+      // El intento anterior se conserva si la nueva solicitud no supera la preparación.
+      await tx.delete(ejecucionesOptimizacion).where(eq(ejecucionesOptimizacion.planificacionSemestreId, id));
       const [ejecucion] = await tx.insert(ejecucionesOptimizacion).values({ id: randomUUID(), planificacionSemestreId: id,
         claveIdempotencia: parametros.claveIdempotencia, revisionSolicitud, revisionEntrada: captura.revision, versionModelo,
         propietario, estado: "en_ejecucion", entrada, parametros: { recursos: parametros.recursos, limiteSolverSegundos: 300 },
@@ -108,12 +110,13 @@ export const optimizacionRepository = {
     return ejecucion.ejecucion;
   },
   async ultima(id: number, alcance?: AlcanceCarrera) {
+    await recuperarEjecucionesVencidas(db);
     const planificacion = await db.query.planificacionesSemestres.findFirst({ where: eq(planificacionesSemestres.id, id) });
     if (!planificacion) throw new NotFoundError("Planificación no encontrada.");
     if (alcance && alcance.carreraId !== planificacion.carreraId) throw new ForbiddenError("La planificación no pertenece a su carrera.");
-    const [ultima] = await db.select({ id: ejecucionesOptimizacion.id }).from(ejecucionesOptimizacion)
+    const [ultima] = await db.select().from(ejecucionesOptimizacion)
       .where(eq(ejecucionesOptimizacion.planificacionSemestreId, id)).orderBy(desc(ejecucionesOptimizacion.iniciadaEn), desc(ejecucionesOptimizacion.id)).limit(1);
-    return ultima ? this.consultar(ultima.id, alcance) : null;
+    return ultima ?? null;
   },
   async renovar(id: string, propietario: string) {
     const filas = await db.update(ejecucionesOptimizacion).set({ vigenteHasta: sql`now() + interval '120 seconds'` })

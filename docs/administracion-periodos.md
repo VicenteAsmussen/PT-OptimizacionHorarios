@@ -44,7 +44,7 @@ Después del contexto y del estado de planificación aparece **Reiniciar datos**
 
 | Operación | Se elimina | Se conserva |
 | --- | --- | --- |
-| Reiniciar horarios gestionados | Bloques de horarios gestionados y sus asociaciones de salas | Todas las secciones, las asignaciones docentes y los horarios externos |
+| Reiniciar horarios gestionados | Bloques de horarios gestionados, sus asociaciones de salas y registros de ejecución del modelo de esa planificación | Todas las secciones, las asignaciones docentes y los horarios externos |
 | Reiniciar horarios externos | Bloques de horarios externos y sus asociaciones de salas | Todas las secciones, las asignaciones docentes y los horarios gestionados |
 | Reiniciar ofertas gestionadas | Secciones y asignaciones docentes gestionadas, solo después de reiniciar sus horarios | Ofertas y horarios externos, período, catálogos y disponibilidad docente |
 | Reiniciar ofertas externas | Secciones y asignaciones docentes externas, solo después de reiniciar sus horarios | Ofertas y horarios gestionados, período, catálogos y disponibilidad docente |
@@ -52,6 +52,8 @@ Después del contexto y del estado de planificación aparece **Reiniciar datos**
 El alcance gestionado corresponde a `carrera_departamento.es_gestionado=true` para la carrera seleccionada. El alcance externo exige una relación explícita con valor `false`, los departamentos sin relación no se consideran externos de forma implícita. Ninguna clasificación usa prefijos del código de asignatura. También se pueden seleccionar períodos que no sean actuales. Los reinicios nunca cambian el estado del período ni cuál es el actual.
 
 Reinicie siempre los horarios **antes** de reiniciar sus ofertas. La página deshabilita el reinicio de ofertas mientras queden horarios en ese alcance. La API vuelve a comprobarlo bajo bloqueo y devuelve 409 sin eliminar nada. Los horarios del otro alcance no impiden el reinicio. Después de reiniciar horarios, actualice el resumen y confirme la nueva vista de los datos.
+
+El reinicio gestionado elimina los bloques y los registros de ejecución en una misma transacción. La vista previa cuenta esos registros en `ejecuciones` y los incluye en la confirmación, también permite limpiar un intento fallido sin bloques. Se conservan los externos y las demás planificaciones. Un reinicio solo de horarios externos no elimina la ejecución del modelo. Mientras el modelo calcula, el reinicio permanece bloqueado. Al volver al modelo ya no aparece el resultado eliminado, la nueva ejecución crea otro registro, sin historial de intentos.
 
 Escriba el código exacto del período para confirmar la operación mostrada. La aplicación no permite recuperar lo eliminado, haga un respaldo adecuado antes de operar sobre datos importantes. La huella del resumen se vuelve a validar dentro de la transacción. Si cambian los datos o el alcance, se exige una nueva vista previa y confirmación. Si se pierde una respuesta, revise el resumen actualizado antes de considerar otra operación. Las escrituras no se reintentan automáticamente.
 

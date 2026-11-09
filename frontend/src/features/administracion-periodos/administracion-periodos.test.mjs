@@ -41,6 +41,12 @@ test('four direct actions encode target and scope without an all-scope page opti
     { objetivo: 'ofertas', alcance: 'gestionadas' }, { objetivo: 'ofertas', alcance: 'externas' },
   ]);
 });
+test('el reinicio gestionado permite limpiar un fallo sin horarios, sin ampliar el alcance externo', () => {
+  const datos = { ofertas: 2, horarios: 0, ejecuciones: 1 };
+  assert.equal(puedeReiniciar({ objetivo: 'horarios', alcance: 'gestionadas' }, datos), true);
+  assert.equal(puedeReiniciar({ objetivo: 'horarios', alcance: 'externas' }, datos), false);
+  assert.equal(puedeReiniciar({ objetivo: 'horarios', alcance: 'gestionadas' }, { ...datos, ejecuciones: 0 }), false);
+});
 test('final admin flow admits proposal/publication only with managed schedules', () => {
   for (const destino of ['propuesta', 'publicado']) {
     assert.equal(puedeCambiarEstado('preparacion', destino, 0), false);
@@ -104,4 +110,14 @@ test('navigation and direct route use an administrator-only guard', async () => 
   const layout = await readFile(new URL('../../components/layout/AppLayout.tsx', import.meta.url), 'utf8');
   assert.match(router, /element: <RequireAdministracionPeriodos \/>, children: \[\s*\{ path: "administracion-periodos"/);
   assert.match(layout, /puedeAdministrarPeriodos\(usuario\?\.rol\) && \(\s*<NavLink to="\/app\/administracion-periodos"/);
+});
+test('la navegación de períodos utiliza el SVG proporcionado como decoración junto a su etiqueta', async () => {
+  const layout = await readFile(new URL('../../components/layout/AppLayout.tsx', import.meta.url), 'utf8');
+  assert.match(layout, /import iconoGestionPeriodos from "\.\.\/\.\.\/assets\/iconos\/Gestion-periodos\.svg"/);
+  const enlace = layout.match(/<NavLink to="\/app\/administracion-periodos"[^>]*>([\s\S]*?)<\/NavLink>/)?.[1];
+  assert.ok(enlace);
+  assert.match(enlace, /<img className="sidebar-icono" src=\{iconoGestionPeriodos\} alt="" aria-hidden="true" width="20" height="20" \/>/);
+  assert.match(enlace, /<span>Administración de períodos<\/span>/);
+  const svg = await readFile(new URL('../../assets/iconos/Gestion-periodos.svg', import.meta.url), 'utf8');
+  assert.match(svg, /<svg[^>]*viewBox="0 0 24 24"/);
 });

@@ -9,6 +9,7 @@ export interface ResumenPeriodo {
   ofertas: number;
   asignaciones: number;
   horarios: number;
+  ejecuciones?: number;
   huella: string;
 }
 export const estadosPeriodo: Record<EstadoPeriodo, string> = {
@@ -26,7 +27,7 @@ export interface AccionReinicio {
   descripcion: string;
 }
 export const accionesReinicio: AccionReinicio[] = [
-  { objetivo: 'horarios', alcance: 'gestionadas', etiqueta: 'Reiniciar horarios gestionados', descripcion: 'Elimina los bloques; conserva ofertas y docentes.' },
+  { objetivo: 'horarios', alcance: 'gestionadas', etiqueta: 'Reiniciar horarios gestionados', descripcion: 'Elimina los bloques y el registro de ejecución del modelo. Conserva ofertas, docentes y horarios externos.' },
   { objetivo: 'horarios', alcance: 'externas', etiqueta: 'Reiniciar horarios externos', descripcion: 'Elimina los bloques; conserva ofertas y docentes.' },
   { objetivo: 'ofertas', alcance: 'gestionadas', etiqueta: 'Reiniciar ofertas gestionadas', descripcion: 'Elimina ofertas y asignaciones docentes.' },
   { objetivo: 'ofertas', alcance: 'externas', etiqueta: 'Reiniciar ofertas externas', descripcion: 'Elimina ofertas y asignaciones docentes.' },
@@ -34,8 +35,9 @@ export const accionesReinicio: AccionReinicio[] = [
 export function puedeCambiarEstado(actual: EstadoPeriodo, nuevo: EstadoPeriodo, horariosGestionados: number) {
   return actual !== nuevo && (nuevo === 'preparacion' ? horariosGestionados === 0 : horariosGestionados > 0);
 }
-export function puedeReiniciar(accion: Pick<AccionReinicio, 'objetivo'>, resumen: Pick<ResumenPeriodo, 'ofertas' | 'horarios'>) {
-  return resumen[accion.objetivo] > 0 && (accion.objetivo !== 'ofertas' || resumen.horarios === 0);
+export function puedeReiniciar(accion: Pick<AccionReinicio, 'objetivo'> & Partial<Pick<AccionReinicio, 'alcance'>>, resumen: Pick<ResumenPeriodo, 'ofertas' | 'horarios' | 'ejecuciones'>) {
+  return (resumen[accion.objetivo] > 0 || (accion.objetivo === 'horarios' && accion.alcance === 'gestionadas' && (resumen.ejecuciones ?? 0) > 0))
+    && (accion.objetivo !== 'ofertas' || resumen.horarios === 0);
 }
 export const puedeAdministrarPeriodos = (rol?: string | null) => rol === 'admin';
 export function carrerasDisponibles(planificaciones: Pick<PlanificacionSemestre, 'carrera'>[]) {

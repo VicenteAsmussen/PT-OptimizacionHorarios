@@ -86,12 +86,13 @@ export default function VistaPeriodo({ resumenes, nuevoEstado, accion, confirmac
           <h3 id={`titulo-reinicio-${alcance}`}>{alcance === 'gestionadas' ? 'Gestionadas' : 'Externas'}</h3>
           {accionesReinicio.filter(opcion => opcion.alcance === alcance).map(opcion => {
             const datos = resumenes[alcance];
-            const ayuda = datos[opcion.objetivo] === 0
+            const limpiaEjecuciones = opcion.objetivo === 'horarios' && alcance === 'gestionadas' && (datos.ejecuciones ?? 0) > 0;
+            const ayuda = datos[opcion.objetivo] === 0 && !limpiaEjecuciones
               ? `No hay ${opcion.objetivo === 'horarios' ? 'horarios' : 'ofertas'} para reiniciar.`
               : opcion.objetivo === 'ofertas' && datos.horarios > 0
                 ? 'Reinicia primero los horarios de este grupo.'
                 : opcion.objetivo === 'horarios'
-                  ? `${datos.horarios} bloques. Conserva ofertas y docentes.`
+                  ? `${datos.horarios} bloques.${limpiaEjecuciones ? ` Registros de ejecución: ${datos.ejecuciones}.` : ''} Conserva ofertas y docentes.`
                   : `${datos.ofertas} ofertas y ${datos.asignaciones} asignaciones docentes.`;
             return <div key={opcion.objetivo} className={estilos.accionReinicio}>
               <button type="button" className="boton boton--gris" aria-describedby={`ayuda-${opcion.objetivo}-${alcance}`}
@@ -106,7 +107,9 @@ export default function VistaPeriodo({ resumenes, nuevoEstado, accion, confirmac
         <p>{planificacion.carrera.nombre} · {planificacion.codigo}</p>
         <p id="efecto-reinicio">{accion.objetivo === 'ofertas'
           ? `Se eliminarán ${resumen.ofertas} ofertas, ${resumen.asignaciones} asignaciones y ${resumen.horarios} bloques de horario.`
-          : `Se eliminarán ${resumen.horarios} bloques de horario. Las ofertas y sus docentes se conservan.`}</p>
+           : `Se eliminarán ${resumen.horarios} bloques de horario. Las ofertas y sus docentes se conservan.`}</p>
+        {accion.objetivo === 'horarios' && accion.alcance === 'gestionadas' && (resumen.ejecuciones ?? 0) > 0 &&
+          <p>Se eliminarán también los registros de ejecución del modelo: {resumen.ejecuciones}. Los horarios externos se conservan.</p>}
         <label>Escribe {planificacion.codigo} para confirmar<input name="confirmacionReinicio" spellCheck={false} autoComplete="off" aria-describedby="efecto-reinicio" disabled={bloqueado} value={confirmacion} onChange={evento => alConfirmacion(evento.target.value)} /></label>
         <div className={base.acciones}>
           <button className="boton boton--eliminar" disabled={bloqueado || !confirmado}>Confirmar reinicio</button>

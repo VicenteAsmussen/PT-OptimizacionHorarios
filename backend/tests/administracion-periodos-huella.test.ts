@@ -33,15 +33,16 @@ beforeEach(() => {
     horarios_asignaturas: [{ id: 20, ofertaId: 10, tipoHoraId: 1, planificacionSemestreId: 1, salaId: 1, bloqueId: 1 }],
   };
 });
-it.each(["docente", "sala", "identidad", "carrera", "gestion", "confirmacion", "alcance"])("rejects stale %s without scheduling a write", async cambio => {
+it.each(["docente", "sala", "identidad", "carrera", "gestion", "confirmacion", "alcance", "ejecucion"])("rejects stale %s without scheduling a write", async cambio => {
   const resumen = await repositorio.resumen(1, "gestionadas");
   if (cambio === "docente") contexto.filas.oferta_tipo_hora[0].profesorId = 2;
   if (cambio === "sala") contexto.filas.horarios_asignaturas[0].salaId = 2;
   if (cambio === "identidad") contexto.filas.ofertas_asignaturas[0].id = 11;
   if (cambio === "carrera") contexto.filas.carreras[0].nombre = "Renamed career";
   if (cambio === "gestion") contexto.filas.carrera_departamento[0].esGestionado = false;
+  if (cambio === "ejecucion") contexto.filas.ejecuciones_optimizacion = [{ id: "otro-intento", estado: "error" }];
   const antes = huellaDatos();
-  await expect(repositorio.reiniciar(1, { objetivo: "ofertas", alcance: cambio === "alcance" ? "todas" : "gestionadas",
+  await expect(repositorio.reiniciar(1, { objetivo: cambio === "ejecucion" ? "horarios" : "ofertas", alcance: cambio === "alcance" ? "todas" : "gestionadas",
     confirmacion: cambio === "confirmacion" ? "2026-1" : "2026-2", huella: resumen.huella })).rejects.toMatchObject({ statusCode: 409 });
   expect(huellaDatos()).toBe(antes);
   expect(contexto.escrituras).toEqual([]);
@@ -50,5 +51,16 @@ it.each(["gestionadas", "todas"] as const)("schedule-only command never schedule
   const resumen = await repositorio.resumen(1, alcance);
   expect(await repositorio.reiniciar(1, { objetivo: "horarios", alcance, confirmacion: "2026-2", huella: resumen.huella }))
     .toEqual({ ofertas: 0, asignaciones: 0, horarios: 1 });
-  expect(contexto.escrituras).toEqual(["horarios_asignaturas"]);
+  expect(contexto.escrituras).toEqual(["horarios_asignaturas", "ejecuciones_optimizacion"]);
+});
+it("conserva la huella pública del resumen externo sin datos aunque exista una ejecución", async () => {
+  contexto.filas = {
+    carreras: [{ id: 1, nombre: "Carrera" }],
+    planificaciones_semestres: [{ id: 1, carreraId: 1, codigo: "2026-2", estadoPlanificacion: "preparacion" }],
+    carrera_departamento: [], asignaturas: [], ofertas_asignaturas: [], oferta_tipo_hora: [], horarios_asignaturas: [],
+    ejecuciones_optimizacion: [{ id: "intento-gestionado", estado: "error" }],
+  };
+  const resumen = await repositorio.resumen(1, "externas");
+  expect(resumen.huella).toBe("32ecbf4d3c9e5a678f5c30f7304fbbebd3552250a0fe78acf559301fa89a306b");
+  expect(resumen).not.toHaveProperty("ejecuciones");
 });

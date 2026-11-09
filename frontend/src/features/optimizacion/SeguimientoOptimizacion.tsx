@@ -81,7 +81,7 @@ function SeguimientoCuenta({ children }: { children: ReactNode }) {
       {activas.map(f => <p key={f.ejecucion!.id}><Link to={rutaModelo(f.ejecucion!.planificacionSemestreId)}>Seguir cálculo{contextoPlanificacion(f.ejecucion!.planificacionSemestreId)}</Link>
         {f.error && <span role="alert"> · Seguimiento sin confirmar: {f.error}</span>}</p>)}
     </aside>}
-    {habilitado && aviso && <aside className="aviso-optimizacion" aria-label="Resultado del modelo">
+    {habilitado && aviso && filas[aviso.planificacionSemestreId]?.ejecucion?.id === aviso.id && <aside className="aviso-optimizacion" aria-label="Resultado del modelo">
       <p role="status"><strong>{etiquetasEstado[aviso.estado]}</strong>{contextoPlanificacion(aviso.planificacionSemestreId)}</p>
       <Link className="enlace-modelo" to={aviso.estado === 'aplicada' ? rutaResultados(aviso.planificacionSemestreId) : rutaModelo(aviso.planificacionSemestreId)}>
         {aviso.estado === 'aplicada' && <IconoModelo tipo="ver" />}
