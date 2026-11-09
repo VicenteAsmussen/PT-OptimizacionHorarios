@@ -3,8 +3,8 @@ import { type CreateUsuarioDTO, type UpdateUsuarioDTO } from "../validations/usu
 import { NotFoundError, ConflictError, BadRequestError } from "../utils/errors.js";
 import { hashPassword } from "../utils/password.js";
 
-function sanitizeUser<T extends { clave?: string }>(user: T): Omit<T, "clave"> {
-  const { clave, ...rest } = user;
+function sanitizeUser<T extends { clave?: string; versionSesion?: number }>(user: T): Omit<T, "clave" | "versionSesion"> {
+  const { clave, versionSesion, ...rest } = user;
   return rest;
 }
 

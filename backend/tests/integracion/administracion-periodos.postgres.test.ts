@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
@@ -15,6 +15,7 @@ describe.skipIf(!habilitado)("Period administration on isolated PostgreSQL", () 
   let cerrar: () => Promise<void>;
   let app: Express;
   let token: string;
+  const tokens: Record<string, string> = {};
   const raiz = "/api/administracion-periodos/1";
   beforeAll(async () => {
     cliente = postgres(process.env.DATABASE_URL!, { max: 1, onnotice: () => {} });
@@ -26,14 +27,16 @@ describe.skipIf(!habilitado)("Period administration on isolated PostgreSQL", () 
     const { queryClient } = await import("../../src/config/db.js");
     cerrar = () => queryClient.end();
     ({ app } = await import("../../src/app.js"));
-    const { generateToken } = await import("../../src/utils/jwt.js");
-    token = generateToken({ id: 1, nombre: "Test administrator", correo: "admin@example.test", rol: "admin" });
   }, 30000);
   afterAll(async () => { try { await cerrar?.(); } finally { await cliente?.end(); } });
   beforeEach(async () => {
     // Never enabled for the development database: the raw environment and DB identity were checked above.
     await cliente`truncate carreras, departamentos, usuarios, bloques_horarios, tipos_hora, salas restart identity cascade`;
     await cliente.begin(async sql => {
+      await sql`insert into usuarios (id,nombre,correo,clave,rol) values
+        (1,'Administrador','admin@example.test','sin-login','admin'),
+        (2,'Secretaria','secretaria@example.test','sin-login','secretaria'),
+        (3,'Profesor','profesor@example.test','sin-login','profesor')`;
       await sql`insert into carreras (id,nombre) values (1,'Career A'),(2,'Career B')`;
       await sql`insert into departamentos (id,nombre) values (1,'Managed'),(2,'External')`;
       await sql`insert into carrera_departamento (carrera_id,departamento_id,es_gestionado) values (1,1,true),(1,2,false),(2,1,false)`;
@@ -52,6 +55,19 @@ describe.skipIf(!habilitado)("Period administration on isolated PostgreSQL", () 
       await sql`insert into horarios_asignaturas (oferta_id,tipo_hora_id,planificacion_semestre_id,bloque_id) select id,1,planificacion_semestre_id,1 from ofertas_asignaturas`;
       await sql`insert into disponibilidad_profesores (profesor_id,planificacion_semestre_id,bloque_id) values (1,1,1)`;
     });
+    const { usuariosRepository } = await import("../../src/repositories/usuarios.repository.js");
+    const { sesionesRepository } = await import("../../src/repositories/sesiones.repository.js");
+    const { generateToken, verifyToken } = await import("../../src/utils/jwt.js");
+    for (const id of [1, 2, 3]) {
+      const usuario = (await usuariosRepository.findById(id))!;
+      const sesionId = randomBytes(32).toString("hex");
+      const credencial = generateToken(usuario, sesionId);
+      expect(await sesionesRepository.createConCredenciales(usuario, {
+        id: sesionId, usuarioId: id, expiraEn: new Date(verifyToken(credencial).exp * 1000),
+      })).toBe(true);
+      tokens[usuario.rol] = credencial;
+    }
+    token = tokens.admin;
   });
   const autorizada = (solicitud: Test) => solicitud.set("Authorization", `Bearer ${token}`);
   async function prepararHorarioValido() {
@@ -305,11 +321,10 @@ describe.skipIf(!habilitado)("Period administration on isolated PostgreSQL", () 
     expect((await autorizada(request(app).get("/api/administracion-periodos/404/resumen?alcance=todas"))).status).toBe(404);
   });
   it("enforces real authentication and administrator authorization without changing any data", async () => {
-    const { generateToken } = await import("../../src/utils/jwt.js");
     const antes = await huellaDatos();
     const vista = await resumen();
     for (const rol of [null, "secretaria", "profesor"] as const) {
-      const credencial = rol ? generateToken({ id: 1, nombre: "Test user", correo: "user@example.test", rol }) : null;
+      const credencial = rol ? tokens[rol] : null;
       const solicitudes = [request(app).get(`${raiz}/resumen?alcance=todas`),
         request(app).post(`${raiz}/reiniciar`).send({ alcance: "gestionadas", objetivo: "ofertas", huella: vista.huella, confirmacion: "2099-2" }),
         request(app).patch(`${raiz}/estado`).send({ estadoAnterior: "publicado", estadoPlanificacion: "preparacion" })];

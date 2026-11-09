@@ -7,15 +7,23 @@ import { errorHandler } from "../src/middlewares/error.middleware.js";
 import { generateToken } from "../src/utils/jwt.js";
 
 vi.mock("../src/config/env.js", () => ({ env: { JWT_SECRET: "synthetic-external-permissions-test-key", JWT_EXPIRES_IN: "1h" } }));
+const sesiones = vi.hoisted(() => new Map<string, any>());
+vi.mock("../src/repositories/sesiones.repository.js", () => ({ sesionesRepository: {
+  findById: vi.fn(async (id: string) => sesiones.get(id)),
+} }));
 vi.mock("../src/services/horarios.service.js", () => ({ horariosService: {
   coberturaExcelExternos: vi.fn(), importarExcelExternos: vi.fn(),
 } }));
 const aplicacion = express();
 aplicacion.use("/horarios", horariosRouter);
 aplicacion.use(errorHandler);
-beforeEach(() => vi.clearAllMocks());
+beforeEach(() => { vi.clearAllMocks(); sesiones.clear(); });
 it.each(["admin", "profesor"] as const)("%s is rejected with real JWT before invalid context or multipart parsing", async rol => {
-  const token = generateToken({ id: 1, nombre: "Test user", correo: "user@example.test", rol });
+  const usuario = { id: 1, nombre: "Cuenta sintética", correo: "user@example.test", rol };
+  const id = (rol === "admin" ? "a" : "b").repeat(64);
+  const token = generateToken(usuario, id);
+  const { verifyToken } = await import("../src/utils/jwt.js");
+  sesiones.set(id, { usuarioId: usuario.id, usuario, expiraEn: new Date(verifyToken(token).exp * 1000) });
   const esperado = { status: "error", statusCode: 403,
     message: `Acceso denegado: Se requiere uno de los roles [secretaria], tu rol actual es '${rol}'` };
   const consulta = "?planificacionSemestreId=oops&departamentoId=4";

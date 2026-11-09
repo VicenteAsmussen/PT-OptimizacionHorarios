@@ -20,7 +20,7 @@ it.each([
   ], {
     encoding: "utf8",
     timeout: 15000,
-    env: { ...process.env, NODE_ENV: "production", DATABASE_URL: "postgres://unused:unused@127.0.0.1:1/verificacion_seed_cli", DOTENV_CONFIG_QUIET: "true" },
+    env: { ...process.env, NODE_ENV: "production", JWT_SECRET: "secreto-sintetico-solo-prueba-cli", DATABASE_URL: "postgres://unused:unused@127.0.0.1:1/verificacion_seed_cli", DOTENV_CONFIG_QUIET: "true" },
   });
   expect(resultado.status).toBe(1);
   expect(resultado.stdout.replace(/\r\n/g, "\n")).toBe(salida);

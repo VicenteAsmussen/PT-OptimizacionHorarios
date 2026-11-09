@@ -50,6 +50,14 @@ function exigirProfesorPartTimeGestionado(alcance: AlcanceCarrera | undefined, d
   exigirEnAlcance(alcance?.departamentosGestionadosIds, departamentoId);
 }
 
+async function exigirCuentaProfesorGestionable(usuarioId: number | null) {
+  if (!usuarioId) return;
+  const cuenta = await usuariosRepository.findById(usuarioId);
+  if (!cuenta || cuenta.rol !== "profesor") {
+    throw new ForbiddenError("La secretaría no puede administrar cuentas privilegiadas desde profesores");
+  }
+}
+
 export const profesoresService = {
   async getSeleccionProfesores() {
     return await profesoresRepository.findSeleccion();
@@ -74,6 +82,10 @@ export const profesoresService = {
 
     if (esSecretaria(usuario) && datosProfesor.tipo !== "part time") {
       throw new ForbiddenError("La secretaria solo puede crear profesores part time");
+    }
+
+    if (esSecretaria(usuario) && datosProfesor.usuarioId) {
+      throw new ForbiddenError("La secretaría debe crear el acceso desde el profesor, no vincular cuentas existentes");
     }
 
     if ((acceso || datosProfesor.usuarioId) && esSecretaria(usuario)) {
@@ -125,8 +137,18 @@ export const profesoresService = {
     const tipoDestino = dto.tipo ?? profesor.tipo;
     exigirEnAlcance(alcance?.departamentosIds, departamentoDestino);
 
-    if (esSecretaria(usuario) && tipoDestino !== "part time") {
-      throw new ForbiddenError("La secretaria no puede administrar profesores planta");
+    if (esSecretaria(usuario)) {
+      if (profesor.tipo !== "part time" || tipoDestino !== "part time") {
+        throw new ForbiddenError("La secretaria no puede administrar profesores planta");
+      }
+      if (dto.usuarioId !== undefined && dto.usuarioId !== profesor.usuarioId) {
+        throw new ForbiddenError("La secretaría no puede cambiar la cuenta vinculada del profesor");
+      }
+      if (profesor.usuarioId) {
+        exigirProfesorPartTimeGestionado(alcance, profesor.departamentoId, profesor.tipo);
+        exigirProfesorPartTimeGestionado(alcance, departamentoDestino, tipoDestino);
+        await exigirCuentaProfesorGestionable(profesor.usuarioId);
+      }
     }
 
     if (dto.rut !== undefined) {
@@ -157,7 +179,10 @@ export const profesoresService = {
       }
     }
 
-    await conConflictoRut(() => profesoresRepository.updateWithSyncedUsuarioName(id, dto, dto.usuarioId ?? profesor.usuarioId));
+    const cuentaId = dto.usuarioId ?? profesor.usuarioId;
+    await conConflictoRut(() => esSecretaria(usuario) && cuentaId
+      ? profesoresRepository.updateWithSyncedUsuarioName(id, dto, cuentaId, true)
+      : profesoresRepository.updateWithSyncedUsuarioName(id, dto, cuentaId));
     return await this.getProfesorById(id, alcance);
   },
 
@@ -191,6 +216,7 @@ export const profesoresService = {
     }
     if (esSecretaria(usuario)) {
       exigirProfesorPartTimeGestionado(alcance, profesor.departamentoId, profesor.tipo);
+      await exigirCuentaProfesorGestionable(profesor.usuarioId);
     }
 
     if (dto.correo) {
@@ -200,11 +226,13 @@ export const profesoresService = {
       }
     }
 
-    await profesoresRepository.updateUsuarioForProfesor(profesor.usuarioId, {
+    const datosCuenta = {
       nombre: profesor.nombre,
       correo: dto.correo,
       clave: dto.clave ? await hashPassword(dto.clave) : undefined,
-    });
+    };
+    if (esSecretaria(usuario)) await profesoresRepository.updateUsuarioForProfesor(profesor.usuarioId, datosCuenta, true);
+    else await profesoresRepository.updateUsuarioForProfesor(profesor.usuarioId, datosCuenta);
     return await this.getProfesorById(id, alcance);
   },
 
@@ -215,8 +243,10 @@ export const profesoresService = {
     }
     if (esSecretaria(usuario)) {
       exigirProfesorPartTimeGestionado(alcance, profesor.departamentoId, profesor.tipo);
+      await exigirCuentaProfesorGestionable(profesor.usuarioId);
     }
-    await profesoresRepository.deleteUsuarioForProfesor(id, profesor.usuarioId);
+    if (esSecretaria(usuario)) await profesoresRepository.deleteUsuarioForProfesor(id, profesor.usuarioId, true);
+    else await profesoresRepository.deleteUsuarioForProfesor(id, profesor.usuarioId);
   },
 
   async deleteProfesor(id: number, alcance?: AlcanceCarrera, usuario?: TokenPayload) {
@@ -226,11 +256,17 @@ export const profesoresService = {
       throw new ForbiddenError("La secretaria solo puede eliminar profesores part time");
     }
 
+    if (esSecretaria(usuario) && profesor.usuarioId) {
+      exigirProfesorPartTimeGestionado(alcance, profesor.departamentoId, profesor.tipo);
+      await exigirCuentaProfesorGestionable(profesor.usuarioId);
+    }
+
     const tieneHorarios = await profesoresRepository.hasHorarios(id);
     if (tieneHorarios) {
       throw new ConflictError("No se puede eliminar el profesor porque participa en horarios registrados. Puedes quitar su acceso al sistema.");
     }
 
-    await profesoresRepository.deleteWithDependencias(id, profesor.usuarioId);
+    if (esSecretaria(usuario) && profesor.usuarioId) await profesoresRepository.deleteWithDependencias(id, profesor.usuarioId, true);
+    else await profesoresRepository.deleteWithDependencias(id, profesor.usuarioId);
   },
 };

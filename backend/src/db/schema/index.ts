@@ -1,4 +1,5 @@
 export * from "./usuarios.schema.js";
+export * from "./sesiones.schema.js";
 export * from "./secretarias.schema.js";
 export * from "./departamentos.schema.js";
 export * from "./carreras.schema.js";

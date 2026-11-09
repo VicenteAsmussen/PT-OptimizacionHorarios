@@ -3,7 +3,7 @@ import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { fileURLToPath } from "node:url";
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import express, { type Express } from "express";
 import request, { type Test } from "supertest";
 import { exigirBasePruebas } from "../soporte/base-pruebas.js";
@@ -38,10 +38,8 @@ describe.skipIf(!habilitado)("Optimización HTTP en PostgreSQL aislado", () => {
     const { administracionPeriodosRouter } = await import("../../src/routes/administracion-periodos.routes.js");
     const { resultadosHorariosRouter } = await import("../../src/routes/resultados-horarios.routes.js");
     const { errorHandler } = await import("../../src/middlewares/error.middleware.js");
-    const { generateToken } = await import("../../src/utils/jwt.js");
     const { queryClient } = await import("../../src/config/db.js");
     cerrar = () => queryClient.end();
-    token = generateToken({ id: 1, nombre: "Administrador sintético", correo: "admin@example.test", rol: "admin" });
     app = express(); app.use(express.json());
     app.use("/modelo", optimizacionRouter); app.use("/admin", administracionPeriodosRouter);
     app.use("/resultado", resultadosHorariosRouter); app.use(errorHandler);
@@ -51,6 +49,7 @@ describe.skipIf(!habilitado)("Optimización HTTP en PostgreSQL aislado", () => {
     await exigirAislamiento();
     await cliente`truncate carreras,departamentos,usuarios,bloques_horarios,tipos_hora,salas restart identity cascade`;
     await cliente.begin(async conexion => {
+      await conexion`insert into usuarios(id,nombre,correo,clave,rol) values(1,'Administrador sintético','admin@example.test','sin-login','admin')`;
       await conexion`insert into carreras(id,nombre) values(1,'Ingeniería Civil en Informática')`;
       await conexion`insert into departamentos(id,nombre) values(1,'Gestionado'),(2,'Externo')`;
       await conexion`insert into carrera_departamento(carrera_id,departamento_id,es_gestionado) values(1,1,true),(1,2,false)`;
@@ -71,6 +70,15 @@ describe.skipIf(!habilitado)("Optimización HTTP en PostgreSQL aislado", () => {
       await conexion`insert into horarios_asignaturas(oferta_id,tipo_hora_id,planificacion_semestre_id,bloque_id) values(2,1,1,3),(2,1,1,4),(3,1,2,1),(3,1,2,2)`;
       await conexion`insert into disponibilidad_profesores(profesor_id,planificacion_semestre_id,bloque_id) select p,1,b from unnest(array[1,3]) p cross join unnest(array[1,2,5,6]) b`;
     });
+    const { usuariosRepository } = await import("../../src/repositories/usuarios.repository.js");
+    const { sesionesRepository } = await import("../../src/repositories/sesiones.repository.js");
+    const { generateToken, verifyToken } = await import("../../src/utils/jwt.js");
+    const usuario = (await usuariosRepository.findById(1))!;
+    const sesionId = randomBytes(32).toString("hex");
+    token = generateToken(usuario, sesionId);
+    expect(await sesionesRepository.createConCredenciales(usuario, {
+      id: sesionId, usuarioId: usuario.id, expiraEn: new Date(verifyToken(token).exp * 1000),
+    })).toBe(true);
   }
   const autorizar = (solicitud: Test) => solicitud.set("Authorization", `Bearer ${token}`);
   const parametros = { claveIdempotencia: "solicitud-regresion-http", recursos: [{ id: "AA-Sala-90", edificio: "AA", tipo: "Sala", capacidad: 90, cantidad: 1, fuente: "Datos sintéticos aislados" }] };

@@ -22,6 +22,7 @@ const modules = {
   "planificaciones-semestres": "planificacionesSemestres",
   "salas": "salas",
   "secretarias": "secretarias",
+  "sesiones": "sesiones",
   "tipos-hora": "tiposHora",
   "usuarios": "usuarios",
 } as const;
@@ -46,6 +47,7 @@ const graph = {
   profesores: { usuario: "One:usuarios", departamento: "One:departamentos", asignaciones: "Many:oferta_tipo_hora", disponibilidades: "Many:disponibilidad_profesores" },
   salas: { horarios: "Many:horarios_asignaturas" },
   secretarias: { usuario: "One:usuarios", carrera: "One:carreras" },
+  sesiones: { usuario: "One:usuarios" },
   tiposHora: { horarios: "Many:horarios_asignaturas", asignaturas: "Many:asignatura_tipo_hora", asignaciones: "Many:oferta_tipo_hora" },
   usuarios: { profesor: "One:profesores", secretaria: "One:secretarias" },
 };
@@ -105,7 +107,7 @@ describe("Flat schema organization (offline)", () => {
     const latest = journal.entries.at(-1);
     const previous = JSON.parse(readFileSync(new URL(`../src/db/migrations/meta/${String(latest.idx).padStart(4, "0")}_snapshot.json`, import.meta.url), "utf8"));
     const current = generateDrizzleJson(schema, previous.id);
-    expect(Object.keys(current.tables)).toHaveLength(19);
+    expect(Object.keys(current.tables)).toHaveLength(Object.keys(modules).length);
     expect(await generateMigration(previous, current)).toEqual([]);
   });
 });
