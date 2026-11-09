@@ -11,7 +11,7 @@ import {
 
 const router = Router();
 
-router.use(authenticate, authorizeRoles("admin", "secretaria"));
+router.use(authenticate, authorizeRoles("admin"));
 
 router.get("/", usuariosController.getAll);
 

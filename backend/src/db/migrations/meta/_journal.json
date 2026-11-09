@@ -141,6 +141,13 @@
       "when": 1793759569827,
       "tag": "0019_trazabilidad_recursos_modelo",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1794225377705,
+      "tag": "0020_sesiones-revocables",
+      "breakpoints": true
     }
   ]
 }

@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { db } from "../config/db.js";
 import {
   usuarios,
@@ -8,8 +8,22 @@ import {
 import { secretarias } from "../db/schema/secretarias.schema.js";
 import { carreras } from "../db/schema/carreras.schema.js";
 import { columnasProfesorSinRut } from "../db/schema/profesores.schema.js";
+import { sesionesRepository, type TransaccionSesion } from "./sesiones.repository.js";
+import { ForbiddenError } from "../utils/errors.js";
 
 export const usuariosRepository = {
+  async updateEnTransaccion(tx: TransaccionSesion, id: number, data: Partial<Omit<NuevoUsuario, "id" | "versionSesion">>, soloProfesor = false) {
+    const datos = Object.fromEntries(Object.entries(data).filter(([, valor]) => valor !== undefined));
+    if (Object.keys(datos).length === 0) return undefined;
+    const revocar = datos.rol !== undefined || datos.clave !== undefined || datos.correo !== undefined;
+    const [actualizado] = await tx.update(usuarios).set({
+      ...datos,
+      ...(revocar ? { versionSesion: sql`${usuarios.versionSesion} + 1` } : {}),
+    }).where(and(eq(usuarios.id, id), soloProfesor ? eq(usuarios.rol, "profesor") : undefined)).returning();
+    if (soloProfesor && !actualizado) throw new ForbiddenError("La cuenta vinculada no es una cuenta de profesor gestionable");
+    if (revocar) await sesionesRepository.deleteByUsuarioId(id, tx);
+    return actualizado;
+  },
   async findAll() {
     return await db.query.usuarios.findMany({
       with: {
@@ -77,12 +91,12 @@ export const usuariosRepository = {
 
   async update(
     id: number,
-    data: Partial<Omit<NuevoUsuario, "id">>,
+    data: Partial<Omit<NuevoUsuario, "id" | "versionSesion">>,
     carreraId?: number
   ) {
     return await db.transaction(async (tx) => {
       if (Object.keys(data).length > 0) {
-        await tx.update(usuarios).set(data).where(eq(usuarios.id, id));
+        await usuariosRepository.updateEnTransaccion(tx, id, data);
       }
 
       // If user rol is updated or carreraId provided

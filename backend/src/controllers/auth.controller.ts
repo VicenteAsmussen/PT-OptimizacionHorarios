@@ -1,7 +1,8 @@
 import type { Request, Response, NextFunction } from "express";
 import { authService } from "../services/auth.service.js";
-import { COOKIE_AUTH_NAME } from "../middlewares/auth.middleware.js";
+import { COOKIE_AUTH_NAME, extraerToken } from "../middlewares/auth.middleware.js";
 import { env } from "../config/env.js";
+import { sesionesService } from "../services/sesiones.service.js";
 
 const COOKIE_OPTIONS = {
   httpOnly: true,
@@ -28,8 +29,9 @@ export const authController = {
     }
   },
 
-  async logout(_req: Request, res: Response, next: NextFunction): Promise<void> {
+  async logout(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
+      await sesionesService.revocar(extraerToken(req));
       res.clearCookie(COOKIE_AUTH_NAME, {
         httpOnly: true,
         secure: env.NODE_ENV === "production",

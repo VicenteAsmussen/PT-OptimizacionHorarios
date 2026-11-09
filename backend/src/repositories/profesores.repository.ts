@@ -10,6 +10,8 @@ import { disponibilidadProfesores } from "../db/schema/disponibilidad-profesores
 import { horariosAsignaturas } from "../db/schema/horarios-asignaturas.schema.js";
 import { planificacionesSemestresRepository } from "./planificaciones-semestres.repository.js";
 import { conPlanificacionesBloqueadas, type TransaccionPlanificacion } from "./planificacion-escritura.js";
+import { usuariosRepository } from "./usuarios.repository.js";
+import { ForbiddenError } from "../utils/errors.js";
 
 async function periodosProfesor(tx: TransaccionPlanificacion, id: number) {
   const disponibilidades = await tx.query.disponibilidadProfesores.findMany({ where: eq(disponibilidadProfesores.profesorId, id) });
@@ -35,7 +37,7 @@ export const profesoresRepository = {
         alcance ? inArray(profesores.departamentoId, alcance.departamentosIds) : undefined),
       with: {
         departamento: true,
-        usuario: true,
+        usuario: { columns: { clave: false, versionSesion: false } },
         disponibilidades: alcance ? { where: inArray(disponibilidadProfesores.planificacionSemestreId, planificacionesSemestresRepository.idsEnCarrera(alcance)) } : true,
         asignaciones: { where: alcance ? inArray(ofertaTipoHora.ofertaId, db.select({ id: ofertasAsignaturas.id }).from(ofertasAsignaturas).where(inArray(ofertasAsignaturas.planificacionSemestreId, planificacionesSemestresRepository.idsEnCarrera(alcance)))) : undefined, with: { oferta: true, tipoHora: true } },
       },
@@ -47,7 +49,7 @@ export const profesoresRepository = {
       where: eq(profesores.id, id),
       with: {
         departamento: true,
-        usuario: true,
+        usuario: { columns: { clave: false, versionSesion: false } },
         disponibilidades: alcance ? { where: inArray(disponibilidadProfesores.planificacionSemestreId, planificacionesSemestresRepository.idsEnCarrera(alcance)) } : true,
         asignaciones: { where: alcance ? inArray(ofertaTipoHora.ofertaId, db.select({ id: ofertasAsignaturas.id }).from(ofertasAsignaturas).where(inArray(ofertasAsignaturas.planificacionSemestreId, planificacionesSemestresRepository.idsEnCarrera(alcance)))) : undefined, with: { oferta: true, tipoHora: true } },
       },
@@ -128,14 +130,14 @@ export const profesoresRepository = {
     return updated;
   },
 
-  async updateWithSyncedUsuarioName(id: number, data: Partial<Omit<NuevoProfesor, "id">>, usuarioId?: number | null) {
+  async updateWithSyncedUsuarioName(id: number, data: Partial<Omit<NuevoProfesor, "id">>, usuarioId?: number | null, soloProfesor = false) {
     return await db.transaction(async (tx) => {
       const [updated] = Object.keys(data).length > 0
         ? await tx.update(profesores).set(data).where(eq(profesores.id, id)).returning()
         : [undefined];
 
       if (data.nombre && usuarioId) {
-        await tx.update(usuarios).set({ nombre: data.nombre }).where(eq(usuarios.id, usuarioId));
+        await usuariosRepository.updateEnTransaccion(tx, usuarioId, { nombre: data.nombre }, soloProfesor);
       }
 
       return updated;
@@ -154,23 +156,15 @@ export const profesoresRepository = {
     });
   },
 
-  async updateUsuarioForProfesor(usuarioId: number, data: Partial<Omit<NuevoUsuario, "id" | "rol">>) {
-    const datosLimpios = Object.fromEntries(
-      Object.entries(data).filter(([, value]) => value !== undefined)
-    ) as Partial<Omit<NuevoUsuario, "id" | "rol">>;
-
-    const [updated] = await db
-      .update(usuarios)
-      .set(datosLimpios)
-      .where(eq(usuarios.id, usuarioId))
-      .returning();
-    return updated;
+  async updateUsuarioForProfesor(usuarioId: number, data: Partial<Omit<NuevoUsuario, "id" | "rol" | "versionSesion">>, soloProfesor = false) {
+    return db.transaction(tx => usuariosRepository.updateEnTransaccion(tx, usuarioId, data, soloProfesor));
   },
 
-  async deleteUsuarioForProfesor(id: number, usuarioId: number): Promise<boolean> {
+  async deleteUsuarioForProfesor(id: number, usuarioId: number, soloProfesor = false): Promise<boolean> {
     return await db.transaction(async (tx) => {
       await tx.update(profesores).set({ usuarioId: null }).where(eq(profesores.id, id));
-      const [deleted] = await tx.delete(usuarios).where(eq(usuarios.id, usuarioId)).returning();
+      const [deleted] = await tx.delete(usuarios).where(and(eq(usuarios.id, usuarioId), soloProfesor ? eq(usuarios.rol, "profesor") : undefined)).returning();
+      if (soloProfesor && !deleted) throw new ForbiddenError("La cuenta vinculada no es una cuenta de profesor gestionable");
       return !!deleted;
     });
   },
@@ -182,13 +176,14 @@ export const profesoresRepository = {
     });
   },
 
-  async deleteWithDependencias(id: number, usuarioId?: number | null): Promise<boolean> {
+  async deleteWithDependencias(id: number, usuarioId?: number | null, soloProfesor = false): Promise<boolean> {
     return conPlanificacionesBloqueadas(tx => periodosProfesor(tx, id), async tx => {
       await tx.delete(disponibilidadProfesores).where(eq(disponibilidadProfesores.profesorId, id));
       await tx.delete(ofertaTipoHora).where(eq(ofertaTipoHora.profesorId, id));
       if (usuarioId) {
         await tx.update(profesores).set({ usuarioId: null }).where(eq(profesores.id, id));
-        await tx.delete(usuarios).where(eq(usuarios.id, usuarioId));
+        const [eliminado] = await tx.delete(usuarios).where(and(eq(usuarios.id, usuarioId), soloProfesor ? eq(usuarios.rol, "profesor") : undefined)).returning();
+        if (soloProfesor && !eliminado) throw new ForbiddenError("La cuenta vinculada no es una cuenta de profesor gestionable");
       }
       const [deleted] = await tx.delete(profesores).where(eq(profesores.id, id)).returning();
       return !!deleted;

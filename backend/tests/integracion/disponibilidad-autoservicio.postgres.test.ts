@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { createHash } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
@@ -46,15 +46,6 @@ describe.skipIf(!habilitado)("Disponibilidad de autoservicio en PostgreSQL aisla
       const { queryClient } = await import("../../src/config/db.js");
       cerrarAplicacion = () => queryClient.end();
       ({ app: aplicacion } = await import("../../src/app.js"));
-      const { generateToken } = await import("../../src/utils/jwt.js");
-      const identidades = [
-        { nombre: "profesor", id: 2, rol: "profesor" }, { nombre: "otro", id: 3, rol: "profesor" },
-        { nombre: "admin", id: 4, rol: "admin" }, { nombre: "secretaria", id: 1, rol: "secretaria" },
-        { nombre: "sinPerfil", id: 5, rol: "profesor" },
-      ] as const;
-      for (const identidad of identidades) {
-        tokens[identidad.nombre] = generateToken({ ...identidad, correo: `${identidad.nombre}@example.test` });
-      }
     } catch (error) {
       try { throw error; } finally { await cerrar(); }
     }
@@ -92,6 +83,17 @@ describe.skipIf(!habilitado)("Disponibilidad de autoservicio en PostgreSQL aisla
       await transaccion`insert into oferta_tipo_hora(oferta_id,tipo_hora_id,profesor_id) values
         (1,2,1),(2,2,1),(3,1,1),(1,1,2),(4,1,1),(5,1,1),(6,1,2)`;
     });
+    const { usuariosRepository } = await import("../../src/repositories/usuarios.repository.js");
+    const { sesionesRepository } = await import("../../src/repositories/sesiones.repository.js");
+    const { generateToken, verifyToken } = await import("../../src/utils/jwt.js");
+    for (const [nombre, id] of [["secretaria", 1], ["profesor", 2], ["otro", 3], ["admin", 4], ["sinPerfil", 5]] as const) {
+      const usuario = (await usuariosRepository.findById(id))!;
+      const sesionId = randomBytes(32).toString("hex");
+      tokens[nombre] = generateToken(usuario, sesionId);
+      expect(await sesionesRepository.createConCredenciales(usuario, {
+        id: sesionId, usuarioId: id, expiraEn: new Date(verifyToken(tokens[nombre]).exp * 1000),
+      })).toBe(true);
+    }
   });
 
   function consultar(metodo: "get" | "post" | "delete", camino: string, cuerpo?: unknown, identidad = "profesor") {

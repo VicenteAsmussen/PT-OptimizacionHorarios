@@ -8,6 +8,12 @@ const dobles = vi.hoisted(() => ({
   escribir: vi.fn(),
 }));
 vi.mock("../src/utils/jwt.js", () => ({ verifyToken: dobles.verificar }));
+vi.mock("../src/repositories/sesiones.repository.js", () => ({ sesionesRepository: {
+  findById: vi.fn(async () => {
+    const usuario = dobles.verificar.mock.results.at(-1)?.value;
+    return { usuarioId: usuario.id, usuario, expiraEn: new Date(usuario.exp * 1000) };
+  }),
+} }));
 vi.mock("../src/controllers/asignaturas.controller.js", () => ({ asignaturasController: {
   getAll: dobles.leer, getByCodigo: dobles.leer,
   create: dobles.escribir, update: dobles.escribir, delete: dobles.escribir,
@@ -20,6 +26,9 @@ aplicacion.use(express.json());
 aplicacion.use("/api/asignaturas", asignaturasRouter);
 aplicacion.use(errorHandler);
 const entrada = { codigo: "INF100", nombre: "Asignatura", departamentoId: 1, semestreMalla: 1 };
+function identidad(id: number, rol: string) {
+  return { id, rol, nombre: "Cuenta", correo: "cuenta@example.test", sid: "a".repeat(64), exp: Math.floor(Date.now() / 1000) + 3600 };
+}
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -29,26 +38,26 @@ beforeEach(() => {
 
 describe("permisos del catálogo de asignaturas sin base de datos", () => {
   it.each(["post", "put", "delete"] as const)("secretaría no puede ejecutar %s ni llegar a la escritura", async (metodo) => {
-    dobles.verificar.mockReturnValue({ id: 1, rol: "secretaria" });
+    dobles.verificar.mockReturnValue(identidad(1, "secretaria"));
     const ruta = metodo === "post" ? "/api/asignaturas" : "/api/asignaturas/INF100";
     const respuesta = await request(aplicacion)[metodo](ruta).auth("prueba", { type: "bearer" }).send(entrada);
     expect(respuesta.status).toBe(403);
     expect(dobles.escribir).not.toHaveBeenCalled();
   });
   it.each(["/api/asignaturas", "/api/asignaturas/INF100"])("secretaría conserva lectura de %s", async (ruta) => {
-    dobles.verificar.mockReturnValue({ id: 1, rol: "secretaria" });
+    dobles.verificar.mockReturnValue(identidad(1, "secretaria"));
     expect((await request(aplicacion).get(ruta).auth("prueba", { type: "bearer" })).status).toBe(200);
     expect(dobles.leer).toHaveBeenCalledOnce();
   });
   it.each(["post", "put", "delete"] as const)("administración conserva %s", async (metodo) => {
-    dobles.verificar.mockReturnValue({ id: 2, rol: "admin" });
+    dobles.verificar.mockReturnValue(identidad(2, "admin"));
     const ruta = metodo === "post" ? "/api/asignaturas" : "/api/asignaturas/INF100";
     expect((await request(aplicacion)[metodo](ruta).auth("prueba", { type: "bearer" }).send(entrada)).status).toBe(200);
     expect(dobles.escribir).toHaveBeenCalledOnce();
   });
   it("mantiene el rechazo de profesores y solicitudes sin sesión", async () => {
     expect((await request(aplicacion).get("/api/asignaturas")).status).toBe(401);
-    dobles.verificar.mockReturnValue({ id: 3, rol: "profesor" });
+    dobles.verificar.mockReturnValue(identidad(3, "profesor"));
     expect((await request(aplicacion).get("/api/asignaturas").auth("prueba", { type: "bearer" })).status).toBe(403);
     expect(dobles.leer).not.toHaveBeenCalled();
   });
