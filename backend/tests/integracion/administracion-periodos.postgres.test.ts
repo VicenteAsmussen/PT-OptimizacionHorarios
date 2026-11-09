@@ -54,6 +54,21 @@ describe.skipIf(!habilitado)("Period administration on isolated PostgreSQL", () 
     });
   });
   const autorizada = (solicitud: Test) => solicitud.set("Authorization", `Bearer ${token}`);
+  async function prepararHorarioValido() {
+    await cliente.begin(async transaccion => {
+      await transaccion`delete from horarios_asignaturas where planificacion_semestre_id=1`;
+      await transaccion`update asignatura_tipo_hora set horas=2`;
+      await transaccion`insert into bloques_horarios (id,dia,numero_bloque,hora_inicio,hora_termino) values
+        (2,'Lunes',2,'08:50','09:30'),(3,'Lunes',3,'09:40','10:20'),
+        (4,'Lunes',4,'10:20','11:00'),(5,'Lunes',5,'11:10','11:50'),
+        (6,'Lunes',6,'11:50','12:30'),(7,'Lunes',7,'12:40','13:20')`;
+      await transaccion`insert into disponibilidad_profesores (profesor_id,planificacion_semestre_id,bloque_id)
+        select 1,1,id from bloques_horarios where id between 2 and 7`;
+      await transaccion`insert into horarios_asignaturas (oferta_id,tipo_hora_id,planificacion_semestre_id,bloque_id,sala_id) values
+        (10,1,1,1,1),(10,1,1,2,1),(11,1,1,3,1),(11,1,1,4,1),
+        (12,1,1,5,null),(12,1,1,6,null)`;
+    });
+  }
   async function resumen(alcance = "gestionadas", id = 1) {
     const respuesta = await autorizada(request(app).get(`/api/administracion-periodos/${id}/resumen?alcance=${alcance}`));
     expect(respuesta.status).toBe(200);
@@ -111,17 +126,55 @@ describe.skipIf(!habilitado)("Period administration on isolated PostgreSQL", () 
       expect(await huellaDatos()).toBe(antes);
     }
   });
-  it("admin enters proposal and switches freely to published without load or room validation", async () => {
+  it.each([
+    { escenario: "carga incompleta", mensaje: "se requieren 3 bloques" },
+    { escenario: "conflicto docente", mensaje: "El profesor tiene otra clase en este bloque." },
+    { escenario: "sesiones aisladas", mensaje: "Cada sesión gestionada debe comenzar en un bloque impar y tener entre dos y cuatro bloques continuos." },
+  ])("rechaza propuesta y publicación con $escenario sin modificar datos", async ({ escenario, mensaje }) => {
+    await prepararHorarioValido();
     await cliente`update planificaciones_semestres set estado_planificacion='preparacion' where id=1`;
-    await cliente`update asignatura_tipo_hora set horas=20`;
+    if (escenario === "carga incompleta") await cliente`update asignatura_tipo_hora set horas=3 where asignatura_codigo='INT'`;
+    if (escenario === "conflicto docente") await cliente`update horarios_asignaturas
+      set sala_id=null,bloque_id=case when bloque_id=3 then 1 else 2 end
+      where planificacion_semestre_id=1 and oferta_id=11`;
+    if (escenario === "sesiones aisladas") await cliente`update horarios_asignaturas set bloque_id=7
+      where planificacion_semestre_id=1 and oferta_id=10 and bloque_id=2`;
     const antes = await huellaDatos();
-    let estadoAnterior = "preparacion";
-    for (const estadoPlanificacion of ["propuesta", "publicado", "propuesta", "publicado"]) {
-      const respuesta = await autorizada(request(app).patch(`${raiz}/estado`)).send({ estadoAnterior, estadoPlanificacion });
-      expect(respuesta.status).toBe(200); estadoAnterior = estadoPlanificacion;
+    for (const estadoPlanificacion of ["propuesta", "publicado"]) {
+      const respuesta = await autorizada(request(app).patch(`${raiz}/estado`)).send({ estadoAnterior: "preparacion", estadoPlanificacion });
+      expect(respuesta.status, JSON.stringify(respuesta.body)).toBe(409);
+      expect(respuesta.body.status).toBe("error");
+      expect(respuesta.body.message).toContain(mensaje);
+      expect(await huellaDatos()).toBe(antes);
     }
-    await cliente`update planificaciones_semestres set estado_planificacion='preparacion' where id=1`;
+  });
+  it.each(["propuesta", "publicado"])("revalida el resultado al solicitar conservar %s", async estadoPlanificacion => {
+    await prepararHorarioValido();
+    await cliente`update planificaciones_semestres set estado_planificacion=${estadoPlanificacion} where id=1`;
+    await cliente`update asignatura_tipo_hora set horas=3 where asignatura_codigo='INT'`;
+    const antes = await huellaDatos();
+    const respuesta = await autorizada(request(app).patch(`${raiz}/estado`)).send({ estadoAnterior: estadoPlanificacion, estadoPlanificacion });
+    expect(respuesta.status, JSON.stringify(respuesta.body)).toBe(409);
+    expect(respuesta.body.message).toContain("se requieren 3 bloques");
     expect(await huellaDatos()).toBe(antes);
+  });
+  it("permite propuesta sin salas, pero impide publicar hasta asignarlas", async () => {
+    await prepararHorarioValido();
+    await cliente`update planificaciones_semestres set estado_planificacion='preparacion' where id=1`;
+    await cliente`update horarios_asignaturas set sala_id=null where planificacion_semestre_id=1`;
+    const propuesta = await autorizada(request(app).patch(`${raiz}/estado`)).send({ estadoAnterior: "preparacion", estadoPlanificacion: "propuesta" });
+    expect(propuesta.status, JSON.stringify(propuesta.body)).toBe(200);
+    expect(propuesta.body.data.estadoPlanificacion).toBe("propuesta");
+    const antes = await huellaDatos();
+    const publicacion = await autorizada(request(app).patch(`${raiz}/estado`)).send({ estadoAnterior: "propuesta", estadoPlanificacion: "publicado" });
+    expect(publicacion.status, JSON.stringify(publicacion.body)).toBe(409);
+    expect(publicacion.body.message).toContain("Hay una clase que requiere sala sin asignación.");
+    expect(await huellaDatos()).toBe(antes);
+    await cliente`update horarios_asignaturas set sala_id=1 where planificacion_semestre_id=1 and oferta_id in (10,11)`;
+    const publicada = await autorizada(request(app).patch(`${raiz}/estado`)).send({ estadoAnterior: "propuesta", estadoPlanificacion: "publicado" });
+    expect(publicada.status, JSON.stringify(publicada.body)).toBe(200);
+    expect(publicada.body.data.estadoPlanificacion).toBe("publicado");
+    expect((await resumen()).planificacion.estadoPlanificacion).toBe("publicado");
   });
   it("rejects returning to proposal/published after a formerly valid managed preview becomes empty", async () => {
     expect((await resumen("gestionadas")).horarios).toBe(2);
@@ -144,6 +197,7 @@ describe.skipIf(!habilitado)("Period administration on isolated PostgreSQL", () 
     expect((await resumen(alcance)).horarios).toBe(0);
   });
   it.each(["preparacion", "propuesta", "publicado"])("applies transitions from %s without bypassing the schedule guard", async estadoAnterior => {
+    await prepararHorarioValido();
     for (const estadoPlanificacion of ["preparacion", "propuesta", "publicado"]) {
       await cliente`update planificaciones_semestres set estado_planificacion=${estadoAnterior} where id=1`;
       const huellaAnterior = await huellaDatos();
@@ -154,7 +208,7 @@ describe.skipIf(!habilitado)("Period administration on isolated PostgreSQL", () 
         expect(await huellaDatos()).toBe(huellaAnterior);
         continue;
       }
-      expect(respuesta.status).toBe(200);
+      expect(respuesta.status, JSON.stringify(respuesta.body)).toBe(200);
       expect(respuesta.body.data).toMatchObject({ id: 1, carreraId: 1, codigo: "2099-2", actual: true, estadoPlanificacion });
       const despues = await preservados();
       antes.planes[0].estado_planificacion = estadoPlanificacion;

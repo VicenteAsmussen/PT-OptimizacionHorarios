@@ -66,11 +66,12 @@ El flujo del administrador se basa en los **horarios gestionados**, no en la can
 | Datos del período seleccionado | Estados disponibles |
 | --- | --- |
 | Vacío, solo ofertas o únicamente ofertas y horarios externos | Preparación |
-| Al menos un horario gestionado | Propuesta y Publicado, el administrador puede alternar libremente entre ambos |
+| Horarios gestionados con carga completa y validaciones de propuesta satisfechas | Propuesta |
+| Lo anterior, además de las salas exigidas para publicar | Publicado |
 
 Se rechazan con 409 tanto **Propuesta** como **Publicado** si la combinación seleccionada de carrera y período no tiene horarios gestionados. Los de otras carreras o períodos no cumplen ese requisito. La API vuelve a calcularlo con los mismos bloqueos de carrera y período usados en los reinicios, las cantidades de la vista previa son informativas. Las ofertas y los horarios externos existentes se conservan durante todos los cambios de estado.
 
-Esta página de administración **no** exige cubrir toda la carga docente ni tener salas asignadas antes de publicar. Una página futura e independiente para secretaría puede exigir salas para clases teóricas y prácticas. Ese flujo no está implementado aquí y no concede a secretaría acceso a estas operaciones de mantenimiento.
+El administrador no puede eludir los validadores del resultado. **Propuesta** exige carga completa y cumplimiento de conflictos, disponibilidad, reservas, continuidad, compatibilidad académica y recursos cuando corresponda. No exige todavía la asignación física de salas. **Publicado** aplica esas mismas validaciones y exige sala para las clases gestionadas que la requieren, salvo los laboratorios. Se vuelve a validar incluso si se solicita conservar el estado actual. Un rechazo devuelve 409 sin cambiar el estado ni los datos. Estas reglas coinciden con la [integración del modelo](modelo-optimizacion.md) y no conceden a secretaría acceso a las operaciones de mantenimiento del administrador.
 
 Los cambios de estado no generan ni eliminan horarios, no eligen el período actual y no modifican las importaciones externas. Los reinicios tampoco cambian el estado de forma implícita, después de vaciar los horarios gestionados, seleccione Preparación. La edición habitual sigue requiriendo un período actual en preparación. Al volver a preparación, los docentes asignados aún pueden seleccionar el período, pero su calendario se reemplaza por un aviso de preparación y se deniega la lectura de horarios. En propuesta y publicado, cada docente puede consultar su horario según las reglas de acceso existentes.
 
