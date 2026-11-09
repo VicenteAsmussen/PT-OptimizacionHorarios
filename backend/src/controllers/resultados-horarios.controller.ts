@@ -4,6 +4,10 @@ import { resultadosHorariosService } from "../services/resultados-horarios.servi
 import { BadRequestError } from "../utils/errors.js";
 
 export const resultadosHorariosController = {
+  async descartar(req: Request, res: Response, siguiente: NextFunction) {
+    try { res.json({ status: "success", data: await resultadosHorariosService.descartar(Number(req.params.id), req.body.revision, await resolverAlcanceCarrera(req.user)) }); }
+    catch (error) { siguiente(error); }
+  },
   async exportarSalas(req: Request, res: Response, siguiente: NextFunction) {
     try {
       const archivo = await resultadosHorariosService.exportarSalas(Number(req.params.id), req.query.soloPendientes as unknown as boolean,

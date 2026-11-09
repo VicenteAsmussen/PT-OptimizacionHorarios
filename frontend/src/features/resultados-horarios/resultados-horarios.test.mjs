@@ -1103,7 +1103,7 @@ async function montar(nombreArchivo, nombreFuncion, propiedades, api) {
   const valores = [], efectos = [], pendientes = [];
   let indice = 0, sucio = false, arbol;
   const auxiliares = { ...(await import('./calendario/disposicion.ts').catch(() => ({}))), ...(await import('./calendario/gesto.ts').catch(() => ({}))), ...(await import('./calendario/presentacion.ts')), ...(await import('../mi-horario/modelo.ts')) };
-  const entorno = { React, ...auxiliares, ...modelo, ...datos, claveDia: disponibilidad.claveDia, ordenarBloques: disponibilidad.ordenarBloques, ...componentes, ApiError, estilos: {}, calendario: {}, MarcadorReserva: () => null, IconoArchivo: () => null, resultadosHorariosApi: api, notificaciones,
+  const entorno = { React, ...auxiliares, ...modelo, ...datos, ...(await import('./permisos.ts')), claveDia: disponibilidad.claveDia, ordenarBloques: disponibilidad.ordenarBloques, ...componentes, ApiError, estilos: {}, calendario: {}, MarcadorReserva: () => null, IconoArchivo: () => null, resultadosHorariosApi: api, notificaciones,
     ordenarPeriodosPorFechaAcademica: (await import('../../lib/periodos.ts')).ordenarPeriodosPorFechaAcademica,
     useAuth: () => ({ usuario: { id: 1, rol: 'secretaria' } }), Navigate: () => null, Outlet: () => null,
     useSearchParams: () => [new URLSearchParams(api.consulta ?? '')], Link: () => null,
@@ -1166,6 +1166,47 @@ function diferida() {
   const promesa = new Promise((si, no) => { resolver = si; rechazar = no; });
   return { promesa, resolver, rechazar };
 }
+
+test('admin consulta calendario y detalle sin ninguna acción operativa', async () => {
+  const llamadas = [];
+  const pagina = await montar('./ResultadosHorariosPage.tsx', 'ContenidoResultados', { id: 2, ocupado: false, actualizarPlanificacion() {} }, {
+    consultar: async () => resultado,
+    entorno: { useAuth: () => ({ usuario: { id: 7, rol: 'admin' } }) },
+    mover: async () => llamadas.push('mover'), exportar: async () => llamadas.push('exportar'), descartar: async () => llamadas.push('descartar'),
+  });
+  try {
+    await pagina.asentar();
+    for (const accion of ['Editar horario', 'Revisar y publicar', 'Descartar propuesta']) assert.equal(pagina.boton(accion), undefined);
+    assert.equal(pagina.componente('GestionSalas'), undefined);
+    pagina.buscar('button').find(b => b.props['aria-label'] === 'Ver semestre 3').props.onClick(); pagina.renderizar();
+    assert.equal(pagina.componente('CalendarioResultados').props.editar, false);
+    pagina.componente('CalendarioResultados').props.seleccionar(sesion); pagina.renderizar();
+    assert.equal(pagina.componente('DetalleSesionDialogo').props.sesion, sesion);
+    assert.deepEqual(llamadas, []);
+  } finally { pagina.cerrar(); }
+});
+
+test('secretaría confirma descarte explícito con revisión y vuelve a Preparación sin reinicio general', async () => {
+  const llamadas = [], actualizadas = [];
+  const planificacion = { ...resultado.planificacion, estadoPlanificacion: 'preparacion' };
+  const pagina = await montar('./ResultadosHorariosPage.tsx', 'ContenidoResultados', { id: 2, ocupado: false, actualizarPlanificacion: p => actualizadas.push(p) }, {
+    consultar: async () => resultado,
+    descartar: async (...datos) => { llamadas.push(datos); return { planificacion }; },
+  });
+  try {
+    await pagina.asentar();
+    pagina.boton('Descartar propuesta').props.onClick(); pagina.renderizar();
+    const confirmar = () => pagina.boton('Confirmar descarte');
+    assert.equal(confirmar().props.disabled, true);
+    confirmar().props.onClick(); await pagina.asentar(); assert.deepEqual(llamadas, []);
+    assert.ok(pagina.buscar('p').some(p => pagina.texto(p).includes('ofertas, asignaciones, disponibilidades y horarios externos')));
+    pagina.buscar('input').find(p => p.props.type === 'checkbox').props.onChange({ target: { checked: true } }); pagina.renderizar();
+    assert.equal(confirmar().props.disabled, false);
+    confirmar().props.onClick(); await pagina.asentar();
+    assert.deepEqual(llamadas, [[2, resultado.revision]]);
+    assert.equal(actualizadas.at(-1), planificacion);
+  } finally { pagina.cerrar(); }
+});
 
 const conSalaParaExportar = { ...sesion, idsHorarios: [21, 22, 23, 24], estadoSala: 'asignada', salas: sesion.salas.map(() => ({ id: 4, nombre: 'A107AC' })) };
 for (const caso of [

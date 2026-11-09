@@ -28,12 +28,14 @@ router.get(
 
 router.post(
   "/",
+  authorizeRoles("secretaria"),
   validateRequest({ body: createOfertaValidation }),
   ofertasController.create
 );
 
 router.put(
   "/:id",
+  authorizeRoles("secretaria"),
   validateRequest({
     params: ofertaIdParamValidation,
     body: updateOfertaValidation,
@@ -43,6 +45,7 @@ router.put(
 
 router.delete(
   "/:id",
+  authorizeRoles("secretaria"),
   validateRequest({ params: ofertaIdParamValidation }),
   ofertasController.delete
 );

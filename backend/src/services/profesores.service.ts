@@ -252,6 +252,11 @@ export const profesoresService = {
   async deleteProfesor(id: number, alcance?: AlcanceCarrera, usuario?: TokenPayload) {
     const profesor = await this.getProfesorById(id, alcance);
 
+    if (usuario?.rol === "admin") {
+      await profesoresRepository.deleteSinDependencias(id, profesor.usuarioId);
+      return;
+    }
+
     if (esSecretaria(usuario) && profesor.tipo !== "part time") {
       throw new ForbiddenError("La secretaria solo puede eliminar profesores part time");
     }

@@ -7,9 +7,10 @@ import { errorHandler } from "../src/middlewares/error.middleware.js";
 import type { CapturaOptimizacion } from "../src/repositories/optimizacion.repository.js";
 import type { EntradaOptimizacion, SalidaOptimizacion } from "../src/optimizacion/index.js";
 
-const controles = vi.hoisted(() => ({ rol: "admin", repositorio: {} as Record<string, ReturnType<typeof vi.fn>>,
+const controles = vi.hoisted(() => ({ rol: "secretaria", repositorio: {} as Record<string, ReturnType<typeof vi.fn>>,
   entradas: [] as EntradaOptimizacion[], resolver: undefined as undefined | ((salida: SalidaOptimizacion) => void) }));
 vi.mock("../src/repositories/optimizacion.repository.js", () => ({ optimizacionRepository: controles.repositorio }));
+vi.mock("../src/utils/alcance-carrera.js", () => ({ resolverAlcanceCarrera: async () => ({ carreraId: 1 }) }));
 vi.mock("../src/optimizacion/proceso.js", () => ({ ejecutarJulia: vi.fn((entrada: EntradaOptimizacion) => {
   controles.entradas.push(entrada);
   return new Promise<SalidaOptimizacion>(resolver => { controles.resolver = resolver; });
@@ -25,7 +26,7 @@ let captura: CapturaOptimizacion;
 let ejecucion: Record<string, unknown> | undefined;
 const parametros = { claveIdempotencia: "solicitud-http-1", recursos: [{ id: "AA-Sala-90", edificio: "AA", tipo: "Sala", capacidad: 90, cantidad: 1, fuente: "Inventario sintético" }] };
 beforeEach(() => {
-  controles.rol = "admin"; controles.entradas.length = 0; controles.resolver = undefined; ejecucion = undefined;
+  controles.rol = "secretaria"; controles.entradas.length = 0; controles.resolver = undefined; ejecucion = undefined;
   captura = { planificacion: { id: 1, carreraId: 1, codigo: "2099-2", actual: true, estadoPlanificacion: "preparacion" },
     revision: "revision-db", horariosGestionados: 0, gestionados: [1], relaciones: [], disponibilidades: [{ profesorId: 1, bloqueId: 1 }, { profesorId: 1, bloqueId: 2 }],
     horarios: [], bloques, catalogoSalas: [{ id: 1, nombre: "A101AA", capacidad: 90, tipo: "Sala" }], reservas: [],

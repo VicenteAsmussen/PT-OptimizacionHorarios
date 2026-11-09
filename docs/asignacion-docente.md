@@ -14,7 +14,7 @@ Elegir al docente del primer tipo completa los demás campos vacíos, sin reempl
 
 **Editar asignatura** muestra las horas de la malla como información de solo lectura, editar otros datos no las modifica.
 
-Solo se editan planificaciones actuales en `preparacion`. Se conserva el alcance por carrera. El catálogo de profesores sigue siendo global, pero las sugerencias y el guardado de secciones solo admiten docentes del departamento de la asignatura, no de cualquier departamento gestionado por la secretaría.
+Solo secretaría edita secciones y asignaciones en planificaciones actuales en `preparacion`, dentro de su alcance por carrera. Administración conserva su consulta, sin guardar ni eliminar secciones. Las sugerencias y el guardado de secciones solo admiten docentes del departamento de la asignatura, no de cualquier departamento gestionado por la secretaría.
 
 Las asignaciones anteriores no se eliminan automáticamente. Si una sección conserva profesores de otro departamento, al editarla se muestran sus nombres en un aviso: reemplaza esas asignaciones o limpia sus campos antes de guardar, incluso si solo cambias los cupos.
 

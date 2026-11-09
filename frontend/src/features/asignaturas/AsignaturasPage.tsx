@@ -165,9 +165,9 @@ export default function AsignaturasPage() {
                 <button className={`boton ${estilos.botonConIcono} ${estilos.accionPrincipal}`} type="button" disabled={!planificacion} aria-label={`Gestionar secciones de ${a.nombre}`}
                   onClick={() => setSeleccion({ tipo: 'secciones', asignatura: a })}>
                   <span aria-hidden="true" className={estilos.icono} style={{ maskImage: `url("${iconoSecciones}")`, WebkitMaskImage: `url("${iconoSecciones}")` }} />Gestionar secciones</button>
-                {puedeEditar && <button className={`boton boton--gris ${estilos.botonConIcono} ${estilos.accionSecundaria}`} type="button" aria-label={`Editar ${a.nombre}`} onClick={() => setSeleccion({ tipo: 'editar', asignatura: a })}>
+                {puedeEditar && a.tieneDependenciasAcademicas !== true && <button className={`boton boton--gris ${estilos.botonConIcono} ${estilos.accionSecundaria}`} type="button" aria-label={`Editar ${a.nombre}`} onClick={() => setSeleccion({ tipo: 'editar', asignatura: a })}>
                   <span aria-hidden="true" className={estilos.icono} style={{ maskImage: `url("${iconoEditar}")`, WebkitMaskImage: `url("${iconoEditar}")` }} />Editar</button>}
-                {!puedeEditar && <button className={`boton boton--gris ${estilos.botonVer} ${estilos.accionSecundaria}`} type="button" aria-label={`Ver ${a.nombre}`} title={`Ver ${a.nombre}`} onClick={() => setSeleccion({ tipo: 'ver', asignatura: a })}>
+                {(!puedeEditar || a.tieneDependenciasAcademicas === true) && <button className={`boton boton--gris ${estilos.botonVer} ${estilos.accionSecundaria}`} type="button" aria-label={`Ver ${a.nombre}`} title={`Ver ${a.nombre}`} onClick={() => setSeleccion({ tipo: 'ver', asignatura: a })}>
                   <span aria-hidden="true" className={estilos.icono} style={{ maskImage: `url("${iconoVer}")`, WebkitMaskImage: `url("${iconoVer}")` }} />
                 </button>}
               </div></td></tr>)}</tbody>

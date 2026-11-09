@@ -6,6 +6,12 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import ts from 'typescript';
 import { puedeEditarAsignaturas } from './datos.ts';
 
+test('admin edita el catálogo libre, pero una asignatura utilizada queda en consulta', () => {
+  assert.equal(puedeEditarAsignaturas('admin', { tieneDependenciasAcademicas: true }), false);
+  assert.equal(puedeEditarAsignaturas('admin', { tieneDependenciasAcademicas: false }), true);
+  assert.equal(puedeEditarAsignaturas('secretaria', { tieneDependenciasAcademicas: false }), false);
+});
+
 async function renderizarFragmento(patron, contexto) {
   const fuente = await readFile(new URL('./AsignaturasPage.tsx', import.meta.url), 'utf8');
   const fragmento = fuente.match(patron)?.[0];
@@ -16,6 +22,15 @@ async function renderizarFragmento(patron, contexto) {
   return renderToStaticMarkup(new Function('React', ...Object.keys(contexto), codigo)(
     { createElement, Fragment: Symbol.for('react.fragment') }, ...Object.values(contexto)));
 }
+
+test('la acción real de una asignatura utilizada ofrece Ver y no Editar para admin', async () => {
+  const html = await renderizarFragmento(/<div className=\{estilos.acciones\} role="group"[^]*?<\/div>/, {
+    estilos: {}, puedeEditar: true, iconoVer: 'ojo.svg', iconoEditar: 'editar.svg', iconoSecciones: 'secciones.svg',
+    a: { nombre: 'Álgebra', tieneDependenciasAcademicas: true }, planificacion: { id: 1 }, setSeleccion() {},
+  });
+  assert.match(html, /Ver Álgebra/);
+  assert.doesNotMatch(html, /Editar Álgebra/);
+});
 
 test('la vista oculta edición a secretaría y conserva edición para administración', async () => {
   for (const rol of ['secretaria', 'admin']) {

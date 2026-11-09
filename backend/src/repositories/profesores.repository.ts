@@ -12,6 +12,7 @@ import { planificacionesSemestresRepository } from "./planificaciones-semestres.
 import { conPlanificacionesBloqueadas, type TransaccionPlanificacion } from "./planificacion-escritura.js";
 import { usuariosRepository } from "./usuarios.repository.js";
 import { ForbiddenError } from "../utils/errors.js";
+import { conCatalogosBloqueados, exigirCatalogoSinDependencias, tieneDependenciasProfesor } from "./dependencias-academicas.js";
 
 async function periodosProfesor(tx: TransaccionPlanificacion, id: number) {
   const disponibilidades = await tx.query.disponibilidadProfesores.findMany({ where: eq(disponibilidadProfesores.profesorId, id) });
@@ -32,7 +33,7 @@ export const profesoresRepository = {
   },
 
   async findAll(departamentoId?: number, alcance?: AlcanceCarrera) {
-    return await db.query.profesores.findMany({
+    const docentes = await db.query.profesores.findMany({
       where: and(departamentoId === undefined ? undefined : eq(profesores.departamentoId, departamentoId),
         alcance ? inArray(profesores.departamentoId, alcance.departamentosIds) : undefined),
       with: {
@@ -42,10 +43,13 @@ export const profesoresRepository = {
         asignaciones: { where: alcance ? inArray(ofertaTipoHora.ofertaId, db.select({ id: ofertasAsignaturas.id }).from(ofertasAsignaturas).where(inArray(ofertasAsignaturas.planificacionSemestreId, planificacionesSemestresRepository.idsEnCarrera(alcance)))) : undefined, with: { oferta: true, tipoHora: true } },
       },
     });
+    return Promise.all(docentes.map(async docente => ({ ...docente,
+      tieneDependenciasAcademicas: await tieneDependenciasProfesor(db, docente.id),
+    })));
   },
 
   async findById(id: number, alcance?: AlcanceCarrera) {
-    return await db.query.profesores.findFirst({
+    const docente = await db.query.profesores.findFirst({
       where: eq(profesores.id, id),
       with: {
         departamento: true,
@@ -54,6 +58,7 @@ export const profesoresRepository = {
         asignaciones: { where: alcance ? inArray(ofertaTipoHora.ofertaId, db.select({ id: ofertasAsignaturas.id }).from(ofertasAsignaturas).where(inArray(ofertasAsignaturas.planificacionSemestreId, planificacionesSemestresRepository.idsEnCarrera(alcance)))) : undefined, with: { oferta: true, tipoHora: true } },
       },
     });
+    return docente ? { ...docente, tieneDependenciasAcademicas: await tieneDependenciasProfesor(db, id) } : undefined;
   },
 
   async findByRut(rut: string) {
@@ -122,16 +127,18 @@ export const profesoresRepository = {
   },
 
   async update(id: number, data: Partial<Omit<NuevoProfesor, "id">>): Promise<Profesor | undefined> {
-    const [updated] = await db
-      .update(profesores)
-      .set(data)
-      .where(eq(profesores.id, id))
-      .returning();
-    return updated;
+    return conCatalogosBloqueados(async tx => {
+      const [updated] = await tx
+        .update(profesores)
+        .set(data)
+        .where(eq(profesores.id, id))
+        .returning();
+      return updated;
+    });
   },
 
   async updateWithSyncedUsuarioName(id: number, data: Partial<Omit<NuevoProfesor, "id">>, usuarioId?: number | null, soloProfesor = false) {
-    return await db.transaction(async (tx) => {
+    return conCatalogosBloqueados(async (tx) => {
       const [updated] = Object.keys(data).length > 0
         ? await tx.update(profesores).set(data).where(eq(profesores.id, id)).returning()
         : [undefined];
@@ -160,13 +167,14 @@ export const profesoresRepository = {
     return db.transaction(tx => usuariosRepository.updateEnTransaccion(tx, usuarioId, data, soloProfesor));
   },
 
-  async deleteUsuarioForProfesor(id: number, usuarioId: number, soloProfesor = false): Promise<boolean> {
-    return await db.transaction(async (tx) => {
+  async deleteUsuarioForProfesor(id: number, usuarioId: number, soloProfesor = false, transaccion?: TransaccionPlanificacion): Promise<boolean> {
+    const escribir = async (tx: TransaccionPlanificacion) => {
       await tx.update(profesores).set({ usuarioId: null }).where(eq(profesores.id, id));
       const [deleted] = await tx.delete(usuarios).where(and(eq(usuarios.id, usuarioId), soloProfesor ? eq(usuarios.rol, "profesor") : undefined)).returning();
       if (soloProfesor && !deleted) throw new ForbiddenError("La cuenta vinculada no es una cuenta de profesor gestionable");
       return !!deleted;
-    });
+    };
+    return transaccion ? escribir(transaccion) : db.transaction(escribir);
   },
 
   async delete(id: number): Promise<boolean> {
@@ -181,12 +189,25 @@ export const profesoresRepository = {
       await tx.delete(disponibilidadProfesores).where(eq(disponibilidadProfesores.profesorId, id));
       await tx.delete(ofertaTipoHora).where(eq(ofertaTipoHora.profesorId, id));
       if (usuarioId) {
-        await tx.update(profesores).set({ usuarioId: null }).where(eq(profesores.id, id));
-        const [eliminado] = await tx.delete(usuarios).where(and(eq(usuarios.id, usuarioId), soloProfesor ? eq(usuarios.rol, "profesor") : undefined)).returning();
-        if (soloProfesor && !eliminado) throw new ForbiddenError("La cuenta vinculada no es una cuenta de profesor gestionable");
+        await profesoresRepository.deleteUsuarioForProfesor(id, usuarioId, soloProfesor, tx);
       }
       const [deleted] = await tx.delete(profesores).where(eq(profesores.id, id)).returning();
       return !!deleted;
+    });
+  },
+
+  async deleteSinDependencias(id: number, usuarioId?: number | null): Promise<boolean> {
+    return conCatalogosBloqueados(async tx => {
+      await exigirCatalogoSinDependencias(tx, { tipo: "profesor", id });
+      // La identidad vinculada se vuelve a leer bajo bloqueo, no se confía en el DTO.
+      const docente = await tx.query.profesores.findFirst({ where: eq(profesores.id, id) });
+      if (!docente) return false;
+      if (docente.usuarioId !== usuarioId) throw new ForbiddenError("La cuenta vinculada cambió, vuelve a consultar el profesor");
+      if (docente.usuarioId) {
+        await profesoresRepository.deleteUsuarioForProfesor(id, docente.usuarioId, false, tx);
+      }
+      const [eliminado] = await tx.delete(profesores).where(eq(profesores.id, id)).returning();
+      return !!eliminado;
     });
   },
 };

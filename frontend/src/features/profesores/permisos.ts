@@ -1,6 +1,6 @@
 import type { AlcanceProfesores, CarreraProfesor } from "./types";
 
-type ProfesorEnAlcance = { departamentoId: number; tipo: string };
+type ProfesorEnAlcance = { departamentoId: number; tipo: string; tieneDependenciasAcademicas?: boolean };
 
 export function puedeGestionarProfesores(rol?: string): boolean {
   return rol === "admin" || rol === "secretaria";
@@ -18,8 +18,7 @@ export function derivarAlcanceProfesores(carreras: readonly CarreraProfesor[]): 
   };
 }
 
-// Aplica a crear, editar y eliminar datos. Al editar, comprobar también el
-// destino con este helper. El backend decide el bloqueo por horarios al borrar.
+// Aplica a crear y editar identidad. Al editar, comprobar también el destino.
 export function puedeAdministrarProfesor(
   rol: string | undefined, profesor: ProfesorEnAlcance, alcance?: AlcanceProfesores,
 ): boolean {
@@ -33,4 +32,11 @@ export function puedeAdministrarAcceso(
 ): boolean {
   return rol === "admin" || (rol === "secretaria" && profesor.tipo === "part time"
     && alcance?.departamentosGestionadosIds.includes(profesor.departamentoId) === true);
+}
+
+export function puedeEliminarProfesor(
+  rol: string | undefined, profesor: ProfesorEnAlcance, alcance?: AlcanceProfesores,
+): boolean {
+  return puedeAdministrarProfesor(rol, profesor, alcance)
+    && !(rol === "admin" && profesor.tieneDependenciasAcademicas === true);
 }

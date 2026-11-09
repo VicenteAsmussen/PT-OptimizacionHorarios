@@ -43,6 +43,7 @@ async function montar(ruta, api, propiedades) {
     '../../lib/notificaciones': { notificaciones },
     './PanelAsignatura': { __esModule: true, default: ({ children }) => children },
     './SelectorProfesor': { __esModule: true, default: () => null },
+    '../../hooks/useAuth': { useAuth: () => ({ usuario: { rol: 'secretaria' } }) },
     '../optimizacion/SeguimientoOptimizacion': { useBloqueoOptimizacion: () => false, AvisoBloqueo: () => null },
   };
   async function cargar(archivo) {

@@ -9,6 +9,7 @@ export default function EditarAsignatura({ asignatura, departamentos, alCerrar, 
   asignatura: Asignatura; departamentos: Departamento[]; alCerrar: () => void; alCompletar: () => void;
   soloLectura?: boolean;
 }) {
+  soloLectura = soloLectura || asignatura.tieneDependenciasAcademicas === true;
   const [nombre, setNombre] = useState(asignatura.nombre);
   const [departamentoId, setDepartamentoId] = useState(asignatura.departamentoId);
   const [semestreMalla, setSemestreMalla] = useState(asignatura.semestreMalla);
@@ -26,6 +27,7 @@ export default function EditarAsignatura({ asignatura, departamentos, alCerrar, 
     });
   }
   return <PanelAsignatura titulo={soloLectura ? 'Ver asignatura' : 'Editar asignatura'} ocupado={ocupado} alCerrar={alCerrar}>
+    {asignatura.tieneDependenciasAcademicas && <p>Solo lectura: esta asignatura tiene dependencias académicas registradas.</p>}
     {soloLectura ? <section className={estilos.identidad} aria-label="Identificación de la asignatura">
       <h3 className={estilos.nombreIdentidad}>{asignatura.nombre}</h3>
       <p>{asignatura.departamento.nombre}</p>

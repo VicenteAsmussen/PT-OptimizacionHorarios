@@ -9,7 +9,7 @@ import { notificaciones } from '../../lib/notificaciones';
 import { planificacionInicial, estadoSecciones } from '../asignaturas/datos';
 import { resultadosHorariosApi } from './resultados-horarios.api';
 import { claveMovimiento, estadoDestino, estadoInicial, gruposMovibles, puedeConfirmarMovimiento, puedeEditarResultado, puedeMoverSesion, reducirResultados, sesionesVisibles } from './modelo';
-import { puedeGestionarResultados } from './permisos';
+import { puedeGestionarResultados, puedeOperarResultados } from './permisos';
 import type { ErrorPlanilla, Movimiento, PlanificacionSemestre, ResultadoHorario, SesionResultado, ValidacionMovimiento } from './types';
 import CalendarioResultados from './CalendarioResultados';
 import GestionSalas from './GestionSalas';
@@ -40,6 +40,8 @@ type AvisoImportacion = { tipo: 'error'; errores: ErrorPlanilla[]; sinCambios: b
   | { tipo: 'pendientes'; sesiones: SesionResultado[]; trasImportacion: boolean; omitidas?: number } | { tipo: 'consulta' };
 
 export function ConsultaResultados() {
+  const { usuario } = useAuth();
+  const puedeOperar = puedeOperarResultados(usuario?.rol);
   const [consulta] = useSearchParams();
   const solicitada = consulta.get('planificacion');
   const [planificaciones, setPlanificaciones] = useState<PlanificacionSemestre[] | null>(null);
@@ -60,7 +62,7 @@ export function ConsultaResultados() {
   return <section className={estilos.pagina} aria-labelledby="titulo-resultados">
     <header className={estilos.encabezado}>
       <h1 id="titulo-resultados" tabIndex={-1}>Gestión del horario</h1>
-      <p>Revisa la propuesta semanal de la carrera, ajusta sesiones, gestiona salas y publica el horario.</p>
+      <p>{puedeOperar ? 'Revisa la propuesta semanal de la carrera, ajusta sesiones, gestiona salas y publica el horario.' : 'Consulta el horario semanal y sus resultados, sin modificar la planificación.'}</p>
     </header>
     <section className={estilos.tarjeta} aria-label="Contexto de carrera y período">
       <div className={estilos.controles}><label>Carrera y período<select value={id ?? ''} disabled={ocupado || !planificaciones}
@@ -74,7 +76,7 @@ export function ConsultaResultados() {
       : !planificaciones ? <p role="status">Cargando planificaciones…</p>
       : planificaciones.length === 0 ? <p role="status">No hay planificaciones disponibles para tu carrera.</p>
       : !planificacion ? <p role="status">Selecciona una carrera y un período para consultar el horario.</p>
-      : planificacion.estadoPlanificacion === 'preparacion' ? <p className={estilos.tarjeta} role="status">Este período está en Preparación. Todavía no hay una propuesta habilitada para gestionar. <Link to={rutaModelo(planificacion.id)}>Revisar preparación y ejecutar el modelo</Link>.</p>
+      : planificacion.estadoPlanificacion === 'preparacion' ? <p className={estilos.tarjeta} role="status">Este período está en Preparación. Todavía no hay una propuesta habilitada para gestionar. {puedeOperar && <Link to={rutaModelo(planificacion.id)}>Revisar preparación y ejecutar el modelo</Link>}.</p>
       : <ContenidoResultados key={planificacion.id} id={planificacion.id} nombreCarrera={planificacion.carrera.nombre} ocupado={ocupado} cambiarOcupado={setOcupado}
           actualizarPlanificacion={datos => setPlanificaciones(actuales => actuales?.map(p => p.id === datos.id ? { ...p, ...datos } : p) ?? null)} />}
   </section>;
@@ -84,6 +86,8 @@ export function ContenidoResultados({ id, nombreCarrera, ocupado, cambiarOcupado
   id: number; nombreCarrera: string; ocupado: boolean; cambiarOcupado: (valor: boolean) => void;
   actualizarPlanificacion: (datos: ResultadoHorario['planificacion']) => void;
 }) {
+  const { usuario } = useAuth();
+  const puedeOperar = puedeOperarResultados(usuario?.rol);
   const [estado, dispatch] = useReducer(reducirResultados, { ...estadoInicial, id });
   const [nivel, setNivel] = useState('1');
   const [seleccionada, setSeleccionada] = useState<SesionResultado | null>(null);
@@ -95,6 +99,8 @@ export function ContenidoResultados({ id, nombreCarrera, ocupado, cambiarOcupado
   const [validacion, setValidacion] = useState<ValidacionMovimiento | null>(null);
   const [errorMovimiento, setErrorMovimiento] = useState('');
   const [publicando, setPublicando] = useState(false);
+  const [revisionDescarte, setRevisionDescarte] = useState<string | null>(null);
+  const [confirmaDescarte, setConfirmaDescarte] = useState(false);
   const avisoActual = useRef<string | number | null>(null);
   const [avisoImportacion, setAvisoImportacion] = useState<AvisoImportacion | null>(null);
   const importacionPorInformar = useRef<{ mensaje: string; omitidas: number } | null>(null);
@@ -128,7 +134,7 @@ export function ContenidoResultados({ id, nombreCarrera, ocupado, cambiarOcupado
   const resultado = estado.resultado;
   const sesionActual = resultado?.sesiones.find(s => s.idsHorarios.join(',') === seleccionada?.idsHorarios.join(','));
   const disponibilidadCargada = Array.isArray(resultado?.disponibilidades);
-  const sesionMovimiento = editando && disponibilidadCargada && resultado && sesionActual && puedeMoverSesion(resultado, sesionActual) ? sesionActual : null;
+  const sesionMovimiento = puedeOperar && editando && disponibilidadCargada && resultado && sesionActual && puedeMoverSesion(resultado, sesionActual) ? sesionActual : null;
   const datos: Movimiento = { revision: resultado?.revision ?? '', idsHorarios: sesionMovimiento && resultado ? gruposMovibles(sesionMovimiento, resultado.bloques)[grupo] ?? [] : [], bloqueInicioId: destino };
   const clave = claveMovimiento(id, datos);
   const disponible = Boolean(resultado && sesionMovimiento && estadoDestino(resultado, sesionMovimiento, destino, datos.idsHorarios.length) === 'disponible');
@@ -152,7 +158,7 @@ export function ContenidoResultados({ id, nombreCarrera, ocupado, cambiarOcupado
     setEditando(false); setSeleccionada(null); setGrupo(0); setDestino(0); setValidacion(null); setErrorMovimiento(''); setEdicion(e => e + 1);
   }
   function seleccionarSesion(sesion: SesionResultado) {
-    if (!resultado || bloqueo.current || !disponibilidadCargada || seleccionada) return;
+    if (!puedeOperar || !resultado || bloqueo.current || !disponibilidadCargada || seleccionada) return;
     const actual = resultado.sesiones.find(s => s.idsHorarios.join(',') === sesion.idsHorarios.join(','));
     if (!actual || !puedeMoverSesion(resultado, actual)) return;
     cancelarMovimiento(); setEditando(true); setDetalle(null); setSeleccionada(actual); setNivel(String(actual.asignatura.semestreMalla)); setPublicando(false);
@@ -185,7 +191,7 @@ export function ContenidoResultados({ id, nombreCarrera, ocupado, cambiarOcupado
     avisoActual.current = notificaciones[tipo](mensaje, avisoActual.current ?? undefined);
   }
   function recargar() {
-    limpiarMovimiento(); setDetalle(null); setPublicando(false); dispatch({ tipo: 'seleccionar', id });
+    limpiarMovimiento(); setDetalle(null); setPublicando(false); setRevisionDescarte(null); setConfirmaDescarte(false); dispatch({ tipo: 'seleccionar', id });
   }
   function actualizar() {
     cerrarAviso(); setAvisoImportacion(null); recargar();
@@ -196,16 +202,17 @@ export function ContenidoResultados({ id, nombreCarrera, ocupado, cambiarOcupado
     if (!sesiones.length) return;
     setPublicando(false); setAvisoImportacion({ tipo: 'pendientes', sesiones, trasImportacion: false });
   }
-  async function ejecutar(operacion: () => Promise<{ resultado?: ResultadoHorario; mensaje: string; omitidas?: number }>, esImportacion = false) {
-    if (!resultado || !puedeEditarResultado(resultado) || bloqueo.current) return;
+  async function ejecutar(operacion: () => Promise<{ resultado?: ResultadoHorario; planificacion?: ResultadoHorario['planificacion']; mensaje: string; omitidas?: number }>, esImportacion = false) {
+    if (!puedeOperar || !resultado || !puedeEditarResultado(resultado) || bloqueo.current) return;
     bloqueo.current = true; cambiarOcupado(true); cerrarAviso(); setAvisoImportacion(null); importacionPorInformar.current = null;
     try {
       const respuesta = await operacion();
       if (!vivo.current) return;
-      limpiarMovimiento(); setDetalle(null); setPublicando(false);
+      limpiarMovimiento(); setDetalle(null); setPublicando(false); setRevisionDescarte(null); setConfirmaDescarte(false);
       if (esImportacion) importacionPorInformar.current = { mensaje: respuesta.mensaje, omitidas: respuesta.omitidas ?? 0 };
       else mostrarAviso('exito', respuesta.mensaje);
-      if (respuesta.resultado) {
+      if (respuesta.planificacion) actualizarPlanificacion(respuesta.planificacion);
+      else if (respuesta.resultado) {
         dispatch({ tipo: 'cargado', secuencia: estado.secuencia, resultado: respuesta.resultado });
         actualizarPlanificacion(respuesta.resultado.planificacion);
       } else recargar();
@@ -225,7 +232,7 @@ export function ContenidoResultados({ id, nombreCarrera, ocupado, cambiarOcupado
     }
   }
   async function exportar(soloPendientes: boolean) {
-    if (!resultado || bloqueo.current || !vivo.current) return;
+    if (!puedeOperar || !resultado || bloqueo.current || !vivo.current) return;
     const controlador = new AbortController();
     descarga.current = controlador;
     bloqueo.current = true; cambiarOcupado(true); setDescargando(true); cerrarAviso();
@@ -288,12 +295,12 @@ export function ContenidoResultados({ id, nombreCarrera, ocupado, cambiarOcupado
           <h2 id="titulo-semana">Horario semanal de la carrera</h2>
           <p className={estilos.contexto}>{nombreCarrera} · {resultado.planificacion.codigo}</p>
           </header>
-          {!puedeEditarResultado(resultado) && <p>Solo lectura: únicamente se modifica la planificación actual en Propuesta. Los horarios externos permanecen fijos.</p>}
+          {(!puedeOperar || !puedeEditarResultado(resultado)) && <p>Solo lectura: únicamente secretaría modifica la planificación actual en Propuesta. Los horarios externos permanecen fijos.</p>}
           <div className={estilos.barraHorario}><button type="button" className="boton" disabled={ocupado} onClick={actualizar}>Actualizar horario</button>
             <span className={estilos.estado}>Estado: {estadoSecciones(resultado.planificacion).etiqueta}</span>
-            {!editando ? <button type="button" className="boton boton--azul" disabled={ocupado || !puedeEditarResultado(resultado) || !disponibilidadCargada}
+            {puedeOperar && (!editando ? <button type="button" className="boton boton--azul" disabled={ocupado || !puedeEditarResultado(resultado) || !disponibilidadCargada}
               onClick={() => { if (!bloqueo.current && puedeEditarResultado(resultado) && disponibilidadCargada) { setEditando(true); setDetalle(null); } }}>Editar horario</button>
-              : <button type="button" className="boton" disabled={ocupado} onClick={cancelarMovimiento}>Cancelar edición</button>}
+              : <button type="button" className="boton" disabled={ocupado} onClick={cancelarMovimiento}>Cancelar edición</button>)}
           </div>
           {editando && !sesionMovimiento && <p className={estilos.ayudaEdicion} aria-live="polite">Elige una sesión para editar su horario.</p>}
           {!disponibilidadCargada && <p role="status">La disponibilidad no está cargada. Actualiza el horario antes de editar.</p>}
@@ -307,25 +314,41 @@ export function ContenidoResultados({ id, nombreCarrera, ocupado, cambiarOcupado
             cambiarGrupo={cambiarGrupo} cancelar={cancelarMovimiento} confirmar={confirmarMovimiento} />}
           {sesionesVisibles(resultado, nivel).length === 0 && <p role="status">No hay clases asignadas para el semestre {nivel}.</p>}
           {sesionesVisibles(resultado, nivel).length > 0 &&
-            <CalendarioResultados resultado={resultado} nivel={nivel} ocupado={ocupado} editar={editando} seleccionar={consultarSesion}
+            <CalendarioResultados resultado={resultado} nivel={nivel} ocupado={ocupado} editar={puedeOperar && editando} seleccionar={consultarSesion}
               movimiento={sesionMovimiento ? { sesion: sesionMovimiento, idsHorarios: datos.idsHorarios, cantidad: datos.idsHorarios.length, inicioId: destino,
                 invalido: !disponible || visible?.valido === false || Boolean(errorMovimiento), elegir: elegirDestino } : undefined} />}
         </section>
         {detalle && <DetalleSesionDialogo resultado={resultado} sesion={detalle} cerrar={() => setDetalle(null)} />}
-        <GestionSalas key={resultado.revision} resultado={resultado} ocupado={ocupado || Boolean(sesionMovimiento)} seleccionar={seleccionarSesion} exportar={exportar} verPendientes={verPendientes}
+        {puedeOperar && <GestionSalas key={resultado.revision} resultado={resultado} ocupado={ocupado || Boolean(sesionMovimiento)} seleccionar={seleccionarSesion} exportar={exportar} verPendientes={verPendientes}
           importar={archivo => { void ejecutar(async () => {
             const importacion = await resultadosHorariosApi.importar(id, resultado.revision, archivo);
             const cambios = importacion.actualizadas === 0 ? 'No hubo cambios.' : importacion.actualizadas === 1
               ? 'Se actualizó 1 sesión.' : `Se actualizaron ${importacion.actualizadas} sesiones.`;
             const omitidas = importacion.omitidas ?? 0;
             return { mensaje: `Archivo importado. ${cambios}${omitidas ? ` ${mensajeOmitidas(omitidas)}` : ''}`, omitidas };
-          }, true); }} />
-        <section className={estilos.tarjeta} aria-labelledby="titulo-publicar"><h2 id="titulo-publicar">Publicación</h2>
+          }, true); }} />}
+        {puedeOperar && <section className={estilos.tarjeta} aria-labelledby="titulo-publicar"><h2 id="titulo-publicar">Publicación</h2>
           {puedeEditarResultado(resultado) ? <><p>Revisa los requisitos de toda la planificación antes de confirmar. Publicar bloquea la edición.</p>
             <button type="button" className="boton boton--azul" disabled={ocupado || Boolean(sesionMovimiento)} onClick={() => { if (!sesionMovimiento && !bloqueo.current) setPublicando(true); }}><IconoArchivo tipo="publicar" />Revisar y publicar</button></>
             : <p>Este horario es de solo lectura. La reapertura no está disponible.</p>}
-        </section>
-        {publicando && <PublicacionDialogo key={resultado.revision} resultado={resultado} ocupado={ocupado} cerrar={() => setPublicando(false)}
+        </section>}
+        {puedeOperar && puedeEditarResultado(resultado) && <section className={estilos.tarjeta} aria-labelledby="titulo-descartar">
+          <h2 id="titulo-descartar">Descartar propuesta</h2>
+          <p>Vuelve a Preparación conservando ofertas, asignaciones, disponibilidades y horarios externos.</p>
+          <button type="button" className="boton boton--eliminar" disabled={ocupado || editando} onClick={() => {
+            if (!bloqueo.current && !editando) { setRevisionDescarte(resultado.revision); setConfirmaDescarte(false); }
+          }}>Descartar propuesta</button>
+        </section>}
+        {puedeOperar && revisionDescarte && <Dialogo titulo="Descartar propuesta" ocupado={ocupado} cerrar={() => { setRevisionDescarte(null); setConfirmaDescarte(false); }}>
+          <p>Se eliminarán únicamente los horarios gestionados y la ejecución asociada de {nombreCarrera}, período {resultado.planificacion.codigo}. Esta acción no se puede deshacer.</p>
+          <p>Se conservarán ofertas, asignaciones, disponibilidades y horarios externos. La planificación volverá a Preparación.</p>
+          <label><input type="checkbox" checked={confirmaDescarte} disabled={ocupado} onChange={evento => setConfirmaDescarte(evento.target.checked)} />Confirmo que quiero descartar esta propuesta no publicada.</label>
+          <button type="button" className="boton boton--eliminar" disabled={ocupado || !confirmaDescarte || revisionDescarte !== resultado.revision} onClick={() => {
+            if (!confirmaDescarte || revisionDescarte !== resultado.revision) return;
+            void ejecutar(async () => ({ ...await resultadosHorariosApi.descartar(id, revisionDescarte), mensaje: 'Propuesta descartada. La planificación está en Preparación.' }));
+          }}>Confirmar descarte</button>
+        </Dialogo>}
+        {puedeOperar && publicando && <PublicacionDialogo key={resultado.revision} resultado={resultado} ocupado={ocupado} cerrar={() => setPublicando(false)}
           confirmar={revision => { void ejecutar(async () => ({ resultado: await resultadosHorariosApi.publicar(id, revision), mensaje: 'Horario publicado. Ya no se puede editar.',
           })); }} />}
       </>}

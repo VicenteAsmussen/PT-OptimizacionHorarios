@@ -1,6 +1,6 @@
 # Gestionar una propuesta de horario
 
-Secretaría y administración pueden abrir **Gestión del horario** desde la navegación o visitar `/app/resultados-horarios`. La página usa la [API de resultados](gestion-resultado-horarios.md), no ejecuta el modelo matemático ni permite crear horarios manualmente.
+Secretaría y administración pueden abrir **Gestión del horario** desde la navegación o visitar `/app/resultados-horarios`. Administración utiliza la misma página únicamente para consultar, sin edición, intercambio Excel ni publicación. Las acciones operativas descritas en esta guía corresponden a secretaría. La página usa la [API de resultados](gestion-resultado-horarios.md), no ejecuta el modelo matemático ni permite crear horarios manualmente.
 
 ## Revisar la semana
 
@@ -74,6 +74,10 @@ Después de una importación confirmada, la página consulta el horario actualiz
 Para abrir el diálogo de nuevo, usa **Ver sesiones sin sala** en **Asignación de salas**. Consulta los datos actuales de la página sin volver a importar el Excel ni modificar el horario, también en períodos de solo lectura. El botón se bloquea si no hay sesiones pendientes o hay una operación en curso. Al abrirlo manualmente no anuncia una nueva importación.
 
 Un fallo de red o una respuesta incierta abre un diálogo sin afirmar que los cambios se hayan revertido, y la página vuelve a consultar el estado. Si la importación fue confirmada pero falla esa consulta, se informa por separado y se ofrece **Reintentar consulta** al cerrar el diálogo. Este reintento consulta las salas, no vuelve a importar el archivo.
+
+## Descartar una propuesta
+
+Secretaría puede usar **Descartar propuesta** en la propuesta actual de su carrera. La confirmación explica que se eliminarán los horarios gestionados y su ejecución, y que se conservarán ofertas, asignaciones, disponibilidades y horarios externos. No se descarta al abrir el diálogo. Confirmar envía la revisión consultada y una confirmación explícita, el servidor vuelve a comprobar el alcance, el estado y la ausencia de ejecución activa. Administración no dispone de esta acción en Resultados y los períodos publicados no la admiten. Tras confirmar, la planificación vuelve a Preparación para permitir otra ejecución del modelo.
 
 ## Publicar
 

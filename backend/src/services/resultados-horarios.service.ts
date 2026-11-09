@@ -2,7 +2,7 @@ import type { AlcanceCarrera } from "../utils/alcance-carrera.js";
 import { resultadosHorariosRepository } from "../repositories/resultados-horarios.repository.js";
 import { ConflictError, NotFoundError } from "../utils/errors.js";
 import { horariosService } from "./horarios.service.js";
-import { presentarResultado, prepararMovimiento, revisionResultado, validarPublicacionResultado,
+import { esGestionada, presentarResultado, prepararMovimiento, revisionResultado, validarPublicacionResultado,
   solicitaSala, type ContextoResultado, type MovimientoResultado } from "../utils/resultados-horarios.js";
 
 function exigirAcceso(contexto: ContextoResultado, alcance?: AlcanceCarrera) {
@@ -14,6 +14,18 @@ function exigirPropuesta(contexto: ContextoResultado, revision: string, alcance?
   if (revisionResultado(contexto) !== revision) throw new ConflictError("El horario o sus restricciones cambiaron. Vuelva a consultar antes de confirmar.");
 }
 export const resultadosHorariosService = {
+  async descartar(id: number, revision: string, alcance?: AlcanceCarrera) {
+    return resultadosHorariosRepository.conBloqueo(id, async (contexto, persistencia) => {
+      exigirPropuesta(contexto, revision, alcance);
+      const gestionadas = contexto.entradas.filter(entrada => esGestionada(contexto, entrada));
+      const ejecucionesIds = [...new Set(gestionadas.map(entrada => entrada.ejecucionOptimizacionId).filter((id): id is string => Boolean(id)))];
+      if (contexto.entradas.some(entrada => !esGestionada(contexto, entrada) && entrada.ejecucionOptimizacionId && ejecucionesIds.includes(entrada.ejecucionOptimizacionId))) {
+        throw new ConflictError("La ejecución también respalda horarios externos. No se puede descartar esta propuesta.");
+      }
+      await persistencia.descartar(gestionadas.map(entrada => entrada.id), ejecucionesIds);
+      return { planificacion: { ...contexto.planificacion, estadoPlanificacion: "preparacion" as const } };
+    });
+  },
   async exportarSalas(id: number, soloPendientes: boolean, usuario: { id: number; rol: string }, alcance?: AlcanceCarrera) {
     const contexto = await resultadosHorariosRepository.leer(id);
     exigirAcceso(contexto, alcance);

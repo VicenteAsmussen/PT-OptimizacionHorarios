@@ -40,7 +40,7 @@ async function renderizarNavegacion(rol, movil = false, pagina = '/app/dashboard
 }
 
 const rutasPorRol = {
-  admin: ['dashboard', 'asignaturas', 'profesores', 'administracion-periodos', 'optimizacion', 'resultados-horarios'],
+  admin: ['dashboard', 'asignaturas', 'profesores', 'administracion-periodos', 'resultados-horarios'],
   secretaria: ['dashboard', 'asignaturas', 'profesores', 'seguimiento-disponibilidad', 'horarios-externos', 'optimizacion', 'resultados-horarios'],
   profesor: ['dashboard', 'disponibilidad', 'mi-horario']
 };

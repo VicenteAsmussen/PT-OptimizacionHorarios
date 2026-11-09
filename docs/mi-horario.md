@@ -33,7 +33,7 @@ Durante las consultas se mantienen los mensajes de estado «Cargando planificaci
 
 Cada elemento de `planificaciones` en el contexto incluye, de forma aditiva, `carreraId` y `bloquesReservadosIds`. El arreglo de reservas pertenece a esa carrera y puede estar vacío. Solo se consultan carreras de planificaciones con asignaciones del profesor autenticado. El catálogo `bloques` y los arreglos de clases conservan su contrato. El frontend admite contextos anteriores sin los campos nuevos, tratándolos como ausencia de reservas.
 
-La identidad se obtiene de la sesión, nunca de un parámetro `profesorId`. Consultar directamente las clases de una planificación ajena, inexistente o en preparación produce `403`, aunque sus metadatos sean seleccionables. La pertenencia de una clase se determina por la combinación de oferta y tipo de hora asignada al profesor; compartir sección no permite consultar las clases de otro docente. Los permisos administrativos existentes no se modifican.
+La identidad se obtiene de la sesión, nunca de un parámetro `profesorId`. Consultar directamente las clases de una planificación ajena, inexistente o en preparación produce `403`, aunque sus metadatos sean seleccionables. La pertenencia de una clase se determina por la combinación de oferta y tipo de hora asignada al profesor; compartir sección no permite consultar las clases de otro docente. El rol profesor no puede usar los GET generales ni la consulta por ID de horarios para obtener clases ajenas. Administración conserva la consulta autorizada mediante Resultados.
 
 El endpoint de contexto no admite parámetros de consulta: cualquier filtro adicional se rechaza con `400`, en lugar de ignorarlo.
 

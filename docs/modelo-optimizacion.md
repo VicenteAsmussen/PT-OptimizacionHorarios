@@ -4,7 +4,7 @@ El módulo `backend/src/optimizacion/index.ts` transforma datos del período en 
 
 ## API para la interfaz
 
-Las rutas requieren autenticación y rol `admin` o `secretaria`. La carrera de secretaría se obtiene de su identidad autenticada. Solo se admite ICINF.
+Las rutas requieren autenticación y rol `secretaria`. Su carrera se obtiene de la identidad autenticada. Solo se admite ICINF. Administración consulta el horario mediante Resultados, no ejecuta ni sigue el modelo mediante esta API. Conserva las operaciones de mantenimiento de Gestión de períodos.
 
 | Método y ruta bajo `/api/optimizacion` | Resultado |
 |---|---|
@@ -43,7 +43,7 @@ La aplicación inserta todos los bloques gestionados y cambia a Propuesta en la 
 
 Los estados terminales distinguen `aplicada`, `infactible`, `carga_incompleta`, `limite_tiempo`, `error`, `interrumpida` y `datos_desactualizados`. El estado del solver se conserva en la salida, por eso una ejecución `aplicada` puede tener un solver detenido por límite de tiempo sin optimalidad demostrada. En los demás casos la planificación permanece en Preparación y no se persisten bloques parciales.
 
-Para regenerar, el administrador debe reiniciar explícitamente los horarios gestionados y devolver la planificación a Preparación, son operaciones existentes separadas. El reinicio elimina primero los bloques gestionados y luego los registros de ejecución de esa planificación, en una misma transacción. Conserva ofertas, docentes, horarios externos y otras planificaciones. También permite eliminar un intento fallido aunque no haya generado bloques. El reinicio exclusivamente externo no borra la ejecución del modelo y no se permite reiniciar mientras haya un cálculo activo. Ninguna transición administrativa a Propuesta o Publicado puede eludir los validadores de carga y publicación.
+Para regenerar una propuesta, secretaría dispone del [descarte controlado desde Resultados](gestion-resultado-horarios.md). Administración conserva además el mantenimiento explícito: reiniciar los horarios gestionados y devolver la planificación a Preparación son operaciones administrativas separadas. Ese reinicio elimina primero los bloques gestionados y luego los registros de ejecución de esa planificación, en una misma transacción. Conserva ofertas, docentes, horarios externos y otras planificaciones. También permite eliminar un intento fallido aunque no haya generado bloques. El reinicio exclusivamente externo no borra la ejecución del modelo y no se permite reiniciar mientras haya un cálculo activo. Ninguna transición administrativa a Propuesta o Publicado puede eludir los validadores de carga y publicación.
 
 ## Integración interna
 

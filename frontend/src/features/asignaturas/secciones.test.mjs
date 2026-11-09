@@ -4,6 +4,20 @@ import { readFile } from 'node:fs/promises';
 
 const fuente = ruta => readFile(new URL(ruta, import.meta.url), 'utf8');
 
+test('las secciones de admin son de consulta y secretaría conserva edición por estado', async () => {
+  const ts = await import('typescript');
+  const panel = await fuente('./PanelSecciones.tsx');
+  const expresion = panel.match(/const puedeEditar = ([^;]+);/)?.[1];
+  assert.ok(expresion);
+  for (const rol of ['admin', 'secretaria', 'profesor', undefined]) {
+    const codigo = ts.transpileModule(`return (${expresion});`, { compilerOptions: { target: ts.ScriptTarget.ES2022 } }).outputText;
+    const evaluar = new Function('usuario', 'editablePorEstado', 'bloqueoModelo', codigo);
+    assert.equal(evaluar({ rol }, true, false), rol === 'secretaria');
+    assert.equal(evaluar({ rol }, false, false), false);
+    assert.equal(evaluar({ rol }, true, true), false);
+  }
+});
+
 test('semester selector cannot clear the current selection', async () => {
   const ts = await import('typescript');
   const React = await import('react');
@@ -138,6 +152,7 @@ test('render React muestra estados y motivo accesible; cambios de contexto renue
     if (ruta.endsWith('.css')) return 'const estilos = {};';
     if (ruta === './useMutacion') return 'const useMutacion = () => ({ ocupado: false, error: "", ejecutar() {} });';
     if (ruta === './asignaturas.api') return 'const asignaturasApi = {};';
+    if (ruta === '../../hooks/useAuth') return 'const useAuth = () => ({ usuario: { rol: "secretaria" } });';
     if (ruta === './PanelAsignatura') return 'const PanelAsignatura = ({ children }) => children;';
     if (ruta === './SelectorProfesor') return 'const SelectorProfesor = () => null;';
     if (ruta === '../optimizacion/SeguimientoOptimizacion') return 'const useBloqueoOptimizacion = () => false; const AvisoBloqueo = () => null;';
@@ -306,6 +321,7 @@ async function componenteConEstado(ruta, nombre = 'default', dobles = {}) {
     if (modulo === './datos') return datos;
     if (modulo === './useMutacion') return { useMutacion: () => ({ ocupado: false, error: '', ejecutar() {} }) };
     if (modulo === './asignaturas.api') return { asignaturasApi: {} };
+    if (modulo === '../../hooks/useAuth') return { useAuth: () => ({ usuario: { rol: 'secretaria' } }) };
     if (modulo === './PanelAsignatura') return { __esModule: true, default: ({ children }) => React.createElement('div', null, children) };
     if (modulo === './SelectorProfesor') return { __esModule: true, default: () => null };
     if (modulo === '../optimizacion/SeguimientoOptimizacion') return { useBloqueoOptimizacion: () => false, AvisoBloqueo: () => null };

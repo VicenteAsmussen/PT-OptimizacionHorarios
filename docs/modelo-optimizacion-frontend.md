@@ -1,10 +1,10 @@
 # Ejecutar y seguir el modelo de horarios
 
-Administración y secretaría acceden a **Modelo de optimización** desde la navegación. El backend conserva la autoridad sobre permisos, entradas, exclusión de ejecuciones e incorporación de resultados. La integración no modifica la matemática ni publica horarios.
+Secretaría accede a **Modelo de optimización** desde la navegación. Administración no accede a este flujo operativo y consulta el horario en Resultados. El backend conserva la autoridad sobre permisos, entradas, exclusión de ejecuciones e incorporación de resultados. La integración no modifica la matemática ni publica horarios.
 
 ## Flujo
 
-1. Revisar el período actual de la carrera. Secretaría solo puede usar ese período del catálogo autorizado por el backend, no puede elegir históricos mediante el selector ni la URL. Administración conserva la consulta de otros períodos. Si el catálogo no identifica una sola carrera y un único período actual para secretaría, la preparación queda bloqueada hasta revisar el acceso, no se infiere la carrera desde el código del período.
+1. Revisar el período actual de la carrera. Secretaría solo puede usar ese período del catálogo autorizado por el backend, no puede elegir históricos mediante el selector ni la URL. La consulta administrativa de otros períodos se conserva en Resultados y Gestión de períodos. Si el catálogo no identifica una sola carrera y un único período actual para secretaría, la preparación queda bloqueada hasta revisar el acceso, no se infiere la carrera desde el código del período.
 2. Confirmar la cantidad de salas por edificio, tipo y capacidad. Las sugerencias no garantizan disponibilidad, no pueden superar el catálogo acreditado.
 3. Indicar la **cantidad de laboratorios**, inicialmente **6**, editable como entero entre 0 y 10000. La capacidad del modelo es fija en **60 estudiantes**. Es un supuesto confirmado para esta ejecución, no inventario físico ni disponibilidad garantizada. No se crean salas ni se ejecuta una seed, tampoco se reduce esta cantidad a la mitad.
 4. Revisar las condiciones de ejecución, confirmar las cantidades e iniciar. Los bloqueos se presentan junto a los recursos, solo se puede ejecutar una planificación actual en Preparación. El seguimiento muestra el estado, el inicio y el término en hora local. Mientras el cálculo está activo, el término indica **En curso**. Al incorporar la propuesta aparece un único enlace **Ver horario generado**, sin publicar el horario. Los errores, bloqueos y faltantes permanecen visibles.
@@ -38,7 +38,7 @@ Los nombres se resuelven con `GET /profesores`, mediante el cliente existente y 
 
 Las tablas se pueden enfocar con teclado para desplazarlas horizontalmente en pantallas pequeñas. Los avisos globales muestran carrera y período cuando el catálogo está disponible, sin exponer identificadores internos de ejecución. Este ajuste visual no cambia los parámetros, permisos, validaciones, seguimiento, recuperación ni persistencia. **Actualizar preparación y seguimiento** mantiene su comportamiento previo, vuelve a consultar y repone las cantidades sugeridas, no conserva un borrador de recursos.
 
-Si ya existen horarios gestionados, el administrador debe usar el mantenimiento existente para reiniciarlos y luego devolver la planificación a Preparación. El reinicio elimina también el registro de ejecución, pero conserva los horarios externos. Un fallo se mantiene visible hasta un nuevo intento aceptado o ese reinicio. Son operaciones separadas, no hay aplicación ni reemplazo manual del horario en el modelo.
+Si ya existe una propuesta, secretaría puede descartarla desde Resultados mediante la confirmación controlada, sin reinicios generales. Administración conserva el mantenimiento existente para reiniciar horarios y devolver la planificación a Preparación. Ambas vías conservan los horarios externos según sus reglas, el descarte elimina solo la ejecución asociada a la propuesta. Un fallo se mantiene visible hasta un nuevo intento aceptado o el reinicio administrativo. Son operaciones separadas, no hay aplicación ni reemplazo manual del horario en el modelo.
 
 ## Requisitos del entorno
 

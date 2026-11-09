@@ -94,8 +94,8 @@ test('errores backend conservan mensaje y no reintentan automáticamente', async
 
 test('permiso, categorías, laboratorios y límites respetan el contrato sin inventario implícito', async () => {
   const m = await import('./modelo.ts');
-  for (const rol of ['admin', 'secretaria']) assert.equal(m.puedeOptimizar(rol), true);
-  for (const rol of ['profesor', null, undefined]) assert.equal(m.puedeOptimizar(rol), false);
+  assert.equal(m.puedeOptimizar('secretaria'), true);
+  for (const rol of ['admin', 'profesor', null, undefined]) assert.equal(m.puedeOptimizar(rol), false);
   const categorias = [{ ...recurso, cantidadCatalogo: 4, cantidadSugerida: 2 }, { ...recurso, id: 'AA-Sala-32', edificio: 'AA', cantidadCatalogo: 2, cantidadSugerida: 1 }];
   const borrador = m.sugerirRecursos(categorias);
   assert.equal(borrador.length, 2); assert.equal(borrador[0].cantidad, '2'); assert.equal(borrador[1].edificio, 'AA');

@@ -1,5 +1,5 @@
 import { etiquetaTipoProfesor } from "./datos";
-import { puedeAdministrarAcceso, puedeAdministrarProfesor } from "./permisos";
+import { puedeAdministrarAcceso, puedeAdministrarProfesor, puedeEliminarProfesor } from "./permisos";
 import type { AlcanceProfesores, Profesor } from "./types";
 import type { AccionProfesor } from "./AccionesProfesor";
 import IconoProfesor from "./IconoProfesor";
@@ -40,8 +40,8 @@ export default function TablaProfesores({ profesores, rol, alcance, alAccionar }
           <td><div className={estilos.acciones} role="group" aria-label={`Profesor: ${profesor.nombre}`}>
             {gestionaProfesor && boton("editar", "", "Editar profesor", "editar", "azul", true)}
             {boton("ver", "", "Ver profesor", "ver")}
-            {gestionaProfesor && boton("eliminar", "", "Eliminar profesor", "eliminar", "eliminar")}
-          </div></td>
+            {puedeEliminarProfesor(rol, profesor, alcance) && boton("eliminar", "", "Eliminar profesor", "eliminar", "eliminar")}
+          </div>{rol === "admin" && profesor.tieneDependenciasAcademicas && <small>No eliminable: tiene dependencias académicas.</small>}</td>
           <td>{gestionaAcceso ? <div className={estilos.acciones} role="group" aria-label={`Acceso: ${profesor.nombre}`}>
             {conAcceso ? <>{boton("editarAcceso", "Editar", "Editar acceso", "acceso")}
               {boton("eliminarAcceso", "Retirar", "Retirar acceso", "retirarAcceso", "eliminar")}</>

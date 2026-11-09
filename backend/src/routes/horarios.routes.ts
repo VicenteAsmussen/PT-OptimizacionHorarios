@@ -35,10 +35,10 @@ router.get(
   horariosController.getMiHorario
 );
 
-// Consultar horarios: permitido para admin, secretaria y profesor
+// La consulta general es independiente del autoservicio docente.
 router.get(
   "/",
-  authorizeRoles("admin", "secretaria", "profesor"),
+  authorizeRoles("admin", "secretaria"),
   validateRequest({ query: horarioQueryValidation }),
   horariosController.getAll
 );
@@ -46,7 +46,7 @@ router.get(
 // Descarga administrativa: antes de las rutas con parámetros.
 router.get(
   "/excel/salas",
-  authorizeRoles("admin", "secretaria"),
+  authorizeRoles("secretaria"),
   validateRequest({ query: excelSalasQueryValidation }),
   horariosController.exportarExcelSalas
 );
@@ -54,7 +54,7 @@ router.get(
 const subirExcelSalas = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 1 } }).single("archivo");
 router.post(
   "/excel/salas/importar",
-  authorizeRoles("admin", "secretaria"),
+  authorizeRoles("secretaria"),
   (req, res, next) => {
     subirExcelSalas(req, res, (error) => {
       if (error) {
@@ -86,22 +86,22 @@ router.post(
 
 router.get(
   "/:id",
-  authorizeRoles("admin", "secretaria", "profesor"),
+  authorizeRoles("admin", "secretaria"),
   validateRequest({ params: horarioIdParamValidation }),
   horariosController.getById
 );
 
-// Gestión y asignación de horarios: exclusivo para admin y secretaria
+// El CRUD general queda cerrado. Resultados y Excel autorizan sus propias operaciones.
 router.post(
   "/",
-  authorizeRoles("admin", "secretaria"),
+  authorizeRoles(),
   validateRequest({ body: createHorarioValidation }),
   horariosController.create
 );
 
 router.put(
   "/:id",
-  authorizeRoles("admin", "secretaria"),
+  authorizeRoles(),
   validateRequest({
     params: horarioIdParamValidation,
     body: updateHorarioValidation,
@@ -111,14 +111,14 @@ router.put(
 
 router.delete(
   "/:id",
-  authorizeRoles("admin", "secretaria"),
+  authorizeRoles(),
   validateRequest({ params: horarioIdParamValidation }),
   horariosController.delete
 );
 
 router.delete(
   "/oferta/:ofertaId",
-  authorizeRoles("admin", "secretaria"),
+  authorizeRoles(),
   validateRequest({ params: ofertaParamValidation }),
   horariosController.deleteByOferta
 );

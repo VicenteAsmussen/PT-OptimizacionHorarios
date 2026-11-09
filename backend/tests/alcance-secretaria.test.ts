@@ -178,16 +178,16 @@ it.each(["/carreras", "/departamentos"])("secretaria no puede mutar catálogo %s
   expect((await request(aplicacion).put(`${ruta}/1`).send({ nombre: "Cambio" })).status).toBe(403);
   expect((await request(aplicacion).delete(`${ruta}/1`)).status).toBe(403);
 });
-it("secretaria sincroniza preparación actual con horarios sin dar acceso a profesor ajeno", async () => {
+it("secretaría no sincroniza disponibilidad, ni siquiera en preparación y dentro de su carrera", async () => {
   vi.mocked(disponibilidadRepository.checkProfesorExists).mockResolvedValue(true);
   vi.mocked(disponibilidadRepository.findExistingBloquesIds).mockResolvedValue([]);
   vi.mocked(disponibilidadRepository.checkHorariosExistForPlanificacion).mockResolvedValue(true);
   vi.mocked(disponibilidadRepository.syncDisponibilidad).mockResolvedValue([]);
-  expect((await request(aplicacion).post("/disponibilidad/sincronizar").send({ profesorId: 7, planificacionSemestreId: 1, bloquesIds: [] })).status).toBe(200);
-  expect(disponibilidadRepository.syncDisponibilidad).toHaveBeenCalledWith(7, 1, []);
-  vi.mocked(disponibilidadRepository.syncDisponibilidad).mockClear();
+  expect((await request(aplicacion).post("/disponibilidad/sincronizar").send({ profesorId: 7, planificacionSemestreId: 1, bloquesIds: [] })).status).toBe(403);
   expect((await request(aplicacion).post("/disponibilidad/sincronizar").send({ profesorId: 8, planificacionSemestreId: 1, bloquesIds: [] })).status).toBe(403);
   expect(disponibilidadRepository.syncDisponibilidad).not.toHaveBeenCalled();
+  expect(disponibilidadRepository.checkProfesorExists).not.toHaveBeenCalled();
+  expect(disponibilidadRepository.findExistingBloquesIds).not.toHaveBeenCalled();
 });
 it("resuelve desde usuario y falla cerrado sin perfil; admin no consulta perfil", async () => {
   vi.mocked(carrerasRepository.findAlcanceByUsuarioId).mockResolvedValue(alcance);

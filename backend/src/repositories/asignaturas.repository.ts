@@ -10,6 +10,7 @@ import { asignaturaTipoHora } from "../db/schema/asignatura-tipo-hora.schema.js"
 import { carreraAsignatura } from "../db/schema/carrera-asignatura.schema.js";
 import { tiposHora } from "../db/schema/tipos-hora.schema.js";
 import { carreras } from "../db/schema/carreras.schema.js";
+import { conCatalogosBloqueados, exigirCatalogoSinDependencias, tieneDependenciasAsignatura } from "./dependencias-academicas.js";
 
 export interface TipoHoraItem {
   tipoHoraId: number;
@@ -18,7 +19,7 @@ export interface TipoHoraItem {
 
 export const asignaturasRepository = {
   async findAll(alcance?: AlcanceCarrera, departamentoId?: number) {
-    return await db.query.asignaturas.findMany({
+    const materias = await db.query.asignaturas.findMany({
       where: and(
         alcance ? inArray(asignaturas.codigo, alcance.asignaturasCodigos) : undefined,
         departamentoId !== undefined ? eq(asignaturas.departamentoId, departamentoId) : undefined,
@@ -37,10 +38,13 @@ export const asignaturasRepository = {
         },
       },
     });
+    return Promise.all(materias.map(async materia => ({ ...materia,
+      tieneDependenciasAcademicas: await tieneDependenciasAsignatura(db, materia.codigo),
+    })));
   },
 
   async findByCodigo(codigo: string) {
-    return await db.query.asignaturas.findFirst({
+    const materia = await db.query.asignaturas.findFirst({
       where: eq(asignaturas.codigo, codigo),
       with: {
         departamento: true,
@@ -56,6 +60,7 @@ export const asignaturasRepository = {
         },
       },
     });
+    return materia ? { ...materia, tieneDependenciasAcademicas: await tieneDependenciasAsignatura(db, codigo) } : undefined;
   },
 
   async findExistingTiposHoraIds(ids: number[]): Promise<number[]> {
@@ -113,7 +118,8 @@ export const asignaturasRepository = {
     tiposHoraList?: TipoHoraItem[],
     carrerasIds?: number[]
   ) {
-    return await db.transaction(async (tx) => {
+    return conCatalogosBloqueados(async (tx) => {
+      await exigirCatalogoSinDependencias(tx, { tipo: "asignatura", codigo });
       if (Object.keys(data).length > 0) {
         await tx
           .update(asignaturas)
@@ -172,10 +178,13 @@ export const asignaturasRepository = {
   },
 
   async delete(codigo: string): Promise<boolean> {
-    const [deleted] = await db
-      .delete(asignaturas)
-      .where(eq(asignaturas.codigo, codigo))
-      .returning();
-    return !!deleted;
+    return conCatalogosBloqueados(async tx => {
+      await exigirCatalogoSinDependencias(tx, { tipo: "asignatura", codigo });
+      const [deleted] = await tx
+        .delete(asignaturas)
+        .where(eq(asignaturas.codigo, codigo))
+        .returning();
+      return !!deleted;
+    });
   },
 };

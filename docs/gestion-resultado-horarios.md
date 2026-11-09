@@ -4,9 +4,9 @@ Usa `/api/resultados-horarios` para revisar un horario existente, solicitar sala
 
 ## Ciclo de trabajo
 
-La preparación y la ejecución del modelo siguen siendo procesos separados. Esta API permite editar únicamente la **propuesta actual**. Los resultados publicados se pueden consultar y exportar, pero este flujo no permite mover sus clases, importar respuestas ni reabrirlos. El mantenimiento administrativo existente no sustituye la publicación por secretaría.
+La preparación y la ejecución del modelo siguen siendo procesos separados. Esta API permite a secretaría editar únicamente la **propuesta actual**. Los resultados publicados se pueden consultar y secretaría puede exportarlos, pero este flujo no permite mover sus clases ni importar respuestas. El descarte controlado solo admite propuestas no publicadas. El mantenimiento administrativo de períodos conserva sus reinicios y transiciones validadas, incluida la publicación.
 
-Todas las rutas requieren autenticación y el rol `secretaria` o `admin`. El acceso de secretaría queda limitado a la carrera de la cuenta autenticada, el cliente no puede elegir otra carrera. Los filtros solo cambian la presentación, nunca el alcance de la validación.
+Todas las rutas requieren autenticación. Administración conserva únicamente la consulta del resultado. Las acciones operativas, incluidas exportación, validaciones de movimiento/publicación y escrituras, requieren `secretaria`. Su acceso queda limitado a la carrera de la cuenta autenticada, el cliente no puede elegir otra carrera. Los filtros solo cambian la presentación, nunca el alcance de la validación. Las excepciones de Gestión de períodos se describen en [permisos operativos](permisos-operativos.md).
 
 ## Rutas
 
@@ -19,8 +19,11 @@ Todas las rutas requieren autenticación y el rol `secretaria` o `admin`. El acc
 | POST | `/:id/salas/importar` | Formulario multipart con `archivo` y `revision` | Validar la respuesta completa y guardar sus asignaciones de sala de forma atómica |
 | GET | `/:id/validacion-publicacion` | Sin entrada | Estado de preparación para publicar, problemas y revisión actual |
 | POST | `/:id/publicar` | `{ "revision": "<current SHA-256>" }` | Validar con la planificación bloqueada y publicar |
+| POST | `/:id/descartar` | `{ "revision": "<current SHA-256>", "confirmar": true }` | Descartar la propuesta actual no publicada de la carrera autorizada y volver a Preparación |
 
 Las respuestas correctas usan `{ "status": "success", "data": ... }`. Una escritura inválida o basada en una revisión desactualizada devuelve HTTP 409, una entrada mal formada devuelve 400 y una planificación no accesible devuelve 404. La vista previa de un destino inválido devuelve HTTP 200 con `data.valido: false` y `data.problemas`. Los colores corresponden al frontend, la disponibilidad de una celda individual no equivale a poder iniciar un movimiento completo. Los colores van acompañados de descripciones accesibles.
+
+El descarte exige rol `secretaria`, revisión vigente, confirmación explícita y una planificación actual en Propuesta. Dentro del mismo bloqueo carrera → planificación comprueba que no haya ejecución activa, elimina únicamente los horarios gestionados y las ejecuciones aplicadas que los respaldan, y cambia el estado a Preparación. Conserva ofertas, asignaciones, disponibilidades y horarios externos. Si una ejecución también respalda horarios externos o cambian las filas esperadas, rechaza la operación. No habilita reinicios generales ni permite descartar períodos publicados. La respuesta contiene la planificación en Preparación, no un horario vacío presentado como propuesta.
 
 ### Cuerpo del movimiento
 

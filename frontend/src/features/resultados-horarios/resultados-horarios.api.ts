@@ -10,6 +10,7 @@ const escribir = (datos: object): RequestInit => ({ method: 'POST', body: JSON.s
 export const resultadosHorariosApi = {
   planificaciones: (signal?: AbortSignal) => leer<PlanificacionSemestre[]>('planificaciones-semestres', { signal }),
   consultar: (id: number, signal?: AbortSignal) => leer<ResultadoHorario>(raiz(id), { signal }),
+  descartar: (id: number, revision: string) => leer<{ planificacion: ResultadoHorario['planificacion'] }>(`${raiz(id)}/descartar`, escribir({ revision, confirmar: true })),
   validarMovimiento: (id: number, datos: Movimiento, signal?: AbortSignal) => leer<Validacion>(`${raiz(id)}/validar-movimiento`, { ...escribir(datos), signal }),
   mover: (id: number, datos: Movimiento) => leer<ResultadoHorario>(`${raiz(id)}/movimientos`, escribir(datos)),
   exportar: (id: number, soloPendientes: boolean, signal?: AbortSignal) => apiArchivo(`${raiz(id)}/salas/exportar${soloPendientes ? '?soloPendientes=true' : ''}`, signal),

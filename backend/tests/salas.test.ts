@@ -9,6 +9,7 @@ const app = ejecutarIntegracion ? (await import("../src/app.js")).app : undefine
 describe.skipIf(!ejecutarIntegracion)("Módulo Salas (/api/salas)", () => {
   let secretariaCookie: string[];
   let profesorCookie: string[];
+  let adminCookie: string[];
 
   beforeAll(async () => {
     const secretaria = await request(app).post("/api/auth/login")
@@ -19,6 +20,10 @@ describe.skipIf(!ejecutarIntegracion)("Módulo Salas (/api/salas)", () => {
       .send({ correo: "cvidal@ubb.cl", clave: "123456" });
     expect(profesor.status).toBe(200);
     profesorCookie = profesor.headers["set-cookie"];
+    const admin = await request(app).post("/api/auth/login")
+      .send({ correo: "admin@ubiobio.cl", clave: "123456" });
+    expect(admin.status).toBe(200);
+    adminCookie = admin.headers["set-cookie"];
   });
 
   it("Debe listar las salas como secretaria (200)", async () => {
@@ -39,7 +44,7 @@ describe.skipIf(!ejecutarIntegracion)("Módulo Salas (/api/salas)", () => {
     { capacidad: 0, tipo: "Sala" },
     { capacidad: 30, tipo: "Auditorio" },
   ])("Debe rechazar capacidad o tipo inválidos: %j (400)", async (datos) => {
-    const res = await request(app).post("/api/salas").set("Cookie", secretariaCookie)
+    const res = await request(app).post("/api/salas").set("Cookie", adminCookie)
       .send({ nombre: `Sala inválida ${randomUUID()}`, ...datos });
     expect(res.status).toBe(400);
     expect(res.body.status).toBe("error");
@@ -49,7 +54,7 @@ describe.skipIf(!ejecutarIntegracion)("Módulo Salas (/api/salas)", () => {
     const nombre = `Sala prueba ${randomUUID()}`;
     const datos = { nombre, capacidad: 30, tipo: "Sala" };
     const creacion = await request(app).post("/api/salas")
-      .set("Cookie", secretariaCookie).send(datos);
+      .set("Cookie", adminCookie).send(datos);
     expect(creacion.status).toBe(201);
     const id: number = creacion.body.data.id;
     let eliminada = false;
@@ -59,7 +64,7 @@ describe.skipIf(!ejecutarIntegracion)("Módulo Salas (/api/salas)", () => {
       expect(creacion.body.data).toMatchObject(datos);
 
       const duplicado = await request(app).post("/api/salas")
-        .set("Cookie", secretariaCookie).send(datos);
+        .set("Cookie", adminCookie).send(datos);
       expect(duplicado.status).toBe(409);
       expect(duplicado.body.status).toBe("error");
 
@@ -70,12 +75,12 @@ describe.skipIf(!ejecutarIntegracion)("Módulo Salas (/api/salas)", () => {
 
       const cambios = { nombre: `${nombre} actualizada`, capacidad: 45, tipo: "Laboratorio" };
       const actualizacion = await request(app).put(`/api/salas/${id}`)
-        .set("Cookie", secretariaCookie).send(cambios);
+        .set("Cookie", adminCookie).send(cambios);
       expect(actualizacion.status).toBe(200);
       expect(actualizacion.body.status).toBe("success");
       expect(actualizacion.body.data).toMatchObject({ id, ...cambios });
 
-      const eliminacion = await request(app).delete(`/api/salas/${id}`).set("Cookie", secretariaCookie);
+      const eliminacion = await request(app).delete(`/api/salas/${id}`).set("Cookie", adminCookie);
       eliminada = eliminacion.status === 204;
       expect(eliminacion.status).toBe(204);
       expect(eliminacion.text).toBe("");
@@ -84,7 +89,7 @@ describe.skipIf(!ejecutarIntegracion)("Módulo Salas (/api/salas)", () => {
       expect(posterior.body.status).toBe("error");
     } finally {
       if (!eliminada) {
-        const limpieza = await request(app).delete(`/api/salas/${id}`).set("Cookie", secretariaCookie);
+        const limpieza = await request(app).delete(`/api/salas/${id}`).set("Cookie", adminCookie);
         expect(limpieza.status).toBe(204);
       }
     }

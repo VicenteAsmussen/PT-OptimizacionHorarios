@@ -6,7 +6,7 @@ import { optimizacionController as controlador } from "../controllers/optimizaci
 import { identificadorEjecucion, inicioOptimizacion, parametrosOptimizacion } from "../validations/optimizacion.validation.js";
 
 export const optimizacionRouter = Router();
-optimizacionRouter.use(authenticate, authorizeRoles("admin", "secretaria"));
+optimizacionRouter.use(authenticate, authorizeRoles("secretaria"));
 optimizacionRouter.get("/planificaciones/:id/preparacion", validateRequest({ params: parametrosOptimizacion }), controlador.preparar);
 optimizacionRouter.get("/planificaciones/:id/ultima-ejecucion", validateRequest({ params: parametrosOptimizacion }), controlador.ultima);
 optimizacionRouter.post("/planificaciones/:id/ejecuciones", validateRequest({ params: parametrosOptimizacion, body: inicioOptimizacion }), controlador.iniciar);

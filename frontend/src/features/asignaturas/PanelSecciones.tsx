@@ -7,6 +7,7 @@ import PanelAsignatura from './PanelAsignatura';
 import SelectorProfesor from './SelectorProfesor';
 import estilos from './Asignaturas.module.css';
 import { AvisoBloqueo, useBloqueoOptimizacion } from '../optimizacion/SeguimientoOptimizacion';
+import { useAuth } from '../../hooks/useAuth';
 
 type Accion = { tipo: 'editar'; oferta: Oferta } | { tipo: 'crear' } | { tipo: 'eliminar'; oferta: Oferta };
 type Propiedades = {
@@ -51,9 +52,10 @@ export default function PanelSecciones(propiedades: Propiedades) {
     {...propiedades} />;
 }
 function ContenidoSecciones({ asignatura, semestre, alCerrar, alCambiarOfertas }: Propiedades) {
+  const { usuario } = useAuth();
   const { etiqueta, puedeEditar: editablePorEstado, motivo } = estadoSecciones(semestre);
   const bloqueoModelo = useBloqueoOptimizacion(semestre.id);
-  const puedeEditar = editablePorEstado && !bloqueoModelo;
+  const puedeEditar = usuario?.rol === 'secretaria' && editablePorEstado && !bloqueoModelo;
   const vigente = useRef(false);
   useEffect(() => {
     vigente.current = true;
@@ -141,6 +143,7 @@ function ContenidoSecciones({ asignatura, semestre, alCerrar, alCambiarOfertas }
       <p className={estilos.ayudaFormulario}>Para cambiar el período, vuelve al selector de Asignaturas.</p>
     </div>
     {motivo && <p id="motivo-secciones" role="status" className={estilos.estado}>{motivo}</p>}
+    {usuario?.rol === 'admin' && <p role="status">Solo consulta: las secciones y asignaciones las gestiona secretaría.</p>}
     <AvisoBloqueo bloqueado={bloqueoModelo} />
     {(!datos || !accion) && <h3 ref={contenido} tabIndex={-1}>Secciones del semestre</h3>}
     {cargando && <p role="status">Cargando secciones y profesores…</p>}

@@ -35,9 +35,7 @@ export default function OptimizacionPage() {
   return <section className={`${estilos.pagina} pagina-optimizacion`} aria-labelledby="titulo-modelo">
     <header className={estilos.encabezado}><h1 id="titulo-modelo">Modelo de optimización</h1></header>
     <section className={`${estilos.tarjeta} contexto-modelo`} aria-label="Contexto de la planificación">
-      <div className={estilos.controles}><label>Carrera y período<select value={planificacion?.id ?? ''} disabled={usuario?.rol !== 'admin' || !planificaciones} onChange={e => {
-        if (usuario?.rol === 'admin' && (!e.target.value || disponibles.some(p => String(p.id) === e.target.value))) setConsulta(e.target.value ? { planificacion: e.target.value } : {});
-      }}>
+      <div className={estilos.controles}><label>Carrera y período<select value={planificacion?.id ?? ''} disabled>
         <option value="">Seleccionar carrera y período</option>
         {ordenarPeriodosPorFechaAcademica(disponibles).map(p => <option key={p.id} value={p.id}>{p.carrera.nombre} · {p.codigo} · {estadoSecciones(p).etiqueta}{p.actual ? ' · Actual' : ''}</option>)}
       </select></label></div>

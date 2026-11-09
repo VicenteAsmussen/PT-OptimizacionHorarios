@@ -24,6 +24,8 @@ export function seleccionarCarrera(carrera: CarreraProfesor): CarreraProfesor {
 export function seleccionarProfesor(profesor: Profesor): Profesor {
   return {
     id: profesor.id,
+    ...(typeof profesor.tieneDependenciasAcademicas === "boolean"
+      ? { tieneDependenciasAcademicas: profesor.tieneDependenciasAcademicas } : {}),
     rut: profesor.rut,
     nombre: profesor.nombre,
     departamentoId: profesor.departamentoId,
