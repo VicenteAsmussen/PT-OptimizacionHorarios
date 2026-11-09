@@ -21,6 +21,8 @@ En **Preparación** se muestra: “Este período está en Preparación. El horar
 
 Si no existen planificaciones visibles, se informa que no hay períodos con asignaciones docentes. En Propuesta o Publicado, si todavía no hay clases con horario, se muestra un estado vacío específico y se conserva el calendario cuando hay reservas para mostrar. En Preparación se mantiene únicamente el aviso, sin calendario ni clases. Al cambiar de período se limpia el calendario anterior y se descartan las respuestas tardías, incluidos errores. Los errores de consulta permiten reintentar.
 
+Durante las consultas se mantienen los mensajes de estado «Cargando planificaciones…» y «Cargando horario…», no notificaciones transitorias. La prueba de [pulido de interfaz](navegacion-principal.md#comprobación) verifica ambos textos con respuestas diferidas sintéticas en navegador.
+
 ## Contrato de lectura
 
 | Endpoint GET | Respuesta `data` |

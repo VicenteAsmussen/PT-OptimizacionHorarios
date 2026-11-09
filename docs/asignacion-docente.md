@@ -8,6 +8,8 @@ En **Asignaturas > Secciones**, elige un profesor para cada tipo de hora. Un mis
 
 Escribe el nombre o RUT y elige una sugerencia del mismo departamento de la asignatura, que muestra nombre, RUT y departamento. También puedes usar las flechas, Enter y Escape. El texto escrito por sí solo no asigna un profesor. Si borras o cambias una selección, ese tipo queda pendiente hasta que elijas otra sugerencia.
 
+El selector solo anuncia una lista expandida y la referencia mediante ARIA cuando hay sugerencias visibles. Sin coincidencias conserva el mensaje de estado, sin apuntar a una lista inexistente. La prueba de [pulido de interfaz](navegacion-principal.md#comprobación) ejercita el selector real dentro del diálogo nativo con datos sintéticos, sin modificar las reglas de búsqueda o asignación.
+
 Elegir al docente del primer tipo completa los demás campos vacíos, sin reemplazar asignaciones existentes. Después puedes ajustar cada campo por separado. Los cambios se guardan únicamente con **Guardar sección**.
 
 **Editar asignatura** muestra las horas de la malla como información de solo lectura, editar otros datos no las modifica.

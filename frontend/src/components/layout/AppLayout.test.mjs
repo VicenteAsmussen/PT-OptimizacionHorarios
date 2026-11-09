@@ -111,6 +111,17 @@ test('los estilos conservan ancho, foco y hover y refuerzan selección, alineaci
   assert.match(variables, /--fuente-principal:\s*"Roboto"/);
 });
 
+test('el botón de usuario conserva los colores originales compartidos con Sonner', async () => {
+  const css = await readFile(new URL('../../styles/global.css', import.meta.url), 'utf8');
+  const variables = await readFile(new URL('../../styles/variables.css', import.meta.url), 'utf8');
+  assert.match(variables, /--color-usuario-fondo:\s*#58A6CF;/);
+  assert.match(variables, /--color-usuario-hover:\s*#4596C0;/);
+  const boton = css.match(/\.boton-usuario\s*\{([^}]+)\}/)?.[1];
+  assert.doesNotMatch(boton, /--color-usuario-(?:fondo|hover):/);
+  assert.match(boton, /background:\s*var\(--color-usuario-fondo\)/);
+  assert.match(css, /\.boton-usuario:hover\s*\{[^}]*background:\s*var\(--color-usuario-hover\)/);
+});
+
 test('los iconos se alinean con la primera línea de las etiquetas sin centrar bloques multilínea', async () => {
   const css = await readFile(new URL('../../styles/global.css', import.meta.url), 'utf8');
   const fila = css.match(/\.sidebar nav a\.enlace-con-icono\s*\{([^}]+)\}/)?.[1];
