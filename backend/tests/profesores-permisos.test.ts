@@ -9,7 +9,7 @@ vi.mock("../src/repositories/carreras.repository.js", () => ({ carrerasRepositor
 vi.mock("../src/repositories/usuarios.repository.js", () => ({ usuariosRepository: { findByCorreo: vi.fn() } }));
 vi.mock("../src/repositories/profesores.repository.js", () => ({ profesoresRepository: {
   findAll: vi.fn(), findById: vi.fn(), findByRut: vi.fn(), findByUsuarioId: vi.fn(), checkDepartamentoExists: vi.fn(),
-  checkUsuarioExists: vi.fn(), create: vi.fn(), delete: vi.fn(), hasHorarios: vi.fn(), deleteWithDependencias: vi.fn(),
+  checkUsuarioExists: vi.fn(), create: vi.fn(), delete: vi.fn(), hasHorarios: vi.fn(), deleteWithDependencias: vi.fn(), deleteSinDependencias: vi.fn(),
 } }));
 vi.mock("../src/middlewares/auth.middleware.js", () => ({ authenticate: (req: Request, _res: Response, next: NextFunction) => {
   req.user = { id: 1, nombre: "Secretaría", correo: "secretaria@ubiobio.cl", rol: req.header("x-rol") ?? "secretaria" } as Request["user"]; next();
@@ -99,5 +99,6 @@ it("secretaria no puede eliminar profesor planta y admin puede eliminar según r
   expect(profesoresRepository.deleteWithDependencias).not.toHaveBeenCalled();
 
   expect((await request(aplicacion).delete("/profesores/7").set("x-rol", "admin")).status).toBe(204);
-  expect(profesoresRepository.deleteWithDependencias).toHaveBeenCalledWith(7, null);
+  expect(profesoresRepository.deleteSinDependencias).toHaveBeenCalledWith(7, null);
+  expect(profesoresRepository.deleteWithDependencias).not.toHaveBeenCalled();
 });

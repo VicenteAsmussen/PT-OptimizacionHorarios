@@ -2,6 +2,17 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import * as permisos from "./permisos.ts";
 
+test("admin conserva identidad y acceso de planta en uso, pero no puede borrar el perfil", () => {
+  const profesor = { departamentoId: 1, tipo: "planta", tieneDependenciasAcademicas: true };
+  assert.equal(permisos.puedeAdministrarProfesor("admin", profesor), true);
+  assert.equal(permisos.puedeAdministrarAcceso("admin", profesor), true);
+  assert.equal(permisos.puedeEliminarProfesor("admin", profesor), false);
+  assert.equal(permisos.puedeEliminarProfesor("admin", { ...profesor, tieneDependenciasAcademicas: false }), true);
+  assert.equal(permisos.puedeEliminarProfesor("secretaria", { ...profesor, tipo: "part time" }, {
+    departamentosIds: [1], departamentosGestionadosIds: [1],
+  }), true);
+});
+
 test("Editar profesor sigue siendo principal con solo icono y las acciones de acceso conservan su texto", async () => {
   const { readFile } = await import("node:fs/promises");
   const React = await import("react");
@@ -11,17 +22,22 @@ test("Editar profesor sigue siendo principal con solo icono y las acciones de ac
   const fuente = await readFile(new URL("./TablaProfesores.tsx", import.meta.url), "utf8");
   const componente = fuente.slice(fuente.indexOf("export default function")).replace("export default ", "");
   const codigo = ts.transpileModule(componente, { compilerOptions: { jsx: ts.JsxEmit.React } }).outputText;
-  const Tabla = new Function("React", "etiquetaTipoProfesor", "puedeAdministrarProfesor", "puedeAdministrarAcceso", "IconoProfesor", "estilos", "mantenerFocoEnTabla", "useDesbordamientoTabla",
+  const Tabla = new Function("React", "etiquetaTipoProfesor", "puedeAdministrarProfesor", "puedeAdministrarAcceso", "puedeEliminarProfesor", "IconoProfesor", "estilos", "mantenerFocoEnTabla", "useDesbordamientoTabla",
     `${codigo}; return TablaProfesores;`)(React, etiquetaTipoProfesor, permisos.puedeAdministrarProfesor,
-    permisos.puedeAdministrarAcceso, ({ tipo }) => React.createElement("img", { src: `${tipo}.svg`, alt: "" }),
+    permisos.puedeAdministrarAcceso, permisos.puedeEliminarProfesor, ({ tipo }) => React.createElement("img", { src: `${tipo}.svg`, alt: "" }),
     { accionPrincipal: "principal", accionSecundaria: "secundaria" }, () => {}, () => ({ referencia() {}, desborda: false }));
-  for (const usuarioId of [null, 7]) {
+  for (const usuarioId of [null, 7]) for (const utilizada of [false, true]) {
     const html = renderToStaticMarkup(React.createElement(Tabla, { rol: "admin", alcance: {}, alAccionar() {},
-      profesores: [{ id: 1, nombre: "Profesor de prueba", tipo: "planta", usuarioId, departamento: { nombre: "Departamento" } }],
+      profesores: [{ id: 1, nombre: "Profesor de prueba", tipo: "planta", usuarioId, tieneDependenciasAcademicas: utilizada, departamento: { nombre: "Departamento" } }],
     }));
     const botones = [...html.matchAll(/<button\b[^]*?<\/button>/g)].map(coincidencia => coincidencia[0]);
     for (const [etiqueta, icono] of [["Ver", "ver"], ["Editar", "editar"], ["Eliminar", "eliminar"]]) {
       const boton = botones.find(elemento => elemento.includes(`aria-label="${etiqueta} profesor: Profesor de prueba"`));
+      if (etiqueta === "Eliminar" && utilizada) {
+        assert.equal(boton, undefined);
+        assert.match(html, /No eliminable: tiene dependencias académicas/);
+        continue;
+      }
       assert.ok(boton);
       assert.match(boton, new RegExp(`src="${icono}\\.svg"`));
       assert.equal(boton.replace(/<[^>]*>/g, "").trim(), "");
@@ -35,6 +51,14 @@ test("Editar profesor sigue siendo principal con solo icono y las acciones de ac
       assert.equal(boton.replace(/<[^>]*>/g, "").trim(), texto);
     }
   }
+});
+
+test("la proyección conserva exclusivamente el indicador booleano de dependencias", async () => {
+  const { seleccionarProfesor } = await import("./datos.ts");
+  const datos = { id: 7, departamento: { id: 1, nombre: "Departamento" }, usuario: null };
+  assert.equal(seleccionarProfesor({ ...datos, tieneDependenciasAcademicas: true }).tieneDependenciasAcademicas, true);
+  assert.equal(seleccionarProfesor({ ...datos, tieneDependenciasAcademicas: false }).tieneDependenciasAcademicas, false);
+  assert.equal("tieneDependenciasAcademicas" in seleccionarProfesor({ ...datos, tieneDependenciasAcademicas: { privada: 1 } }), false);
 });
 
 test("la tabla conserva grupos de acciones horizontales y espacio para Editar visible", async () => {

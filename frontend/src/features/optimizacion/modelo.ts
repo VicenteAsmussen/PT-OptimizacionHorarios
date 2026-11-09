@@ -11,7 +11,6 @@ export function crearLaboratoriosModelo(cantidad = String(cantidadInicialLaborat
   return { ...categoriaLaboratoriosModelo, capacidad: String(capacidadLaboratoriosModelo), cantidad };
 }
 export function planificacionesModelo(planificaciones: PlanificacionSemestre[], rol?: string): PlanificacionSemestre[] {
-  if (rol === 'admin') return planificaciones;
   if (rol !== 'secretaria') return [];
   // La identidad pública no expone carreraId, el catálogo ya viene autorizado por el backend.
   if (new Set(planificaciones.map(p => p.carreraId)).size !== 1) return [];
@@ -23,7 +22,7 @@ export function fechaEjecucion(valor: string) {
   return Number.isNaN(fecha.getTime()) ? 'Fecha no disponible' : fecha.toLocaleString('es-CL');
 }
 
-export const puedeOptimizar = (rol?: string | null) => rol === 'admin' || rol === 'secretaria';
+export const puedeOptimizar = (rol?: string | null) => rol === 'secretaria';
 export const etiquetasEstado = {
   en_ejecucion: 'En ejecución', aplicada: 'Incorporada como Propuesta', infactible: 'Sin solución factible',
   carga_incompleta: 'Carga incompleta', limite_tiempo: 'Límite de tiempo sin incorporación', error: 'Error',

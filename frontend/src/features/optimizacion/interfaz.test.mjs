@@ -199,7 +199,7 @@ const planificacionesPrueba = [
   { id: 1, carreraId: 1, carrera: { id: 1, nombre: 'Carrera autorizada' }, codigo: '2025-2', actual: false, estadoPlanificacion: 'publicado' },
 ];
 test('encabezado y contexto están separados sin repetir la condición de preparación', async () => {
-  const vista = await selector('admin', '2');
+  const vista = await selector('secretaria', '2');
   const cabecera = vista.nodos().find(n => n.type === 'header');
   const hijos = React.Children.toArray(cabecera.props.children);
   assert.equal(hijos[0].type, 'h1');
@@ -246,19 +246,18 @@ test('secretaría bloquea un catálogo ambiguo entre carreras, sin inventar carr
 test('secretaría inicializa el único actual y bloquea ausencia o duplicidad de períodos actuales', async () => {
   const vista = await selector('secretaria'); vista.dibujar();
   assert.equal(vista.nodos().find(n => n.type?.name === 'PreparacionModelo').props.id, 2);
-  vista.nodos().find(n => n.type === 'select').props.onChange({ target: { value: '1' } }); vista.dibujar();
+  assert.equal(vista.nodos().find(n => n.type === 'select').props.onChange, undefined); vista.dibujar();
   assert.equal(vista.nodos().find(n => n.type?.name === 'PreparacionModelo').props.id, 2); vista.salir();
   for (const lista of [[], [planificacionesPrueba[1]], [...planificacionesPrueba, { ...planificacionesPrueba[0], id: 4 }]]) {
     const bloqueada = await selector('secretaria', '2', lista);
     assert.equal(bloqueada.nodos().some(n => n.type?.name === 'PreparacionModelo'), false); bloqueada.salir();
   }
 });
-test('administración conserva selección de históricos y cambio de período', async () => {
+test('administración no recibe preparación ni períodos operativos del modelo', async () => {
   const vista = await selector('admin', '1');
-  assert.equal(vista.nodos().find(n => n.type === 'select').props.disabled, false);
-  assert.equal(vista.nodos().find(n => n.type?.name === 'PreparacionModelo').props.id, 1);
-  vista.nodos().find(n => n.type === 'select').props.onChange({ target: { value: '2' } }); vista.dibujar();
-  assert.equal(vista.nodos().find(n => n.type?.name === 'PreparacionModelo').props.id, 2); vista.salir();
+  assert.equal(vista.nodos().find(n => n.type === 'select').props.disabled, true);
+  assert.equal(vista.nodos().some(n => n.type?.name === 'PreparacionModelo'), false);
+  assert.equal(vista.nodos().filter(n => n.type === 'option' && n.props.value !== '').length, 0); vista.salir();
 });
 test('laboratorios presenta solo cantidad, seis iniciales y contrato de capacidad fija al enviar', async () => {
   const solicitudes = [];

@@ -1,5 +1,6 @@
 export interface Departamento { id: number; nombre: string; esGestionado?: boolean }
 export interface Asignatura {
+  tieneDependenciasAcademicas?: boolean;
   codigo: string;
   nombre: string;
   departamentoId: number;

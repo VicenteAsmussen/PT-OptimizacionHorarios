@@ -76,4 +76,5 @@ export function tiposPendientes(asignatura: Asignatura, oferta: Oferta) {
   return (asignatura.tiposHora ?? []).filter(t => t.horas > 0 && !oferta.asignaciones.some(a => a.tipoHoraId === t.tipoHoraId));
 }
 export const puedeGestionarAsignaturas = (rol?: string) => rol === 'admin' || rol === 'secretaria';
-export const puedeEditarAsignaturas = (rol?: string) => rol === 'admin';
+export const puedeEditarAsignaturas = (rol?: string, asignatura?: Pick<Asignatura, 'tieneDependenciasAcademicas'>) =>
+  rol === 'admin' && asignatura?.tieneDependenciasAcademicas !== true;

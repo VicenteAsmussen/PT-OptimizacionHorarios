@@ -14,6 +14,8 @@ La administración general de usuarios queda reservada a `admin`. Secretaría co
 
 El cambio de nombre y la eliminación de un profesor también pueden afectar su cuenta vinculada. Esas rutas aplican las mismas protecciones. Secretaría no puede convertir un profesor planta a part time para eludirlas. Las respuestas de profesores y usuarios no incluyen contraseñas ni la versión interna de sesión.
 
+Administración conserva el mantenimiento institucional y el acceso de profesores de planta, pero no puede eliminar un perfil con disponibilidades, asignaciones u horarios asociados. La retirada de acceso no elimina el perfil ni sus datos académicos. La gestión part time de secretaría conserva sus reglas específicas. Consulte la separación entre identidad, catálogos y operación en [permisos operativos](permisos-operativos.md).
+
 ## Sesiones
 
 - El login crea una sesión aleatoria y firma su identificador en el JWT. La expiración persistida coincide con la del token.

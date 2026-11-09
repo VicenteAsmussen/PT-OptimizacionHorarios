@@ -27,46 +27,46 @@ router.get("/mi-disponibilidad", authorizeRoles("profesor"),
 router.post("/mi-disponibilidad", authorizeRoles("profesor"),
   validateRequest({ body: miDisponibilidadValidation }), disponibilidadController.guardarMiDisponibilidad);
 
-// Consultar disponibilidad: permitido para admin, secretaria y profesor
+// La disponibilidad general solo admite consulta administrativa y seguimiento.
 router.get(
   "/",
-  authorizeRoles("admin", "secretaria", "profesor"),
+  authorizeRoles("admin", "secretaria"),
   validateRequest({ query: disponibilidadQueryValidation }),
   disponibilidadController.get
 );
 
 router.get(
   "/:id",
-  authorizeRoles("admin", "secretaria", "profesor"),
+  authorizeRoles("admin", "secretaria"),
   validateRequest({ params: disponibilidadIdParamValidation }),
   disponibilidadController.getById
 );
 
-// Secretaria puede mutar únicamente profesores de departamentos vinculados a su carrera.
+// Las escrituras solo se ofrecen en mi-disponibilidad, con identidad docente propia.
 router.post(
   "/",
-  authorizeRoles("admin", "secretaria", "profesor"),
+  authorizeRoles(),
   validateRequest({ body: createDisponibilidadValidation }),
   disponibilidadController.create
 );
 
 router.post(
   "/sincronizar",
-  authorizeRoles("admin", "secretaria", "profesor"),
+  authorizeRoles(),
   validateRequest({ body: syncDisponibilidadValidation }),
   disponibilidadController.sync
 );
 
 router.delete(
   "/:id",
-  authorizeRoles("admin", "secretaria", "profesor"),
+  authorizeRoles(),
   validateRequest({ params: disponibilidadIdParamValidation }),
   disponibilidadController.delete
 );
 
 router.delete(
   "/profesor/:profesorId/planificacion-semestre/:planificacionSemestreId",
-  authorizeRoles("admin", "secretaria", "profesor"),
+  authorizeRoles(),
   validateRequest({ params: profesorPlanificacionParamValidation }),
   disponibilidadController.clear
 );

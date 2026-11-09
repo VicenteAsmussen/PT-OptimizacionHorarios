@@ -16,6 +16,7 @@ export interface CarreraProfesor {
 
 // Modelo de lectura deliberadamente reducido: nunca contiene claves ni hashes.
 export interface Profesor {
+  tieneDependenciasAcademicas?: boolean;
   id: number;
   rut: string;
   nombre: string;

@@ -40,6 +40,7 @@ export async function cargarContextoResultado(tx: TransaccionPlanificacion, id: 
     disponibilidades: await tx.query.disponibilidadProfesores.findMany({ where: eq(disponibilidadProfesores.planificacionSemestreId, id) }) };
 }
 export interface PersistenciaResultado {
+  descartar(idsHorarios: number[], ejecucionesIds: string[]): Promise<void>;
   mover(cambios: { id: number; bloqueId: number }[]): Promise<void>;
   asignarSalas(cambios: { id: number; salaId: number | null }[]): Promise<void>;
   publicar(): Promise<void>;
@@ -59,6 +60,17 @@ export const resultadosHorariosRepository = {
       await exigirSinEjecucionActiva(tx, [id]);
       const contexto = await cargarContextoResultado(tx, id);
       const persistencia: PersistenciaResultado = {
+        async descartar(idsHorarios, ejecucionesIds) {
+          if (idsHorarios.length) {
+            const eliminadas = await tx.delete(horariosAsignaturas).where(and(eq(horariosAsignaturas.planificacionSemestreId, id), inArray(horariosAsignaturas.id, idsHorarios))).returning({ id: horariosAsignaturas.id });
+            if (eliminadas.length !== idsHorarios.length) throw new ConflictError("El horario cambió durante el descarte. Vuelva a consultar.");
+          }
+          if (ejecucionesIds.length) {
+            const eliminadas = await tx.delete(ejecucionesOptimizacion).where(and(eq(ejecucionesOptimizacion.planificacionSemestreId, id), inArray(ejecucionesOptimizacion.id, ejecucionesIds), eq(ejecucionesOptimizacion.estado, "aplicada"))).returning({ id: ejecucionesOptimizacion.id });
+            if (eliminadas.length !== ejecucionesIds.length) throw new ConflictError("La ejecución cambió durante el descarte. Vuelva a consultar.");
+          }
+          await tx.update(planificacionesSemestres).set({ estadoPlanificacion: "preparacion" }).where(eq(planificacionesSemestres.id, id));
+        },
         async mover(cambios) {
           const originales = await tx.select().from(horariosAsignaturas).where(and(eq(horariosAsignaturas.planificacionSemestreId, id), inArray(horariosAsignaturas.id, cambios.map(cambio => cambio.id))));
           if (originales.length !== cambios.length) throw new ConflictError("El horario cambió; vuelva a consultar.");

@@ -12,6 +12,7 @@
 
 Administración: [reinicio de ofertas y horarios, y estados del período](docs/administracion-periodos.md).
 Seguridad: [permisos de cuentas, sesiones revocables y configuración productiva](docs/seguridad-identidad.md).
+Autorización: [permisos operativos por rol y excepciones administrativas](docs/permisos-operativos.md).
 Operación HTTP: [errores JSON y apagado ordenado](docs/http-apagado.md).
 
 ---
@@ -38,7 +39,7 @@ flowchart TD
     F --> G["7. Revisión Secretaría y Publicación Oficial"]
 ```
 
-1. **Gestión Académica**: la secretaría habilita la oferta de asignaturas del semestre y asigna la carga de cada docente dentro del alcance de su carrera. El catálogo de asignaturas es de solo lectura para secretaría, solo administración puede crear, editar o eliminar asignaturas. La gestión de secciones se mantiene separada del catálogo.
+1. **Gestión Académica**: la secretaría habilita la oferta de asignaturas del semestre y asigna la carga de cada docente dentro del alcance de su carrera. El catálogo de asignaturas es de solo lectura para secretaría, administración puede crear registros y solo editar o eliminar los que no tienen dependencias académicas. La gestión de secciones se mantiene separada del catálogo y es de solo lectura para administración.
    En Asignaturas, secretaría puede consultar el detalle con «Ver» y el icono de ojo. El panel muestra los mismos datos que la edición, con campos deshabilitados y sin botón para guardar. También puede elegir «Departamentos gestionados» o «Departamentos no gestionados» dentro del selector Departamento, además de un departamento individual. La clasificación se deriva de la relación del departamento con su carrera, no del nombre ni de una marca en la asignatura. Se combina con la búsqueda y el semestre de malla, «Limpiar filtros» vuelve a mostrar todos los departamentos.
 2. **Disponibilidad Docente**: los profesores ingresan sus bloques de disponibilidad mientras el semestre está en fase de recepción.
 3. **Horarios Externos Pre-modelo**: la importación Excel incorpora ofertas y horarios de departamentos externos antes del modelo; quedan sin sala y sin publicar.
@@ -98,7 +99,7 @@ La relación `carrera_departamento` indica que un departamento presta servicios 
 | Concepto | Significado |
 | :--- | :--- |
 | Fila en `carrera_departamento` | El departamento presta servicios a la carrera. |
-| `es_gestionado = true` | La secretaría gestiona ramos, profesores, disponibilidad y accesos de ese departamento. |
+| `es_gestionado = true` | La secretaría gestiona ramos y los profesores/accesos autorizados de ese departamento, y consulta el seguimiento de disponibilidad sin modificarla. |
 | `es_gestionado = false` | Presta servicios, pero sus horarios se coordinan como externos y sus accesos no los administra la secretaría. |
 
 En reglas de dominio, **alcance** son todos los departamentos relacionados con la carrera y **gestión** son solo los marcados con `es_gestionado=true`. Los profesores se clasifican en `planta` y `part time`.

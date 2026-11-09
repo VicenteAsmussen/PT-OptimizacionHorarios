@@ -11,7 +11,7 @@ import { carrerasRepository } from "../src/repositories/carreras.repository.js";
 import { departamentosRepository } from "../src/repositories/departamentos.repository.js";
 import { disponibilidadRepository } from "../src/repositories/disponibilidad.repository.js";
 vi.mock("../src/config/db.js", () => ({ db: { select: vi.fn(), query: {
-  asignaturas: { findMany: vi.fn() }, profesores: { findMany: vi.fn(), findFirst: vi.fn() },
+  asignaturas: { findMany: vi.fn().mockResolvedValue([]) }, profesores: { findMany: vi.fn().mockResolvedValue([]), findFirst: vi.fn() },
   ofertasAsignaturas: { findMany: vi.fn() }, horariosAsignaturas: { findMany: vi.fn() },
   carreras: { findMany: vi.fn() }, departamentos: { findMany: vi.fn() }, disponibilidadProfesores: { findMany: vi.fn() },
 } } }));

@@ -4,11 +4,14 @@ import { authenticate } from "../middlewares/auth.middleware.js";
 import { authorizeRoles } from "../middlewares/roles.middleware.js";
 import { validateRequest } from "../middlewares/validation.middleware.js";
 import { resultadosHorariosController as controlador } from "../controllers/resultados-horarios.controller.js";
-import { resultadoConsulta, resultadoExportacion, resultadoMovimiento, resultadoParametros, resultadoRevision } from "../validations/resultados-horarios.validation.js";
+import { resultadoConsulta, resultadoDescarte, resultadoExportacion, resultadoMovimiento, resultadoParametros, resultadoRevision } from "../validations/resultados-horarios.validation.js";
 
 export const resultadosHorariosRouter = Router();
 resultadosHorariosRouter.use(authenticate, authorizeRoles("secretaria", "admin"));
 resultadosHorariosRouter.get("/:id", validateRequest({ params: resultadoParametros, query: resultadoConsulta }), controlador.consultar);
+// La consulta del administrador no hereda ninguna operación académica.
+resultadosHorariosRouter.use(authorizeRoles("secretaria"));
+resultadosHorariosRouter.post("/:id/descartar", validateRequest({ params: resultadoParametros, body: resultadoDescarte }), controlador.descartar);
 resultadosHorariosRouter.post("/:id/validar-movimiento", validateRequest({ params: resultadoParametros, body: resultadoMovimiento }), controlador.validarMovimiento);
 resultadosHorariosRouter.post("/:id/movimientos", validateRequest({ params: resultadoParametros, body: resultadoMovimiento }), controlador.mover);
 resultadosHorariosRouter.get("/:id/validacion-publicacion", validateRequest({ params: resultadoParametros }), controlador.validarPublicacion);

@@ -98,13 +98,13 @@ describe.skipIf(!ejecutarIntegracion)("Control de Acceso y Roles (RBAC)", () => 
   });
 
   describe("Módulo Horarios (/api/horarios-asignaturas)", () => {
-    it("Profesor SÍ puede consultar horarios (200)", async () => {
+    it("Profesor no puede consultar el listado general de horarios (403)", async () => {
       const res = await request(app)
         .get("/api/horarios-asignaturas")
         .set("Cookie", profesorCookie);
 
-      expect(res.status).toBe(200);
-      expect(res.body.status).toBe("success");
+      expect(res.status).toBe(403);
+      expect(res.body.status).toBe("error");
     });
 
     it("Profesor NO puede modificar/crear horarios (403 Forbidden)", async () => {
@@ -132,7 +132,7 @@ describe.skipIf(!ejecutarIntegracion)("Control de Acceso y Roles (RBAC)", () => 
       expect(res.body.status).toBe("success");
     });
 
-    it("Secretaria sincroniza profesor gestionado pero no profesor ajeno, sin efectos fuera de alcance", async () => {
+    it("Secretaría no sincroniza disponibilidad propia de la carrera ni ajena, sin modificar datos", async () => {
       const secretaria = await db.query.usuarios.findFirst({ where: (tabla, { eq }) => eq(tabla.correo, "secretaria@ubiobio.cl") });
       const docente = await db.query.usuarios.findFirst({ where: (tabla, { eq }) => eq(tabla.correo, "cvidal@ubb.cl") });
       expect(secretaria).toBeDefined();
@@ -158,13 +158,13 @@ describe.skipIf(!ejecutarIntegracion)("Control de Acceso y Roles (RBAC)", () => 
         const leerAjena = () => db.select().from(disponibilidadProfesores).where(and(
           eq(disponibilidadProfesores.profesorId, ajeno.id), eq(disponibilidadProfesores.planificacionSemestreId, planificacion.id)));
         const antes = await leerAjena();
-        const permitida = await request(app).post("/api/disponibilidad-profesores/sincronizar")
-          .set("Cookie", secretariaCookie).send({ profesorId: profesor!.id, planificacionSemestreId: planificacion.id, bloquesIds: bloques.map((bloque) => bloque.id) });
-        expect(permitida.status).toBe(200);
-        const guardada = await db.select().from(disponibilidadProfesores).where(and(
+        const leerGestionada = () => db.select().from(disponibilidadProfesores).where(and(
           eq(disponibilidadProfesores.profesorId, profesor!.id), eq(disponibilidadProfesores.planificacionSemestreId, planificacion.id)));
-        expect(guardada.map((fila) => fila.bloqueId).sort((a, b) => a - b))
-          .toEqual(bloques.map((bloque) => bloque.id).sort((a, b) => a - b));
+        const gestionadaAntes = await leerGestionada();
+        const gestionada = await request(app).post("/api/disponibilidad-profesores/sincronizar")
+          .set("Cookie", secretariaCookie).send({ profesorId: profesor!.id, planificacionSemestreId: planificacion.id, bloquesIds: bloques.map((bloque) => bloque.id) });
+        expect(gestionada.status).toBe(403);
+        expect(await leerGestionada()).toEqual(gestionadaAntes);
         const prohibida = await request(app).post("/api/disponibilidad-profesores/sincronizar")
           .set("Cookie", secretariaCookie).send({ profesorId: ajeno.id, planificacionSemestreId: planificacion.id, bloquesIds: [bloques[1].id] });
         expect(prohibida.status).toBe(403);
@@ -177,7 +177,7 @@ describe.skipIf(!ejecutarIntegracion)("Control de Acceso y Roles (RBAC)", () => 
       }
     });
 
-    it("Profesor sin asignaciones no sincroniza ni altera disponibilidad guardada (403)", async () => {
+    it("Profesor no utiliza la sincronización general ni altera disponibilidad guardada (403)", async () => {
       const usuario = await db.query.usuarios.findFirst({ where: (tabla, { eq }) => eq(tabla.correo, "cvidal@ubb.cl") });
       expect(usuario).toBeDefined();
       const profesor = await db.query.profesores.findFirst({ where: eq(profesores.usuarioId, usuario!.id) });
@@ -196,7 +196,7 @@ describe.skipIf(!ejecutarIntegracion)("Control de Acceso y Roles (RBAC)", () => 
         const res = await request(app).post("/api/disponibilidad-profesores/sincronizar")
           .set("Cookie", profesorCookie).send({ profesorId: profesor!.id, planificacionSemestreId: planificacion.id, bloquesIds: [bloques[1].id] });
         expect(res.status).toBe(403);
-        expect(res.body).toEqual({ status: "error", statusCode: 403, message: "No tiene asignaciones en esta planificación actual" });
+        expect(res.body).toMatchObject({ status: "error", statusCode: 403 });
         expect(await leerGuardada()).toEqual(antes);
         expect(await db.query.planificacionesSemestres.findFirst({ where: eq(planificacionesSemestres.id, planificacion.id) })).toEqual(planificacion);
       } finally {

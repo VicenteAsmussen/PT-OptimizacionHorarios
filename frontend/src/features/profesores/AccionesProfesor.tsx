@@ -3,7 +3,7 @@ import { etiquetaTipoProfesor } from "./datos";
 import DialogoProfesor from "./DialogoProfesor";
 import { prepararCambiosAcceso, prepararNuevoAcceso } from "./formularios";
 import { errorClaveAcceso } from "./limites";
-import { puedeAdministrarAcceso, puedeAdministrarProfesor } from "./permisos";
+import { puedeAdministrarAcceso, puedeEliminarProfesor } from "./permisos";
 import { profesoresApi } from "./profesores.api";
 import { formatearRut } from "./rut";
 import type { AlcanceProfesores, Profesor } from "./types";
@@ -29,7 +29,7 @@ export default function AccionesProfesor({ accion, profesor, rol, alcance, alCer
   const destructivo = accion === "eliminar" || accion === "eliminarAcceso";
   async function guardar() {
     if (accion === "eliminar") {
-      if (!puedeAdministrarProfesor(rol, profesor, alcance)) throw new Error("No tienes permiso para eliminar este profesor.");
+      if (!puedeEliminarProfesor(rol, profesor, alcance)) throw new Error("No tienes permiso para eliminar este profesor con sus dependencias actuales.");
       return profesoresApi.eliminar(profesor.id);
     }
     if (!puedeAdministrarAcceso(rol, profesor, alcance)) throw new Error("No tienes permiso para gestionar este acceso.");
@@ -79,7 +79,9 @@ export default function AccionesProfesor({ accion, profesor, rol, alcance, alCer
       </dl>
     </div> : <>
       <p>¿Confirmas que deseas {accion === "eliminar" ? "eliminar al profesor" : "retirar el acceso al sistema de"} <strong>{profesor.nombre}</strong>?</p>
-      <p>{accion === "eliminar" ? "Esta acción no se puede deshacer. Si existen horarios asociados, el servidor impedirá la eliminación."
+      <p>{accion === "eliminar" ? (rol === "admin"
+        ? "Esta acción no se puede deshacer. Si existen disponibilidad, asignaciones u horarios, el servidor impedirá la eliminación."
+        : "Esta acción no se puede deshacer. Si existen horarios asociados, el servidor impedirá la eliminación.")
         : "El profesor se conservará, pero ya no podrá iniciar sesión con este acceso."}</p>
     </>}
   </DialogoProfesor>;

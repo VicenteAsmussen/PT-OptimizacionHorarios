@@ -23,12 +23,14 @@ router.get(
 
 router.post(
   "/",
+  authorizeRoles("admin"),
   validateRequest({ body: createSalaValidation }),
   salasController.create
 );
 
 router.put(
   "/:id",
+  authorizeRoles("admin"),
   validateRequest({
     params: salaIdParamValidation,
     body: updateSalaValidation,
@@ -38,6 +40,7 @@ router.put(
 
 router.delete(
   "/:id",
+  authorizeRoles("admin"),
   validateRequest({ params: salaIdParamValidation }),
   salasController.delete
 );

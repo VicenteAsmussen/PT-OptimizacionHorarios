@@ -14,6 +14,7 @@ import { ofertasAsignaturas } from "../db/schema/ofertas-asignaturas.schema.js";
 import { planificacionesSemestres } from "../db/schema/planificaciones-semestres.schema.js";
 import type { AlcanceCarrera } from "../utils/alcance-carrera.js";
 import { exigirCarreraSinEjecucion } from "./optimizacion-bloqueos.js";
+import { conCatalogosBloqueados, exigirCatalogoSinDependencias } from "./dependencias-academicas.js";
 
 type RelacionDepartamentoInput = {
   departamentoId: number;
@@ -126,8 +127,8 @@ export const carrerasRepository = {
     data: Partial<Omit<NuevaCarrera, "id">>,
     departamentos?: RelacionDepartamentoInput[]
   ) {
-    return await db.transaction(async (tx) => {
-      await tx.select({ id: carreras.id }).from(carreras).where(eq(carreras.id, id)).for("update");
+    return conCatalogosBloqueados(async (tx) => {
+      await exigirCatalogoSinDependencias(tx, { tipo: "carrera", id });
       await exigirCarreraSinEjecucion(tx, id);
       if (Object.keys(data).length > 0) {
         await tx.update(carreras).set(data).where(eq(carreras.id, id));
@@ -168,8 +169,8 @@ export const carrerasRepository = {
   },
 
   async delete(id: number): Promise<boolean> {
-    return db.transaction(async tx => {
-      await tx.select({ id: carreras.id }).from(carreras).where(eq(carreras.id, id)).for("update");
+    return conCatalogosBloqueados(async tx => {
+      await exigirCatalogoSinDependencias(tx, { tipo: "carrera", id });
       await exigirCarreraSinEjecucion(tx, id);
       const [deleted] = await tx.delete(carreras).where(eq(carreras.id, id)).returning();
       return !!deleted;

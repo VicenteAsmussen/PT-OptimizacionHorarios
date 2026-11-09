@@ -116,15 +116,20 @@ describe("Autoservicio de disponibilidad", () => {
     expect(guardado.body.data.bloquesIds).toEqual([1, 2, 3, 4, 5]);
     expect(guardado.body.data.bloquesReservadosIds).toEqual([6]);
   });
-  it.each(["propia", "sincronizar", "individual"])("rechaza reservas por ruta %s y conserva lo guardado", async caso => {
+  it.each(["propia", "sincronizar", "individual"])("rechaza reservas en autoservicio o deniega la ruta general %s sin cambios", async caso => {
     datos.filas = [1, 2, 3, 4, 5].map(bloqueId => ({ id: bloqueId, profesorId: 7, planificacionSemestreId: 10, bloqueId }));
     datos.reservas = [{ carreraId: 30, bloqueHorarioId: 6 }];
     const peticion = caso === "propia" ? request(app).post(ruta) : request(app).post(`/api/disponibilidad-profesores${caso === "sincronizar" ? "/sincronizar" : ""}`);
     const respuesta = await peticion.set("Authorization", "profesor").send({ planificacionSemestreId: 10,
       ...(caso === "propia" ? {} : { profesorId: 7 }), ...(caso === "individual" ? { bloqueId: 6 } : { bloquesIds: [1, 2, 3, 4, 6] }) });
-    expect(respuesta.status).toBe(400);
-    expect(respuesta.body).toEqual({ status: "error", statusCode: 400,
-      message: "La selección incluye bloques reservados para esta carrera. Retíralos del borrador antes de enviar." });
+    if (caso === "propia") {
+      expect(respuesta.status).toBe(400);
+      expect(respuesta.body).toEqual({ status: "error", statusCode: 400,
+        message: "La selección incluye bloques reservados para esta carrera. Retíralos del borrador antes de enviar." });
+    } else {
+      expect(respuesta.status).toBe(403);
+      expect(respuesta.body).toMatchObject({ status: "error", statusCode: 403 });
+    }
     const lectura = await request(app).get(`${ruta}?planificacionSemestreId=10`).set("Authorization", "profesor");
     expect(lectura.status).toBe(200);
     expect(lectura.body.data.seleccion.bloquesIds).toEqual([1, 2, 3, 4, 5]);
@@ -156,18 +161,19 @@ describe("Autoservicio de disponibilidad", () => {
       expect(lectura.body.data.seleccion.minimoBloques).toBe(minimo);
     }
   });
-  it("las rutas antiguas permiten agregar bloques libres y retirar explícitamente una reserva anterior", async () => {
+  it("el autoservicio permite retirar una reserva anterior y agregar bloques libres", async () => {
     datos.filas = [1, 2, 3, 4, 5, 6].map(bloqueId => ({ id: bloqueId, profesorId: 7, planificacionSemestreId: 10, bloqueId }));
     datos.reservas = [{ carreraId: 30, bloqueHorarioId: 6 }, { carreraId: 80, bloqueHorarioId: 1 }];
-    const retirada = await request(app).delete("/api/disponibilidad-profesores/6").set("Authorization", "profesor");
-    expect(retirada.status).toBe(204);
+    const retirada = await request(app).post(ruta).set("Authorization", "profesor")
+      .send({ planificacionSemestreId: 10, bloquesIds: [1, 2, 3, 4, 5] });
+    expect(retirada.status).toBe(200);
     const lectura = await request(app).get(`${ruta}?planificacionSemestreId=10`).set("Authorization", "profesor");
     expect(lectura.body.data.seleccion.bloquesIds).toEqual([1, 2, 3, 4, 5]);
     datos.bloques.push({ ...datos.bloques[0], id: 7, numeroBloque: 7 });
-    const agregado = await request(app).post("/api/disponibilidad-profesores").set("Authorization", "profesor")
-      .send({ profesorId: 7, planificacionSemestreId: 10, bloqueId: 7 });
-    expect(agregado.status).toBe(201);
-    expect(agregado.body.data.bloqueId).toBe(7);
+    const agregado = await request(app).post(ruta).set("Authorization", "profesor")
+      .send({ planificacionSemestreId: 10, bloquesIds: [1, 2, 3, 4, 5, 7] });
+    expect(agregado.status).toBe(200);
+    expect(agregado.body.data.bloquesIds).toEqual([1, 2, 3, 4, 5, 7]);
     const posterior = await request(app).get(`${ruta}?planificacionSemestreId=10`).set("Authorization", "profesor");
     expect(posterior.body.data.seleccion.bloquesIds).toEqual([1, 2, 3, 4, 5, 7]);
   });
@@ -202,22 +208,27 @@ describe("Autoservicio de disponibilidad", () => {
     expect(respuesta.body.message).toBe("No tiene asignaciones en esta planificación actual");
     expect(datos.filas).toEqual(antes);
   });
-  it("las rutas antiguas consultan asignaciones fuera del departamento", async () => {
+  it("deniega rutas generales aunque las asignaciones propias estén fuera del departamento", async () => {
+    const antes = structuredClone(datos.filas);
     const listado = await request(app).get("/api/disponibilidad-profesores?profesorId=7&planificacionSemestreId=10").set("Authorization", "profesor");
-    expect(listado.status).toBe(200);
-    expect(listado.body.data).toEqual(datos.filas);
+    expect(listado.status).toBe(403);
+    expect(listado.body).not.toHaveProperty("data");
     const fila = await request(app).get("/api/disponibilidad-profesores/40").set("Authorization", "profesor");
-    expect(fila.status).toBe(200);
-    expect(fila.body.data).toEqual(datos.filas[0]);
+    expect(fila.status).toBe(403);
+    expect(fila.body).not.toHaveProperty("data");
+    const propia = await request(app).get(`${ruta}?planificacionSemestreId=10`).set("Authorization", "profesor");
+    expect(propia.status).toBe(200);
+    expect(propia.body.data.seleccion.bloquesIds).toEqual([6]);
+    expect(datos.filas).toEqual(antes);
   });
-  it("conserva lectura histórica asignada por rutas antiguas, sin edición ni selector histórico", async () => {
+  it("deniega rutas generales históricas y conserva el selector propio sin períodos anteriores", async () => {
     datos.planificaciones[0].actual = false;
     const listado = await request(app).get("/api/disponibilidad-profesores?planificacionSemestreId=10").set("Authorization", "profesor");
-    expect(listado.status).toBe(200);
-    expect(listado.body.data).toEqual(datos.filas);
+    expect(listado.status).toBe(403);
+    expect(listado.body).not.toHaveProperty("data");
     const fila = await request(app).get("/api/disponibilidad-profesores/40").set("Authorization", "profesor");
-    expect(fila.status).toBe(200);
-    expect(fila.body.data).toEqual(datos.filas[0]);
+    expect(fila.status).toBe(403);
+    expect(fila.body).not.toHaveProperty("data");
     const selector = await request(app).get(ruta).set("Authorization", "profesor");
     expect(selector.body.data.planificaciones).toEqual([]);
     const antes = structuredClone(datos.filas);
@@ -226,13 +237,17 @@ describe("Autoservicio de disponibilidad", () => {
     expect(datos.filas).toEqual(antes);
   });
   it("rechaza consultar la disponibilidad de otro profesor", async () => {
+    const antes = structuredClone(datos.filas);
     const consulta = await request(app).get("/api/disponibilidad-profesores?profesorId=8").set("Authorization", "profesor");
     expect(consulta.status).toBe(403);
-    expect(consulta.body.message).toBe("Solo puede consultar su propia disponibilidad");
+    expect(consulta.body).toMatchObject({ status: "error", statusCode: 403 });
+    expect(consulta.body).not.toHaveProperty("data");
+    expect(datos.filas).toEqual(antes);
     datos.filas[0].profesorId = 8;
     const fila = await request(app).get("/api/disponibilidad-profesores/40").set("Authorization", "profesor");
     expect(fila.status).toBe(403);
-    expect(fila.body.message).toBe("Solo puede gestionar su propia disponibilidad");
+    expect(fila.body).toMatchObject({ status: "error", statusCode: 403 });
+    expect(fila.body).not.toHaveProperty("data");
   });
   it("una planificación sin filas guardadas empieza vacía", async () => {
     datos.filas = [];
@@ -242,12 +257,12 @@ describe("Autoservicio de disponibilidad", () => {
     expect(datos.filas).toEqual([]);
   });
   it.each([
-    { metodo: "post", ruta: "/", cuerpo: { profesorId: 7, planificacionSemestreId: 10, bloqueId: 1 }, codigo: 400 },
-    { metodo: "post", ruta: "/sincronizar", cuerpo: { profesorId: 7, planificacionSemestreId: 10, bloquesIds: [] }, codigo: 400 },
-    { metodo: "delete", ruta: "/40", cuerpo: {}, codigo: 400 },
-    { metodo: "delete", ruta: "/profesor/7/planificacion-semestre/10", cuerpo: {}, codigo: 400 },
+    { metodo: "post", ruta: "/", cuerpo: { profesorId: 7, planificacionSemestreId: 10, bloqueId: 1 }, codigo: 403 },
+    { metodo: "post", ruta: "/sincronizar", cuerpo: { profesorId: 7, planificacionSemestreId: 10, bloquesIds: [] }, codigo: 403 },
+    { metodo: "delete", ruta: "/40", cuerpo: {}, codigo: 403 },
+    { metodo: "delete", ruta: "/profesor/7/planificacion-semestre/10", cuerpo: {}, codigo: 403 },
     { metodo: "post", ruta: "/sincronizar", cuerpo: { profesorId: 8, planificacionSemestreId: 10, bloquesIds: [1,2,3,4,5] }, codigo: 403 },
-  ])("no permite eludir mínimo o identidad por $metodo $ruta", async caso => {
+  ])("deniega la ruta general $metodo $ruta antes de validar su contenido", async caso => {
     const antes = structuredClone(datos.filas);
     const peticion = caso.metodo === "post" ? request(app).post(`/api/disponibilidad-profesores${caso.ruta}`) : request(app).delete(`/api/disponibilidad-profesores${caso.ruta}`);
     const respuesta = await peticion.set("Authorization", "profesor").send(caso.cuerpo);
@@ -255,12 +270,11 @@ describe("Autoservicio de disponibilidad", () => {
     expect(datos.filas).toEqual(antes);
     expect(datos.planificaciones[0].estadoPlanificacion).toBe("preparacion");
   });
-  it("conserva sincronización completa del profesor por la ruta antigua", async () => {
-    const respuesta = await request(app).post("/api/disponibilidad-profesores/sincronizar").set("Authorization", "profesor")
-      .send({ profesorId: 7, planificacionSemestreId: 10, bloquesIds: [1,2,3,4,5] });
+  it("conserva el reemplazo completo de la disponibilidad mediante el autoservicio", async () => {
+    const respuesta = await request(app).post(ruta).set("Authorization", "profesor")
+      .send({ planificacionSemestreId: 10, bloquesIds: [1,2,3,4,5] });
     expect(respuesta.status).toBe(200);
-    expect(respuesta.body.message).toBe("Disponibilidad horaria sincronizada con éxito");
-    expect(respuesta.body.data.map((fila: any) => fila.bloqueId)).toEqual([1,2,3,4,5]);
+    expect(respuesta.body.data.bloquesIds).toEqual([1,2,3,4,5]);
     expect(datos.filas.map(fila => fila.bloqueId)).toEqual([1,2,3,4,5]);
   });
   it("lista únicamente planificaciones actuales asignadas y no expone datos personales", async () => {

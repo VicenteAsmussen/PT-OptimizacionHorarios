@@ -6,9 +6,9 @@ import { horariosRouter } from "../src/routes/horarios.routes.js";
 import { horariosRepository } from "../src/repositories/horarios.repository.js";
 import { horariosService as servicioHorarios } from "../src/services/horarios.service.js";
 
-// Los casos de formato existentes usan el alcance global de un administrador.
+// Los casos de formato usan el alcance autorizado de secretaría.
 const horariosService = {
-  exportarExcelSalas: (planificacionSemestreId: number, usuario = { id: 1, rol: "admin" }) =>
+  exportarExcelSalas: (planificacionSemestreId: number, usuario = { id: 1, rol: "secretaria" }) =>
     servicioHorarios.exportarExcelSalas(planificacionSemestreId, usuario),
 };
 import { excelSalasQueryValidation } from "../src/validations/horarios.validation.js";
@@ -82,7 +82,7 @@ describe("Exportación Excel de asignación de salas", () => {
     vi.mocked(horariosRepository.findParaExportarSalas).mockResolvedValue([entrada()]);
     const libro = await leerLibro();
     expect(horariosRepository.findPlanificacionById).toHaveBeenCalledWith(9);
-    expect(horariosRepository.findParaExportarSalas).toHaveBeenCalledWith(9);
+    expect(horariosRepository.findParaExportarSalas).toHaveBeenCalledWith(9, 3);
     expect(libro.worksheets).toHaveLength(1);
     const hoja = libro.worksheets[0]!;
     expect(hoja.name).toBe("Resumen Malla");
@@ -165,20 +165,18 @@ describe("Exportación Excel de asignación de salas", () => {
     expect(respuesta.headers["content-disposition"]).toBeUndefined();
   });
 
-  it.each(["admin", "secretaria"])("descarga HTTP para %s con cabeceras de adjunto", async (rol) => {
+  it("descarga HTTP para secretaría con cabeceras de adjunto", async () => {
     vi.mocked(horariosRepository.findParaExportarSalas).mockResolvedValue([entrada()]);
     const respuesta = await request(aplicacion).get("/api/horarios-asignaturas/excel/salas?planificacionSemestreId=9")
-      .set("x-rol-prueba", rol).buffer(true).parse((respuestaBinaria, terminar) => {
+      .set("x-rol-prueba", "secretaria").buffer(true).parse((respuestaBinaria, terminar) => {
         const fragmentos: Buffer[] = [];
         respuestaBinaria.on("data", (fragmento: Buffer) => fragmentos.push(fragmento));
         respuestaBinaria.on("end", () => terminar(null, Buffer.concat(fragmentos)));
         respuestaBinaria.on("error", terminar);
       });
     expect(respuesta.status).toBe(200);
-    if (rol === "admin") {
-      expect(horariosRepository.findCarreraSecretariaByUsuarioId).not.toHaveBeenCalled();
-      expect(horariosRepository.findParaExportarSalas).toHaveBeenCalledWith(9);
-    }
+    expect(horariosRepository.findCarreraSecretariaByUsuarioId).toHaveBeenCalledWith(1);
+    expect(horariosRepository.findParaExportarSalas).toHaveBeenCalledWith(9, 3);
     expect(respuesta.headers["content-type"]).toBe("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
     expect(respuesta.headers["content-disposition"]).toBe('attachment; filename="Resumen Malla (2026-1).xlsx"');
     expect(Buffer.isBuffer(respuesta.body)).toBe(true);
@@ -187,10 +185,12 @@ describe("Exportación Excel de asignación de salas", () => {
     expect(libro.worksheets[0]!.name).toBe("Resumen Malla");
   });
 
-  it("rechaza profesor y solicitudes sin autenticación antes de consultar", async () => {
+  it.each(["admin", "profesor"])("rechaza %s y solicitudes sin autenticación antes de consultar", async rol => {
     expect((await request(aplicacion).get("/api/horarios-asignaturas/excel/salas?planificacionSemestreId=9")).status).toBe(401);
     expect((await request(aplicacion).get("/api/horarios-asignaturas/excel/salas?planificacionSemestreId=9")
-      .set("x-rol-prueba", "profesor")).status).toBe(403);
+      .set("x-rol-prueba", rol)).status).toBe(403);
+    expect(horariosRepository.findCarreraSecretariaByUsuarioId).not.toHaveBeenCalled();
+    expect(horariosRepository.findPlanificacionById).not.toHaveBeenCalled();
     expect(horariosRepository.findParaExportarSalas).not.toHaveBeenCalled();
   });
 

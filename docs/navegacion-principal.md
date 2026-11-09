@@ -6,7 +6,7 @@ La barra lateral conserva Roboto, la paleta institucional y los destinos existen
 
 | Perfil | Catálogos | Planificación | Opciones personales |
 | --- | --- | --- | --- |
-| Administración | Asignaturas, Profesores | Administración de períodos, Modelo de optimización, Gestión del horario | — |
+| Administración | Asignaturas, Profesores | Administración de períodos, Gestión del horario (consulta) | — |
 | Secretaría | Asignaturas, Profesores | Seguimiento de disponibilidad, Horarios departamentos externos, Modelo de optimización, Gestión del horario | — |
 | Profesor | — | — | Mi disponibilidad, Mi horario |
 

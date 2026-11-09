@@ -92,7 +92,7 @@ export default function ProfesoresPage() {
   return <section className={estilos.pagina} aria-labelledby="titulo-profesores">
     <header className={estilos.cabecera}>
       <div><h1 id="titulo-profesores" ref={titulo} tabIndex={-1}>Profesores</h1>
-        <p>Administra los datos académicos de los profesores y sus accesos al sistema.</p></div>
+        <p>Administra la identidad institucional de los profesores y sus accesos al sistema.</p></div>
       <button type="button" className={`boton boton--crear ${estilos.botonConIcono}`} disabled={cargando || !puedeCrear}
         onClick={() => setSeleccion({ accion: "crear" })}><IconoProfesor tipo="agregar" />Agregar profesor</button>
     </header>

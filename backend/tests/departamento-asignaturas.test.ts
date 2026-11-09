@@ -7,7 +7,7 @@ import { asignaturas } from "../src/db/schema/asignaturas.schema.js";
 import { createAsignaturaValidation, updateAsignaturaValidation } from "../src/validations/asignaturas.validation.js";
 import { asignaturasRepository } from "../src/repositories/asignaturas.repository.js";
 
-vi.mock("../src/config/db.js", () => ({ db: { query: { asignaturas: { findMany: vi.fn(), findFirst: vi.fn() } } } }));
+vi.mock("../src/config/db.js", () => ({ db: { query: { asignaturas: { findMany: vi.fn().mockResolvedValue([]), findFirst: vi.fn() } } } }));
 import { db } from "../src/config/db.js";
 
 const datos = { codigo: "INF100", nombre: "Programación", semestreMalla: 1 };

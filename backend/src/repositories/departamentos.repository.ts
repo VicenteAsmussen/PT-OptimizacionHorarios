@@ -4,6 +4,7 @@ import { db } from "../config/db.js";
 import { departamentos, type Departamento, type NuevoDepartamento } from "../db/schema/departamentos.schema.js";
 
 import { asignaturas } from "../db/schema/asignaturas.schema.js";
+import { conCatalogosBloqueados, exigirCatalogoSinDependencias } from "./dependencias-academicas.js";
 
 export const departamentosRepository = {
   async hasAsignaturas(id: number): Promise<boolean> {
@@ -53,19 +54,25 @@ export const departamentosRepository = {
   },
 
   async update(id: number, data: Partial<Omit<NuevoDepartamento, "id">>): Promise<Departamento | undefined> {
-    const [updated] = await db
-      .update(departamentos)
-      .set(data)
-      .where(eq(departamentos.id, id))
-      .returning();
-    return updated;
+    return conCatalogosBloqueados(async tx => {
+      await exigirCatalogoSinDependencias(tx, { tipo: "departamento", id });
+      const [updated] = await tx
+        .update(departamentos)
+        .set(data)
+        .where(eq(departamentos.id, id))
+        .returning();
+      return updated;
+    });
   },
 
   async delete(id: number): Promise<boolean> {
-    const [deleted] = await db
-      .delete(departamentos)
-      .where(eq(departamentos.id, id))
-      .returning();
-    return !!deleted;
+    return conCatalogosBloqueados(async tx => {
+      await exigirCatalogoSinDependencias(tx, { tipo: "departamento", id });
+      const [deleted] = await tx
+        .delete(departamentos)
+        .where(eq(departamentos.id, id))
+        .returning();
+      return !!deleted;
+    });
   },
 };
