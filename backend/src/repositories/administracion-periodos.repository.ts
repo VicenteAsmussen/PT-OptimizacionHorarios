@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { and, eq, inArray } from "drizzle-orm";
 import { db } from "../config/db.js";
 import { carreras, planificacionesSemestres, carreraDepartamento, asignaturas, ofertasAsignaturas,
-  ofertaTipoHora, horariosAsignaturas } from "../db/schema/index.js";
+  ofertaTipoHora, horariosAsignaturas, ejecucionesOptimizacion } from "../db/schema/index.js";
 import { ConflictError, NotFoundError } from "../utils/errors.js";
 import type { TransaccionPlanificacion } from "./planificacion-escritura.js";
 import type { AlcanceReinicio, ReiniciarPeriodoDTO, EstadoPeriodoDTO } from "../validations/administracion-periodos.validation.js";
@@ -27,7 +27,7 @@ async function conPeriodoBloqueado<T>(id: number, ejecutar: (tx: TransaccionPlan
 }
 
 async function capturar(tx: TransaccionPlanificacion, planificacion: typeof planificacionesSemestres.$inferSelect,
-  carrera: typeof carreras.$inferSelect, alcance: AlcanceReinicio) {
+  carrera: typeof carreras.$inferSelect, alcance: AlcanceReinicio, incluirEjecuciones = true) {
   const relaciones = await tx.select().from(carreraDepartamento)
     .where(eq(carreraDepartamento.carreraId, carrera.id)).orderBy(carreraDepartamento.departamentoId).for("share");
   const ofertasPeriodo = await tx.select().from(ofertasAsignaturas)
@@ -47,9 +47,13 @@ async function capturar(tx: TransaccionPlanificacion, planificacion: typeof plan
   const horarios = ids.length ? await tx.select().from(horariosAsignaturas)
     .where(and(eq(horariosAsignaturas.planificacionSemestreId, planificacion.id), inArray(horariosAsignaturas.ofertaId, ids)))
     .orderBy(horariosAsignaturas.id).for("update") : [];
-  const huella = createHash("sha256").update(JSON.stringify({ planificacion, carrera, alcance, relaciones, materias, ofertas, asignaciones, horarios })).digest("hex");
+  const ejecuciones = incluirEjecuciones && alcance !== "externas" ? await tx.select({ id: ejecucionesOptimizacion.id, estado: ejecucionesOptimizacion.estado })
+    .from(ejecucionesOptimizacion).where(eq(ejecucionesOptimizacion.planificacionSemestreId, planificacion.id))
+    .orderBy(ejecucionesOptimizacion.id).for("update") : [];
+  const huella = createHash("sha256").update(JSON.stringify({ planificacion, carrera, alcance, relaciones, materias, ofertas, asignaciones, horarios,
+    ...(ejecuciones.length ? { ejecuciones } : {}) })).digest("hex");
   const resumen = { planificacion: { ...planificacion, carrera }, alcance, ofertas: ofertas.length,
-    asignaciones: asignaciones.length, horarios: horarios.length, huella };
+    asignaciones: asignaciones.length, horarios: horarios.length, ...(alcance !== "externas" ? { ejecuciones: ejecuciones.length } : {}), huella };
   return { resumen, ids };
 }
 
@@ -78,6 +82,9 @@ export const administracionPeriodosRepository = {
           await tx.delete(ofertasAsignaturas).where(and(eq(ofertasAsignaturas.planificacionSemestreId, id), inArray(ofertasAsignaturas.id, ids)));
         }
       }
+      if (datos.objetivo === "horarios" && datos.alcance !== "externas") {
+        await tx.delete(ejecucionesOptimizacion).where(eq(ejecucionesOptimizacion.planificacionSemestreId, id));
+      }
       return { ofertas: datos.objetivo === "ofertas" ? resumen.ofertas : 0,
         asignaciones: datos.objetivo === "ofertas" ? resumen.asignaciones : 0, horarios: resumen.horarios };
     });
@@ -89,7 +96,7 @@ export const administracionPeriodosRepository = {
         throw new ConflictError("El estado cambió. Consulta nuevamente el período antes de continuar");
       }
       if (datos.estadoPlanificacion !== planificacion.estadoPlanificacion) {
-        const { resumen } = await capturar(tx, planificacion, carrera, "gestionadas");
+        const { resumen } = await capturar(tx, planificacion, carrera, "gestionadas", false);
         if (datos.estadoPlanificacion === "preparacion" && resumen.horarios > 0) {
           throw new ConflictError("Para volver a Preparación, elimina primero los horarios gestionados de este período");
         }

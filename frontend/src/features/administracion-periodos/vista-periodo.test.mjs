@@ -35,6 +35,17 @@ const resumenes = Object.fromEntries(['gestionadas', 'externas', 'todas'].map(al
 }]));
 const propiedades = { resumenes, nuevoEstado: 'preparacion', accion: null, confirmacion: '', bloqueado: false,
   alNuevoEstado() {}, alSeleccionarAccion() {}, alConfirmacion() {}, alReiniciar() {}, alCancelar() {}, alCambiarEstado() {} };
+test('el reinicio gestionado advierte que elimina la ejecución aunque no queden horarios', async () => {
+  const Vista = await cargarVista(); const { accionesReinicio } = await import('./modelo.ts');
+  const datos = structuredClone(resumenes); datos.gestionadas.horarios = 0; datos.gestionadas.ejecuciones = 1;
+  const accion = accionesReinicio.find(a => a.objetivo === 'horarios' && a.alcance === 'gestionadas');
+  const elemento = Vista({ ...propiedades, resumenes: datos, accion, confirmacion: '2099-2' });
+  const boton = nodos(elemento).find(n => n.type === 'button' && n.props.children === accion.etiqueta);
+  assert.equal(boton.props.disabled, false);
+  const html = renderToStaticMarkup(elemento);
+  assert.match(html, /Se eliminarán también los registros de ejecución del modelo: 1/);
+  assert.match(html, /Los horarios externos se conservan/);
+});
 function nodos(elemento) {
   if (!elemento || typeof elemento !== 'object') return [];
   return [elemento, ...React.Children.toArray(elemento.props?.children).flatMap(nodos)];

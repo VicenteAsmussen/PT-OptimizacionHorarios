@@ -82,7 +82,10 @@ test('los iconos elegidos acompañan sus etiquetas sin cambiar nombres ni destin
     assert.ok(enlace.includes(`<span>${etiqueta}</span>`));
   }
   const { navegacion: administrador } = await renderizarNavegacion('admin');
-  assert.match(administrador, /href="\/app\/administracion-periodos"[^>]*>\s*<span class="sidebar-icono" aria-hidden="true"><\/span>\s*<span>Administración de períodos<\/span>/);
+  const periodos = administrador.match(/<a href="\/app\/administracion-periodos"[^>]*>([\s\S]*?)<\/a>/)?.[1];
+  assert.ok(periodos);
+  assert.match(periodos, /<img class="sidebar-icono" src="[^"]*\/Gestion-periodos\.svg" alt="" aria-hidden="true" width="20" height="20"\/>/);
+  assert.match(periodos, /<span>Administración de períodos<\/span>/);
   const { navegacion: profesor } = await renderizarNavegacion('profesor');
   for (const icono of ['panel-principal.svg', 'Mi-Disponibilidad.svg', 'Mi-horario.svg']) {
     assert.ok(profesor.includes(`/iconos/${icono}"`));

@@ -22,6 +22,7 @@ import iconoSeguimiento from "../../assets/iconos/Seguimiento-Disponibilidad.svg
 import iconoHorariosExternos from "../../assets/iconos/Horario-Departamentos-Externos.svg";
 import iconoModelo from "../../assets/iconos/modelo-optimizacion.svg";
 import iconoGestionHorario from "../../assets/iconos/gestion-horario.svg";
+import iconoGestionPeriodos from "../../assets/iconos/Gestion-periodos.svg";
 
 const consultaMovil = "(max-width: 48rem)";
 
@@ -140,7 +141,7 @@ export default function AppLayout() {
             <h2 className="sidebar-grupo-titulo" id="titulo-planificacion">Planificación</h2>
             {puedeAdministrarPeriodos(usuario?.rol) && (
               <NavLink to="/app/administracion-periodos" className="enlace-con-icono" onClick={() => setNavegacionAbierta(false)}>
-                <span className="sidebar-icono" aria-hidden="true" />
+                <img className="sidebar-icono" src={iconoGestionPeriodos} alt="" aria-hidden="true" width="20" height="20" />
                 <span>Administración de períodos</span>
               </NavLink>
             )}

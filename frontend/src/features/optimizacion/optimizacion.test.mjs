@@ -168,3 +168,49 @@ test('almacenamiento denegado no inicia un POST sin clave recuperable', async ()
   const s = crearSeguimiento({ iniciar: async () => { posts++; return ejecucion(); } }, { getItem() { throw new Error(); }, setItem() { throw new Error(); } }, 'cuenta');
   await assert.rejects(s.iniciar(2, [recurso]), /almacenamiento/); assert.equal(posts, 0);
 });
+
+test('el reinicio remoto elimina el resultado confirmado y su referencia local sin avisar ni ejecutar', async () => {
+  const { crearSeguimiento } = await cargar(); const storage = almacen(); let ultima = ejecucion('aplicada'); let avisos = 0;
+  const s = crearSeguimiento({ iniciar: async () => ultima, ultima: async () => ultima }, storage, 'cuenta');
+  await s.iniciar(2, [recurso]); s.alTerminar(() => avisos++);
+  assert.ok(storage.getItem('optimizacion:cuenta:2'));
+  ultima = null; await s.actualizar(2);
+  assert.equal(s.estado()[2].ejecucion, null); assert.equal(s.estado()[2].error, '');
+  assert.equal(s.estado()[2].incierta, false); assert.equal(storage.getItem('optimizacion:cuenta:2'), null);
+  assert.equal(avisos, 0);
+});
+
+test('un ID activo eliminado se reconcilia con la ejecución actual del período', async () => {
+  const { crearSeguimiento } = await cargar(); let ultima = ejecucion(); let consultas = 0;
+  const s = crearSeguimiento({ ultima: async () => ultima, consultar: async () => {
+    consultas++; throw Object.assign(new Error('Ejecución no encontrada.'), { status: 404 });
+  } }, almacen(), 'cuenta');
+  await s.actualizar(2); ultima = null; await s.actualizar(2);
+  assert.equal(consultas, 1); assert.equal(s.estado()[2].ejecucion, null); assert.equal(s.estado()[2].error, '');
+  ultima = { ...ejecucion('error'), id: 'e2', diagnostico: { mensaje: 'No se obtuvo solución.' } };
+  await s.actualizar(2); assert.deepEqual(s.estado()[2].ejecucion, ultima);
+});
+
+test('un rechazo de permisos no se oculta como reinicio ni dispara una consulta alternativa', async () => {
+  const { crearSeguimiento } = await cargar(); let ultimas = 0; let posts = 0;
+  const s = crearSeguimiento({ ultima: async () => { ultimas++; return ejecucion(); },
+    consultar: async () => { throw Object.assign(new Error('Sin permiso'), { status: 403 }); },
+    iniciar: async () => { posts++; },
+  }, almacen(), 'cuenta');
+  await s.actualizar(2); await s.actualizar(2);
+  assert.equal(s.estado()[2].ejecucion.id, 'e1'); assert.equal(s.estado()[2].error, 'Sin permiso');
+  assert.equal(ultimas, 1); assert.equal(posts, 0);
+});
+
+test('el diagnóstico fallido permanece hasta confirmar otro intento, que usa una clave nueva', async () => {
+  const { crearSeguimiento } = await cargar(); const solicitudes = []; let resolver;
+  const fallida = { ...ejecucion('error'), diagnostico: { mensaje: 'Error del modelo.' } };
+  const s = crearSeguimiento({ ultima: async () => fallida, iniciar: async (_, datos) => {
+    solicitudes.push(datos); return new Promise(r => { resolver = r; });
+  } }, almacen(), 'cuenta');
+  await s.actualizar(2); assert.deepEqual(s.estado()[2].ejecucion, fallida);
+  const pendiente = s.iniciar(2, [recurso]); await Promise.resolve();
+  assert.deepEqual(s.estado()[2].ejecucion, fallida);
+  resolver({ ...ejecucion(), id: 'e2' }); await pendiente;
+  assert.equal(s.estado()[2].ejecucion.id, 'e2'); assert.equal(solicitudes.length, 1);
+});

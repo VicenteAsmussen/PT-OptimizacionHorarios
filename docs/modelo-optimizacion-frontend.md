@@ -15,7 +15,8 @@ Administración y secretaría acceden a **Modelo de optimización** desde la nav
 - Salir o recargar el navegador no cancela el cálculo. El layout autenticado consulta la última ejecución y sigue por ID las activas cada cinco segundos, sin solapar consultas ni iniciar nuevos cálculos.
 - La clave de inicio y sus parámetros se conservan por cuenta y planificación en el almacenamiento de sesión. Si se pierde la respuesta, primero se consulta el estado. Solo una acción explícita reenvía la misma solicitud, sin cambiar su clave ni recursos. Una ejecución histórica con recursos iguales no confirma ese inicio.
 - Un fallo de inicio registrado por el seguimiento se muestra solo allí, junto a su recuperación. No se repite junto a los recursos ni se convierte en un aviso transitorio. Las validaciones de cantidades y los fallos locales previos al envío permanecen junto al formulario.
-- La consulta histórica no fuerza navegación. El resultado y el diagnóstico siguen accesibles al volver al modelo.
+- Consultar el último intento no fuerza navegación. Su resultado o diagnóstico sigue accesible al volver al modelo hasta que se acepta otro intento o se reinician los horarios gestionados. No se mantiene un historial de ejecuciones.
+- Después de un reinicio gestionado, la consulta devuelve `null`, se retiran el resultado y su aviso, y se vuelve a consultar la preparación. Si el seguimiento conservaba un ID ya eliminado, consulta el intento actual del período, sin iniciar otro cálculo. La actualización automática puede tardar hasta el siguiente sondeo.
 - Durante una ejecución conocida, ofertas, docentes, importación externa y mantenimiento administrativo involucrados muestran el bloqueo. La navegación, selección de contexto y lectura siguen disponibles. La consulta puede retrasarse o fallar, por eso cada escritura sigue sujeta a las guardas del backend.
 - La disponibilidad propia del profesor informa `bloqueadaPorOptimizacion: true` y `editable: false` durante una ejecución activa de su planificación. No expone IDs ni detalles de la ejecución y no amplía los roles del endpoint de optimización. El formulario consulta ese permiso cada cinco segundos sin sustituir el borrador por los bloques guardados, al terminar vuelve a admitir edición según el estado vigente. Un fallo de consulta conserva el borrador y deshabilita el envío hasta recuperar el permiso.
 
@@ -37,7 +38,7 @@ Los nombres se resuelven con `GET /profesores`, mediante el cliente existente y 
 
 Las tablas se pueden enfocar con teclado para desplazarlas horizontalmente en pantallas pequeñas. Los avisos globales muestran carrera y período cuando el catálogo está disponible, sin exponer identificadores internos de ejecución. Este ajuste visual no cambia los parámetros, permisos, validaciones, seguimiento, recuperación ni persistencia. **Actualizar preparación y seguimiento** mantiene su comportamiento previo, vuelve a consultar y repone las cantidades sugeridas, no conserva un borrador de recursos.
 
-Si ya existen horarios gestionados, el administrador debe usar el mantenimiento existente para reiniciarlos y luego devolver la planificación a Preparación. Son operaciones separadas, no hay aplicación ni reemplazo manual en el modelo.
+Si ya existen horarios gestionados, el administrador debe usar el mantenimiento existente para reiniciarlos y luego devolver la planificación a Preparación. El reinicio elimina también el registro de ejecución, pero conserva los horarios externos. Un fallo se mantiene visible hasta un nuevo intento aceptado o ese reinicio. Son operaciones separadas, no hay aplicación ni reemplazo manual del horario en el modelo.
 
 ## Requisitos del entorno
 

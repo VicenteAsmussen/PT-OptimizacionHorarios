@@ -31,7 +31,9 @@ No hay endpoints para aplicar ni reemplazar. Una solución completa, válida y v
 
 ## Persistencia, concurrencia e interrupciones
 
-`ejecuciones_optimizacion` conserva entrada efectiva, revisión, versión del modelo, parámetros, salida y diagnóstico. Una restricción única parcial impide dos ejecuciones activas por planificación. Las transacciones de inicio y aplicación siguen el orden carrera → planificación, el cálculo ocurre fuera de ellas.
+`ejecuciones_optimizacion` conserva únicamente el intento actual de cada planificación, con entrada efectiva, revisión, versión del modelo, parámetros, salida y diagnóstico. Si falla, el registro permanece disponible hasta que se acepta otro intento o el administrador reinicia los horarios gestionados. Un nuevo intento válido sustituye al anterior dentro de la misma transacción, sin acumular historial. Si la preparación o la escritura falla, se conserva el registro previo. Reenviar la clave del intento conservado recupera ese mismo registro, no ejecuta nuevamente el modelo.
+
+Una restricción única parcial impide dos ejecuciones activas por planificación. El bloqueo de carrera → planificación serializa la sustitución de intentos y el reinicio, el cálculo ocurre fuera de esas transacciones. No se modifican el esquema ni las migraciones, los intentos antiguos que ya existan se limpian al aceptar un nuevo intento o al reiniciar los horarios gestionados de esa planificación, no mediante un borrado global.
 
 Durante el cálculo se rechazan las escrituras de entradas y operaciones administrativas que invalidan la planificación. La lectura y navegación permanecen disponibles. Los catálogos compartidos no quedan bloqueados durante Julia, la incorporación comprueba nuevamente la revisión de entradas y toma bloqueos breves de lectura durante su validación final. Cualquier diferencia impide incorporar horarios.
 
@@ -41,7 +43,7 @@ La aplicación inserta todos los bloques gestionados y cambia a Propuesta en la 
 
 Los estados terminales distinguen `aplicada`, `infactible`, `carga_incompleta`, `limite_tiempo`, `error`, `interrumpida` y `datos_desactualizados`. El estado del solver se conserva en la salida, por eso una ejecución `aplicada` puede tener un solver detenido por límite de tiempo sin optimalidad demostrada. En los demás casos la planificación permanece en Preparación y no se persisten bloques parciales.
 
-Para regenerar, el administrador debe reiniciar explícitamente los horarios gestionados y devolver la planificación a Preparación, son operaciones existentes separadas. El reinicio conserva ofertas, docentes y externos cuando se seleccionan los horarios gestionados. Ninguna transición administrativa a Propuesta o Publicado puede eludir los validadores de carga y publicación.
+Para regenerar, el administrador debe reiniciar explícitamente los horarios gestionados y devolver la planificación a Preparación, son operaciones existentes separadas. El reinicio elimina primero los bloques gestionados y luego los registros de ejecución de esa planificación, en una misma transacción. Conserva ofertas, docentes, horarios externos y otras planificaciones. También permite eliminar un intento fallido aunque no haya generado bloques. El reinicio exclusivamente externo no borra la ejecución del modelo y no se permite reiniciar mientras haya un cálculo activo. Ninguna transición administrativa a Propuesta o Publicado puede eludir los validadores de carga y publicación.
 
 ## Integración interna
 

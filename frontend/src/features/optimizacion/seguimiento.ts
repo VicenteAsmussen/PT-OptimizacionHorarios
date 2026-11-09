@@ -43,7 +43,8 @@ export function crearSeguimiento(servicio: Servicio, almacen: Almacen, cuenta: s
       && (anterior?.estado === 'en_ejecucion' || guardado.activa === ejecucion.id || inicioConfirmado);
     const incierta = !!solicitud && !inicioConfirmado;
     try {
-      almacen.setItem(clave(id), JSON.stringify({ ...(incierta ? { solicitud } : {}), activa: activa ? ejecucion.id : undefined, informada: informar ? ejecucion.id : guardado.informada }));
+      if (!ejecucion && !incierta) almacen.removeItem(clave(id));
+      else almacen.setItem(clave(id), JSON.stringify({ ...(incierta ? { solicitud } : {}), activa: activa ? ejecucion.id : undefined, informada: informar ? ejecucion.id : guardado.informada }));
     } catch { /* El estado remoto sigue disponible aunque falle el almacenamiento local. */ }
     if (!incierta) solicitudes.delete(id);
     publicar(id, { ejecucion, error: '', consultado: true, incierta });
@@ -54,7 +55,15 @@ export function crearSeguimiento(servicio: Servicio, almacen: Almacen, cuenta: s
     if (consultas.has(id)) return consultas.get(id)!;
     const version = versiones.get(id) ?? 0;
     const actual = filas[id]?.ejecucion;
-    const tarea = Promise.resolve().then(() => actual?.estado === 'en_ejecucion' ? servicio.consultar(actual.id) : servicio.ultima(id)).then(ejecucion => {
+    const tarea = Promise.resolve().then(async () => {
+      if (actual?.estado !== 'en_ejecucion') return servicio.ultima(id);
+      try { return await servicio.consultar(actual.id); }
+      catch (error) {
+        if (!error || typeof error !== 'object' || !('status' in error) || error.status !== 404) throw error;
+        // Otro usuario pudo reiniciar el resultado o sustituir el intento ya finalizado.
+        return servicio.ultima(id);
+      }
+    }).then(ejecucion => {
       if ((versiones.get(id) ?? 0) === version) recibir(id, ejecucion);
     }).catch(error => {
       if ((versiones.get(id) ?? 0) === version) publicar(id, { error: mensaje(error), incierta: !!leerGuardado(id).solicitud || !!solicitudes.get(id) });

@@ -91,6 +91,21 @@ test('preparación muestra revisión, sugerencias y confirma parámetros antes d
   assert.equal(posts(), 1); assert.match(vista.texto(), /En ejecución/); vista.salir();
 });
 
+test('el reinicio remoto retira el resultado y vuelve a consultar la preparación sin iniciar otro cálculo', async () => {
+  let ultima = ejecutar('aplicada');
+  const { vista, seguimiento, preparacion, posts } = await pagina({ ultima: async () => ultima });
+  preparacion({ ...preparar(), puedeEjecutar: false, bloqueos: ['Existen horarios gestionados.'] });
+  vista.boton('Actualizar preparación').props.onClick(); await vista.asentar();
+  assert.match(vista.texto(), /Existen horarios gestionados/);
+  preparacion(preparar()); ultima = null;
+  await seguimiento.actualizar(2); await vista.asentar();
+  assert.doesNotMatch(vista.texto(), /Existen horarios gestionados|Ver horario generado/);
+  assert.match(vista.texto(), /No hay ejecuciones registradas/);
+  vista.nodos().find(n => n.type === 'input' && n.props.type === 'checkbox').props.onChange({ target: { checked: true } });
+  await vista.asentar(); assert.equal(vista.boton('Iniciar ejecución').props.disabled, false);
+  assert.equal(posts(), 0); vista.salir();
+});
+
 test('el fallo de inicio se conserva una sola vez en seguimiento, con recuperación si la respuesta es incierta', async () => {
   for (const status of [409, 500]) {
     const mensaje = status === 409 ? 'Las entradas cambiaron, revisa la preparación.' : 'No se pudo confirmar la respuesta del modelo.';
@@ -380,7 +395,8 @@ test('layout notifica con acceso al resultado si se navega y solo redirige si si
   for (const ruta of ['/app/optimizacion', '/app/asignaturas']) {
     const ubicacion = { pathname: '/app/optimizacion', search: '?planificacion=2' };
     const navegaciones = [], avisos = [];
-    const seguimiento = crearSeguimiento({ ultima: async () => ejecutar('en_ejecucion'), consultar: async () => ejecutar('aplicada') }, memoria(), 'cuenta');
+    let ultima = ejecutar('en_ejecucion');
+    const seguimiento = crearSeguimiento({ ultima: async () => ultima, consultar: async () => ejecutar('aplicada') }, memoria(), 'cuenta');
     const vista = await montar('./SeguimientoOptimizacion.tsx', 'SeguimientoCuenta', {
       useAuth: () => ({ usuario: { id: 1, rol: 'secretaria' } }), useLocation: () => ubicacion,
       useNavigate: () => (ruta => navegaciones.push(ruta)), createContext: () => ({ Provider: 'provider' }),
@@ -395,6 +411,9 @@ test('layout notifica con acceso al resultado si se navega y solo redirige si si
       assert.ok(vista.nodos().some(n => n.type === 'a' && n.props.to === modelo.rutaResultados(2) && texto(n) === 'Ver horario generado'));
       const aviso = vista.nodos().find(n => n.type === 'aside' && n.props['aria-label'] === 'Resultado del modelo');
       assert.doesNotMatch(texto(aviso), /Planificación 2|e1/);
+      ultima = null; await seguimiento.actualizar(2); await vista.asentar();
+      assert.equal(vista.nodos().some(n => n.props['aria-label'] === 'Resultado del modelo'), false);
+      assert.equal(avisos.length, 1);
     }
     vista.salir();
   }
