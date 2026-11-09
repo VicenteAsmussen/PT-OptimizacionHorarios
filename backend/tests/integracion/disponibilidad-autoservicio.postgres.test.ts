@@ -139,7 +139,7 @@ describe.skipIf(!habilitado)("Disponibilidad de autoservicio en PostgreSQL aisla
     const seleccion = await consultar("get", "/mi-disponibilidad?planificacionSemestreId=2");
     expect(seleccion.status).toBe(200);
     expect(seleccion.body).toEqual({ status: "success", data: { ...listado.body.data,
-      seleccion: { planificacionSemestreId: 2, bloquesIds: [], minimoBloques: 7, carga, editable: true } } });
+      seleccion: { planificacionSemestreId: 2, bloquesIds: [], bloquesReservadosIds: [], minimoBloques: 7, carga, editable: true } } });
   });
 
   it.each([
@@ -175,7 +175,7 @@ describe.skipIf(!habilitado)("Disponibilidad de autoservicio en PostgreSQL aisla
     const otras = await cliente`select * from disponibilidad_profesores order by id`;
     const planificaciones = await cliente`select * from planificaciones_semestres order by id`;
     const respuesta = await guardar([7,6,5,4,3,2,1,1]);
-    expect(respuesta.body).toEqual({ status: "success", data: { planificacionSemestreId: 2, bloquesIds: suficientes, minimoBloques: 7, carga, editable: true } });
+    expect(respuesta.body).toEqual({ status: "success", data: { planificacionSemestreId: 2, bloquesIds: suficientes, bloquesReservadosIds: [], minimoBloques: 7, carga, editable: true } });
     const propias = await cliente`select profesor_id,planificacion_semestre_id,bloque_id from disponibilidad_profesores where planificacion_semestre_id=2 order by bloque_id`;
     expect(propias).toEqual(suficientes.map(bloque => ({ profesor_id: 1, planificacion_semestre_id: 2, bloque_id: bloque })));
     expect(await cliente`select * from disponibilidad_profesores where planificacion_semestre_id<>2 order by id`).toEqual(otras);
