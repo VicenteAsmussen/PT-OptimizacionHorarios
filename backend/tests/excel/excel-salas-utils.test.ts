@@ -3,7 +3,7 @@ import {
   encabezadosExcelSalas, normalizarTextoCelda, normalizarDia,
   normalizarCodigoSala, analizarHorario, formatearHorario, agruparBloquesEnSesiones,
   type BloqueExcelSala,
-} from "../src/utils/excel/excel-salas.js";
+} from "../../src/utils/excel/excel-salas.js";
 
 const bloque = (numeroBloque: number, horaInicio: string, horaTermino: string, dia = "Lunes"): BloqueExcelSala =>
   ({ dia, numeroBloque, horaInicio, horaTermino });

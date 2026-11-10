@@ -1,9 +1,9 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import ExcelJS from "exceljs";
-import { importarHorariosExternos, encabezadosExcelExternos } from "../src/utils/excel/excel-horarios-externos.js";
-import { horariosRepository } from "../src/repositories/horarios.repository.js";
+import { importarHorariosExternos, encabezadosExcelExternos } from "../../src/utils/excel/excel-horarios-externos.js";
+import { horariosRepository } from "../../src/repositories/horarios.repository.js";
 
-vi.mock("../src/repositories/horarios.repository.js", () => ({ horariosRepository: {
+vi.mock("../../src/repositories/horarios.repository.js", () => ({ horariosRepository: {
   checkPlanificacionExists: vi.fn(), findContextoExternos: vi.fn(), crearExternosEnTransaccion: vi.fn(), sincronizarExternosEnTransaccion: vi.fn(),
 } }));
 const asignatura = { codigo: "MAT100", nombre: "Álgebra", semestreMalla: 2 };
