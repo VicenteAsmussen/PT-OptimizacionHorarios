@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { PgDialect } from "drizzle-orm/pg-core";
-import * as esquema from "../src/db/schema/index.js";
-import * as horariosSeed from "../src/db/seeds/horarios.js";
-import type { BaseDatosSeed } from "../src/db/seeds/contexto.js";
+import * as esquema from "../../src/db/schema/index.js";
+import * as horariosSeed from "../../src/db/seeds/horarios.js";
+import type { BaseDatosSeed } from "../../src/db/seeds/contexto.js";
 
 function prepararBase() {
   const carreras = [

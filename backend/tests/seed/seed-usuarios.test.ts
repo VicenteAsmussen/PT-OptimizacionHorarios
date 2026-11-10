@@ -1,15 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 import { PgDialect } from "drizzle-orm/pg-core";
 import type { SQL } from "drizzle-orm";
-import * as esquema from "../src/db/schema/index.js";
-import type { BaseDatosSeed, CatalogosAcademicosSeed } from "../src/db/seeds/contexto.js";
-import { sembrarUsuarios } from "../src/db/seeds/usuarios.js";
-import { hashPassword } from "../src/utils/password.js";
-import { normalizarRut } from "../src/utils/rut.js";
-import { datosProfesores } from "../src/db/seeds/data/usuarios.js";
-import { datosDepartamentos } from "../src/db/seeds/data/academico.js";
+import * as esquema from "../../src/db/schema/index.js";
+import type { BaseDatosSeed, CatalogosAcademicosSeed } from "../../src/db/seeds/contexto.js";
+import { sembrarUsuarios } from "../../src/db/seeds/usuarios.js";
+import { hashPassword } from "../../src/utils/password.js";
+import { normalizarRut } from "../../src/utils/rut.js";
+import { datosProfesores } from "../../src/db/seeds/data/usuarios.js";
+import { datosDepartamentos } from "../../src/db/seeds/data/academico.js";
 
-vi.mock("../src/utils/password.js", () => ({ hashPassword: vi.fn(async () => "hash-simulado") }));
+vi.mock("../../src/utils/password.js", () => ({ hashPassword: vi.fn(async () => "hash-simulado") }));
 
 type Fila = Record<string, unknown>;
 // Simula únicamente las operaciones del seed, sin importar el cliente ni configuración DB.
