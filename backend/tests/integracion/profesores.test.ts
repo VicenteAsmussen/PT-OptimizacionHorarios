@@ -1,10 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { beforeAll, describe, expect, it } from "vitest";
 import request from "supertest";
-import { habilitarPruebasIntegracion } from "./soporte/base-pruebas.js";
+import { habilitarPruebasIntegracion } from "../soporte/base-pruebas.js";
 
 const ejecutarIntegracion = habilitarPruebasIntegracion(process.env);
-const app = ejecutarIntegracion ? (await import("../src/app.js")).app : undefined!;
+const app = ejecutarIntegracion ? (await import("../../src/app.js")).app : undefined!;
 
 describe.skipIf(!ejecutarIntegracion)("Módulo Profesores (/api/profesores)", () => {
   let adminCookie: string[];

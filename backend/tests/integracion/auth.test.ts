@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import request from "supertest";
-import { habilitarPruebasIntegracion } from "./soporte/base-pruebas.js";
+import { habilitarPruebasIntegracion } from "../soporte/base-pruebas.js";
 
 const ejecutarIntegracion = habilitarPruebasIntegracion(process.env);
-const app = ejecutarIntegracion ? (await import("../src/app.js")).app : undefined!;
+const app = ejecutarIntegracion ? (await import("../../src/app.js")).app : undefined!;
 
 describe.skipIf(!ejecutarIntegracion)("Autenticación y Sesión (/api/auth)", () => {
   it("Debe fallar al intentar iniciar sesión con credenciales incorrectas (401)", async () => {

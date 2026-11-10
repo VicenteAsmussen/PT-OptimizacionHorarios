@@ -1,16 +1,16 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import request from "supertest";
-import { habilitarPruebasIntegracion } from "./soporte/base-pruebas.js";
+import { habilitarPruebasIntegracion } from "../soporte/base-pruebas.js";
 import { randomInt, randomUUID } from "node:crypto";
 import { eq, and } from "drizzle-orm";
-import { departamentos, profesores, planificacionesSemestres, disponibilidadProfesores } from "../src/db/schema/index.js";
-import { normalizarRut } from "../src/utils/rut.js";
+import { departamentos, profesores, planificacionesSemestres, disponibilidadProfesores } from "../../src/db/schema/index.js";
+import { normalizarRut } from "../../src/utils/rut.js";
 
 const ejecutarIntegracion = habilitarPruebasIntegracion(process.env);
-const app = ejecutarIntegracion ? (await import("../src/app.js")).app : undefined!;
-const db = ejecutarIntegracion ? (await import("../src/config/db.js")).db : undefined!;
+const app = ejecutarIntegracion ? (await import("../../src/app.js")).app : undefined!;
+const db = ejecutarIntegracion ? (await import("../../src/config/db.js")).db : undefined!;
 const carrerasRepository = ejecutarIntegracion
-  ? (await import("../src/repositories/carreras.repository.js")).carrerasRepository : undefined!;
+  ? (await import("../../src/repositories/carreras.repository.js")).carrerasRepository : undefined!;
 
 async function rutDisponible() {
   for (let intento = 0; intento < 20; intento++) {
