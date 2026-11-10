@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeAll } from "vitest";
 import request from "supertest";
-import { habilitarPruebasIntegracion } from "./soporte/base-pruebas.js";
+import { habilitarPruebasIntegracion } from "../soporte/base-pruebas.js";
 
 const ejecutarIntegracion = habilitarPruebasIntegracion(process.env);
-const app = ejecutarIntegracion ? (await import("../src/app.js")).app : undefined!;
-const db = ejecutarIntegracion ? (await import("../src/config/db.js")).db : undefined!;
+const app = ejecutarIntegracion ? (await import("../../src/app.js")).app : undefined!;
+const db = ejecutarIntegracion ? (await import("../../src/config/db.js")).db : undefined!;
 
 describe.skipIf(!ejecutarIntegracion)("Módulo Asignaturas (/api/asignaturas)", () => {
   let secretariaCookie: string[];

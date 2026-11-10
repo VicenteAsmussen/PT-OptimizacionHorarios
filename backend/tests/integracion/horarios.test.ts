@@ -1,12 +1,12 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import request from "supertest";
 import { eq } from "drizzle-orm";
-import { planificacionesSemestres } from "../src/db/schema/planificaciones-semestres.schema.js";
-import { habilitarPruebasIntegracion } from "./soporte/base-pruebas.js";
+import { planificacionesSemestres } from "../../src/db/schema/planificaciones-semestres.schema.js";
+import { habilitarPruebasIntegracion } from "../soporte/base-pruebas.js";
 
 const ejecutarIntegracion = habilitarPruebasIntegracion(process.env);
-const app = ejecutarIntegracion ? (await import("../src/app.js")).app : undefined!;
-const db = ejecutarIntegracion ? (await import("../src/config/db.js")).db : undefined!;
+const app = ejecutarIntegracion ? (await import("../../src/app.js")).app : undefined!;
+const db = ejecutarIntegracion ? (await import("../../src/config/db.js")).db : undefined!;
 
 describe.skipIf(!ejecutarIntegracion)("Gestión de Horarios y Choques (/api/horarios-asignaturas)", () => {
   let secretariaCookie: string[];
