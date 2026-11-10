@@ -3,7 +3,7 @@ import postgres from "postgres";
 import bcrypt from "bcryptjs";
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { datosProfesores } from "../src/db/seeds/data/usuarios.js";
+import { datosProfesores } from "../../src/db/seeds/data/usuarios.js";
 
 // Opt in only for a migrated, disposable PostgreSQL container on an ephemeral port.
 const habilitado = process.env.SEED_PROBE_DISPOSABLE === "yes" && !!process.env.SEED_PROBE_URL;

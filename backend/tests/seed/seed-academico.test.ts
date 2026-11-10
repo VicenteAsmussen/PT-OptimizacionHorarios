@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { datosAsignaturas, datosDepartamentos, departamentosGestionados } from "../src/db/seeds/data/academico.js";
-import { claveInicial, datosProfesores, datosUsuarios } from "../src/db/seeds/data/usuarios.js";
-import { normalizarRut } from "../src/utils/rut.js";
+import { datosAsignaturas, datosDepartamentos, departamentosGestionados } from "../../src/db/seeds/data/academico.js";
+import { claveInicial, datosProfesores, datosUsuarios } from "../../src/db/seeds/data/usuarios.js";
+import { normalizarRut } from "../../src/utils/rut.js";
 
 describe("workbook academic seed", () => {
   it("includes all 49 approved courses through semester ten without electives", () => {

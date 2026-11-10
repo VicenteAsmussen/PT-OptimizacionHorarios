@@ -1,12 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
-import * as esquema from "../src/db/schema/index.js";
-import type { BaseDatosSeed } from "../src/db/seeds/contexto.js";
-import { reemplazarAcademico } from "../src/db/seeds/reemplazo.js";
+import * as esquema from "../../src/db/schema/index.js";
+import type { BaseDatosSeed } from "../../src/db/seeds/contexto.js";
+import { reemplazarAcademico } from "../../src/db/seeds/reemplazo.js";
 
-vi.mock("../src/db/seeds/academico.js", () => ({ sembrarAcademico: vi.fn(async () => ({ carreras: [], departamentos: [] })) }));
-vi.mock("../src/db/seeds/usuarios.js", () => ({ sembrarUsuarios: vi.fn(async () => {}) }));
-import { sembrarAcademico } from "../src/db/seeds/academico.js";
-import { sembrarUsuarios } from "../src/db/seeds/usuarios.js";
+vi.mock("../../src/db/seeds/academico.js", () => ({ sembrarAcademico: vi.fn(async () => ({ carreras: [], departamentos: [] })) }));
+vi.mock("../../src/db/seeds/usuarios.js", () => ({ sembrarUsuarios: vi.fn(async () => {}) }));
+import { sembrarAcademico } from "../../src/db/seeds/academico.js";
+import { sembrarUsuarios } from "../../src/db/seeds/usuarios.js";
 
 function crearBase(conflicto = false) {
   const eliminaciones: unknown[] = [];
