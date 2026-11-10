@@ -2,21 +2,21 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import ExcelJS from "exceljs";
 import express, { type Request, type Response, type NextFunction } from "express";
 import request from "supertest";
-import { horariosRouter } from "../src/routes/horarios.routes.js";
-import { horariosRepository } from "../src/repositories/horarios.repository.js";
-import { horariosService as servicioHorarios } from "../src/services/horarios.service.js";
+import { horariosRouter } from "../../src/routes/horarios.routes.js";
+import { horariosRepository } from "../../src/repositories/horarios.repository.js";
+import { horariosService as servicioHorarios } from "../../src/services/horarios.service.js";
 
 // Los casos de formato usan el alcance autorizado de secretaría.
 const horariosService = {
   importarExcelSalas: (planificacionSemestreId: number, archivo: Buffer, usuario = { id: 1, rol: "secretaria" }) =>
     servicioHorarios.importarExcelSalas(planificacionSemestreId, archivo, usuario),
 };
-import { encabezadosExcelSalas } from "../src/utils/excel/excel-salas.js";
-vi.mock("../src/repositories/horarios.repository.js", () => ({ horariosRepository: {
+import { encabezadosExcelSalas } from "../../src/utils/excel/excel-salas.js";
+vi.mock("../../src/repositories/horarios.repository.js", () => ({ horariosRepository: {
   findParaImportarSalas: vi.fn(), findParaExportarSalas: vi.fn(), actualizarSalasEnTransaccion: vi.fn(), findCarreraSecretariaByUsuarioId: vi.fn(), findPlanificacionById: vi.fn(),
 } }));
-vi.mock("../src/config/db.js", () => ({ db: {} }));
-vi.mock("../src/middlewares/auth.middleware.js", () => ({ authenticate: (req: Request, res: Response, next: NextFunction) => {
+vi.mock("../../src/config/db.js", () => ({ db: {} }));
+vi.mock("../../src/middlewares/auth.middleware.js", () => ({ authenticate: (req: Request, res: Response, next: NextFunction) => {
   const rol = req.header("x-rol-prueba");
   if (!rol) { res.sendStatus(401); return; }
   req.user = { id: 1, rol } as Request["user"]; next();

@@ -1,11 +1,11 @@
 import { beforeEach, expect, it, vi } from "vitest";
-vi.mock("../src/config/db.js", () => ({ db: {} }));
+vi.mock("../../src/config/db.js", () => ({ db: {} }));
 import ExcelJS from "exceljs";
-import { importarHorariosExternos, encabezadosExcelExternos } from "../src/utils/excel/excel-horarios-externos.js";
-import { horariosRepository } from "../src/repositories/horarios.repository.js";
-import { horariosService } from "../src/services/horarios.service.js";
+import { importarHorariosExternos, encabezadosExcelExternos } from "../../src/utils/excel/excel-horarios-externos.js";
+import { horariosRepository } from "../../src/repositories/horarios.repository.js";
+import { horariosService } from "../../src/services/horarios.service.js";
 
-vi.mock("../src/repositories/horarios.repository.js", () => ({ horariosRepository: {
+vi.mock("../../src/repositories/horarios.repository.js", () => ({ horariosRepository: {
   checkPlanificacionExists: vi.fn(), findContextoExternos: vi.fn(), findPlanificacionById: vi.fn(), sincronizarExternosEnTransaccion: vi.fn(), findCarreraSecretariaByUsuarioId: vi.fn(),
 } }));
 const asignaturas = [

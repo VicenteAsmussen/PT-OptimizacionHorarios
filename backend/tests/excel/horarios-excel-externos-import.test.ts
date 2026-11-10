@@ -1,10 +1,10 @@
 import { beforeEach, expect, it, vi } from "vitest";
-vi.mock("../src/config/db.js", () => ({ db: {} }));
+vi.mock("../../src/config/db.js", () => ({ db: {} }));
 import ExcelJS from "exceljs";
-import { horariosService } from "../src/services/horarios.service.js";
-import { horariosRepository } from "../src/repositories/horarios.repository.js";
-import { encabezadosExcelSalas } from "../src/utils/excel/excel-salas.js";
-vi.mock("../src/repositories/horarios.repository.js", () => ({ horariosRepository: {
+import { horariosService } from "../../src/services/horarios.service.js";
+import { horariosRepository } from "../../src/repositories/horarios.repository.js";
+import { encabezadosExcelSalas } from "../../src/utils/excel/excel-salas.js";
+vi.mock("../../src/repositories/horarios.repository.js", () => ({ horariosRepository: {
   findCarreraSecretariaByUsuarioId: vi.fn(), findPlanificacionById: vi.fn(), checkPlanificacionExists: vi.fn(), findContextoExternos: vi.fn(), sincronizarExternosEnTransaccion: vi.fn(),
 } }));
 const encabezados = ["Código Asig.", "Nombre Asignatura", "Sección", "Cupos", "RUT Profesor", "Profesor",

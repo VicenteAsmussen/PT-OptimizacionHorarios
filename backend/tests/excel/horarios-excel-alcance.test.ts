@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-vi.mock("../src/repositories/optimizacion-bloqueos.js", () => ({ exigirSinEjecucionActiva: vi.fn() }));
+vi.mock("../../src/repositories/optimizacion-bloqueos.js", () => ({ exigirSinEjecucionActiva: vi.fn() }));
 import { PgDialect } from "drizzle-orm/pg-core";
 import { getTableName, type SQL } from "drizzle-orm";
-import { horariosRepository } from "../src/repositories/horarios.repository.js";
+import { horariosRepository } from "../../src/repositories/horarios.repository.js";
 
 // Sin cliente PostgreSQL ni config/env: el proxy solo genera SQL y devuelve filas vacías.
 const simulacion = vi.hoisted(() => ({
@@ -10,7 +10,7 @@ const simulacion = vi.hoisted(() => ({
   findMany: vi.fn(), departamento: vi.fn(), relacion: vi.fn(), planificacion: vi.fn(),
   actualizar: vi.fn(), transaccion: vi.fn(), devolver: vi.fn(),
 }));
-vi.mock("../src/config/db.js", async () => {
+vi.mock("../../src/config/db.js", async () => {
   const { drizzle } = await import("drizzle-orm/pg-proxy");
   const generador = drizzle(async (sql, params) => {
     simulacion.consultas.push({ sql, params });
