@@ -162,7 +162,7 @@ El backend usa `spawn("julia", ["--startup-file=no", "--project=<ruta fija>", "<
 Desde `backend`:
 
 ```text
-pnpm exec vitest run tests/optimizacion-matematica.test.ts tests/optimizacion-proceso.test.ts
+pnpm exec vitest run tests/optimizacion/optimizacion-matematica.test.ts tests/optimizacion/optimizacion-proceso.test.ts
 ```
 
 Las pruebas son sintéticas, en memoria y con proceso falso. No ejecutan seeds, DB, datos de desarrollo, instalaciones ni solver. Cubren adaptación, revisión determinista, T/P/L, carga cero, inconsistencias, 50 % por pareja, críticas, pesos, recursos, externos, continuidad, estados incompletos, transporte acotado, relojes y apagado.

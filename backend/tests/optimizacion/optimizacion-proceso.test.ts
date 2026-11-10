@@ -1,7 +1,7 @@
 import { EventEmitter } from "node:events";
 import { PassThrough, Writable } from "node:stream";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cerrarProcesosJulia, construirEntradaOptimizacion, ejecutarJulia } from "../src/optimizacion/index.js";
+import { cerrarProcesosJulia, construirEntradaOptimizacion, ejecutarJulia } from "../../src/optimizacion/index.js";
 
 const { crearProceso } = vi.hoisted(() => ({ crearProceso: vi.fn() }));
 vi.mock("node:child_process", () => ({ spawn: crearProceso }));

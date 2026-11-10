@@ -2,20 +2,20 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import express, { type Request, type Response, type NextFunction } from "express";
 import request from "supertest";
 import { randomUUID } from "node:crypto";
-import { optimizacionRouter } from "../src/routes/optimizacion.routes.js";
-import { errorHandler } from "../src/middlewares/error.middleware.js";
-import type { CapturaOptimizacion } from "../src/repositories/optimizacion.repository.js";
-import type { EntradaOptimizacion, SalidaOptimizacion } from "../src/optimizacion/index.js";
+import { optimizacionRouter } from "../../src/routes/optimizacion.routes.js";
+import { errorHandler } from "../../src/middlewares/error.middleware.js";
+import type { CapturaOptimizacion } from "../../src/repositories/optimizacion.repository.js";
+import type { EntradaOptimizacion, SalidaOptimizacion } from "../../src/optimizacion/index.js";
 
 const controles = vi.hoisted(() => ({ rol: "secretaria", repositorio: {} as Record<string, ReturnType<typeof vi.fn>>,
   entradas: [] as EntradaOptimizacion[], resolver: undefined as undefined | ((salida: SalidaOptimizacion) => void) }));
-vi.mock("../src/repositories/optimizacion.repository.js", () => ({ optimizacionRepository: controles.repositorio }));
-vi.mock("../src/utils/alcance-carrera.js", () => ({ resolverAlcanceCarrera: async () => ({ carreraId: 1 }) }));
-vi.mock("../src/optimizacion/proceso.js", () => ({ ejecutarJulia: vi.fn((entrada: EntradaOptimizacion) => {
+vi.mock("../../src/repositories/optimizacion.repository.js", () => ({ optimizacionRepository: controles.repositorio }));
+vi.mock("../../src/utils/alcance-carrera.js", () => ({ resolverAlcanceCarrera: async () => ({ carreraId: 1 }) }));
+vi.mock("../../src/optimizacion/proceso.js", () => ({ ejecutarJulia: vi.fn((entrada: EntradaOptimizacion) => {
   controles.entradas.push(entrada);
   return new Promise<SalidaOptimizacion>(resolver => { controles.resolver = resolver; });
 }), cerrarProcesosJulia: vi.fn() }));
-vi.mock("../src/middlewares/auth.middleware.js", () => ({ authenticate(req: Request, _res: Response, next: NextFunction) {
+vi.mock("../../src/middlewares/auth.middleware.js", () => ({ authenticate(req: Request, _res: Response, next: NextFunction) {
   req.user = { id: 1, rol: controles.rol } as Request["user"]; next();
 } }));
 
