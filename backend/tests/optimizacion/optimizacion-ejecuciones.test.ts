@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { inicioOptimizacion } from "../src/validations/optimizacion.validation.js";
-import { exigirInicioOptimizacion, resolverIdempotencia } from "../src/utils/optimizacion-ejecuciones.js";
+import { inicioOptimizacion } from "../../src/validations/optimizacion.validation.js";
+import { exigirInicioOptimizacion, resolverIdempotencia } from "../../src/utils/optimizacion-ejecuciones.js";
 
 describe("admisión de ejecuciones", () => {
   it("exige preparación actual y ausencia de horarios gestionados", () => {

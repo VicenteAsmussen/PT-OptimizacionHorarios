@@ -3,7 +3,7 @@ import {
   construirEntradaOptimizacion, prepararCategoriasSalas, validarSalidaOptimizacion,
   type DatosOptimizacion, type EntradaOptimizacion, type OfertaOptimizacion,
   type SalidaOptimizacion,
-} from "../src/optimizacion/index.js";
+} from "../../src/optimizacion/index.js";
 
 const dias = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"];
 function oferta(id = 1, codigo = "A", seccion = 1, nivel = 1): OfertaOptimizacion {
