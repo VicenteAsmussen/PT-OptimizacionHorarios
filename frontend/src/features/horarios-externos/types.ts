@@ -1,4 +1,4 @@
-import type { PlanificacionSemestre } from '../asignaturas/types';
+import type { PlanificacionSemestre } from '../../types/periodos';
 
 export type { PlanificacionSemestre };
 export interface DepartamentoExterno {

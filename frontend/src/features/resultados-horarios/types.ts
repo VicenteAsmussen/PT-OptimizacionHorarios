@@ -1,5 +1,5 @@
 import type { Bloque } from '../mi-horario/types';
-import type { PlanificacionSemestre } from '../asignaturas/types';
+import type { PlanificacionSemestre } from '../../types/periodos';
 
 export type { Bloque, PlanificacionSemestre };
 export interface SesionResultado {

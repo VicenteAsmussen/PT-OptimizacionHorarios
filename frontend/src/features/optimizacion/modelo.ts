@@ -1,5 +1,5 @@
 import type { BorradorRecurso, CategoriaSala, Disponibilidad, Ejecucion, Recurso } from './types';
-import type { PlanificacionSemestre } from '../asignaturas/types';
+import type { PlanificacionSemestre } from '../../types/periodos';
 
 export const capacidadLaboratoriosModelo = 60;
 export const cantidadInicialLaboratoriosModelo = 6;

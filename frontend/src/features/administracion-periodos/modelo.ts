@@ -1,4 +1,4 @@
-import type { PlanificacionSemestre } from '../asignaturas/types.ts';
+import type { PlanificacionSemestre } from '../../types/periodos.ts';
 
 export type AlcanceReinicio = 'gestionadas' | 'externas' | 'todas';
 export type ObjetivoReinicio = 'ofertas' | 'horarios';

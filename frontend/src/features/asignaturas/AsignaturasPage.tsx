@@ -6,7 +6,8 @@ import { estadoSecciones, ordenarPeriodosPorFechaAcademica, planificacionInicial
 import { useAuth } from '../../hooks/useAuth';
 import { asignaturasApi } from './asignaturas.api';
 import { contarSecciones, filtrarAsignaturas, limpiarFiltros, puedeEditarAsignaturas, puedeGestionarAsignaturas } from './datos';
-import type { Asignatura, Departamento, PlanificacionSemestre } from './types';
+import type { Asignatura, Departamento } from './types';
+import type { PlanificacionSemestre } from '../../types/periodos';
 import EditarAsignatura from './EditarAsignatura';
 import PanelSecciones from './PanelSecciones';
 import estilos from './Asignaturas.module.css';

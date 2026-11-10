@@ -1,4 +1,4 @@
-import type { PlanificacionSemestre } from '../features/asignaturas/types.ts';
+import type { PlanificacionSemestre } from '../types/periodos.ts';
 
 export function ordenarPeriodosPorFechaAcademica<T extends { codigo: string }>(periodos: readonly T[]): T[] {
   return [...periodos].sort((primero, segundo) => {

@@ -8,6 +8,7 @@ Este directorio agrupa el código por funcionalidad del sistema. Cada funcionali
 - Las pantallas y su lógica cercana están en la funcionalidad correspondiente.
 - La interfaz compartida está en [components/](../components/), los hooks reutilizables en [hooks/](../hooks/) y el cliente HTTP común en [lib/api.ts](../lib/api.ts).
 - El orden de los períodos, la selección inicial y el estado de sus secciones se reúnen en [lib/periodos.ts](../lib/periodos.ts).
+- El tipo compartido `PlanificacionSemestre` está en [types/periodos.ts](../types/periodos.ts), los tipos propios permanecen en cada funcionalidad.
 - Los estilos globales están en [styles/](../styles/) y los recursos estáticos en [assets/](../assets/).
 - Los estilos comunes de páginas y formularios están en [styles/paginas.module.css](../styles/paginas.module.css), cada funcionalidad conserva sus estilos específicos.
 

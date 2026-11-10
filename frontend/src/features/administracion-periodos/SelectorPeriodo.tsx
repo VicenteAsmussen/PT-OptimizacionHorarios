@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import { ordenarPeriodosPorFechaAcademica } from '../../lib/periodos';
-import type { PlanificacionSemestre } from '../asignaturas/types';
+import type { PlanificacionSemestre } from '../../types/periodos';
 import { estadosPeriodo } from './modelo';
 import estilos from './AdministracionPeriodos.module.css';
 

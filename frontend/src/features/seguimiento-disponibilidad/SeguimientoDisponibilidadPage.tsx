@@ -3,7 +3,7 @@ import { Navigate, Outlet } from 'react-router-dom';
 import { ordenarPeriodosPorFechaAcademica, planificacionInicial } from '../../lib/periodos';
 import { useAuth } from '../../hooks/useAuth';
 import { useDesbordamientoTabla } from '../../hooks/useDesbordamientoTabla';
-import type { PlanificacionSemestre } from '../asignaturas/types';
+import type { PlanificacionSemestre } from '../../types/periodos';
 import { estadoEnvio, estadoInicial, puedeVerSeguimiento, reducirSeguimiento } from './estado';
 import { seguimientoApi } from './seguimiento.api';
 import base from '../../styles/paginas.module.css';

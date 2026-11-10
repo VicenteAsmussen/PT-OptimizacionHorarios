@@ -1,6 +1,7 @@
 import { api } from '../../lib/api';
 import type { RespuestaExitosa } from '../../types/auth';
-import type { Asignatura, CambiosAsignatura, DatosOferta, Departamento, Oferta, ProfesorSeccion, PlanificacionSemestre } from './types';
+import type { Asignatura, CambiosAsignatura, DatosOferta, Departamento, Oferta, ProfesorSeccion } from './types';
+import type { PlanificacionSemestre } from '../../types/periodos';
 
 async function leer<T>(ruta: string, opciones?: RequestInit) {
   return (await api<RespuestaExitosa<T>>(ruta, opciones)).data;
