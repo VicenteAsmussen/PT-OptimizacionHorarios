@@ -1,1 +1,0 @@
-Funcionalidad relacionada con salas, capacidades, tipos y gestión de espacios físicos.
