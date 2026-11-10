@@ -43,3 +43,14 @@ La estructura inicial incluía seis carpetas que solo contenían una descripció
 | `semestres` | Funcionalidad relacionada con semestres académicos, estados y configuración temporal del sistema. |
 
 Estos conceptos pueden utilizarse en otras funcionalidades sin tener una carpeta propia. Las descripciones son referencias de la estructura inicial, no una lista de trabajo pendiente.
+
+### Subcarpetas sin implementación
+
+También se retiraron las subcarpetas `components/` de `auth/` y `dashboard/`, que solo contenían un archivo descriptivo. Sus textos se conservan aquí, sin modificar la implementación de ambas funcionalidades:
+
+| Subcarpeta retirada | Descripción original |
+| --- | --- |
+| `auth/components/` | Componentes específicos del módulo de autenticación. |
+| `dashboard/components/` | Componentes específicos usados dentro del dashboard. |
+
+Esta referencia no exige recrear esas subcarpetas. Una funcionalidad puede incorporar componentes propios cuando su implementación lo necesite.
