@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { datosSalas, datosPlanificacionHorarios } from "../src/db/seeds/data/horarios.js";
-import { normalizarCodigoSala } from "../src/utils/excel-salas.js";
+import { normalizarCodigoSala } from "../src/utils/excel/excel-salas.js";
 
 // Independent transcription of columns B/H, Salas_Institucionales (2022-11-16).
 const capacidadesEsperadas = {

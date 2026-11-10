@@ -31,7 +31,7 @@ describe.skipIf(!habilitado)("External Excel import on isolated PostgreSQL", () 
     cerrarAplicacion = async () => { await queryClient.end(); };
     ({ horariosService: servicio } = await import("../../src/services/horarios.service.js"));
     ({ ofertasService: servicioOfertas } = await import("../../src/services/ofertas.service.js"));
-    ({ encabezadosExcelExternos: encabezados } = await import("../../src/utils/excel-horarios-externos.js"));
+    ({ encabezadosExcelExternos: encabezados } = await import("../../src/utils/excel/excel-horarios-externos.js"));
   }, 30000);
 
   afterAll(async () => {

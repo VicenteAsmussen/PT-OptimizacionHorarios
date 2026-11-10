@@ -115,7 +115,7 @@ Este modelo separa tres necesidades: vistas de secretaría limitadas a su carrer
 ### Importación de horarios externos
 
 `POST /api/horarios-asignaturas/excel/externos/importar?planificacionSemestreId=…&departamentoId=…`
-recibe un archivo `.xlsx` en el campo multipart `archivo` (máximo 10 MB), con el formato común de una hoja y los encabezados definidos en `backend/src/utils/excel-horarios-externos.ts`.
+recibe un archivo `.xlsx` en el campo multipart `archivo` (máximo 10 MB), con el formato común de una hoja y los encabezados definidos en `backend/src/utils/excel/excel-horarios-externos.ts`.
 
 - El archivo contiene la carga completa del departamento, incluso asignaturas de otras carreras. Se seleccionan por código únicamente las asignaturas ya registradas en la malla de la carrera de la planificación y pertenecientes al departamento externo elegido. No se requiere columna `Carrera` ni se crean asignaturas.
 - Las filas con códigos no coincidentes se ignoran antes de validar sus demás datos. Una fila no vacía sin código es un error. Un archivo sin ofertas pertinentes no modifica ni vacía la carga anterior.

@@ -12,7 +12,7 @@ const horariosService = {
     servicioHorarios.exportarExcelSalas(planificacionSemestreId, usuario),
 };
 import { excelSalasQueryValidation } from "../src/validations/horarios.validation.js";
-import { encabezadosExcelSalas } from "../src/utils/excel-salas.js";
+import { encabezadosExcelSalas } from "../src/utils/excel/excel-salas.js";
 import { BadRequestError, NotFoundError, ForbiddenError } from "../src/utils/errors.js";
 
 vi.mock("../src/repositories/horarios.repository.js", () => ({

@@ -1,6 +1,6 @@
 import ExcelJS from "exceljs";
 import { type AlcanceCarrera } from "../utils/alcance-carrera.js";
-import { analizarHorario, normalizarDia, normalizarCodigoSala, normalizarTextoCelda, agruparBloquesEnSesiones, encabezadosExcelSalas, formatearHorario, maximoSesionesExcelSalas, type BloqueExcelSala } from "../utils/excel-salas.js";
+import { analizarHorario, normalizarDia, normalizarCodigoSala, normalizarTextoCelda, agruparBloquesEnSesiones, encabezadosExcelSalas, formatearHorario, maximoSesionesExcelSalas, type BloqueExcelSala } from "../utils/excel/excel-salas.js";
 import { horariosRepository } from "../repositories/horarios.repository.js";
 import { miHorarioRepository } from "../repositories/mi-horario.repository.js";
 import { planificacionesSemestresService } from "./planificaciones-semestres.service.js";
@@ -12,8 +12,8 @@ import {
 } from "../validations/horarios.validation.js";
 import { NotFoundError, ConflictError, BadRequestError, ForbiddenError } from "../utils/errors.js";
 
-import { normalizarTipoHoraExcel as normalizarTipoHora } from "../utils/excel-comun.js";
-import { importarHorariosExternos } from "../utils/excel-horarios-externos.js";
+import { normalizarTipoHoraExcel as normalizarTipoHora } from "../utils/excel/excel-comun.js";
+import { importarHorariosExternos } from "../utils/excel/excel-horarios-externos.js";
 import { calcularCoberturaExterna } from "../utils/cobertura-externos.js";
 import type { PlanificacionSemestre } from "../db/schema/planificaciones-semestres.schema.js";
 import { esSalaCompatible, mensajeSalaIncompatible } from "../utils/compatibilidad-salas.js";

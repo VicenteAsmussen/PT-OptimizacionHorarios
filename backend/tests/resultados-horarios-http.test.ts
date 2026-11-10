@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import express from "express";
 import request from "supertest";
 import ExcelJS from "exceljs";
-import { encabezadosExcelSalas } from "../src/utils/excel-salas.js";
+import { encabezadosExcelSalas } from "../src/utils/excel/excel-salas.js";
 
 const datos = vi.hoisted(() => ({ contexto: {} as any, fallo: false, escrituras: 0, cambiosSalas: [] as { id: number; salaId: number | null }[] }));
 vi.mock("../src/repositories/resultados-horarios.repository.js", () => ({ resultadosHorariosRepository: {

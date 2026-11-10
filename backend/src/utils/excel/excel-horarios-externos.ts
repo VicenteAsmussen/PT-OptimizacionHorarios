@@ -1,12 +1,12 @@
 import ExcelJS from "exceljs";
-import { horariosRepository } from "../repositories/horarios.repository.js";
-import { ForbiddenError } from "./errors.js";
+import { horariosRepository } from "../../repositories/horarios.repository.js";
+import { ForbiddenError } from "../errors.js";
 import { normalizarTextoCelda, normalizarDia, analizarHorario, agruparBloquesEnSesiones, formatearHorario } from "./excel-salas.js";
 import { normalizarTipoHoraExcel } from "./excel-comun.js";
 
-import { normalizarRut } from "./rut.js";
-import { calcularCoberturaExterna, type CoberturaExterna } from "./cobertura-externos.js";
-import { mensajeBloqueReservado } from "./bloques-reservados.js";
+import { normalizarRut } from "../rut.js";
+import { calcularCoberturaExterna, type CoberturaExterna } from "../cobertura-externos.js";
+import { mensajeBloqueReservado } from "../bloques-reservados.js";
 
 /** Formato externo independiente del Excel de solicitud/asignación de salas. */
 export const encabezadosExcelExternos = [
