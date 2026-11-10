@@ -6,7 +6,7 @@ import { useDesbordamientoTabla } from '../../hooks/useDesbordamientoTabla';
 import type { PlanificacionSemestre } from '../asignaturas/types';
 import { estadoEnvio, estadoInicial, puedeVerSeguimiento, reducirSeguimiento } from './estado';
 import { seguimientoApi } from './seguimiento.api';
-import base from '../asignaturas/Asignaturas.module.css';
+import base from '../../styles/paginas.module.css';
 import estilos from './SeguimientoDisponibilidad.module.css';
 import IconoActualizar from '../../components/IconoActualizar';
 

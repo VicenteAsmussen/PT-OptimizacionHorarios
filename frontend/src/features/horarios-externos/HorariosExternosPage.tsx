@@ -8,7 +8,7 @@ import { notificaciones } from '../../lib/notificaciones';
 import { departamentosExternos, mensajeErrorCobertura, presentacionCobertura } from './datos';
 import { horariosExternosApi } from './horarios-externos.api';
 import type { CoberturaExterna, DepartamentoExterno, ErrorImportacion, FalloImportacion, PlanificacionSemestre, ResultadoImportacion } from './types';
-import base from '../asignaturas/Asignaturas.module.css';
+import base from '../../styles/paginas.module.css';
 import estilos from './HorariosExternos.module.css';
 import ResumenDepartamentos from './ResumenDepartamentos';
 import { AvisoBloqueo, useBloqueoOptimizacion } from '../optimizacion/SeguimientoOptimizacion';

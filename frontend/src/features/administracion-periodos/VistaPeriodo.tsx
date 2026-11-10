@@ -1,6 +1,6 @@
 import { accionesReinicio, confirmarReinicio, estadosPeriodo, puedeCambiarEstado, puedeEliminarPeriodo, puedeReiniciar } from './modelo';
 import type { AccionReinicio, EstadoPeriodo, ResumenesPeriodo } from './modelo';
-import base from '../asignaturas/Asignaturas.module.css';
+import base from '../../styles/paginas.module.css';
 import estilos from './AdministracionPeriodos.module.css';
 
 interface Propiedades {
