@@ -1,7 +1,7 @@
 import { createBrowserRouter, Link, Navigate } from "react-router-dom";
 import AppLayout from "../components/layout/AppLayout";
 import LoginPage from "../features/auth/pages/LoginPage";
-import DashboardPage from "../features/dashboard/pages/DashboardPage";
+import DashboardPage from "../features/dashboard/DashboardPage";
 import ProfesoresPage, { RequireGestionProfesores } from "../features/profesores/ProfesoresPage";
 import { GuestOnly, RequireAuth } from "./AuthGuards";
 import AsignaturasPage, { RequireGestionAsignaturas } from "../features/asignaturas/AsignaturasPage";

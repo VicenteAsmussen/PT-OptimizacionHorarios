@@ -20,4 +20,4 @@ La disponibilidad del profesor distingue bloques persistidos, ausencia de carga 
 
 ## Comprobación
 
-Desde `frontend/`, ejecutar `node --experimental-transform-types --test src/features/dashboard/pages/DashboardPage.test.mjs` y `npm run build`. Las pruebas verifican contenido por rol, enlaces, estados de consulta y semántica de los resúmenes. Las comprobaciones estáticas de CSS no sustituyen una revisión visual y de teclado en navegador.
+Desde `frontend/`, ejecutar `node --experimental-transform-types --test src/features/dashboard/DashboardPage.test.mjs` y `npm run build`. Las pruebas verifican contenido por rol, enlaces, estados de consulta y semántica de los resúmenes. Las comprobaciones estáticas de CSS no sustituyen una revisión visual y de teclado en navegador.
