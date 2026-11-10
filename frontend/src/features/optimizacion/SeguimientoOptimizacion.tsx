@@ -3,7 +3,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { notificaciones } from '../../lib/notificaciones';
 import { resultadosHorariosApi } from '../resultados-horarios/resultados-horarios.api';
-import type { PlanificacionSemestre } from '../asignaturas/types';
+import type { PlanificacionSemestre } from '../../types/periodos';
 import { crearSeguimiento } from './seguimiento';
 import type { EstadoSeguimiento } from './seguimiento';
 import { optimizacionApi } from './optimizacion.api';

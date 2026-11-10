@@ -9,10 +9,6 @@ export interface Asignatura {
   esCritica: boolean;
   tiposHora: { tipoHoraId: number; horas: number; tipoHora: { id: number; tipo: string } }[];
 }
-export interface PlanificacionSemestre {
-  id: number; carreraId: number; carrera: { id: number; nombre: string };
-  codigo: string; actual: boolean; estadoPlanificacion: 'preparacion' | 'propuesta' | 'publicado';
-}
 export interface ProfesorSeccion {
   id: number;
   nombre: string;

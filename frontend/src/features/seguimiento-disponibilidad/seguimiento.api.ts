@@ -1,6 +1,6 @@
 import { api } from '../../lib/api';
 import type { RespuestaExitosa } from '../../types/auth';
-import type { PlanificacionSemestre } from '../asignaturas/types';
+import type { PlanificacionSemestre } from '../../types/periodos';
 import type { FilaSeguimiento } from './types';
 
 export const seguimientoApi = {

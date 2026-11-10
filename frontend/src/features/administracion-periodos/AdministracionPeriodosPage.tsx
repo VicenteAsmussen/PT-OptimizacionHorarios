@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 import { notificaciones } from '../../lib/notificaciones';
-import type { PlanificacionSemestre } from '../asignaturas/types';
+import type { PlanificacionSemestre } from '../../types/periodos';
 import { administracionPeriodosApi as servicio } from './administracion-periodos.api';
 import { confirmarReinicio, estadosPeriodo, puedeAdministrarPeriodos, puedeCambiarEstado, puedeEliminarPeriodo, puedeReiniciar } from './modelo';
 import type { AccionReinicio, EstadoPeriodo, ResumenesPeriodo } from './modelo';

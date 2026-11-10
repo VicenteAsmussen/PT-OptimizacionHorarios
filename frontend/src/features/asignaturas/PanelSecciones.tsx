@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from 'react'
 import { asignaturasApi } from './asignaturas.api';
 import { estadoSecciones } from '../../lib/periodos';
 import { ofertasDePlanificacion, prepararOferta, seccionesLibres, tiposPendientes } from './datos';
-import type { Asignatura, Oferta, ProfesorSeccion, PlanificacionSemestre } from './types';
+import type { Asignatura, Oferta, ProfesorSeccion } from './types';
+import type { PlanificacionSemestre } from '../../types/periodos';
 import { useMutacion } from './useMutacion';
 import PanelAsignatura from './PanelAsignatura';
 import SelectorProfesor from './SelectorProfesor';
