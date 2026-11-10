@@ -18,7 +18,7 @@ async function cargar(archivo, sustituciones = {}) {
     if (ruta === 'react-router-dom') return 'const Link = ({ to, children, ...props }) => React.createElement("a", { ...props, href: to }, children);';
     if (ruta.endsWith('.css')) return `const ${nombres} = new Proxy({}, { get: (_, clave) => clave });`;
     if (ruta.endsWith('/useAuth')) return 'const useAuth = () => ({ usuario: { id: 1, rol: "secretaria" } });';
-    if (ruta === '../datos') return 'const cargarPlanificaciones = async () => []; const cargarResumen = async () => ({});';
+    if (ruta === './datos') return 'const cargarPlanificaciones = async () => []; const cargarResumen = async () => ({});';
     return linea.replace(/['"]([^'"]+)['"]/, JSON.stringify(new URL(`${ruta}.ts`, ubicacion).href));
   });
   fuente = `import React from ${JSON.stringify(pathToFileURL(resolver.resolve('react')).href)};\n${fuente}`;
@@ -105,7 +105,7 @@ test('el contexto único no repite un selector, pero varias opciones conservan s
 });
 
 test('la consulta del resumen respeta rol, actualidad y los datos persistidos', async () => {
-  const datos = await cargar('../datos.ts', {
+  const datos = await cargar('./datos.ts', {
     '../asignaturas/asignaturas.api': '{ asignaturasApi: { planificaciones: async () => [] } }',
     '../mi-horario/mi-horario.api': '{ miHorarioApi: { contexto: async () => ({ planificaciones: [] }) } }',
     '../seguimiento-disponibilidad/seguimiento.api': '{ seguimientoApi: { consultar: async () => [{ enviada: true }, { enviada: false }] } }',
@@ -119,7 +119,7 @@ test('la consulta del resumen respeta rol, actualidad y los datos persistidos', 
 
 test('un envío vacío con carga cero no se presenta como pendiente y un contexto cambiado no produce resumen', async () => {
   for (const cambio of [false, true]) {
-    const datos = await cargar('../datos.ts', {
+    const datos = await cargar('./datos.ts', {
       '../asignaturas/asignaturas.api': '{ asignaturasApi: {} }',
       '../mi-horario/mi-horario.api': '{ miHorarioApi: {} }',
       '../seguimiento-disponibilidad/seguimiento.api': '{ seguimientoApi: {} }',
@@ -131,7 +131,7 @@ test('un envío vacío con carga cero no se presenta como pendiente y un context
 });
 
 test('las fuentes de contexto conservan el alcance por rol y exigen elegir entre varias planificaciones actuales', async () => {
-  const profesor = await cargar('../datos.ts', {
+  const profesor = await cargar('./datos.ts', {
     '../asignaturas/asignaturas.api': '{ asignaturasApi: {} }',
     '../mi-horario/mi-horario.api': '{ miHorarioApi: { contexto: async () => ({ planificaciones: [{ id: 1, actual: true }, { id: 2, actual: true }, { id: 3, actual: false }] }) } }',
     '../seguimiento-disponibilidad/seguimiento.api': '{ seguimientoApi: {} }',
@@ -141,7 +141,7 @@ test('las fuentes de contexto conservan el alcance por rol y exigen elegir entre
   assert.equal(contextoProfesor.inicial, null);
   assert.equal(contextoProfesor.planificaciones.length, 3);
   assert.deepEqual(await profesor.cargarPlanificaciones('otro'), { planificaciones: [], inicial: null });
-  const gestion = await cargar('../datos.ts', {
+  const gestion = await cargar('./datos.ts', {
     '../asignaturas/asignaturas.api': '{ asignaturasApi: { planificaciones: async () => [{ id: 1, actual: true, carrera: { nombre: "Carrera A" } }, { id: 2, actual: false, carrera: { nombre: "Carrera A" } }] } }',
     '../mi-horario/mi-horario.api': '{ miHorarioApi: {} }',
     '../seguimiento-disponibilidad/seguimiento.api': '{ seguimientoApi: {} }',
@@ -156,7 +156,7 @@ test('las fuentes de contexto conservan el alcance por rol y exigen elegir entre
 
 test('los registros vacíos, el bloqueo y la consulta sin edición conservan significados diferentes', async () => {
   for (const escenario of ['vacio', 'bloqueado', 'consulta']) {
-    const datos = await cargar('../datos.ts', {
+    const datos = await cargar('./datos.ts', {
       '../asignaturas/asignaturas.api': '{ asignaturasApi: {} }',
       '../mi-horario/mi-horario.api': '{ miHorarioApi: {} }',
       '../seguimiento-disponibilidad/seguimiento.api': '{ seguimientoApi: { consultar: async () => [] } }',
@@ -173,7 +173,7 @@ test('los registros vacíos, el bloqueo y la consulta sin edición conservan sig
 });
 
 test('el diseño conserva tokens, foco y una columna móvil sin alturas fijas', async () => {
-  const css = await readFile(new URL('../PanelPrincipal.module.css', import.meta.url), 'utf8');
+  const css = await readFile(new URL('./PanelPrincipal.module.css', import.meta.url), 'utf8');
   assert.match(css, /var\(--color-primario\)/);
   assert.match(css, /:focus-visible/);
   assert.match(css, /@media[^]*grid-template-columns:\s*minmax\(0, 1fr\)/);

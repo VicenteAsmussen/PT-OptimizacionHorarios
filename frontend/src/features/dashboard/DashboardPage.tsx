@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { useAuth } from '../../../hooks/useAuth';
-import { ordenarPeriodosPorFechaAcademica } from '../../../lib/periodos';
-import { estadosPeriodo } from '../../administracion-periodos/modelo';
-import { cargarPlanificaciones, cargarResumen } from '../datos';
-import { accionesPanel } from '../modelo';
-import type { PlanificacionPanel, ResumenPanel } from '../modelo';
-import estilos from '../PanelPrincipal.module.css';
+import { useAuth } from '../../hooks/useAuth';
+import { ordenarPeriodosPorFechaAcademica } from '../../lib/periodos';
+import { estadosPeriodo } from '../administracion-periodos/modelo';
+import { cargarPlanificaciones, cargarResumen } from './datos';
+import { accionesPanel } from './modelo';
+import type { PlanificacionPanel, ResumenPanel } from './modelo';
+import estilos from './PanelPrincipal.module.css';
 
 export default function DashboardPage() {
   const { usuario } = useAuth();
