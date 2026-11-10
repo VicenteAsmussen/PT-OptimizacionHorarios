@@ -11,7 +11,7 @@ const horariosService = {
   importarExcelSalas: (planificacionSemestreId: number, archivo: Buffer, usuario = { id: 1, rol: "secretaria" }) =>
     servicioHorarios.importarExcelSalas(planificacionSemestreId, archivo, usuario),
 };
-import { encabezadosExcelSalas } from "../src/utils/excel-salas.js";
+import { encabezadosExcelSalas } from "../src/utils/excel/excel-salas.js";
 vi.mock("../src/repositories/horarios.repository.js", () => ({ horariosRepository: {
   findParaImportarSalas: vi.fn(), findParaExportarSalas: vi.fn(), actualizarSalasEnTransaccion: vi.fn(), findCarreraSecretariaByUsuarioId: vi.fn(), findPlanificacionById: vi.fn(),
 } }));

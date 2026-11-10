@@ -6,7 +6,7 @@ import type { AlcanceCarrera } from "../utils/alcance-carrera.js";
 import type { InicioOptimizacionDTO } from "../validations/optimizacion.validation.js";
 import type { EjecucionOptimizacion } from "../db/schema/ejecuciones-optimizacion.schema.js";
 import { BadRequestError } from "../utils/errors.js";
-import { normalizarTipoHoraExcel } from "../utils/excel-comun.js";
+import { normalizarTipoHoraExcel } from "../utils/excel/excel-comun.js";
 import { exigirInicioOptimizacion } from "../utils/optimizacion-ejecuciones.js";
 
 const propietario = randomUUID();

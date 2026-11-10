@@ -1,4 +1,4 @@
-import { normalizarTipoHoraExcel } from "./excel-comun.js";
+import { normalizarTipoHoraExcel } from "./excel/excel-comun.js";
 
 export const mensajeSalaIncompatible = "El tipo de sala no es compatible: las sesiones teóricas y prácticas requieren Sala; las de laboratorio requieren Laboratorio.";
 
