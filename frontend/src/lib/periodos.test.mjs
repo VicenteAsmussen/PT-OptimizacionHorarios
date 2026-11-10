@@ -6,6 +6,44 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import ts from 'typescript';
 import { ordenarPeriodosPorFechaAcademica } from './periodos.ts';
 
+test('semestre por defecto actual o selección explícita, nunca primero arbitrario', async () => {
+  const { planificacionInicial } = await import('./periodos.ts');
+  assert.equal(planificacionInicial([{ id: 1 }, { id: 2, actual: true }]), 2);
+  assert.equal(planificacionInicial([{ id: 1 }]), null);
+  assert.equal(planificacionInicial([]), null);
+  assert.equal(planificacionInicial([{ id: 1, carreraId: 1, actual: true }, { id: 2, carreraId: 2, actual: true }]), null);
+});
+
+test('estado de planificación: etiquetas, permiso estricto y motivos sin mutar entrada', async () => {
+  const { estadoSecciones } = await import('./periodos.ts');
+  assert.equal(typeof estadoSecciones, 'function');
+  const etiquetas = { preparacion: 'Preparación', propuesta: 'Propuesta', publicado: 'Publicado' };
+  for (const actual of [true, false]) {
+    for (const [estadoPlanificacion, etiqueta] of Object.entries(etiquetas)) {
+      const entrada = Object.freeze({ actual, estadoPlanificacion });
+      const resultado = estadoSecciones(entrada);
+      assert.equal(resultado.etiqueta, etiqueta);
+      assert.equal(resultado.puedeEditar, actual && estadoPlanificacion === 'preparacion');
+      if (resultado.puedeEditar) assert.equal(resultado.motivo, '');
+      else {
+        assert.match(resultado.motivo, /[Ss]olo lectura/);
+        if (!actual) assert.match(resultado.motivo, /no es la actual/);
+        if (estadoPlanificacion !== 'preparacion') assert.match(resultado.motivo, /congeladas/);
+        assert.match(resultado.motivo, /consultar|selecciona/i);
+        assert.doesNotMatch(resultado.motivo, /generar|descartar/i);
+      }
+      assert.deepEqual(entrada, { actual, estadoPlanificacion });
+    }
+  }
+  for (const entrada of [undefined, null, {}, { actual: true }, { actual: true, estadoPlanificacion: 'nuevo' },
+    { actual: true, estadoPlanificacion: 'Preparación' }, { estadoPlanificacion: 'preparacion' },
+    { actual: 'true', estadoPlanificacion: 'preparacion' }]) {
+    assert.equal(estadoSecciones(entrada).puedeEditar, false);
+    assert.match(estadoSecciones(entrada).motivo, /[Ss]olo lectura/);
+  }
+  assert.equal(estadoSecciones({ actual: true }).etiqueta, 'Estado no disponible');
+});
+
 test('los períodos se ordenan por año y semestre descendentes, no por ID, creación ni marca actual', () => {
   const periodos = [
     { id: 90, codigo: '2025-2', actual: true, creadoEn: '2029-01-01' },

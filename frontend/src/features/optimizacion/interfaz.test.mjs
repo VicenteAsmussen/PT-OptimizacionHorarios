@@ -11,7 +11,7 @@ registerHooks({ resolve(nombre, contexto, siguiente) {
 } });
 const modelo = await import('./modelo.ts');
 const { crearSeguimiento } = await import('./seguimiento.ts');
-const { estadoSecciones, planificacionInicial } = await import('../asignaturas/datos.ts');
+const { estadoSecciones, planificacionInicial } = await import('../../lib/periodos.ts');
 const recurso = { id: 'AC-Sala-32', edificio: 'AC', tipo: 'Sala', capacidad: 32, cantidad: 2, fuente: 'Catálogo acreditado' };
 const preparar = () => ({ planificacion: { id: 2 }, puedeEjecutar: true, bloqueos: [], ejecucionActivaId: null,
   revisionEntrada: 'revision-consultada', categoriasSalas: [{ ...recurso, cantidadCatalogo: 4, cantidadSugerida: 2 }], diagnosticosCatalogo: [],

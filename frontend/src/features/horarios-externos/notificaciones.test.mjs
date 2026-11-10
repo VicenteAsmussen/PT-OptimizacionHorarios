@@ -4,8 +4,7 @@ import { readFile } from 'node:fs/promises';
 import * as React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import ts from 'typescript';
-import { ordenarPeriodosPorFechaAcademica } from '../../lib/periodos.ts';
-import { planificacionInicial } from '../asignaturas/datos.ts';
+import { ordenarPeriodosPorFechaAcademica, planificacionInicial } from '../../lib/periodos.ts';
 import { departamentosExternos, mensajeErrorCobertura, presentacionCobertura } from './datos.ts';
 
 // Node 22 no transforma propiedades de parámetro, se transpila la API sin generar archivos.

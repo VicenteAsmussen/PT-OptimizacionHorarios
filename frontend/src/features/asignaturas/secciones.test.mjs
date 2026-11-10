@@ -56,7 +56,7 @@ async function handlers(contexto) {
 }
 
 test('handlers impiden crear, editar y eliminar bloqueados; cierre ignora resultados tardíos', async () => {
-  const { estadoSecciones } = await import('./datos.ts');
+  const { estadoSecciones } = await import('../../lib/periodos.ts');
   for (const tipo of ['crear', 'editar', 'eliminar']) {
     for (const actual of [true, false]) for (const estadoPlanificacion of ['preparacion', 'propuesta', 'publicado', undefined, 'otro']) {
       const llamadas = [];
@@ -148,6 +148,7 @@ test('render React muestra estados y motivo accesible; cambios de contexto renue
   panel = panel.replace(/^import .* from '([^']+)';$/gm, (linea, ruta) => {
     if (ruta === 'react') return linea.replace("'react'", JSON.stringify(pathToFileURL(resolver.resolve('react')).href));
     if (ruta === './datos') return linea.replace("'./datos'", JSON.stringify(new URL('./datos.ts', import.meta.url).href));
+    if (ruta === '../../lib/periodos') return linea.replace("'../../lib/periodos'", JSON.stringify(new URL('../../lib/periodos.ts', import.meta.url).href));
     if (linea.startsWith('import type')) return '';
     if (ruta.endsWith('.css')) return 'const estilos = {};';
     if (ruta === './useMutacion') return 'const useMutacion = () => ({ ocupado: false, error: "", ejecutar() {} });';
@@ -172,36 +173,6 @@ test('render React muestra estados y motivo accesible; cambios de contexto renue
     assert.match(html, /Cargando secciones y profesores/);
   }
   assert.equal(claves.size, 8, 'cada estado/actual tiene una instancia independiente');
-});
-
-test('estado de planificación: etiquetas, permiso estricto y motivos sin mutar entrada', async () => {
-  const { estadoSecciones } = await import('./datos.ts');
-  assert.equal(typeof estadoSecciones, 'function');
-  const etiquetas = { preparacion: 'Preparación', propuesta: 'Propuesta', publicado: 'Publicado' };
-  for (const actual of [true, false]) {
-    for (const [estadoPlanificacion, etiqueta] of Object.entries(etiquetas)) {
-      const entrada = Object.freeze({ actual, estadoPlanificacion });
-      const resultado = estadoSecciones(entrada);
-      assert.equal(resultado.etiqueta, etiqueta);
-      assert.equal(resultado.puedeEditar, actual && estadoPlanificacion === 'preparacion');
-      if (resultado.puedeEditar) assert.equal(resultado.motivo, '');
-      else {
-        assert.match(resultado.motivo, /[Ss]olo lectura/);
-        if (!actual) assert.match(resultado.motivo, /no es la actual/);
-        if (estadoPlanificacion !== 'preparacion') assert.match(resultado.motivo, /congeladas/);
-        assert.match(resultado.motivo, /consultar|selecciona/i);
-        assert.doesNotMatch(resultado.motivo, /generar|descartar/i);
-      }
-      assert.deepEqual(entrada, { actual, estadoPlanificacion });
-    }
-  }
-  for (const entrada of [undefined, null, {}, { actual: true }, { actual: true, estadoPlanificacion: 'nuevo' },
-    { actual: true, estadoPlanificacion: 'Preparación' }, { estadoPlanificacion: 'preparacion' },
-    { actual: 'true', estadoPlanificacion: 'preparacion' }]) {
-    assert.equal(estadoSecciones(entrada).puedeEditar, false);
-    assert.match(estadoSecciones(entrada).motivo, /[Ss]olo lectura/);
-  }
-  assert.equal(estadoSecciones({ actual: true }).etiqueta, 'Estado no disponible');
 });
 
 test('conteos no mezclan carreras con asignatura y periodo compartidos', async () => {
@@ -304,6 +275,7 @@ async function componenteConEstado(ruta, nombre = 'default', dobles = {}) {
   const ts = await import('typescript');
   const React = await import('react');
   const datos = await import('./datos.ts');
+  const periodos = await import('../../lib/periodos.ts');
   const estados = [];
   let cursor = 0;
   const react = { ...React,
@@ -319,6 +291,7 @@ async function componenteConEstado(ruta, nombre = 'default', dobles = {}) {
     if (modulo in dobles) return dobles[modulo];
     if (modulo === 'react') return react;
     if (modulo === './datos') return datos;
+    if (modulo === '../../lib/periodos') return periodos;
     if (modulo === './useMutacion') return { useMutacion: () => ({ ocupado: false, error: '', ejecutar() {} }) };
     if (modulo === './asignaturas.api') return { asignaturasApi: {} };
     if (modulo === '../../hooks/useAuth') return { useAuth: () => ({ usuario: { rol: 'secretaria' } }) };

@@ -1,13 +1,12 @@
 import { useEffect, useReducer, useRef, useState } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
-import { ordenarPeriodosPorFechaAcademica } from '../../lib/periodos';
+import { estadoSecciones, ordenarPeriodosPorFechaAcademica } from '../../lib/periodos';
 import { useAuth } from '../../hooks/useAuth';
 import { ApiError } from '../../lib/api';
 import { disponibilidadApi } from './disponibilidad.api';
 import { estadoInicial, planificacionesActuales, puedeEnviar, puedeRegistrarDisponibilidad, reducirDisponibilidad } from './estado';
 import type { Bloque, Planificacion } from './types';
 import GrillaDisponibilidad from './GrillaDisponibilidad';
-import { estadoSecciones } from '../asignaturas/datos';
 import horario from '../mi-horario/MiHorario.module.css';
 import estilos from './Disponibilidad.module.css';
 import iconoEnviar from '../../assets/iconos/Enviar.svg';

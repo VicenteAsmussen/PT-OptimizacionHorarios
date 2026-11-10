@@ -1,12 +1,11 @@
 import { useEffect, useReducer, useRef, useState } from 'react';
 import { Link, Navigate, Outlet, useSearchParams } from 'react-router-dom';
 import IconoArchivo from '../../components/IconoArchivo';
-import { ordenarPeriodosPorFechaAcademica } from '../../lib/periodos';
+import { estadoSecciones, ordenarPeriodosPorFechaAcademica, planificacionInicial } from '../../lib/periodos';
 import { rutaModelo } from '../optimizacion/modelo';
 import { useAuth } from '../../hooks/useAuth';
 import { ApiError } from '../../lib/api';
 import { notificaciones } from '../../lib/notificaciones';
-import { planificacionInicial, estadoSecciones } from '../asignaturas/datos';
 import { resultadosHorariosApi } from './resultados-horarios.api';
 import { claveMovimiento, estadoDestino, estadoInicial, gruposMovibles, puedeConfirmarMovimiento, puedeEditarResultado, puedeMoverSesion, reducirResultados, sesionesVisibles } from './modelo';
 import { puedeGestionarResultados, puedeOperarResultados } from './permisos';

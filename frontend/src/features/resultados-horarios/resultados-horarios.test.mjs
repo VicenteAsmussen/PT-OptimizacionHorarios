@@ -1104,7 +1104,7 @@ async function montar(nombreArchivo, nombreFuncion, propiedades, api) {
   let indice = 0, sucio = false, arbol;
   const auxiliares = { ...(await import('./calendario/disposicion.ts').catch(() => ({}))), ...(await import('./calendario/gesto.ts').catch(() => ({}))), ...(await import('./calendario/presentacion.ts')), ...(await import('../mi-horario/modelo.ts')) };
   const entorno = { React, ...auxiliares, ...modelo, ...datos, ...(await import('./permisos.ts')), claveDia: disponibilidad.claveDia, ordenarBloques: disponibilidad.ordenarBloques, ...componentes, ApiError, estilos: {}, calendario: {}, MarcadorReserva: () => null, IconoArchivo: () => null, resultadosHorariosApi: api, notificaciones,
-    ordenarPeriodosPorFechaAcademica: (await import('../../lib/periodos.ts')).ordenarPeriodosPorFechaAcademica,
+    ...(await import('../../lib/periodos.ts')),
     useAuth: () => ({ usuario: { id: 1, rol: 'secretaria' } }), Navigate: () => null, Outlet: () => null,
     useSearchParams: () => [new URLSearchParams(api.consulta ?? '')], Link: () => null,
     rutaModelo: (id) => `/app/optimizacion?planificacion=${id}`,

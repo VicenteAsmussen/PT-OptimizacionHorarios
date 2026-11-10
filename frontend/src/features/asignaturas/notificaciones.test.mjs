@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import * as React from 'react';
 import ts from 'typescript';
 import * as datos from './datos.ts';
+import * as periodos from '../../lib/periodos.ts';
 
 // Ejecuta componentes, efectos y handlers reales sin red ni navegador.
 async function montar(ruta, api, propiedades) {
@@ -40,6 +41,7 @@ async function montar(ruta, api, propiedades) {
   notificaciones.cerrar = id => activos.delete(id);
   const modulos = {
     react, './datos': datos, './asignaturas.api': { asignaturasApi: api },
+    '../../lib/periodos': periodos,
     '../../lib/notificaciones': { notificaciones },
     './PanelAsignatura': { __esModule: true, default: ({ children }) => children },
     './SelectorProfesor': { __esModule: true, default: () => null },

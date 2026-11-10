@@ -1,5 +1,5 @@
 import { asignaturasApi } from '../asignaturas/asignaturas.api';
-import { planificacionInicial } from '../asignaturas/datos';
+import { planificacionInicial } from '../../lib/periodos';
 import { miHorarioApi } from '../mi-horario/mi-horario.api';
 import { disponibilidadApi } from '../disponibilidad/disponibilidad.api';
 import { seguimientoApi } from '../seguimiento-disponibilidad/seguimiento.api';
