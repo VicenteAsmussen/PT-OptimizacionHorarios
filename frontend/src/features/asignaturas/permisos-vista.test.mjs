@@ -78,14 +78,17 @@ test('las acciones de asignaturas muestran los SVG elegidos sin perder textos, p
     }
   }
   const css = await readFile(new URL('./Asignaturas.module.css', import.meta.url), 'utf8');
-  const principal = css.match(/\.accionPrincipal\s*\{([^}]+)\}/)?.[1] ?? '';
+  const compartidos = await readFile(new URL('../../styles/paginas.module.css', import.meta.url), 'utf8');
+  const principal = compartidos.match(/\.accionPrincipal\s*\{([^}]+)\}/)?.[1] ?? '';
   assert.match(principal, /--boton-fondo:\s*var\(--color-primario\)/);
   assert.match(principal, /--boton-texto:\s*var\(--color-blanco\)/);
   assert.doesNotMatch(css, /#FEF3C7|#FDE68A|#78350F|#B45309/i);
+  assert.doesNotMatch(compartidos, /#FEF3C7|#FDE68A|#78350F|#B45309/i);
   const profesores = await readFile(new URL('../profesores/Profesores.module.css', import.meta.url), 'utf8');
   for (const clase of ['botonConIcono', 'icono', 'accionPrincipal', 'accionSecundaria']) {
     const patron = new RegExp(`\\.${clase}\\s*\\{([^}]+)\\}`);
-    const regla = css.match(patron)?.[1]?.replace(/\s+/g, ' ').trim();
+    const origen = clase === 'accionPrincipal' || clase === 'accionSecundaria' ? compartidos : css;
+    const regla = origen.match(patron)?.[1]?.replace(/\s+/g, ' ').trim();
     assert.ok(regla);
     assert.equal(regla, profesores.match(patron)?.[1]?.replace(/\s+/g, ' ').trim());
   }
@@ -135,7 +138,7 @@ test('semestre se muestra como texto y cero secciones es un estado neutro, no un
 });
 
 test('los filtros del catálogo tienen tres columnas y separan el contexto del período', async () => {
-  const css = await readFile(new URL('./Asignaturas.module.css', import.meta.url), 'utf8');
+  const css = await readFile(new URL('../../styles/paginas.module.css', import.meta.url), 'utf8');
   const columnas = fuente => fuente.match(/\.filtros\s*\{[^}]*grid-template-columns:\s*([^;]+);/)?.[1];
   assert.equal(columnas(css), 'minmax(12rem, 2fr) minmax(12rem, 2fr) minmax(8rem, 1fr)');
   for (const [ancho, esperado] of [[75, 'repeat(2, minmax(0, 1fr))'], [40, 'minmax(0, 1fr)']]) {

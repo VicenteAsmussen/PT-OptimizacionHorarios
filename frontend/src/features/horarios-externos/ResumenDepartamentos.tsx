@@ -3,7 +3,7 @@ import { useDesbordamientoTabla } from '../../hooks/useDesbordamientoTabla';
 import { cargarResumenDepartamentos, mensajeErrorCobertura } from './datos';
 import { horariosExternosApi } from './horarios-externos.api';
 import type { DepartamentoExterno, ResumenDepartamento } from './types';
-import base from '../asignaturas/Asignaturas.module.css';
+import base from '../../styles/paginas.module.css';
 import estilos from './HorariosExternos.module.css';
 
 type EstadoResumen = { tipo: 'cargando' } | { tipo: 'error'; mensaje: string } | { tipo: 'listo'; filas: ResumenDepartamento[] };

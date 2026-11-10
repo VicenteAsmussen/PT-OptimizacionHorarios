@@ -9,6 +9,7 @@ Este directorio agrupa el código por funcionalidad del sistema. Cada funcionali
 - La interfaz compartida está en [components/](../components/), los hooks reutilizables en [hooks/](../hooks/) y el cliente HTTP común en [lib/api.ts](../lib/api.ts).
 - El orden de los períodos, la selección inicial y el estado de sus secciones se reúnen en [lib/periodos.ts](../lib/periodos.ts).
 - Los estilos globales están en [styles/](../styles/) y los recursos estáticos en [assets/](../assets/).
+- Los estilos comunes de páginas y formularios están en [styles/paginas.module.css](../styles/paginas.module.css), cada funcionalidad conserva sus estilos específicos.
 
 No todas las funcionalidades necesitan la misma estructura interna. La ubicación de sus archivos depende del contenido que realmente tienen.
 

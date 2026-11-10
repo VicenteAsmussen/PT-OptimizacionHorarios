@@ -8,7 +8,7 @@ import { confirmarReinicio, estadosPeriodo, puedeAdministrarPeriodos, puedeCambi
 import type { AccionReinicio, EstadoPeriodo, ResumenesPeriodo } from './modelo';
 import VistaPeriodo from './VistaPeriodo';
 import SelectorPeriodo from './SelectorPeriodo';
-import base from '../asignaturas/Asignaturas.module.css';
+import base from '../../styles/paginas.module.css';
 import estilos from './AdministracionPeriodos.module.css';
 import { AvisoBloqueo, useBloqueoOptimizacion } from '../optimizacion/SeguimientoOptimizacion';
 
