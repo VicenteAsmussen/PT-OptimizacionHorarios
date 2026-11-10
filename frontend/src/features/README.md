@@ -29,15 +29,17 @@ No todas las funcionalidades necesitan la misma estructura interna. La ubicació
 
 Las pruebas de cada funcionalidad permanecen junto al código que verifican.
 
-## Carpetas reservadas con descripción
+## Descripciones de la estructura inicial
 
-Las siguientes carpetas contienen únicamente un archivo descriptivo, no una implementación propia. Sus descripciones se conservan en las mismas ubicaciones:
+La estructura inicial incluía seis carpetas que solo contenían una descripción y no tenían código propio. Se retiraron para que este directorio muestre las funcionalidades con implementación. Sus textos se conservan aquí:
 
-- [carreras](carreras/descripcion_carreras.txt).
-- [departamentos](departamentos/descripcion_departamentos.txt).
-- [horarios](horarios/descripcion_horarios.txt).
-- [ofertas](ofertas/descripcion_ofertas.txt).
-- [salas](salas/descripcion_salas.txt).
-- [semestres](semestres/descripcion_semestres.txt).
+| Concepto | Descripción original |
+| --- | --- |
+| `carreras` | Funcionalidad relacionada con carreras, alcance académico y configuración asociada. |
+| `departamentos` | Funcionalidad relacionada con departamentos académicos y su relación con carreras. |
+| `horarios` | Funcionalidad relacionada con generación, revisión, importación, exportación y publicación de horarios. |
+| `ofertas` | Funcionalidad relacionada con ofertas de asignaturas, secciones, cupos y carga docente. |
+| `salas` | Funcionalidad relacionada con salas, capacidades, tipos y gestión de espacios físicos. |
+| `semestres` | Funcionalidad relacionada con semestres académicos, estados y configuración temporal del sistema. |
 
-Estos conceptos pueden utilizarse en otras funcionalidades aunque aquí no tengan código propio. Las descripciones no deben interpretarse como una lista de trabajo pendiente. Conservar o retirar estas carpetas es una decisión separada de esta guía.
+Estos conceptos pueden utilizarse en otras funcionalidades sin tener una carpeta propia. Las descripciones son referencias de la estructura inicial, no una lista de trabajo pendiente.

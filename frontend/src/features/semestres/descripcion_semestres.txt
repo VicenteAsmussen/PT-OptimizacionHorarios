@@ -1,1 +1,0 @@
-Funcionalidad relacionada con semestres académicos, estados y configuración temporal del sistema.
