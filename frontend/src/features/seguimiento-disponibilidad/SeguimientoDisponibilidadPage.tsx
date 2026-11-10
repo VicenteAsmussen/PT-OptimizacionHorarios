@@ -1,9 +1,8 @@
 import { useEffect, useReducer, useState } from 'react';
 import { Navigate, Outlet } from 'react-router-dom';
-import { ordenarPeriodosPorFechaAcademica } from '../../lib/periodos';
+import { ordenarPeriodosPorFechaAcademica, planificacionInicial } from '../../lib/periodos';
 import { useAuth } from '../../hooks/useAuth';
 import { useDesbordamientoTabla } from '../../hooks/useDesbordamientoTabla';
-import { planificacionInicial } from '../asignaturas/datos';
 import type { PlanificacionSemestre } from '../asignaturas/types';
 import { estadoEnvio, estadoInicial, puedeVerSeguimiento, reducirSeguimiento } from './estado';
 import { seguimientoApi } from './seguimiento.api';

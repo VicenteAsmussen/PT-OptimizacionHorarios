@@ -72,13 +72,6 @@ test('profesor se busca por nombre o RUT con puntuación, sin limitar departamen
   assert.equal(buscarProfesores(profesores, '').length, 2);
   assert.deepEqual(buscarProfesores(profesores, '...'), []);
 });
-test('semestre por defecto actual o selección explícita, nunca primero arbitrario', async () => {
-  const { planificacionInicial } = await cargar();
-  assert.equal(planificacionInicial([{ id: 1 }, { id: 2, actual: true }]), 2);
-  assert.equal(planificacionInicial([{ id: 1 }]), null);
-  assert.equal(planificacionInicial([]), null);
-  assert.equal(planificacionInicial([{ id: 1, carreraId: 1, actual: true }, { id: 2, carreraId: 2, actual: true }]), null);
-});
 test('aislamiento y conteos por asignatura/semestre; números libres sin renumerar', async () => {
   const { ofertasDePlanificacion, seccionesLibres } = await cargar();
   const propias = ofertasDePlanificacion(ofertas, 'A', 1);

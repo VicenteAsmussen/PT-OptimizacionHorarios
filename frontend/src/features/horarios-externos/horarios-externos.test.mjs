@@ -165,7 +165,7 @@ test('reloading after the current semester changes uses the new planning for dis
   const ts = await import('typescript');
   const React = await import('react');
   const { renderToStaticMarkup } = await import('react-dom/server');
-  const { planificacionInicial } = await import('../asignaturas/datos.ts');
+  const { planificacionInicial } = await import('../../lib/periodos.ts');
   const { cargarResumenDepartamentos, mensajeErrorCobertura } = await import('./datos.ts');
   const pagina = (await readFile(new URL('./HorariosExternosPage.tsx', import.meta.url), 'utf8')).replace(/\r\n/g, '\n');
   const carga = pagina.match(/  useEffect\(\(\) => \{\n    let activo = true;\n    setDatos\(null\);[^]*?\n  \}, \[intento\]\);/)?.[0];

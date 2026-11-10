@@ -1,4 +1,4 @@
-import type { Asignatura, Departamento, Oferta, ProfesorSeccion, PlanificacionSemestre } from './types.ts';
+import type { Asignatura, Departamento, Oferta, ProfesorSeccion } from './types.ts';
 
 const normalizar = (texto: string) => texto.trim().toLocaleLowerCase('es').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 export function filtrarAsignaturas(asignaturas: readonly Asignatura[], busqueda = '', departamento = '', malla = '',
@@ -30,24 +30,6 @@ export function buscarProfesores(profesores: readonly ProfesorSeccion[], busqued
   return profesores.filter(p => normalizar(p.nombre).includes(consulta)
     || Boolean(rut && p.rut?.replace(/[.\-\s]/g, '').toLowerCase().includes(rut)))
     .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
-}
-export function planificacionInicial(planificaciones: readonly PlanificacionSemestre[]) {
-  const actuales = planificaciones.filter(planificacion => planificacion.actual);
-  // Un admin con varias carreras debe elegir; no inferir dueño por código compartido.
-  return actuales.length === 1 ? actuales[0].id : null;
-}
-export function estadoSecciones(planificacion?: { actual?: unknown; estadoPlanificacion?: unknown } | null) {
-  const estado = planificacion?.estadoPlanificacion;
-  const etiqueta = estado === 'preparacion' ? 'Preparación'
-    : estado === 'propuesta' ? 'Propuesta' : estado === 'publicado' ? 'Publicado' : 'Estado no disponible';
-  const actual = planificacion?.actual === true;
-  const puedeEditar = actual && estado === 'preparacion';
-  const razones: string[] = [];
-  if (!actual) razones.push('esta planificación no es la actual');
-  if (estado === 'propuesta' || estado === 'publicado') razones.push(`las secciones están congeladas en estado ${etiqueta}`);
-  else if (estado !== 'preparacion') razones.push('no se pudo verificar el estado de la planificación');
-  return { etiqueta, puedeEditar, motivo: puedeEditar ? ''
-    : `Solo lectura: ${razones.join('; ')}. Puedes consultar las secciones. Para editarlas, cierra el panel y selecciona una planificación actual en Preparación.` };
 }
 export function ofertasDePlanificacion(ofertas: readonly Oferta[], codigo: string, planificacionSemestreId: number | null) {
   return ofertas.filter(o => o.asignaturaCodigo === codigo && o.planificacionSemestreId === planificacionSemestreId)

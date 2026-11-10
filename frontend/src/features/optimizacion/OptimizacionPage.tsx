@@ -1,9 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, Navigate, Outlet, useSearchParams } from 'react-router-dom';
 import IconoActualizar from '../../components/IconoActualizar';
-import { ordenarPeriodosPorFechaAcademica } from '../../lib/periodos';
+import { estadoSecciones, ordenarPeriodosPorFechaAcademica, planificacionInicial } from '../../lib/periodos';
 import { useAuth } from '../../hooks/useAuth';
-import { estadoSecciones, planificacionInicial } from '../asignaturas/datos';
 import { profesoresApi } from '../profesores/profesores.api';
 import { puedeOptimizar, prepararRecursos, sugerirRecursos, etiquetasEstado, rutaResultados, crearLaboratoriosModelo, cantidadInicialLaboratoriosModelo, capacidadLaboratoriosModelo, planificacionesModelo, fechaEjecucion } from './modelo';
 import { optimizacionApi } from './optimizacion.api';

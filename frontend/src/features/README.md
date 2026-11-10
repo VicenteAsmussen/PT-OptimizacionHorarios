@@ -7,6 +7,7 @@ Este directorio agrupa el código por funcionalidad del sistema. Cada funcionali
 - Las rutas y sus controles de acceso se encuentran en [app/router.tsx](../app/router.tsx).
 - Las pantallas y su lógica cercana están en la funcionalidad correspondiente.
 - La interfaz compartida está en [components/](../components/), los hooks reutilizables en [hooks/](../hooks/) y el cliente HTTP común en [lib/api.ts](../lib/api.ts).
+- El orden de los períodos, la selección inicial y el estado de sus secciones se reúnen en [lib/periodos.ts](../lib/periodos.ts).
 - Los estilos globales están en [styles/](../styles/) y los recursos estáticos en [assets/](../assets/).
 
 No todas las funcionalidades necesitan la misma estructura interna. La ubicación de sus archivos depende del contenido que realmente tienen.

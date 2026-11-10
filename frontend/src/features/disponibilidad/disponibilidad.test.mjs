@@ -189,7 +189,6 @@ async function montarPagina(api, rol = 'profesor') {
     '../../assets/iconos/Enviar.svg': { default: 'Enviar.svg' },
     '../../assets/iconos/editar_Asignatura.svg': { default: 'editar_Asignatura.svg' },
     '../../assets/iconos/marcar-todo.svg': { default: 'marcar-todo.svg' },
-    '../asignaturas/datos': await import('../asignaturas/datos.ts'),
     '../mi-horario/MiHorario.module.css': { default: { estado: 'estado', publicado: 'publicado', propuesta: 'propuesta', preparacion: 'preparacion' } },
     './GrillaDisponibilidad': { default: 'grilla' }, './Disponibilidad.module.css': { default: {
       tarjeta: 'tarjeta', panelGrilla: 'panelGrilla', contexto: 'contexto', pieGrilla: 'pieGrilla',

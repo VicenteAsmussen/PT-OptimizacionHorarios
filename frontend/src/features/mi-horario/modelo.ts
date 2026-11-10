@@ -1,5 +1,5 @@
 import { claveDia, ordenarBloques } from '../disponibilidad/estado';
-import { estadoSecciones } from '../asignaturas/datos';
+import { estadoSecciones } from '../../lib/periodos';
 import type { Bloque, ClaseHorario } from './types.ts';
 
 export const puedeConsultarMiHorario = (rol: string | null | undefined) => rol === 'profesor';

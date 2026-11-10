@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import IconoArchivo from '../../components/IconoArchivo';
-import { ordenarPeriodosPorFechaAcademica } from '../../lib/periodos';
+import { ordenarPeriodosPorFechaAcademica, planificacionInicial } from '../../lib/periodos';
 import { useAuth } from '../../hooks/useAuth';
 import { useDesbordamientoTabla } from '../../hooks/useDesbordamientoTabla';
 import { ApiError } from '../../lib/api';
 import { notificaciones } from '../../lib/notificaciones';
-import { planificacionInicial } from '../asignaturas/datos';
 import { departamentosExternos, mensajeErrorCobertura, presentacionCobertura } from './datos';
 import { horariosExternosApi } from './horarios-externos.api';
 import type { CoberturaExterna, DepartamentoExterno, ErrorImportacion, FalloImportacion, PlanificacionSemestre, ResultadoImportacion } from './types';
