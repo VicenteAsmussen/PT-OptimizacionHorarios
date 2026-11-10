@@ -1,5 +1,5 @@
-CAPA DE ESQUEMAS Y DTOs (SCHEMAS)
-===================================
+VALIDACIONES DE ENTRADA, ESQUEMAS Y DTOs
+=====================================
 
 Propósito:
 Definir contratos de datos, validaciones de entrada en tiempo de ejecución (usando Zod) y tipos TypeScript estáticos.
