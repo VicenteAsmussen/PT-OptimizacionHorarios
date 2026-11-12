@@ -12,11 +12,11 @@ describe.skipIf(!ejecutarIntegracion)("Módulo Carreras (/api/carreras)", () => 
 
   beforeAll(async () => {
     const res = await request(app).post("/api/auth/login")
-      .send({ correo: "secretaria@ubiobio.cl", clave: "123456" });
+      .send({ correo: "maraguayo@ubiobio.cl", clave: "maraguayo123" });
     expect(res.status).toBe(200);
     secretariaCookie = res.headers["set-cookie"];
     const admin = await request(app).post("/api/auth/login")
-      .send({ correo: "admin@ubiobio.cl", clave: "123456" });
+      .send({ correo: "admin@ubiobio.cl", clave: "admin123" });
     expect(admin.status).toBe(200);
     adminCookie = admin.headers["set-cookie"];
   });

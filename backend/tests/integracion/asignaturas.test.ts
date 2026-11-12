@@ -17,7 +17,7 @@ describe.skipIf(!ejecutarIntegracion)("Módulo Asignaturas (/api/asignaturas)", 
     // 1. Iniciar sesión como secretaria
     const secRes = await request(app)
       .post("/api/auth/login")
-      .send({ correo: "secretaria@ubiobio.cl", clave: "123456" });
+      .send({ correo: "maraguayo@ubiobio.cl", clave: "maraguayo123" });
     secretariaCookie = secRes.headers["set-cookie"];
 
     // 2. Obtener un tipoHora y carrera válidos de la BD

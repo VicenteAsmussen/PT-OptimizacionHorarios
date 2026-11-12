@@ -48,19 +48,19 @@ describe.skipIf(!ejecutarIntegracion)("Control de Acceso y Roles (RBAC)", () => 
     // 1. Obtener cookies de los 3 roles
     const adminRes = await request(app)
       .post("/api/auth/login")
-      .send({ correo: "admin@ubiobio.cl", clave: "123456" });
+      .send({ correo: "admin@ubiobio.cl", clave: "admin123" });
     expect(adminRes.status).toBe(200);
     adminCookie = adminRes.headers["set-cookie"];
 
     const secRes = await request(app)
       .post("/api/auth/login")
-      .send({ correo: "secretaria@ubiobio.cl", clave: "123456" });
+      .send({ correo: "maraguayo@ubiobio.cl", clave: "maraguayo123" });
     expect(secRes.status).toBe(200);
     secretariaCookie = secRes.headers["set-cookie"];
 
     const profRes = await request(app)
       .post("/api/auth/login")
-      .send({ correo: "cvidal@ubb.cl", clave: "123456" });
+      .send({ correo: "cvidal@ubiobio.cl", clave: "cvidal123" });
     expect(profRes.status).toBe(200);
     profesorCookie = profRes.headers["set-cookie"];
   });
@@ -133,8 +133,8 @@ describe.skipIf(!ejecutarIntegracion)("Control de Acceso y Roles (RBAC)", () => 
     });
 
     it("Secretaría no sincroniza disponibilidad propia de la carrera ni ajena, sin modificar datos", async () => {
-      const secretaria = await db.query.usuarios.findFirst({ where: (tabla, { eq }) => eq(tabla.correo, "secretaria@ubiobio.cl") });
-      const docente = await db.query.usuarios.findFirst({ where: (tabla, { eq }) => eq(tabla.correo, "cvidal@ubb.cl") });
+      const secretaria = await db.query.usuarios.findFirst({ where: (tabla, { eq }) => eq(tabla.correo, "maraguayo@ubiobio.cl") });
+      const docente = await db.query.usuarios.findFirst({ where: (tabla, { eq }) => eq(tabla.correo, "cvidal@ubiobio.cl") });
       expect(secretaria).toBeDefined();
       expect(docente).toBeDefined();
       const profesor = await db.query.profesores.findFirst({ where: eq(profesores.usuarioId, docente!.id) });
@@ -178,7 +178,7 @@ describe.skipIf(!ejecutarIntegracion)("Control de Acceso y Roles (RBAC)", () => 
     });
 
     it("Profesor no utiliza la sincronización general ni altera disponibilidad guardada (403)", async () => {
-      const usuario = await db.query.usuarios.findFirst({ where: (tabla, { eq }) => eq(tabla.correo, "cvidal@ubb.cl") });
+      const usuario = await db.query.usuarios.findFirst({ where: (tabla, { eq }) => eq(tabla.correo, "cvidal@ubiobio.cl") });
       expect(usuario).toBeDefined();
       const profesor = await db.query.profesores.findFirst({ where: eq(profesores.usuarioId, usuario!.id) });
       expect(profesor).toBeDefined();

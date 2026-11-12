@@ -1,5 +1,3 @@
-export const claveInicial = "123456";
-
 // Synthetic RUTs for development fixtures, not institutional identities.
 function crearRut(indice: number) {
   const cuerpo = String(90000000 + indice);
@@ -60,7 +58,7 @@ const profesoresBase: [indiceRut: number, nombre: string, correo: string, depart
 ];
 
 export const datosProfesores = profesoresBase.map(([indiceRut, nombre, correo, departamento, tipo = "planta"]) => ({
-  nombre: nombre!, correo: `${correo}@ubb.cl`, departamento: `Departamento de ${departamento}`,
+  nombre: nombre!, correo: `${correo}@ubiobio.cl`, departamento: `Departamento de ${departamento}`,
   tipo, rut: crearRut(indiceRut),
 }));
 
@@ -71,8 +69,8 @@ export const datosUsuarios = [
     rol: "admin" as const,
   },
   {
-    nombre: "Secretaria de Carrera",
-    correo: "secretaria@ubiobio.cl",
+    nombre: "Marcia Aguayo",
+    correo: "maraguayo@ubiobio.cl",
     rol: "secretaria" as const,
   },
   ...datosProfesores.map(({ nombre, correo }) => ({ nombre, correo, rol: "profesor" as const })),

@@ -13,15 +13,15 @@ describe.skipIf(!ejecutarIntegracion)("Módulo Salas (/api/salas)", () => {
 
   beforeAll(async () => {
     const secretaria = await request(app).post("/api/auth/login")
-      .send({ correo: "secretaria@ubiobio.cl", clave: "123456" });
+      .send({ correo: "maraguayo@ubiobio.cl", clave: "maraguayo123" });
     expect(secretaria.status).toBe(200);
     secretariaCookie = secretaria.headers["set-cookie"];
     const profesor = await request(app).post("/api/auth/login")
-      .send({ correo: "cvidal@ubb.cl", clave: "123456" });
+      .send({ correo: "cvidal@ubiobio.cl", clave: "cvidal123" });
     expect(profesor.status).toBe(200);
     profesorCookie = profesor.headers["set-cookie"];
     const admin = await request(app).post("/api/auth/login")
-      .send({ correo: "admin@ubiobio.cl", clave: "123456" });
+      .send({ correo: "admin@ubiobio.cl", clave: "admin123" });
     expect(admin.status).toBe(200);
     adminCookie = admin.headers["set-cookie"];
   });

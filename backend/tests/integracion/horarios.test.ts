@@ -24,10 +24,10 @@ describe.skipIf(!ejecutarIntegracion)("Gestión de Horarios y Choques (/api/hora
   let ofertaId2: number;
   let horarioId: number;
   beforeAll(async () => {
-    const secretaria = await request(app).post("/api/auth/login").send({ correo: "secretaria@ubiobio.cl", clave: "123456" });
+    const secretaria = await request(app).post("/api/auth/login").send({ correo: "maraguayo@ubiobio.cl", clave: "maraguayo123" });
     expect(secretaria.status).toBe(200);
     secretariaCookie = secretaria.headers["set-cookie"];
-    const profesor = await request(app).post("/api/auth/login").send({ correo: "cvidal@ubb.cl", clave: "123456" });
+    const profesor = await request(app).post("/api/auth/login").send({ correo: "cvidal@ubiobio.cl", clave: "cvidal123" });
     expect(profesor.status).toBe(200);
     profesorCookie = profesor.headers["set-cookie"];
     const perfil = await db.query.profesores.findFirst({

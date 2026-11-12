@@ -23,7 +23,7 @@ describe.skipIf(!ejecutarIntegracion)("Autenticación y Sesión (/api/auth)", ()
       .post("/api/auth/login")
       .send({
         correo: "admin@ubiobio.cl",
-        clave: "123456",
+        clave: "admin123",
       });
 
     expect(response.status).toBe(200);
@@ -47,8 +47,8 @@ describe.skipIf(!ejecutarIntegracion)("Autenticación y Sesión (/api/auth)", ()
     const loginRes = await request(app)
       .post("/api/auth/login")
       .send({
-        correo: "secretaria@ubiobio.cl",
-        clave: "123456",
+        correo: "maraguayo@ubiobio.cl",
+        clave: "maraguayo123",
       });
 
     const cookie = loginRes.headers["set-cookie"];
@@ -60,7 +60,7 @@ describe.skipIf(!ejecutarIntegracion)("Autenticación y Sesión (/api/auth)", ()
 
     expect(meRes.status).toBe(200);
     expect(meRes.body.status).toBe("success");
-    expect(meRes.body.data.correo).toBe("secretaria@ubiobio.cl");
+    expect(meRes.body.data.correo).toBe("maraguayo@ubiobio.cl");
     expect(meRes.body.data.rol).toBe("secretaria");
   });
 

@@ -6,7 +6,7 @@ import type { BaseDatosSeed, CatalogosAcademicosSeed } from "../../src/db/seeds/
 import { sembrarUsuarios } from "../../src/db/seeds/usuarios.js";
 import { hashPassword } from "../../src/utils/password.js";
 import { normalizarRut } from "../../src/utils/rut.js";
-import { datosProfesores } from "../../src/db/seeds/data/usuarios.js";
+import { datosProfesores, datosUsuarios } from "../../src/db/seeds/data/usuarios.js";
 import { datosDepartamentos } from "../../src/db/seeds/data/academico.js";
 
 vi.mock("../../src/utils/password.js", () => ({ hashPassword: vi.fn(async () => "hash-simulado") }));
@@ -16,8 +16,8 @@ type Fila = Record<string, unknown>;
 function crearBaseSimulada(conExistentes = false) {
   const usuarios: Fila[] = conExistentes ? [
     { id: 11, nombre: "Admin", correo: "admin@ubiobio.cl", rol: "admin", clave: "admin-conservada" },
-    { id: 12, nombre: "Secretaria", correo: "secretaria@ubiobio.cl", rol: "secretaria", clave: "secretaria-conservada" },
-    { id: 13, nombre: "Christian Lautaro Vidal Castro", correo: "cvidal@ubb.cl", rol: "profesor", clave: "profesor-conservada" },
+    { id: 12, nombre: "Secretaria", correo: "maraguayo@ubiobio.cl", rol: "secretaria", clave: "secretaria-conservada" },
+    { id: 13, nombre: "Christian Lautaro Vidal Castro", correo: "cvidal@ubiobio.cl", rol: "profesor", clave: "profesor-conservada" },
   ] : [];
   const profesores: Fila[] = conExistentes ? [
     { id: 71, nombre: "Profesor Docente", usuarioId: 13, departamentoId: 5, tipo: "Jornada Completa" },
@@ -87,7 +87,7 @@ describe("seed de usuarios sin conexión a DB", () => {
     const { baseDatos, usuarios, profesores } = crearBaseSimulada();
     const correos = ["sparra", "jmeza", "osanmartin", "vberatto", "mfuenzalida", "aandia", "econtreras", "fbanda", "cpinto"];
     for (const [indice, correo] of correos.entries()) {
-      const datos = datosProfesores.find(profesor => profesor.correo === `${correo}@ubb.cl`)!;
+      const datos = datosProfesores.find(profesor => profesor.correo === `${correo}@ubiobio.cl`)!;
       usuarios.push({ id: 200 + indice, nombre: datos.nombre, correo: datos.correo, rol: "profesor", clave: "conservada" });
       profesores.push({ id: 700 + indice, usuarioId: 200 + indice, nombre: datos.nombre, rut: datos.rut, departamentoId: 99, tipo: "planta" });
     }
@@ -112,6 +112,8 @@ describe("seed de usuarios sin conexión a DB", () => {
     comprobarProfesores(usuarios, profesores);
     expect(usuarios).toHaveLength(48);
     expect(usuarios.every((usuario) => usuario.clave === "hash-simulado")).toBe(true);
+    expect(vi.mocked(hashPassword).mock.calls.map(([clave]) => clave))
+      .toEqual(datosUsuarios.map(usuario => `${usuario.correo.split("@")[0]}123`));
     expect(secretarias).toHaveLength(1);
     const estado = structuredClone({ usuarios, profesores, secretarias });
     vi.mocked(hashPassword).mockClear();
