@@ -11,7 +11,7 @@ describe.skipIf(!ejecutarIntegracion)("Módulo Departamentos (/api/departamentos
 
   beforeAll(async () => {
     const res = await request(app).post("/api/auth/login")
-      .send({ correo: "admin@ubiobio.cl", clave: "123456" });
+      .send({ correo: "admin@ubiobio.cl", clave: "admin123" });
     expect(res.status).toBe(200);
     adminCookie = res.headers["set-cookie"];
   });

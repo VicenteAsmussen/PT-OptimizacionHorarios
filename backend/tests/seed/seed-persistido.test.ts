@@ -44,8 +44,8 @@ it.skipIf(!habilitado)("preserves protected rows and rolls back a failed academi
     expect(profesores).toHaveLength(46);
     for (const profesor of profesores) {
       expect(profesor.tipo).toBe(datosProfesores.find(dato => dato.correo === profesor.correo)!.tipo);
-      expect(profesor.correo).toMatch(/^[a-z]+@ubb\.cl$/);
-      expect(await bcrypt.compare("123456", profesor.clave)).toBe(true);
+      expect(profesor.correo).toMatch(/^[a-z]+@ubiobio\.cl$/);
+      expect(await bcrypt.compare(`${profesor.correo.split("@")[0]}123`, profesor.clave)).toBe(true);
     }
     let huella = await capturar();
     expect(ejecutar().status).toBe(0);

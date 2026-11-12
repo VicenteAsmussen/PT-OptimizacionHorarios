@@ -16,7 +16,7 @@ describe.skipIf(!ejecutarIntegracion)("Módulo Usuarios y Seguridad (/api/usuari
     // 1. Iniciar sesión como admin
     const adminRes = await request(app)
       .post("/api/auth/login")
-      .send({ correo: "admin@ubiobio.cl", clave: "123456" });
+      .send({ correo: "admin@ubiobio.cl", clave: "admin123" });
     adminCookie = adminRes.headers["set-cookie"];
 
     // 2. Obtener carrera existente

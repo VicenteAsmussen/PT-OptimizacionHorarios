@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import * as esquema from "../schema/index.js";
 import { hashPassword } from "../../utils/password.js";
 import type { BaseDatosSeed, CatalogosAcademicosSeed } from "./contexto.js";
-import { claveInicial, datosUsuarios, datosProfesores } from "./data/usuarios.js";
+import { datosUsuarios, datosProfesores } from "./data/usuarios.js";
 
 async function asegurarUsuario(baseDatos: BaseDatosSeed, usuario: typeof datosUsuarios[number]) {
   const [existente] = await baseDatos.select().from(esquema.usuarios).where(eq(esquema.usuarios.correo, usuario.correo)).limit(1);
@@ -15,7 +15,7 @@ async function asegurarUsuario(baseDatos: BaseDatosSeed, usuario: typeof datosUs
       .returning();
     return actualizado;
   }
-  const clave = await hashPassword(claveInicial);
+  const clave = await hashPassword(`${usuario.correo.split("@")[0]}123`);
   const [insertado] = await baseDatos.insert(esquema.usuarios).values({ ...usuario, clave }).returning();
   return insertado;
 }
