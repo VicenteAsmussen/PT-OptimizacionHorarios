@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { createHash, randomBytes } from "node:crypto";
+import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
@@ -84,15 +84,10 @@ describe.skipIf(!habilitado)("Disponibilidad de autoservicio en PostgreSQL aisla
         (1,2,1),(2,2,1),(3,1,1),(1,1,2),(4,1,1),(5,1,1),(6,1,2)`;
     });
     const { usuariosRepository } = await import("../../src/repositories/usuarios.repository.js");
-    const { sesionesRepository } = await import("../../src/repositories/sesiones.repository.js");
-    const { generateToken, verifyToken } = await import("../../src/utils/jwt.js");
+    const { generateToken } = await import("../../src/utils/jwt.js");
     for (const [nombre, id] of [["secretaria", 1], ["profesor", 2], ["otro", 3], ["admin", 4], ["sinPerfil", 5]] as const) {
       const usuario = (await usuariosRepository.findById(id))!;
-      const sesionId = randomBytes(32).toString("hex");
-      tokens[nombre] = generateToken(usuario, sesionId);
-      expect(await sesionesRepository.createConCredenciales(usuario, {
-        id: sesionId, usuarioId: id, expiraEn: new Date(verifyToken(tokens[nombre]).exp * 1000),
-      })).toBe(true);
+      tokens[nombre] = generateToken(usuario, usuario.versionSesion);
     }
   });
 

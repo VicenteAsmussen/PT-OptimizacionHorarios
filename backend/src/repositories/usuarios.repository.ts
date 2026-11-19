@@ -8,11 +8,12 @@ import {
 import { secretarias } from "../db/schema/secretarias.schema.js";
 import { carreras } from "../db/schema/carreras.schema.js";
 import { columnasProfesorSinRut } from "../db/schema/profesores.schema.js";
-import { sesionesRepository, type TransaccionSesion } from "./sesiones.repository.js";
 import { ForbiddenError } from "../utils/errors.js";
 
+type TransaccionUsuario = Parameters<Parameters<typeof db.transaction>[0]>[0];
+
 export const usuariosRepository = {
-  async updateEnTransaccion(tx: TransaccionSesion, id: number, data: Partial<Omit<NuevoUsuario, "id" | "versionSesion">>, soloProfesor = false) {
+  async updateEnTransaccion(tx: TransaccionUsuario, id: number, data: Partial<Omit<NuevoUsuario, "id" | "versionSesion">>, soloProfesor = false) {
     const datos = Object.fromEntries(Object.entries(data).filter(([, valor]) => valor !== undefined));
     if (Object.keys(datos).length === 0) return undefined;
     const revocar = datos.rol !== undefined || datos.clave !== undefined || datos.correo !== undefined;
@@ -21,7 +22,6 @@ export const usuariosRepository = {
       ...(revocar ? { versionSesion: sql`${usuarios.versionSesion} + 1` } : {}),
     }).where(and(eq(usuarios.id, id), soloProfesor ? eq(usuarios.rol, "profesor") : undefined)).returning();
     if (soloProfesor && !actualizado) throw new ForbiddenError("La cuenta vinculada no es una cuenta de profesor gestionable");
-    if (revocar) await sesionesRepository.deleteByUsuarioId(id, tx);
     return actualizado;
   },
   async findAll() {

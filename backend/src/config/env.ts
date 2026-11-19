@@ -17,7 +17,7 @@ const envSchema = z.object({
     (valor) => valor.trim().length > 0,
     "JWT_SECRET no puede estar vacío",
   ).default(secretoPredeterminado),
-  JWT_EXPIRES_IN: z.string().default("7d"),
+  JWT_EXPIRES_IN: z.string().default("8h"),
 }).refine(
   (configuracion) => configuracion.NODE_ENV !== "production"
     || configuracion.JWT_SECRET.trim() !== secretoPredeterminado,

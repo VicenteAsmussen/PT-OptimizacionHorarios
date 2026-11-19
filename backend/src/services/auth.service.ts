@@ -3,8 +3,6 @@ import { type LoginDTO } from "../validations/auth.validation.js";
 import { comparePassword } from "../utils/password.js";
 import { generateToken, verifyToken, type TokenPayload } from "../utils/jwt.js";
 import { UnauthorizedError, NotFoundError } from "../utils/errors.js";
-import { randomBytes } from "node:crypto";
-import { sesionesRepository } from "../repositories/sesiones.repository.js";
 
 function sanitizeUser<T extends { clave?: string; versionSesion?: number }>(user: T): Omit<T, "clave" | "versionSesion"> {
   const { clave, versionSesion, ...rest } = user;
@@ -23,6 +21,12 @@ export const authService = {
       throw new UnauthorizedError("Credenciales inválidas");
     }
 
+    const actual = await usuariosRepository.findById(user.id);
+    if (!actual || actual.versionSesion !== user.versionSesion || actual.clave !== user.clave ||
+        actual.correo !== user.correo || actual.rol !== user.rol) {
+      throw new UnauthorizedError("Credenciales inválidas");
+    }
+
     const payload: TokenPayload = {
       id: user.id,
       nombre: user.nombre,
@@ -30,18 +34,24 @@ export const authService = {
       rol: user.rol,
     };
 
-    const sesionId = randomBytes(32).toString("hex");
-    const token = generateToken(payload, sesionId);
+    const token = generateToken(payload, user.versionSesion);
     const claims = verifyToken(token);
-    const creada = await sesionesRepository.createConCredenciales(user, {
-      id: sesionId, usuarioId: user.id, expiraEn: new Date(claims.exp * 1000),
-    });
-    if (!creada) throw new UnauthorizedError("Credenciales inválidas");
 
     return {
       user: sanitizeUser(user),
       token,
+      expiraEn: claims.exp * 1000,
     };
+  },
+
+  async autenticar(token: string): Promise<TokenPayload> {
+    const claims = verifyToken(token);
+    const usuario = await usuariosRepository.findById(claims.id);
+    if (!usuario || usuario.versionSesion !== claims.versionSesion) {
+      throw new UnauthorizedError("No autorizado: Token inválido o expirado");
+    }
+    const { id, nombre, correo, rol } = usuario;
+    return { id, nombre, correo, rol };
   },
 
   async getMe(userId: number) {
