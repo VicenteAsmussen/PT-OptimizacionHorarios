@@ -228,6 +228,18 @@ Los contratos de API, formatos de planilla y detalles de migraciones se document
    pnpm run db:studio     # Abrir visor web Drizzle Studio
    ```
 
+### Prueba del frontend mediante un túnel de VS Code
+
+Con el backend disponible en el puerto `3000`, ejecutar `pnpm --dir frontend dev` y reenviar únicamente el puerto `5173` desde la pestaña **Ports** de VS Code. Abrir la dirección HTTPS del túnel y entrar en `/login`.
+
+El frontend usa `/api` y Vite reenvía esas peticiones al backend local. Esto mantiene el mismo origen para la sesión, las cargas y las descargas, sin publicar el puerto del backend ni ampliar CORS. Si se configura `VITE_API_URL`, ese valor prevalece, para este túnel debe omitirse o usar `/api`. No configurar `allowedHosts: true`. Si Vite rechaza el dominio, autorizar únicamente el nombre exacto del túnel mediante `__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS` al iniciar el servidor.
+
+Mantener la computadora y los servicios encendidos durante la prueba. Restringir el acceso del túnel a las personas autorizadas, las cuentas iniciales tienen claves predecibles y no son adecuadas para acceso público. Las acciones de secretaría escriben en la misma base local, no en una copia. Cerrar el túnel al terminar.
+
+Comprobar primero el inicio de sesión y la recuperación de sesión al recargar. Después probar las pantallas, cargas de Excel, generación y descarga de resultados con datos controlados. El proxy resuelve el transporte, no garantiza la validez de los archivos, la disponibilidad del optimizador ni la ejecución completa del flujo. Esta configuración es de desarrollo, no sustituye un proxy de despliegue para los archivos compilados.
+
+Las pruebas de transporte del frontend se ejecutan con `pnpm --dir frontend test`, sin modificar la base de datos.
+
 ### Verificación
 
 Desde la raíz del repositorio, mediante Docker:
