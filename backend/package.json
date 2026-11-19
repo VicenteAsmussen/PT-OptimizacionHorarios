@@ -12,6 +12,8 @@
     "db:seed": "tsx src/db/seed.ts",
     "db:studio": "drizzle-kit studio",
     "test": "vitest run",
+    "test:local": "node ../scripts/verificar-local.mjs backend",
+    "test:tipos": "node ../scripts/verificar-local.mjs tipos-backend",
     "test:excel-externos:integracion": "vitest run tests/base-pruebas.test.ts tests/integracion/horarios-externos.postgres.test.ts",
     "test:watch": "vitest"
   },

@@ -77,7 +77,7 @@ test('empty schedules retain the calendar structure without fabricating classes'
 });
 
 test('calendar renders real read-only cells with all class details and no editing controls', async () => {
-  const { createServer } = await import('vite');
+  const { createServer } = await import('../../../tests/soporte/vite.mjs');
   const { createElement } = await import('react');
   const { renderToStaticMarkup } = await import('react-dom/server');
   const servidor = await createServer({ envFile: false, server: { middlewareMode: true }, appType: 'custom' });
