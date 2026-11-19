@@ -49,7 +49,7 @@ it("conserva los valores predeterminados de desarrollo y la carga centralizada",
     DATABASE_URL: urlSintetica,
     CLIENT_URL: "http://localhost:5173",
     JWT_SECRET: secretoPredeterminado,
-    JWT_EXPIRES_IN: "7d",
+    JWT_EXPIRES_IN: "8h",
   });
   expect(dotenv.config).toHaveBeenCalledExactlyOnceWith();
   expect(console.log).not.toHaveBeenCalled();

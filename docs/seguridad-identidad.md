@@ -1,6 +1,6 @@
-# Permisos de cuentas y sesiones revocables
+# Permisos de cuentas y autenticación con JWT
 
-La administración general de usuarios queda reservada a `admin`. Secretaría conserva la gestión de profesores part time y de sus accesos dentro de los departamentos gestionados de su carrera. Las sesiones requieren un registro vigente en PostgreSQL, además de un JWT válido.
+La administración general de usuarios queda reservada a `admin`. Secretaría conserva la gestión de profesores part time y de sus accesos dentro de los departamentos gestionados de su carrera. La autenticación usa JWT en una cookie HttpOnly y consulta el usuario vigente, sin guardar una sesión por token.
 
 ## Permisos
 
@@ -16,50 +16,56 @@ El cambio de nombre y la eliminación de un profesor también pueden afectar su 
 
 Administración conserva el mantenimiento institucional y el acceso de profesores de planta, pero no puede eliminar un perfil con disponibilidades, asignaciones u horarios asociados. La retirada de acceso no elimina el perfil ni sus datos académicos. La gestión part time de secretaría conserva sus reglas específicas. Consulte la separación entre identidad, catálogos y operación en [permisos operativos](permisos-operativos.md).
 
-## Sesiones
+## JWT y cookies
 
-- El login crea una sesión aleatoria y firma su identificador en el JWT. La expiración persistida coincide con la del token.
-- Cada petición autenticada comprueba firma, expiración, sesión vigente, existencia de cuenta y autoridad actual. No hay aceptación alternativa de JWT sin persistencia.
-- Logout acepta cookie o bearer y elimina únicamente la sesión presentada. Repetirlo, no presentar token o presentar uno inválido conserva el cierre idempotente. Un fallo de almacenamiento no se informa como cierre exitoso.
-- Cambiar rol, contraseña o correo invalida las sesiones de la cuenta en la misma transacción. Eliminar la cuenta elimina sus sesiones por clave foránea. Cambiar solo el nombre no cierra sesiones.
-- El login vuelve a comprobar las credenciales bajo bloqueo antes de persistir la sesión. La versión interna detecta también cambios de rol de ida y vuelta durante ese intervalo.
+- El login firma el identificador del usuario y su `versionSesion`, sin `sid` ni inserciones en una tabla de sesiones. El vencimiento predeterminado es de **8 horas desde el login**, sin renovación automática por actividad ni ajuste a una hora de salida laboral.
+- La cookie `auth_token` es HttpOnly y vence junto con el JWT. En desarrollo conserva `SameSite=Lax`, en producción `SameSite=None` y `Secure`. También se conserva la aceptación de bearer para clientes que ya lo utilicen.
+- Cada petición autenticada comprueba firma HS256, expiración, existencia del usuario y coincidencia de versión. Los permisos usan el rol vigente y mantienen las comprobaciones de carrera, no dependen del rol antiguo incluido en el JWT.
+- **Logout solo borra la cookie del navegador. No revoca el JWT:** una copia puede reutilizarse hasta vencer, incluso después de cerrar sesión. Repetir logout o hacerlo sin token válido sigue respondiendo con éxito, sin consultar la base.
+- Cambiar rol, contraseña o correo incrementa `usuarios.version_sesion` en la misma actualización. Todos los tokens anteriores de esa cuenta se rechazan, incluso si luego se restaura el valor anterior. El contador pertenece al usuario, no representa una entidad de sesiones ni permite cerrar un dispositivo individualmente.
+- Eliminar la cuenta impide autenticar sus tokens porque el usuario ya no existe. Cambiar solo el nombre conserva el acceso y las siguientes peticiones reciben el nombre actual.
+- El login vuelve a consultar las credenciales después de comparar la contraseña. Si detecta una baja o un cambio de versión, correo, contraseña o rol, rechaza el acceso. Si el cambio se confirma después de esa consulta, el JWT conserva la versión anterior y no autentica las peticiones posteriores al cambio. Una petición autenticada antes de una actualización puede terminar, no se cancelan solicitudes en curso.
 
-**Los JWT anteriores a este cambio dejan de ser válidos y requieren iniciar sesión otra vez.** La expiración impide usar sesiones vencidas, pero no elimina sus filas automáticamente. Su retención y limpieza deben definirse como parte de la operación, sin habilitar trabajos externos implícitos.
+**Los JWT anteriores a este cambio, que no incluyen una versión válida, se rechazan y requieren iniciar sesión otra vez.** No se admite un modo de compatibilidad con los tokens antiguos.
 
 ## Configuración productiva
 
 `PORT` debe contener únicamente dígitos decimales y representar un entero entre 1 y 65535. El valor omitido conserva `3000`, un valor vacío, negativo o con sufijo se rechaza.
 
-`JWT_SECRET` no puede estar vacío ni contener solo espacios. En producción debe estar definido y no puede ser el secreto predeterminado de desarrollo, tampoco rodeado de espacios. La validación no demuestra que un secreto elegido tenga entropía suficiente, use un valor aleatorio y manténgalo fuera del repositorio. `JWT_EXPIRES_IN` conserva su contrato existente.
+`JWT_SECRET` no puede estar vacío ni contener solo espacios. En producción debe estar definido y no puede ser el secreto predeterminado de desarrollo, tampoco rodeado de espacios. La validación no demuestra que un secreto elegido tenga entropía suficiente, use un valor aleatorio y manténgalo fuera del repositorio.
+
+`JWT_EXPIRES_IN` conserva el formato de duración de `jsonwebtoken`, con valor predeterminado `8h`. Configure `JWT_EXPIRES_IN=8h` también en los entornos que antes indicaban `7d`, un valor explícito prevalece sobre el predeterminado. La duración de la cookie se obtiene del vencimiento del JWT, no de una segunda duración fija. Una configuración mayor amplía también el tiempo de reutilización después de logout.
 
 El migrador registra inicio, éxito o fallo sin imprimir la URL de conexión ni el error original, que podría incluir credenciales. No interprete un mensaje de inicio como una migración exitosa.
 
 ## Migración y límites de verificación
 
-`backend/src/db/migrations/0020_sesiones-revocables.sql` agrega `sesiones`, su índice y clave foránea, y `usuarios.version_sesion`. No reemplaza datos ni modifica las migraciones heredadas. El backend actualizado necesita ese esquema antes de atender autenticación, no debe desplegarse sin coordinar la transición.
+La migración histórica `0020_sesiones-revocables.sql` se conserva intacta. `0021_retirar-sesiones-autenticacion.sql` elimina únicamente la tabla `sesiones`, incluidos sus registros, índice y clave foránea. Conserva usuarios, `usuarios.version_sesion` y todos los datos académicos. No reescriba migraciones aplicadas, no reinicialice la base ni vuelva a ejecutar la seed para este cambio.
 
-La preparación del archivo SQL **no equivale a haber aplicado ni validado la migración**. Antes de aplicarla sobre datos existentes se deben comprobar la cadena completa de migraciones, incluidos los antecedentes de `0009`, `0011` y `0013`, el respaldo y la restauración en un entorno aislado. Una comprobación sobre una base nueva no demuestra que la migración sea segura sobre datos heredados poblados. Esta guía no autoriza una ejecución sobre desarrollo o producción.
+Antes de aplicar `0021`, confirme el destino y disponga de un respaldo adecuado. Detenga el backend anterior, aplique la cadena pendiente con `pnpm db:migrate` desde `backend` y arranque la versión actualizada. La versión anterior necesita la tabla que se elimina y no debe seguir atendiendo peticiones. Los usuarios deben iniciar sesión otra vez. El backend nuevo requiere `version_sesion`, pero no necesita la tabla antigua para funcionar si todavía no se aplicó su retirada física.
+
+La preparación del archivo SQL **no equivale a haber aplicado ni validado la migración**. Una comprobación sobre una base nueva no demuestra que toda la cadena sea segura sobre datos heredados poblados, incluidos los antecedentes de `0009`, `0011` y `0013`. Esta guía no autoriza por sí sola una ejecución sobre desarrollo o producción.
 
 Las pruebas focales sin base real son:
 
 ```text
-node node_modules/vitest/vitest.mjs run tests/usuarios-autorizacion.test.ts tests/profesores-permisos.test.ts tests/auth-sesiones.test.ts tests/sesiones-repository.test.ts tests/configuracion-entorno.test.ts tests/migrate-logs.test.ts
+node node_modules/vitest/vitest.mjs run tests/usuarios-autorizacion.test.ts tests/profesores-permisos.test.ts tests/auth-jwt.test.ts tests/usuarios-version.test.ts tests/configuracion-entorno.test.ts tests/migrate-logs.test.ts
 ```
 
 Ejecute desde `backend`, con los ejecutores instalados y caché/temporales aislados. Utilizan repositorios o drivers simulados, no prueban persistencia, reversión ni concurrencia real de PostgreSQL. Las integraciones opt-in requieren autorización y una base dedicada antes de ejecutarse.
 
-### Verificación PostgreSQL de sesiones
+### Verificación PostgreSQL de autenticación
 
-`backend/tests/integracion/sesiones.postgres.test.ts` contiene comprobaciones HTTP reales de logout individual, cambio de rol por otro administrador, baja con eliminación en cascada, rollback ante un fallo de revocación y dos carreras de login. La variante de ida y vuelta cambia admin → profesor → admin en una transacción. Las carreras esperan un bloqueo `FOR UPDATE` observado mediante `pg_stat_activity` y `pg_blocking_pids`, no usan una pausa como garantía de orden.
+`backend/tests/integracion/auth-jwt.postgres.test.ts` comprueba la transición desde `0020` con una cuenta y una sesión sintéticas, la conservación íntegra de la cuenta y su versión, la eliminación de la tabla y el rechazo de un JWT antiguo. Incluye login y logout por HTTP, reutilización del token después de logout, invalidación al cambiar rol, correo o contraseña y baja de cuenta. Los permisos por rol y carrera tienen además sus pruebas específicas.
 
 El archivo se omite sin conectar ni cargar la configuración de la aplicación cuando `RUN_ISOLATED_DATABASE_TESTS` no es `true`. Para habilitarlo exige además `NODE_ENV=test`, `PRUEBAS_EN_EJECUCION=yes`, `BASE_PRUEBAS_REINICIABLE=yes` y el destino sintético exacto definido en `backend/tests/soporte/base-pruebas.ts`. Antes de migrar comprueba base, usuario restringido, propietario, ausencia de tablas públicas y del esquema `drizzle`, y exclusión mediante un advisory lock. Nunca trunca datos existentes ni ejecuta seeds.
 
-El diseño aplica `0000`–`0019` mediante el migrador normal en una base nueva, inserta una cuenta sintética con bcrypt y aplica `0020` con el mismo migrador. Comprueba el diario de 20 y luego 21 entradas, la conservación de la cuenta, la versión inicial 0, el índice y la clave foránea. La preparación del test **no acredita su ejecución ni la aprobación de las migraciones**.
+El diseño aplica la cadena hasta `0020` mediante el migrador normal en una base nueva, inserta los datos sintéticos y aplica las migraciones posteriores con el mismo migrador. La preparación del test **no acredita su ejecución ni la aprobación de las migraciones**, y estos casos no prueban concurrencia PostgreSQL real.
 
 Comando preparado dentro del backend descartable, con configuración externa y `.env` vacío, ambos de solo lectura:
 
 ```text
-node node_modules/vitest/vitest.mjs run --config /app/vitest-aislado.mjs tests/integracion/sesiones.postgres.test.ts --reporter=verbose
+node node_modules/vitest/vitest.mjs run --config /app/vitest-aislado.mjs tests/integracion/auth-jwt.postgres.test.ts --reporter=verbose
 ```
 
 El arnés externo limita la ejecución a cinco minutos, usa imágenes locales sin descargas, raíz de solo lectura, red interna propia, cero puertos publicados y datos PostgreSQL en tmpfs. Antes del arranque debe inspeccionar aislamiento y montajes. La retirada se limita a recursos identificados por nombre y etiqueta propios.

@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { createHash, randomBytes } from "node:crypto";
+import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
@@ -56,15 +56,10 @@ describe.skipIf(!habilitado)("Period administration on isolated PostgreSQL", () 
       await sql`insert into disponibilidad_profesores (profesor_id,planificacion_semestre_id,bloque_id) values (1,1,1)`;
     });
     const { usuariosRepository } = await import("../../src/repositories/usuarios.repository.js");
-    const { sesionesRepository } = await import("../../src/repositories/sesiones.repository.js");
-    const { generateToken, verifyToken } = await import("../../src/utils/jwt.js");
+    const { generateToken } = await import("../../src/utils/jwt.js");
     for (const id of [1, 2, 3]) {
       const usuario = (await usuariosRepository.findById(id))!;
-      const sesionId = randomBytes(32).toString("hex");
-      const credencial = generateToken(usuario, sesionId);
-      expect(await sesionesRepository.createConCredenciales(usuario, {
-        id: sesionId, usuarioId: id, expiraEn: new Date(verifyToken(credencial).exp * 1000),
-      })).toBe(true);
+      const credencial = generateToken(usuario, usuario.versionSesion);
       tokens[usuario.rol] = credencial;
     }
     token = tokens.admin;

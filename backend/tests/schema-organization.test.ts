@@ -22,7 +22,6 @@ const modules = {
   "planificaciones-semestres": "planificacionesSemestres",
   "salas": "salas",
   "secretarias": "secretarias",
-  "sesiones": "sesiones",
   "tipos-hora": "tiposHora",
   "usuarios": "usuarios",
 } as const;
@@ -47,7 +46,6 @@ const graph = {
   profesores: { usuario: "One:usuarios", departamento: "One:departamentos", asignaciones: "Many:oferta_tipo_hora", disponibilidades: "Many:disponibilidad_profesores" },
   salas: { horarios: "Many:horarios_asignaturas" },
   secretarias: { usuario: "One:usuarios", carrera: "One:carreras" },
-  sesiones: { usuario: "One:usuarios" },
   tiposHora: { horarios: "Many:horarios_asignaturas", asignaturas: "Many:asignatura_tipo_hora", asignaciones: "Many:oferta_tipo_hora" },
   usuarios: { profesor: "One:profesores", secretaria: "One:secretarias" },
 };

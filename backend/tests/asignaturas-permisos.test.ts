@@ -8,11 +8,8 @@ const dobles = vi.hoisted(() => ({
   escribir: vi.fn(),
 }));
 vi.mock("../src/utils/jwt.js", () => ({ verifyToken: dobles.verificar }));
-vi.mock("../src/repositories/sesiones.repository.js", () => ({ sesionesRepository: {
-  findById: vi.fn(async () => {
-    const usuario = dobles.verificar.mock.results.at(-1)?.value;
-    return { usuarioId: usuario.id, usuario, expiraEn: new Date(usuario.exp * 1000) };
-  }),
+vi.mock("../src/repositories/usuarios.repository.js", () => ({ usuariosRepository: {
+  findById: vi.fn(async () => dobles.verificar.mock.results.at(-1)?.value),
 } }));
 vi.mock("../src/controllers/asignaturas.controller.js", () => ({ asignaturasController: {
   getAll: dobles.leer, getByCodigo: dobles.leer,
@@ -27,7 +24,7 @@ aplicacion.use("/api/asignaturas", asignaturasRouter);
 aplicacion.use(errorHandler);
 const entrada = { codigo: "INF100", nombre: "Asignatura", departamentoId: 1, semestreMalla: 1 };
 function identidad(id: number, rol: string) {
-  return { id, rol, nombre: "Cuenta", correo: "cuenta@example.test", sid: "a".repeat(64), exp: Math.floor(Date.now() / 1000) + 3600 };
+  return { id, rol, nombre: "Cuenta", correo: "cuenta@example.test", versionSesion: 0, exp: Math.floor(Date.now() / 1000) + 3600 };
 }
 
 beforeEach(() => {

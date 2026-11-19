@@ -19,13 +19,13 @@ vi.mock("../src/utils/jwt.js", async () => {
   const { UnauthorizedError } = await import("../src/utils/errors.js");
   return { verifyToken: (rol: string) => {
     if (!["admin", "secretaria", "profesor"].includes(rol)) throw new UnauthorizedError("Token inválido");
-    return { id: 42, nombre: "Cuenta", correo: "cuenta@example.test", rol, sid: rol, exp: 4102444800 };
+    return { id: 42, nombre: "Cuenta", correo: "cuenta@example.test", rol, versionSesion: 0, exp: 4102444800 };
   } };
 });
-vi.mock("../src/repositories/sesiones.repository.js", () => ({ sesionesRepository: {
-  findById: vi.fn(async (rol: string) => ({ usuarioId: 42, expiraEn: new Date(4102444800000),
-    usuario: { id: 42, nombre: "Cuenta", correo: "cuenta@example.test", rol } })),
-} }));
+vi.mock("../src/services/auth.service.js", async () => {
+  const { verifyToken } = await import("../src/utils/jwt.js");
+  return { authService: { autenticar: vi.fn(async (token: string) => verifyToken(token)) } };
+});
 vi.mock("../src/repositories/carreras.repository.js", () => ({ carrerasRepository: {
   findAlcanceByUsuarioId: vi.fn(),
 } }));

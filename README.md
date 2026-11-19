@@ -11,7 +11,7 @@
 [![pnpm](https://img.shields.io/badge/pnpm-11.x-orange?logo=pnpm&logoColor=white)](https://pnpm.io/)
 
 Administración: [reinicio de ofertas y horarios, y estados del período](docs/administracion-periodos.md).
-Seguridad: [permisos de cuentas, sesiones revocables y configuración productiva](docs/seguridad-identidad.md).
+Seguridad: [permisos de cuentas, JWT en cookies y configuración productiva](docs/seguridad-identidad.md).
 Autorización: [permisos operativos por rol y excepciones administrativas](docs/permisos-operativos.md).
 Operación HTTP: [errores JSON y apagado ordenado](docs/http-apagado.md).
 

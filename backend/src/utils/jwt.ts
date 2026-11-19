@@ -11,31 +11,31 @@ export interface TokenPayload {
   rol: RolUsuario;
 }
 
-export interface ClaimsSesion extends TokenPayload {
-  sid: string;
+export interface ClaimsAutenticacion extends TokenPayload {
+  versionSesion: number;
   exp: number;
   iat: number;
 }
 
-export function generateToken(payload: TokenPayload, sesionId?: string): string {
+export function generateToken(payload: TokenPayload, versionSesion: number): string {
   const { id, nombre, correo, rol } = payload;
-  return jwt.sign({ id, nombre, correo, rol, ...(sesionId ? { sid: sesionId } : {}) }, env.JWT_SECRET, {
+  return jwt.sign({ id, nombre, correo, rol, versionSesion }, env.JWT_SECRET, {
     algorithm: "HS256",
     expiresIn: env.JWT_EXPIRES_IN as any,
   });
 }
 
-export function verifyToken(token: string): ClaimsSesion {
+export function verifyToken(token: string): ClaimsAutenticacion {
   try {
     const claims = jwt.verify(token, env.JWT_SECRET, { algorithms: ["HS256"] });
     if (typeof claims === "string" || !Number.isSafeInteger(claims.id) || claims.id <= 0 ||
         typeof claims.nombre !== "string" || typeof claims.correo !== "string" ||
         !["secretaria", "profesor", "admin"].includes(claims.rol) ||
-        typeof claims.sid !== "string" || !/^[a-f0-9]{64}$/.test(claims.sid) ||
+        !Number.isSafeInteger(claims.versionSesion) || claims.versionSesion < 0 ||
         !Number.isSafeInteger(claims.exp) || !Number.isSafeInteger(claims.iat) || claims.exp! <= claims.iat!) {
       throw new Error("Claims inválidos");
     }
-    return claims as ClaimsSesion;
+    return claims as ClaimsAutenticacion;
   } catch {
     throw new UnauthorizedError("No autorizado: Token inválido o expirado");
   }

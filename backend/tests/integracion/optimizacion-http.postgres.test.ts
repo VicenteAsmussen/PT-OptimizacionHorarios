@@ -3,7 +3,7 @@ import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { fileURLToPath } from "node:url";
-import { createHash, randomBytes } from "node:crypto";
+import { createHash } from "node:crypto";
 import express, { type Express } from "express";
 import request, { type Test } from "supertest";
 import { exigirBasePruebas } from "../soporte/base-pruebas.js";
@@ -71,14 +71,9 @@ describe.skipIf(!habilitado)("Optimización HTTP en PostgreSQL aislado", () => {
       await conexion`insert into disponibilidad_profesores(profesor_id,planificacion_semestre_id,bloque_id) select p,1,b from unnest(array[1,3]) p cross join unnest(array[1,2,5,6]) b`;
     });
     const { usuariosRepository } = await import("../../src/repositories/usuarios.repository.js");
-    const { sesionesRepository } = await import("../../src/repositories/sesiones.repository.js");
-    const { generateToken, verifyToken } = await import("../../src/utils/jwt.js");
+    const { generateToken } = await import("../../src/utils/jwt.js");
     const usuario = (await usuariosRepository.findById(1))!;
-    const sesionId = randomBytes(32).toString("hex");
-    token = generateToken(usuario, sesionId);
-    expect(await sesionesRepository.createConCredenciales(usuario, {
-      id: sesionId, usuarioId: usuario.id, expiraEn: new Date(verifyToken(token).exp * 1000),
-    })).toBe(true);
+    token = generateToken(usuario, usuario.versionSesion);
   }
   const autorizar = (solicitud: Test) => solicitud.set("Authorization", `Bearer ${token}`);
   const parametros = { claveIdempotencia: "solicitud-regresion-http", recursos: [{ id: "AA-Sala-90", edificio: "AA", tipo: "Sala", capacidad: 90, cantidad: 1, fuente: "Datos sintéticos aislados" }] };
