@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test } from "node:test";
-import { createServer, loadConfigFromFile, transformWithEsbuild } from "vite";
+import { createServer, loadConfigFromFile, transformWithEsbuild } from "./soporte/vite.mjs";
 
 const raiz = fileURLToPath(new URL("../", import.meta.url));
 

@@ -85,7 +85,7 @@ test('reservas consecutivas vacías se agrupan sin ocultar clases ni atravesar h
 });
 
 test('render de sesión única, detalle completo y sala en línea propia sin controles de edición', async () => {
-  const { createServer } = await import('vite');
+  const { createServer } = await import('../../../tests/soporte/vite.mjs');
   const servidor = await createServer({ envFile: false, server: { middlewareMode: true, hmr: false }, appType: 'custom' });
   try {
     const { default: Calendario } = await servidor.ssrLoadModule('/src/features/mi-horario/CalendarioSemanal.tsx');

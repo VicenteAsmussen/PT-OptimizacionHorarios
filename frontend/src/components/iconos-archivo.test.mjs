@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { createServer } from 'vite';
+import { createServer } from '../../tests/soporte/vite.mjs';
 
 test('los iconos de archivo usan los SVG proporcionados, color heredado y decoración accesible', async () => {
   const servidor = await createServer({ envFile: false, server: { middlewareMode: true }, appType: 'custom' });

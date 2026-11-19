@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { createServer } from 'vite';
+import { createServer } from '../../../tests/soporte/vite.mjs';
 
 test('iconos del modelo reutilizan ojo y ejecutar proporcionados como decoración de color heredado', async () => {
   const servidor = await createServer({ envFile: false, server: { middlewareMode: true }, appType: 'custom' });

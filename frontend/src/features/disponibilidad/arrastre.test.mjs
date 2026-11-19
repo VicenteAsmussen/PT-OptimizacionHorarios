@@ -155,7 +155,7 @@ test('bloqueo durante el gesto y reservas nuevas impiden cambios, desbloquear no
 });
 
 test('las horas comunes se muestran una vez y las distintas conservan el horario de cada celda', async () => {
-  const { createServer } = await import('vite');
+  const { createServer } = await import('../../../tests/soporte/vite.mjs');
   const { renderToStaticMarkup } = await import('react-dom/server');
   const servidor = await createServer({ envFile: false, server: { middlewareMode: true }, appType: 'custom' });
   try {

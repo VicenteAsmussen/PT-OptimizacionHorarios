@@ -6,6 +6,9 @@
   "scripts": {
     "dev": "vite --host",
     "test": "node --test tests/*.test.mjs",
+    "test:transporte": "node ../scripts/verificar-local.mjs transporte",
+    "test:funcionalidades": "node ../scripts/verificar-local.mjs frontend",
+    "test:tipos": "node ../scripts/verificar-local.mjs tipos-frontend",
     "build": "tsc && vite build",
     "preview": "vite preview"
   },

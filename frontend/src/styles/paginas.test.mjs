@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runInNewContext } from 'node:vm';
-import { build } from 'vite';
+import { build } from '../../tests/soporte/vite.mjs';
 
 const clasesCompartidas = [
   'pagina', 'cabecera', 'filtros', 'campos', 'acciones', 'accionPrincipal',

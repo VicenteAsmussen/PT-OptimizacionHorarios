@@ -21,7 +21,7 @@ export const resultado = { planificacion: { id: 2, codigo: '2026-2', carreraId: 
   disponibilidades: [...bloques, ...bloques.map(b => ({ ...b, id: b.id + 100 }))].map(b => ({ profesorId: 8, bloqueId: b.id, planificacionSemestreId: 2 })) };
 
 test('S2 tres concurrencias parciales conservan una tarjeta, identidad y carril por sesión', async () => {
-  const { createServer } = await import('vite');
+  const { createServer } = await import('../../../tests/soporte/vite.mjs');
   const { createElement } = await import('react');
   const { renderToStaticMarkup } = await import('react-dom/server');
   const servidor = await createServer({ envFile: false, server: { middlewareMode: true }, appType: 'custom' });
@@ -47,7 +47,7 @@ test('S2 tres concurrencias parciales conservan una tarjeta, identidad y carril 
 });
 
 test('todas las sesiones usan siglas y conservan identidad, duración y nombres completos accesibles', async () => {
-  const { createServer } = await import('vite');
+  const { createServer } = await import('../../../tests/soporte/vite.mjs');
   const { createElement } = await import('react');
   const { renderToStaticMarkup } = await import('react-dom/server');
   const servidor = await createServer({ envFile: false, server: { middlewareMode: true }, appType: 'custom' });
@@ -80,7 +80,7 @@ test('todas las sesiones usan siglas y conservan identidad, duración y nombres 
 });
 
 test('S2 filas compactas usan altura intrínseca sin recortar nombres ni salas variables', async () => {
-  const { createServer } = await import('vite');
+  const { createServer } = await import('../../../tests/soporte/vite.mjs');
   const { createElement } = await import('react');
   const { renderToStaticMarkup } = await import('react-dom/server');
   const { readFile } = await import('node:fs/promises');
@@ -105,7 +105,7 @@ test('S2 filas compactas usan altura intrínseca sin recortar nombres ni salas v
 });
 
 test('S11 reservas continuas ocupan el día completo sin carril extra ni ocultar sesiones', async () => {
-  const { createServer } = await import('vite');
+  const { createServer } = await import('../../../tests/soporte/vite.mjs');
   const { createElement } = await import('react');
   const { renderToStaticMarkup } = await import('react-dom/server');
   const servidor = await createServer({ envFile: false, server: { middlewareMode: true }, appType: 'custom' });
@@ -133,7 +133,7 @@ test('S11 reservas continuas ocupan el día completo sin carril extra ni ocultar
 });
 
 test('S12-S13 carriles adaptativos conservados y auxiliar fijo de 6rem para 0 a 4 concurrencias', async () => {
-  const { createServer } = await import('vite');
+  const { createServer } = await import('../../../tests/soporte/vite.mjs');
   const { createElement } = await import('react');
   const { renderToStaticMarkup } = await import('react-dom/server');
   const { readFile } = await import('node:fs/promises');
@@ -164,7 +164,7 @@ test('S12-S13 carriles adaptativos conservados y auxiliar fijo de 6rem para 0 a 
 });
 
 test('S12 la vista previa usa un resumen por grupo sin repetir nombres largos en cada bloque', async () => {
-  const { createServer } = await import('vite');
+  const { createServer } = await import('../../../tests/soporte/vite.mjs');
   const { createElement } = await import('react');
   const { renderToStaticMarkup } = await import('react-dom/server');
   const servidor = await createServer({ envFile: false, server: { middlewareMode: true }, appType: 'custom' });
@@ -807,7 +807,7 @@ test('public API uses only proposal-result endpoints and preserves revision-boun
 });
 
 test('calendar distinguishes neutral external sessions and ready managed sessions without changing consultation', async () => {
-  const { createServer } = await import('vite');
+  const { createServer } = await import('../../../tests/soporte/vite.mjs');
   const { createElement } = await import('react');
   const { renderToStaticMarkup } = await import('react-dom/server');
   const servidor = await createServer({ envFile: false, server: { middlewareMode: true }, appType: 'custom' });
@@ -906,7 +906,7 @@ test('calendar distinguishes neutral external sessions and ready managed session
 });
 
 test('selected group is grey and its unsaved destination preview does not mutate the timetable', async () => {
-  const { createServer } = await import('vite');
+  const { createServer } = await import('../../../tests/soporte/vite.mjs');
   const { createElement } = await import('react');
   const { renderToStaticMarkup } = await import('react-dom/server');
   const { readFile } = await import('node:fs/promises');
@@ -941,7 +941,7 @@ test('selected group is grey and its unsaved destination preview does not mutate
 });
 
 test('S11 cells show their own availability while only odd starts admit a full group', async () => {
-  const { createServer } = await import('vite');
+  const { createServer } = await import('../../../tests/soporte/vite.mjs');
   const { createElement } = await import('react');
   const { renderToStaticMarkup } = await import('react-dom/server');
   const servidor = await createServer({ envFile: false, server: { middlewareMode: true }, appType: 'custom' });
@@ -1386,7 +1386,7 @@ test('visual group choices show origin and full destination ranges and preserve 
 });
 
 test('two-block sessions omit redundant choices and identify the exact origin group and two unsaved destination blocks', async () => {
-  const { createServer } = await import('vite');
+  const { createServer } = await import('../../../tests/soporte/vite.mjs');
   const { createElement } = await import('react');
   const { renderToStaticMarkup } = await import('react-dom/server');
   const servidor = await createServer({ envFile: false, server: { middlewareMode: true }, appType: 'custom' });
