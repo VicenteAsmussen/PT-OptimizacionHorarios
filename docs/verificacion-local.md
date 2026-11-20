@@ -12,7 +12,7 @@ La fase siguiente tiene un [ensayo HTTP/SQL separado con PostgreSQL efímero y r
 | `node --test scripts/verificar-local.test.mjs frontend/tests/soporte/vite.test.mjs` | Regresión del selector, entorno hijo, conservación de scripts y aislamiento Vite | Sin aplicación ni base, un servidor SSR sin listener HTTP/WebSocket |
 | `pnpm --dir frontend test:transporte` | Cliente API y proxy Vite contra destino HTTP sintético | Servidores loopback efímeros y caché temporal externa |
 | `pnpm --dir frontend test:funcionalidades` | 40 archivos seleccionados de `src`, lógica, render y estilos con dobles | Vite/compilación de pruebas en memoria, temporales externos, sin backend real |
-| `pnpm --dir backend test:local` | 15 archivos seleccionados, validación, Excel en memoria y contratos del optimizador con dobles | HTTP local de Supertest, sin PostgreSQL ni proceso Julia real |
+| `pnpm --dir backend test:local` | Inventario explícito de validación, autenticación HTTP, CSRF, frontend compilado, Excel y contratos del optimizador con dobles | HTTP local de Supertest, sin PostgreSQL ni proceso Julia real |
 | `pnpm --dir frontend test:tipos` | TypeScript de `frontend/src` | Sin emisión de archivos |
 | `pnpm --dir backend test:tipos` | TypeScript de `backend/src` | Sin emisión de archivos |
 
@@ -36,10 +36,10 @@ La fuente del inventario ejecutable es `scripts/verificar-local.mjs`. Las incorp
 | `frontend/src/features/resultados-horarios/salas.navegador.test.mjs` | Regresión de duplicación de salas, requiere Edge/Chromium instalado, perfil externo y API sintética. Ejecución explícita según docs/escenario-demostracion.md, fuera de la selección local sin navegador |
 | `backend/tests/integracion/**` | Requieren base y operaciones persistidas, algunas suites migran y truncan |
 | `backend/tests/seed/**` | Fuera del alcance, no se ejecuta seed ni su CLI, tampoco se certifica anonimización |
-| 42 de los 46 archivos de tests backend raíz | Fuera de la lista positiva, pendientes de revisión transitiva individual. En particular, `health.test.ts` y `horarios-externos-http.test.ts` alcanzan `app.ts` y la configuración real |
-| Build habitual de ambos paquetes | Genera `dist`, no se ejecuta en esta fase. El chequeo de tipos no demuestra empaquetado de producción |
+| Tests backend fuera del inventario explícito | Pendientes de revisión transitiva individual. En particular, `health.test.ts` y `horarios-externos-http.test.ts` alcanzan `app.ts` y la configuración real |
+| Build habitual de ambos paquetes | Genera `dist` y puede leer configuración local de Vite, no forma parte del arnés de pruebas. Se verifica aparte al adaptar ejecución productiva, el chequeo de tipos solo no demuestra empaquetado |
 | Julia/HiGHS real, Excel con persistencia y recorrido del navegador contra la aplicación | Los dobles y contratos puros no certifican esos flujos integrados |
-| HTTPS, cookies en el servidor destino y acceso desde la red universitaria | Sin verificación remota en esta fase |
+| HTTP, cookies en navegador del destino y acceso desde la red universitaria | Sin verificación remota, HTTPS no es requisito de alcance |
 
 Los siete archivos Excel seleccionados usan libros en memoria y repositorios/DB simulados. Los cuatro de optimización comprueban validación, contrato matemático, HTTP simulado y manejo de un subproceso simulado. Ninguno resuelve un problema mediante Julia real. Las pruebas de configuración sustituyen `dotenv` y las de conexión sustituyen el cliente PostgreSQL.
 
@@ -69,4 +69,4 @@ Durante la construcción del arnés se observó RED por módulos aún inexistent
 
 ## Continuidad para la fase 2
 
-Partir de esta línea base y de sus omisiones, sin volver a diseñar la autenticación integrada. Antes del ensayo de alojamiento, confirmar HTTPS, restricciones de ejecución y acceso desde la red universitaria, y revisar los datos de referencia sin asumir que todos los registros sean ficticios. La adaptación sin Docker adicional y las pruebas con datos necesitan su fase y autorización propias. No interpretar esta guía como autorización para ejecutar preparación, migraciones o seed.
+Partir de esta línea base histórica y de sus omisiones, sin volver a diseñar la autenticación integrada. La [configuración vigente](configuracion-demostracion.md) establece HTTP normal con frontend y API compilados en el mismo origen. Antes del ensayo de alojamiento, confirmar restricciones de ejecución y acceso desde la red universitaria, y revisar los datos de referencia sin asumir que todos los registros sean ficticios. Las pruebas en el alojamiento y con datos necesitan autorización propia. No interpretar esta guía como autorización para ejecutar preparación, migraciones o seed.

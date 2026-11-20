@@ -12,6 +12,9 @@ export class ApiError extends Error {
 export async function api<T>(ruta: string, opciones: RequestInit = {}): Promise<T> {
   const headers = new Headers(opciones.headers);
   headers.set("Accept", "application/json");
+  if (!["GET", "HEAD", "OPTIONS"].includes((opciones.method ?? "GET").toUpperCase())) {
+    headers.set("X-CSRF-Protection", "1");
+  }
   if (opciones.body instanceof FormData) headers.delete("Content-Type");
   else if (opciones.body !== undefined) headers.set("Content-Type", "application/json");
 

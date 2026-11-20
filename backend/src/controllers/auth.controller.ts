@@ -1,12 +1,12 @@
 import type { Request, Response, NextFunction } from "express";
 import { authService } from "../services/auth.service.js";
 import { COOKIE_AUTH_NAME } from "../middlewares/auth.middleware.js";
-import { env } from "../config/env.js";
 
 const COOKIE_OPTIONS = {
   httpOnly: true,
-  secure: env.NODE_ENV === "production",
-  sameSite: (env.NODE_ENV === "production" ? "none" : "lax") as "none" | "lax",
+  secure: false,
+  sameSite: "lax" as const,
+  path: "/",
 };
 
 export const authController = {

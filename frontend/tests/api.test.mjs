@@ -31,6 +31,7 @@ test("usa el mismo origen para JSON, formularios y archivos sin cambiar sus opci
     assert.equal(llamadas[0].opciones.body, '{"prueba":true}');
     assert.equal(llamadas[0].opciones.credentials, "include");
     assert.equal(llamadas[0].opciones.headers.get("Content-Type"), "application/json");
+    assert.equal(llamadas[0].opciones.headers.get("X-CSRF-Protection"), "1");
     const formulario = new FormData();
     formulario.append("archivo", new Blob(["datos"]), "prueba.xlsx");
     const { signal } = new AbortController();
@@ -39,6 +40,7 @@ test("usa el mismo origen para JSON, formularios y archivos sin cambiar sus opci
     assert.equal(llamadas[1].opciones.body, formulario);
     assert.equal(llamadas[1].opciones.signal, signal);
     assert.equal(llamadas[1].opciones.headers.has("Content-Type"), false);
+    assert.equal(llamadas[1].opciones.headers.get("X-CSRF-Protection"), "1");
     assert.ok(await cliente.apiArchivo("salas/exportar?soloPendientes=true", signal) instanceof Blob);
     assert.equal(llamadas[2].url, "/api/salas/exportar?soloPendientes=true");
     assert.equal(llamadas[2].opciones.credentials, "include");
@@ -58,6 +60,24 @@ test("conserva la URL de API explícita, los errores y las respuestas vacías", 
     globalThis.fetch = async () => new Response('{"message":"Sin sesión"}', { status: 401 });
     await assert.rejects(cliente.api("auth/me"), error => error instanceof cliente.ApiError && error.status === 401 && error.message === "Sin sesión");
     await assert.rejects(cliente.apiArchivo("exportar"), error => error instanceof cliente.ApiError && error.status === 401);
+  } finally { globalThis.fetch = anterior; }
+});
+
+test("protege todas las mutaciones sin añadir cabecera CSRF a lecturas", async () => {
+  const cliente = await cargarApi();
+  const anterior = globalThis.fetch;
+  globalThis.fetch = async (_url, opciones) => {
+    const mutable = !["GET", "HEAD", "OPTIONS"].includes((opciones.method ?? "GET").toUpperCase());
+    assert.equal(opciones.headers.get("X-CSRF-Protection"), mutable ? "1" : null);
+    assert.equal(opciones.credentials, "include");
+    return new Response(null, { status: 204 });
+  };
+  try {
+    for (const method of ["POST", "PUT", "PATCH", "DELETE", "post", "GET", "HEAD", "OPTIONS"]) {
+      await cliente.api("auth/logout", { method });
+    }
+    await cliente.api("auth/me");
+    await cliente.api("auth/logout", { method: "POST", headers: { "X-CSRF-Protection": "incorrecto" } });
   } finally { globalThis.fetch = anterior; }
 });
 

@@ -52,6 +52,9 @@ export const comprobaciones = {
     "src/styles/paginas.test.mjs",
   ] },
   backend: { directorio: "backend", archivos: [
+    "tests/auth-jwt.test.ts",
+    "tests/transporte-http.test.ts",
+    "tests/frontend-compilado.test.ts",
     "tests/configuracion-entorno.test.ts",
     "tests/limites-profesores.test.ts",
     "tests/rut.test.ts",

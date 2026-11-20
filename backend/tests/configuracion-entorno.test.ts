@@ -148,6 +148,16 @@ it("exige CLIENT_URL explícito en producción sin elegir un origen por el opera
   await comprobarRechazo("CLIENT_URL", "CLIENT_URL debe configurarse explícitamente en producción");
 });
 
+it("acepta HTTP como origen normal en producción sin cambiar el entorno ni introducir un modo demo", async () => {
+  vi.stubEnv("NODE_ENV", "production");
+  vi.stubEnv("JWT_SECRET", secretoProduccion);
+  vi.stubEnv("CLIENT_URL", "http://127.0.0.1:3000");
+  const { env } = await import("../src/config/env.js");
+  expect(env.NODE_ENV).toBe("production");
+  expect(env.CLIENT_URL).toBe("http://127.0.0.1:3000");
+  expect(console.error).not.toHaveBeenCalled();
+});
+
 it.each(["", "*", "null", "cliente.invalid", "https://cliente.invalid/ruta", "https://cliente.invalid?dato=1", "https://cliente.invalid#dato", "https://usuario:clave@cliente.invalid", "ftp://cliente.invalid"])(
   "rechaza CLIENT_URL que no es un origen HTTP exacto: %j", async (origen) => {
     vi.stubEnv("CLIENT_URL", origen);

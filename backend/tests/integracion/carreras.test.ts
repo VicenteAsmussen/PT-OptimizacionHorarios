@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { beforeAll, describe, expect, it } from "vitest";
-import request from "supertest";
+import request from "../soporte/solicitud-api.js";
 import { habilitarPruebasIntegracion } from "../soporte/base-pruebas.js";
 
 const ejecutarIntegracion = habilitarPruebasIntegracion(process.env);

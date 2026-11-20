@@ -54,7 +54,7 @@ test("la interfaz pública lista sin ejecutar y rechaza entradas ajenas con sali
   assert.equal(listado.stderr, "");
   assert.match(listado.stdout, /transporte: 1 archivos explícitos/);
   assert.match(listado.stdout, /frontend: 40 archivos explícitos/);
-  assert.match(listado.stdout, /backend: 15 archivos explícitos/);
+  assert.match(listado.stdout, /backend: 18 archivos explícitos/);
   for (const argumentos of [[], ["seed"], ["frontend", "--otro-archivo"], ["__proto__"]]) {
     const rechazo = spawnSync(process.execPath, [script, ...argumentos], { encoding: "utf8" });
     assert.equal(rechazo.status, 1);
