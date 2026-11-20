@@ -5,7 +5,7 @@ import { migrate } from "drizzle-orm/postgres-js/migrator";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 import express, { type Express } from "express";
-import request, { type Test } from "supertest";
+import request, { type Test } from "../soporte/solicitud-api.js";
 import { exigirBasePruebas } from "../soporte/base-pruebas.js";
 import type { EntradaOptimizacion, SalidaOptimizacion } from "../../src/optimizacion/contrato.js";
 

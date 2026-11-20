@@ -6,8 +6,10 @@ import { cerrarOptimizacion } from "./services/optimizacion.service.js";
 import { cerrarProcesosJulia } from "./optimizacion/index.js";
 import { queryClient } from "./config/db.js";
 import { crearApagado } from "./utils/apagado.js";
+import { exigirFrontendCompilado } from "./config/frontend.js";
 
 const PORT = env.PORT;
+if (env.NODE_ENV === "production") exigirFrontendCompilado();
 
 const recuperaciones = new Set<Promise<void>>();
 const servidor = createServer((solicitud, respuesta) => {

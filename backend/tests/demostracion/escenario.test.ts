@@ -11,7 +11,7 @@ import type { IncomingMessage } from "node:http";
 import ExcelJS from "exceljs";
 import { encabezadosExcelSalas } from "../../src/utils/excel/excel-salas.js";
 import type { Application } from "express";
-import request from "supertest";
+import request from "../soporte/solicitud-api.js";
 import type { EntradaOptimizacion, SalidaOptimizacion } from "../../src/optimizacion/contrato.js";
 
 const control = vi.hoisted(() => ({ cliente: undefined as ReturnType<typeof postgres> | undefined,

@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import request from "supertest";
+import request from "../soporte/solicitud-api.js";
 import { eq } from "drizzle-orm";
 import { planificacionesSemestres } from "../../src/db/schema/planificaciones-semestres.schema.js";
 import { habilitarPruebasIntegracion } from "../soporte/base-pruebas.js";

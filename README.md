@@ -230,17 +230,24 @@ Los contratos de API, formatos de planilla y detalles de migraciones se document
    pnpm run db:studio     # Abrir visor web Drizzle Studio
    ```
 
-### Prueba del frontend mediante un túnel de VS Code
+### Ejecución normal por HTTP
 
-Con el backend disponible en el puerto `3000`, ejecutar `pnpm --dir frontend dev` y reenviar únicamente el puerto `5173` desde la pestaña **Ports** de VS Code. Abrir la dirección HTTPS del túnel y entrar en `/login`.
+HTTP es la decisión definitiva de alcance para esta tesis, sin publicación en Internet ni interruptor de demostración. Se ejecutan backend y frontend compilados, con `NODE_ENV=production`.
 
-El frontend usa `/api` y Vite reenvía esas peticiones al backend local. Esto mantiene el mismo origen para la sesión, las cargas y las descargas, sin publicar el puerto del backend ni ampliar CORS. Si se configura `VITE_API_URL`, ese valor prevalece, para este túnel debe omitirse o usar `/api`. No configurar `allowedHosts: true`. Si Vite rechaza el dominio, autorizar únicamente el nombre exacto del túnel mediante `__VITE_ADDITIONAL_SERVER_ALLOWED_HOSTS` al iniciar el servidor.
+```bash
+pnpm --dir frontend build
+pnpm --dir backend build
+# Con las variables productivas configuradas externamente:
+pnpm --dir backend start
+```
 
-Mantener la computadora y los servicios encendidos durante la prueba. Restringir el acceso del túnel a las personas autorizadas, las cuentas iniciales tienen claves predecibles y no son adecuadas para acceso público. Las acciones de secretaría escriben en la misma base local, no en una copia. Cerrar el túnel al terminar.
+Express sirve `frontend/dist` y `/api` bajo el mismo origen, sin Vite ni proxy adicional. En local puede ser `http://localhost:3000/login`, con `CLIENT_URL=http://localhost:3000`. Omitir `VITE_API_URL` o usar `/api` al compilar. Ver las variables requeridas y el arranque en [configuración HTTP](docs/configuracion-demostracion.md), con la plantilla `backend/.env.example`. No copiar secretos ni archivos `.env` locales al servidor.
 
-Comprobar primero el inicio de sesión y la recuperación de sesión al recargar. Después probar las pantallas, cargas de Excel, generación y descarga de resultados con datos controlados. El proxy resuelve el transporte, no garantiza la validez de los archivos, la disponibilidad del optimizador ni la ejecución completa del flujo. Esta configuración es de desarrollo, no sustituye un proxy de despliegue para los archivos compilados.
+La cookie mantiene HttpOnly, `Secure=false` y `SameSite=Lax`. Las mutaciones, incluidos logout y Excel, exigen la cabecera CSRF que añade el cliente y validan `Origin` cuando aparece. No cambian los permisos por rol o carrera ni se guardan tokens en localStorage.
 
-Las pruebas de transporte del frontend se ejecutan con `pnpm --dir frontend test`, sin modificar la base de datos.
+**HTTP no cifra credenciales, cookies ni datos.** No se asume que la red esté restringida, el acceso efectivo, las cuentas y los datos deben comprobarse por separado. Las pruebas locales no acreditan despliegue, navegador real ni disponibilidad del optimizador. Para las comprobaciones sin base real, consultar [verificación local](docs/verificacion-local.md).
+
+En desarrollo se conserva Vite con proxy `/api` hacia el backend local. Su origen predeterminado es `http://localhost:5173`, no debe confundirse con el arranque compilado productivo.
 
 ### Verificación
 

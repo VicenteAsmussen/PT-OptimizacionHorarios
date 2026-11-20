@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 import postgres from "postgres";
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";
-import request, { type Test } from "supertest";
+import request, { type Test } from "../soporte/solicitud-api.js";
 import type { Express } from "express";
 import { exigirBasePruebas } from "../soporte/base-pruebas.js";
 

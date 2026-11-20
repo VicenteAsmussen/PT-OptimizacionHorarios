@@ -110,7 +110,7 @@ describe("JWT y cookies sin sesiones persistidas", () => {
     expect(segundos).toBeLessThanOrEqual(7200);
   });
 
-  it("conserva Secure, HttpOnly y SameSite=None en producción, también al borrar la cookie", async () => {
+  it("conserva HttpOnly, Secure=false y SameSite=Lax en producción HTTP, también al borrar la cookie", async () => {
     env.NODE_ENV = "production";
     // Las opciones se fijan al cargar el controlador, como en un arranque real.
     vi.resetModules();
@@ -134,8 +134,8 @@ describe("JWT y cookies sin sesiones persistidas", () => {
       expect(salida.body).toEqual(cierre);
       for (const cabecera of [entrada.headers["set-cookie"][0], salida.headers["set-cookie"][0]]) {
         expect(cabecera).toContain("HttpOnly");
-        expect(cabecera).toContain("Secure");
-        expect(cabecera).toContain("SameSite=None");
+        expect(cabecera).not.toContain("Secure");
+        expect(cabecera).toContain("SameSite=Lax");
         expect(cabecera).toContain("Path=/");
       }
       expect(salida.headers["set-cookie"][0]).toContain("Expires=Thu, 01 Jan 1970");

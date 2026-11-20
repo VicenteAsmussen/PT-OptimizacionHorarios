@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from "vitest";
-import request from "supertest";
+import request from "../soporte/solicitud-api.js";
 import { habilitarPruebasIntegracion } from "../soporte/base-pruebas.js";
 import { randomInt, randomUUID } from "node:crypto";
 import { eq, and } from "drizzle-orm";
