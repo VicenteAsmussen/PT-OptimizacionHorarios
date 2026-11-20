@@ -6,7 +6,7 @@ test('JSON requests retain headers, credentials, body and successful responses',
   const anterior = globalThis.fetch;
   try {
     globalThis.fetch = async (url, opciones) => {
-      assert.equal(url, 'http://localhost:3000/api/asignaturas');
+      assert.equal(url, '/api/asignaturas');
       assert.equal(opciones.credentials, 'include');
       assert.equal(opciones.headers.get('Content-Type'), 'application/json');
       assert.equal(opciones.headers.get('Accept'), 'application/json');
@@ -50,7 +50,7 @@ test('binary downloads retain cookie credentials, abort signal and structured fa
   const controlador = new AbortController();
   try {
     globalThis.fetch = async (url, opciones) => {
-      assert.equal(url, 'http://localhost:3000/api/resultados-horarios/2/salas/exportar?soloPendientes=true');
+      assert.equal(url, '/api/resultados-horarios/2/salas/exportar?soloPendientes=true');
       assert.equal(opciones.credentials, 'include');
       assert.equal(opciones.signal, controlador.signal);
       return new Response(new Blob(['xlsx']));

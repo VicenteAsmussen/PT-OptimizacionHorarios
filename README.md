@@ -15,6 +15,7 @@ Seguridad: [permisos de cuentas, JWT en cookies y configuración productiva](doc
 Autorización: [permisos operativos por rol y excepciones administrativas](docs/permisos-operativos.md).
 Operación HTTP: [errores JSON y apagado ordenado](docs/http-apagado.md).
 Verificación local: [comandos seguros, alcance y línea base de la demostración](docs/verificacion-local.md).
+Escenario ficticio: [ensayo HTTP/SQL aislado, guion y límites de los resultados sintéticos](docs/escenario-demostracion.md).
 
 ---
 
