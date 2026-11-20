@@ -13,10 +13,12 @@ export function configuracionAislada(opciones, cache) {
     server: { ...opciones.server, host: "127.0.0.1", ws: false, hmr: false, watch: null } };
 }
 
+// Carga la configuración sin generar el paquete temporal habitual dentro del proyecto.
 export function loadConfigFromFile(entorno, archivo, raiz, nivel, registrador) {
   return cargarConfiguracion(entorno, archivo, raiz, nivel, registrador, "runner");
 }
 
+// Aloja las transformaciones de prueba con caché externa y limpieza asociada al cierre del servidor.
 export async function createServer(opciones = {}) {
   const cache = await mkdtemp(join(tmpdir(), "vite-pruebas-"));
   try {
@@ -33,6 +35,7 @@ export async function createServer(opciones = {}) {
   }
 }
 
+// Compila los recursos del ensayo en memoria y retira su caché incluso cuando la compilación falla.
 export async function build(opciones = {}) {
   const cache = await mkdtemp(join(tmpdir(), "vite-pruebas-"));
   try {

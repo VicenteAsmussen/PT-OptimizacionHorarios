@@ -12,6 +12,7 @@ interface Propiedades {
   resultado: ResultadoHorario; nivel: string; seleccionar: (sesion: SesionResultado) => void; ocupado?: boolean; editar?: boolean;
   movimiento?: { sesion: SesionResultado; idsHorarios: number[]; cantidad: number; inicioId: number; invalido: boolean; elegir: (id: number) => void };
 }
+// Presenta sesiones simultáneas, reservas y destinos de movimiento sin guardar la vista previa.
 export default function CalendarioResultados({ resultado, nivel, seleccionar, ocupado, editar = false, movimiento }: Propiedades) {
   const sesiones = sesionesVisibles(resultado, nivel);
   const disposicion = distribuirSesiones(resultado.bloques, sesiones);
@@ -25,41 +26,51 @@ export default function CalendarioResultados({ resultado, nivel, seleccionar, oc
   const actuales = useRef({ resultado, movimiento, ocupado, editar });
   actuales.current = { resultado, movimiento, ocupado, editar };
   const gesto = useRef<ReturnType<typeof crearGesto> | null>(null);
+  // Traduce la posición del puntero al inicio de pareja institucional del destino.
   function bloqueBajoPuntero(x: number, y: number) {
     const elemento = document.elementsFromPoint(x, y).map(e => e.closest<HTMLElement>('[data-destino-id]')).find(Boolean);
     const id = Number(elemento?.dataset.destinoId);
     return inicioParejaDestino(actuales.current.resultado.bloques, id)?.id ?? null;
   }
+  // Comprueba si el destino visual admite todo el grupo seleccionado.
   function admiteGrupo(id: number | null) {
     const actual = actuales.current;
     return Boolean(id !== null && actual.movimiento
       && estadoDestino(actual.resultado, actual.movimiento.sesion, id, actual.movimiento.cantidad) === 'disponible');
   }
   if (!gesto.current) gesto.current = crearGesto({
+    // Verifica que el gesto siga asociado a la sesión editable seleccionada.
     preparado: identidad => {
       const actual = actuales.current;
       return Boolean(actual.editar && !actual.ocupado && Array.isArray(actual.resultado.disponibilidades)
         && actual.movimiento && identidadSesion(actual.movimiento.sesion) === identidad);
     },
+    // Resuelve un destino bajo el puntero únicamente si admite el grupo completo.
     destino: (x, y) => {
       const id = bloqueBajoPuntero(x, y);
       return admiteGrupo(id) ? id : null;
     },
+    // Actualiza la guía de arrastre sin cambiar todavía el destino previsualizado.
     representar: puntero => {
       if (!puntero) { setArrastre(null); return; }
       const id = bloqueBajoPuntero(puntero.clientX, puntero.clientY);
       const valido = admiteGrupo(id);
       setArrastre(anterior => anterior?.bloqueId === id && anterior.valido === valido ? anterior : { bloqueId: id, valido });
     },
+    // Comunica el destino soltado al editor para su posterior validación.
     elegir: id => actuales.current.movimiento?.elegir(id), anunciar: setAnuncio,
   }, { programar: setTimeout.bind(globalThis), cancelar: clearTimeout.bind(globalThis) });
   useEffect(() => {
     const controlador = gesto.current!;
+    // Retira el gesto al cambiar la intención de interacción del calendario.
     const cancelar = () => controlador.cancelar();
+    // Cancela el arrastre cuando el teclado inicia navegación o desplazamiento.
     const teclado = (evento: KeyboardEvent) => { if (['Escape', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'PageUp', 'PageDown', 'Home', 'End', ' ', 'Tab'].includes(evento.key)) cancelar(); };
-    // La selección puede provocar scroll del documento por reflujo antes de activar el gesto.
-    // Wheel, teclado y movimiento táctil distinguen la intención de desplazarse del usuario.
+    // Seleccionar puede desplazar el documento por un cambio de distribución antes de activar el gesto.
+    // La rueda, el teclado y el movimiento táctil permiten distinguir el desplazamiento intencional.
+    // Cancela gestos ante desplazamientos ajenos al reflujo inicial del documento.
     const desplazar = (evento: Event) => { if (controlador.activo() || evento.target !== document) cancelar(); };
+    // Evita desplazar la pantalla táctil mientras el grupo se está arrastrando.
     const tactil = (evento: TouchEvent) => { if (controlador.activo()) evento.preventDefault(); };
     window.addEventListener('pointermove', controlador.mover, { passive: false });
     window.addEventListener('pointerup', controlador.soltar);

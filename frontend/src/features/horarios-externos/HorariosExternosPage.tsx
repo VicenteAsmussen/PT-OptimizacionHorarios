@@ -13,11 +13,13 @@ import estilos from './HorariosExternos.module.css';
 import ResumenDepartamentos from './ResumenDepartamentos';
 import { AvisoBloqueo, useBloqueoOptimizacion } from '../optimizacion/SeguimientoOptimizacion';
 
+// Reinicia el contexto de importación externa al cambiar la cuenta autenticada.
 export default function HorariosExternosPage() {
   const { usuario } = useAuth();
   return <PaginaImportacion key={usuario?.id} />;
 }
 
+// Coordina archivo, confirmación y consulta persistida de horarios externos.
 function PaginaImportacion() {
   const [datos, setDatos] = useState<{ planificaciones: PlanificacionSemestre[]; departamentos: DepartamentoExterno[] } | null>(null);
   const [errorCarga, setErrorCarga] = useState('');
@@ -73,19 +75,23 @@ function PaginaImportacion() {
     return () => { activo = false; };
   }, [planificacionId, departamentoId, actualizacion]);
 
+  // Retira el aviso asociado al contexto de importación que deja de estar vigente.
   function limpiarAviso(actual = avisoImportacion.current) {
     if (actual.id !== undefined) notificaciones.cerrar(actual.id);
     actual.id = undefined;
   }
+  // Descarta el diagnóstico del archivo anterior antes de una nueva revisión.
   function limpiarResultado() {
     limpiarAviso(); setErrorArchivo('');
     setResultado(null); setErrores([]); setMensaje(''); setRechazado(false); setConfirmado(false);
   }
+  // Restablece el archivo seleccionado y su confirmación sin alterar la carga guardada.
   function limpiarArchivo() {
     setArchivo(null);
     if (controlArchivo.current) controlArchivo.current.value = '';
     limpiarResultado();
   }
+  // Solicita el reemplazo confirmado y diferencia rechazo de resultado incierto.
   async function importar() {
     if (enviando.current || !archivo || !confirmado || !editable || !persistida || planificacionId === null || departamentoId === null) return;
     const avisoActual = avisoImportacion.current;

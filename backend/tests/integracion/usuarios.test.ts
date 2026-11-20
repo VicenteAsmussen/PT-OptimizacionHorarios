@@ -13,13 +13,13 @@ describe.skipIf(!ejecutarIntegracion)("Módulo Usuarios y Seguridad (/api/usuari
   let usuarioId: number;
 
   beforeAll(async () => {
-    // 1. Iniciar sesión como admin
+    // Inicia sesión como administrador.
     const adminRes = await request(app)
       .post("/api/auth/login")
       .send({ correo: "admin@ubiobio.cl", clave: "admin123" });
     adminCookie = adminRes.headers["set-cookie"];
 
-    // 2. Obtener carrera existente
+    // Obtiene una carrera existente.
     const carrera = await db.query.carreras.findFirst();
     carreraId = carrera!.id;
   });
@@ -42,7 +42,7 @@ describe.skipIf(!ejecutarIntegracion)("Módulo Usuarios y Seguridad (/api/usuari
     expect(res.body.data.rol).toBe("secretaria");
     expect(res.body.data.secretaria.carreraId).toBe(carreraId);
 
-    // Sanitización: la contraseña NUNCA debe viajar en la respuesta
+    // La respuesta nunca debe incluir la contraseña.
     expect(res.body.data.clave).toBeUndefined();
 
     usuarioId = res.body.data.id;

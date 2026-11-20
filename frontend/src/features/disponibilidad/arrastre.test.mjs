@@ -15,6 +15,7 @@ registerHooks({ resolve(especificador, contexto, siguiente) {
 
 const bloques = [1, 2, 3, 4].map(id => ({ id, dia: 'Lunes', numeroBloque: id, horaInicio: '08:10', horaTermino: '08:50' }));
 
+// Prueba manejadores con punteros simulados y restaura window, sin verificar captura física ni geometría del DOM.
 async function montar(inicial = {}) {
   const fuente = await readFile(new URL('./GrillaDisponibilidad.tsx', import.meta.url), 'utf8');
   const codigo = ts.transpileModule(fuente, { compilerOptions: {

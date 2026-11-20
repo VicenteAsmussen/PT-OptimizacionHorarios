@@ -188,7 +188,7 @@ describe("catálogos institucionales mediante HTTP y persistencia simulada", () 
     expect(memoria.escrituras).toBe(0);
     expect(JSON.stringify(memoria.tablas)).toBe(antes);
   });
-  it("la guarda vuelve a comprobar el uso después del bloqueo, sin confiar en la lectura para UI", async () => {
+  it("la guarda vuelve a comprobar el uso después del bloqueo, sin confiar en la lectura para la interfaz", async () => {
     memoria.trasBloqueo = tabla => {
       if (tabla === "asignaturas") memoria.tablas.ofertas_asignaturas = [{ id: 2, asignaturaCodigo: "INF100", planificacionSemestreId: 1 }];
     };

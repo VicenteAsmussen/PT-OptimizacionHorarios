@@ -102,14 +102,14 @@ describe.skipIf(!habilitado)("JWT sin sesiones en PostgreSQL nuevo y descartable
   const me = (acceso: Acceso, bearer = false) => request(app).get("/api/auth/me")
     .set(bearer ? "Authorization" : "Cookie", bearer ? `Bearer ${acceso.token}` : acceso.cookie);
 
-  it("conserva cuenta y versión de 0020, elimina sesiones y exige login nuevo", async () => {
+  it("conserva cuenta y versión de 0020, elimina sesiones y exige iniciar sesión de nuevo", async () => {
     expect((await request(app).get("/api/auth/me").auth(tokenAnterior, { type: "bearer" })).status).toBe(401);
     const acceso = await login({ id: cuentaPrevia, correo: "previa@example.test" });
     expect(verificar(acceso.token).versionSesion).toBe(3);
     expect((await me(acceso)).status).toBe(200);
   });
 
-  it("logout borra cookie sin modificar cuenta y una copia del JWT sigue válida", async () => {
+  it("cerrar sesión borra cookie sin modificar cuenta y una copia del JWT sigue válida", async () => {
     const cuenta = await crearCuenta("logout");
     const a = await login(cuenta), b = await login(cuenta);
     const antes = huella(await cliente`select * from usuarios where id=${cuenta.id}`);

@@ -5,10 +5,12 @@ import type { CreatePlanificacionSemestreDTO, UpdatePlanificacionSemestreDTO } f
 
 export type UsuarioPlanificacion = { id: number; rol: string };
 export const planificacionesSemestresService = {
+  // Lista los períodos visibles según carrera y vinculación del profesor autenticado.
   async getAll(carreraId?: number, alcance?: AlcanceCarrera, usuario?: UsuarioPlanificacion) {
     if (carreraId !== undefined) exigirEnAlcance(alcance ? [alcance.carreraId] : undefined, carreraId);
     return planificacionesSemestresRepository.findAll(alcance?.carreraId ?? carreraId, usuario?.rol === "profesor" ? usuario.id : undefined);
   },
+  // Comprueba que el período exista y sea accesible para la carrera o el profesor.
   async getById(id: number, alcance?: AlcanceCarrera, usuario?: UsuarioPlanificacion) {
     const planificacion = await planificacionesSemestresRepository.findById(id);
     if (!planificacion || (alcance && planificacion.carreraId !== alcance.carreraId)) throw new NotFoundError("Planificación de semestre no encontrada");
@@ -20,17 +22,19 @@ export const planificacionesSemestresService = {
     }
     return planificacion;
   },
+  // Impide ofertar una asignatura fuera de la malla de la carrera del período.
   async exigirAsignatura(id: number, codigo: string, alcance?: AlcanceCarrera) {
     const planificacion = await this.getById(id, alcance);
     if (!await planificacionesSemestresRepository.asignaturaPertenece(planificacion.carreraId, codigo)) throw new BadRequestError("La asignatura no pertenece a la carrera de la planificación");
     return planificacion;
   },
+  // Abre un período actual en preparación y traduce su duplicidad en un conflicto de dominio.
   async create(datos: CreatePlanificacionSemestreDTO, alcance?: AlcanceCarrera) {
     exigirEnAlcance(alcance ? [alcance.carreraId] : undefined, datos.carreraId);
     try {
       return await planificacionesSemestresRepository.create({ ...datos, actual: true, estadoPlanificacion: "preparacion" });
     } catch (error) {
-      // Drizzle wraps PostgreSQL errors; translate only career/code uniqueness.
+      // Drizzle envuelve errores de PostgreSQL, solo se traduce la unicidad de carrera y código.
       let causa: unknown = error;
       const visitadas = new Set<unknown>();
       while (causa && typeof causa === "object" && !visitadas.has(causa)) {
@@ -44,6 +48,7 @@ export const planificacionesSemestresService = {
       throw error;
     }
   },
+  // Restringe los cambios del período según su estado antes de persistirlos.
   async update(id: number, datos: UpdatePlanificacionSemestreDTO, alcance?: AlcanceCarrera) {
     const planificacion = await this.getById(id, alcance);
     if (planificacion.estadoPlanificacion !== "preparacion" && (datos.codigo !== undefined || datos.actual === undefined)) {
@@ -52,6 +57,7 @@ export const planificacionesSemestresService = {
     if (!Object.keys(datos).length) throw new BadRequestError("No hay cambios de planificación");
     return planificacionesSemestresRepository.update(id, planificacion.carreraId, datos);
   },
+  // Delega la eliminación confirmada de un período accesible con sus controles de dependencia.
   async delete(id: number, confirmacion: string, alcance?: AlcanceCarrera) {
     const planificacion = await this.getById(id, alcance);
     return planificacionesSemestresRepository.delete(id, planificacion.carreraId, confirmacion);

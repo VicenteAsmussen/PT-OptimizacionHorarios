@@ -7,6 +7,7 @@ import { sembrarHorarios } from "./seeds/horarios.js";
 import { sembrarUsuarios } from "./seeds/usuarios.js";
 import { reemplazarAcademico } from "./seeds/reemplazo.js";
 
+// Selecciona la carga normal o el reemplazo académico explícito y cierra su conexión al terminar.
 async function seed() {
   const argumentos = process.argv.slice(2);
   if (argumentos.length > 1 || argumentos.some(argumento => argumento !== "--reemplazar-academico")) {
@@ -22,8 +23,8 @@ async function seed() {
       await reemplazarAcademico(baseDatos, env.DATABASE_URL, env.NODE_ENV);
     } else {
       console.log("Poblando catálogos base sin borrar datos existentes...");
-      // One transaction covers every catalog, including failures during user seeding.
-      // Existing identities and scheduling dependencies are never replaced.
+      // Una transacción abarca todos los catálogos, incluidos los fallos al cargar usuarios.
+      // Conserva identidades y no elimina dependencias horarias, aunque actualiza campos de catálogos existentes.
       await baseDatos.transaction(sembrarDatosIniciales);
     }
 
@@ -39,6 +40,7 @@ seed().catch((error) => {
   process.exit(1);
 });
 
+// Coordina catálogos académicos, grilla, salas y perfiles dentro de la transacción recibida.
 async function sembrarDatosIniciales(baseDatos: Parameters<typeof sembrarAcademico>[0]) {
   const catalogos = await sembrarAcademico(baseDatos);
   await sembrarHorarios(baseDatos);

@@ -97,7 +97,7 @@ test("RUT rechaza vacíos, DV incorrecto, cuerpo nulo y formatos malformados", a
   ]) assert.equal(normalizarRut(entrada), null, String(entrada));
 });
 
-test("payload de profesor valida antes del envío y conserva solo datos canónicos", async () => {
+test("los datos de profesor se validan antes del envío y conservan solo valores canónicos", async () => {
   const { prepararDatosProfesor } = await import("./rut.ts");
   const entrada = { rut: " 12.345.678-5 ", nombre: " Ana Pérez ", departamentoId: 2, tipo: "planta", usuarioId: 9 };
   assert.deepEqual(prepararDatosProfesor(entrada), {
@@ -117,7 +117,7 @@ test("payload de profesor valida antes del envío y conserva solo datos canónic
   assert.throws(() => prepararDatosProfesor({ ...entrada, nombre: " " }), /Ingresa el nombre/);
 });
 
-test("formulario conecta edición y creación al payload validado y RUT accesible", async () => {
+test("el formulario conecta edición y creación a los datos de envío validados y al RUT accesible", async () => {
   const { readFile } = await import("node:fs/promises");
   const fuente = await readFile(new URL("./FormularioProfesor.tsx", import.meta.url), "utf8");
   assert.match(fuente, /useState\(profesor\?\.rut \?\? ""\)/);
@@ -363,7 +363,7 @@ function nodosDialogo(arbol, condicion) {
   return [...(condicion(arbol) ? [arbol] : []), ...hijos.flatMap(hijo => nodosDialogo(hijo, condicion))];
 }
 
-test("el popup separa encabezado, cuerpo desplazable y pie sin cambiar las salidas", async () => {
+test("el diálogo separa encabezado, cuerpo desplazable y pie sin cambiar las salidas", async () => {
   let cierres = 0;
   const arbol = await prepararDialogo({ guardar: async () => {}, alCerrar() { cierres++; } });
   const cabecera = nodosDialogo(arbol, e => e.type === "header")[0];

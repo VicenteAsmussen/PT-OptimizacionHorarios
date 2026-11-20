@@ -13,6 +13,7 @@ interface ContextoAuth {
 
 export const AuthContext = createContext<ContextoAuth | undefined>(undefined);
 
+// Restaura la sesión y comparte la cuenta autenticada con las pantallas.
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [usuario, setUsuario] = useState<Usuario | null>(null);
   const [cargando, setCargando] = useState(true);
@@ -36,12 +37,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => controlador.abort();
   }, []);
 
+  // Actualiza la cuenta visible después de que el servidor acepta las credenciales.
   async function login(credenciales: Credenciales) {
     const actual = await authApi.login(credenciales);
     setUsuario(actual);
     setErrorSesion(null);
   }
 
+  // Retira la cuenta local cuando el servidor confirma el cierre de sesión.
   async function logout() {
     await authApi.logout();
     setUsuario(null);

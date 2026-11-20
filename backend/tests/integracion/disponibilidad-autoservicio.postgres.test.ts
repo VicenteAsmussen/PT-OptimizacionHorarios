@@ -8,7 +8,7 @@ import request from "supertest";
 import { exigirBasePruebas } from "../soporte/base-pruebas.js";
 
 const habilitado = process.env.BASE_PRUEBAS_REINICIABLE !== undefined;
-// Reject unsafe raw configuration before importing application config or connecting.
+// Rechaza el entorno original inseguro antes de importar la configuración o abrir conexiones.
 if (habilitado) exigirBasePruebas(process.env);
 
 describe.skipIf(!habilitado)("Disponibilidad de autoservicio en PostgreSQL aislado", () => {
@@ -53,7 +53,7 @@ describe.skipIf(!habilitado)("Disponibilidad de autoservicio en PostgreSQL aisla
   afterAll(cerrar);
 
   beforeEach(async () => {
-    // The verified identity, managed marker and exclusive lock precede every reset.
+    // Antes de cada reinicio se verifican identidad y marca de gestión y se obtiene el bloqueo exclusivo.
     await cliente`truncate carreras, departamentos, usuarios, bloques_horarios, tipos_hora restart identity cascade`;
     await cliente.begin(async transaccion => {
       await transaccion`insert into carreras(id,nombre) values (1,'Carrera propia'),(2,'Carrera externa'),(3,'Sin asignación')`;
@@ -104,7 +104,7 @@ describe.skipIf(!habilitado)("Disponibilidad de autoservicio en PostgreSQL aisla
       contenido[tabla] = (await cliente`select to_jsonb(fila) as dato from ${cliente(tabla)} fila`)
         .map(fila => JSON.stringify(fila.dato)).sort();
     }
-    // PostgreSQL sequences are deliberately excluded: nextval is not transactional.
+    // Se excluyen las secuencias de PostgreSQL porque nextval no es transaccional.
     return createHash("sha256").update(JSON.stringify(contenido)).digest("hex");
   }
 

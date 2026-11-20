@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-// T3: las transiciones de estado tendrán comandos dedicados y bloqueo transaccional.
+// Las transiciones de estado usan comandos dedicados con bloqueo transaccional.
 // Nunca aceptar estadoPlanificacion en PATCH/POST genérico.
 const codigoPlanificacion = z.string().length(6).regex(/^[0-9]{4}-[12]$/);
 export const createPlanificacionSemestreValidation = z.object({

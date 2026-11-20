@@ -10,6 +10,7 @@ const COOKIE_OPTIONS = {
 };
 
 export const authController = {
+  // Establece la cookie de sesión tras comprobar las credenciales de la cuenta.
   async login(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { user, token, expiraEn } = await authService.login(req.body);
@@ -27,6 +28,7 @@ export const authController = {
     }
   },
 
+  // Retira la cookie del cliente sin revocar por sí sola otros tokens emitidos.
   async logout(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       res.clearCookie(COOKIE_AUTH_NAME, COOKIE_OPTIONS);
@@ -40,6 +42,7 @@ export const authController = {
     }
   },
 
+  // Expone el perfil de la cuenta autenticada sin sus campos de acceso internos.
   async getMe(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const user = await authService.getMe(req.user!.id);

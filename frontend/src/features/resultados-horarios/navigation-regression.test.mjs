@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
-test('existing navigation remains runnable without another test resolver', () => {
+test('la navegación existente sigue siendo ejecutable sin otro resolvedor de pruebas', () => {
   const archivo = fileURLToPath(new URL('../horarios-externos/permisos.test.mjs', import.meta.url));
   const entorno = { ...process.env };
   delete entorno.NODE_TEST_CONTEXT;

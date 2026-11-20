@@ -30,7 +30,7 @@ async function cargar(hooks) {
   finally { delete globalThis[clave]; }
 }
 
-// Simulated hooks, refs and document events; these checks do not mount a browser DOM.
+// Los hooks, referencias y eventos simulados comprueban decisiones del selector, no un DOM de navegador.
 async function montar(cambios = {}, documento = true, conScroll = true) {
   const celdas = []; const efectos = []; const eventos = new Map(); const seleccionados = [];
   let indice = 0; let pendiente = false; let arbol; let focos = 0; let scrolls = 0;
@@ -99,7 +99,7 @@ test('las opciones de período siguen el orden académico descendente sin mutar 
   } finally { vista.salir(); }
 });
 
-test('every option shows readable neutral state and only the current option has a separate blue Actual badge', async () => {
+test('cada opción muestra un estado neutro legible y solo la actual tiene una insignia azul Actual separada', async () => {
   const vista = await montar();
   try {
     assert.equal(vista.boton().props.type, 'button'); assert.equal(vista.boton().props['aria-expanded'], false);
@@ -124,7 +124,7 @@ test('every option shows readable neutral state and only the current option has 
   } finally { vista.salir(); }
 });
 
-test('keyboard navigation keeps active option visible, commits only on Enter or Space and allows clearing', async () => {
+test('la navegación por teclado mantiene visible la opción activa, confirma solo con Enter o espacio y permite vaciar la selección', async () => {
   const vista = await montar({ valor: '8' });
   try {
     vista.pulsar('ArrowDown');
@@ -144,7 +144,7 @@ test('keyboard navigation keeps active option visible, commits only on Enter or 
   } finally { vista.salir(); }
 });
 
-test('Escape outside and Tab dismiss without selecting; pointer choice retains trigger focus', async () => {
+test('Escape, clic fuera y Tab cierran sin seleccionar, la elección con puntero conserva el foco del activador', async () => {
   const vista = await montar();
   try {
     vista.abrir(); vista.pulsar('End'); const antesEscape = vista.focos(); vista.pulsar('Escape');
@@ -159,7 +159,7 @@ test('Escape outside and Tab dismiss without selecting; pointer choice retains t
   } finally { vista.salir(); }
 });
 
-test('disabled and newly busy selector rejects stale option handlers; empty careers still offer explicit clearing', async () => {
+test('el selector deshabilitado u ocupado rechaza manejadores obsoletos, las carreras vacías permiten vaciar explícitamente la selección', async () => {
   const vista = await montar();
   try {
     vista.abrir(); const obsoleta = vista.nodos().filter(nodo => nodo.props.role === 'option')[1].props.onClick;
@@ -172,7 +172,7 @@ test('disabled and newly busy selector rejects stale option handlers; empty care
   } finally { vista.salir(); }
 });
 
-test('SSR has a labelled collapsed combobox and navigation tolerates absent document and scroll API', async () => {
+test('SSR presenta un combobox contraído y etiquetado, y la navegación tolera la ausencia de document y de la API de desplazamiento', async () => {
   const Selector = await cargar();
   const html = renderToStaticMarkup(React.createElement(Selector, { periodos, valor: '8', deshabilitado: false, alSeleccionar() {} }));
   assert.match(html, /role="combobox"/); assert.match(html, /aria-expanded="false"/); assert.match(html, /Propuesta/); assert.match(html, /Actual/);
@@ -182,7 +182,7 @@ test('SSR has a labelled collapsed combobox and navigation tolerates absent docu
   finally { vista.salir(); }
 });
 
-test('expanded options contribute to page height instead of overflowing the sidebar grid row', async () => {
+test('las opciones expandidas aportan altura a la página sin desbordar la fila de la cuadrícula lateral', async () => {
   const css = await readFile(new URL('./AdministracionPeriodos.module.css', import.meta.url), 'utf8');
   const regla = css.match(/\.listaPeriodos\s*\{([^}]*)\}/)?.[1];
   assert.ok(regla);

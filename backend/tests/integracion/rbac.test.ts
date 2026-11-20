@@ -22,7 +22,7 @@ async function rutDisponible() {
   throw new Error("No se pudo obtener un RUT sintético libre para la prueba");
 }
 
-// Cada caso usa su propia preparación actual y devuelve la vigencia del seed sin cambiar su estado.
+// Cada caso usa su propia preparación y devuelve la vigencia de la carga inicial sin cambiar su estado.
 async function crearPlanificacionActual(carreraId: number, codigo: string) {
   const anterior = await db.query.planificacionesSemestres.findFirst({
     where: and(eq(planificacionesSemestres.carreraId, carreraId), eq(planificacionesSemestres.actual, true)),
@@ -45,7 +45,7 @@ describe.skipIf(!ejecutarIntegracion)("Control de Acceso y Roles (RBAC)", () => 
   let profesorCookie: string[];
 
   beforeAll(async () => {
-    // 1. Obtener cookies de los 3 roles
+    // Obtiene cookies de los tres roles.
     const adminRes = await request(app)
       .post("/api/auth/login")
       .send({ correo: "admin@ubiobio.cl", clave: "admin123" });
@@ -170,7 +170,7 @@ describe.skipIf(!ejecutarIntegracion)("Control de Acceso y Roles (RBAC)", () => 
         expect(prohibida.status).toBe(403);
         expect(await leerAjena()).toEqual(antes);
       } finally {
-        // Planificación dedicada: la limpieza no toca disponibilidad del seed.
+        // Planificación exclusiva de la prueba, la limpieza no toca la disponibilidad de la carga inicial.
         await restaurar();
         if (profesorAjenoId !== undefined) await db.delete(profesores).where(eq(profesores.id, profesorAjenoId));
         if (departamentoId !== undefined) await db.delete(departamentos).where(eq(departamentos.id, departamentoId));

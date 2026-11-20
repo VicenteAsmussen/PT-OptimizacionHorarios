@@ -20,14 +20,18 @@ const servidor = createServer((solicitud, respuesta) => {
 });
 const apagado = crearApagado({
   servidor,
+  // Detiene nuevas recuperaciones y espera las consultas ya iniciadas antes del cierre SQL.
   detenerRecuperacion: async () => {
     clearInterval(recuperacion);
     await Promise.all([...recuperaciones]);
   },
   cerrarJulia: cerrarProcesosJulia,
   cerrarOptimizacion,
+  // Libera el cliente de persistencia después del drenaje de solicitudes y cálculos.
   cerrarSql: () => queryClient.end({ timeout: 5 }),
+  // Termina el proceso con el estado que resulte del apagado coordinado.
   salir: codigo => { process.exit(codigo); },
+  // Informa fallos de cierre sin agregar entradas académicas al diagnóstico.
   informar: mensaje => console.error(mensaje),
 });
 
@@ -50,6 +54,7 @@ const recuperacion = setInterval(() => {
 }, 15000);
 recuperacion.unref();
 recuperar("No se pudo comprobar la recuperación inicial del modelo.");
+// Inicia el apagado coordinado al recibir una señal del sistema.
 function cerrarPorSenal() {
   void apagado.cerrar().catch(() => {
     console.error("No se pudo completar el apagado del servidor.");

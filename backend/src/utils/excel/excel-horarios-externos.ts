@@ -15,11 +15,14 @@ export const encabezadosExcelExternos = [
 ] as const;
 
 /** Valida todo el archivo antes de escribir. Sala N es visual: se ignora incluso no vacía. */
+// Valida cobertura e identidades del Excel y sincroniza la carga externa autorizada sin asignar salas.
 export async function importarHorariosExternos(planificacionSemestreId: number, departamentoId: number, archivo: Buffer, carreraId?: number) {
   const errores: { fila: number; columna: string; mensaje: string; codigoAsignatura?: string; nombreAsignatura?: string; valor?: string }[] = [];
   const advertencias: { fila: number; columna: string; mensaje: string }[] = [];
+  // Localiza los errores generales del contrato del archivo antes de construir ofertas.
   const error = (fila: number, columna: string, mensaje: string) => errores.push({ fila, columna, mensaje });
   let cobertura: CoberturaExterna[] = [];
+  // Informa el rechazo completo sin atribuir escrituras a las filas del archivo inválido.
   const rechazado = () => ({ ofertasCreadas: 0, ofertasActualizadas: 0, ofertasEliminadas: 0, horariosCreados: 0, cobertura, errores, advertencias });
   const libro = new ExcelJS.Workbook();
   try { await libro.xlsx.load(Uint8Array.from(archivo).buffer); }
@@ -42,10 +45,12 @@ export async function importarHorariosExternos(planificacionSemestreId: number, 
   }[] = [];
   hoja.eachRow((fila, numeroFila) => {
     if (numeroFila === 1) return;
+    // Extrae campos visibles de la fila para reconocer asignatura, docente y sesiones.
     const texto = (columna: number) => normalizarTextoCelda(fila.getCell(columna).value);
     if (!Array.from({ length: encabezadosExcelExternos.length }, (_, indice) => texto(indice + 1)).some(Boolean)) return;
     const codigo = texto(1);
     const asignatura = contexto.asignaturas.find((candidata) => candidata.codigo === codigo);
+    // Asocia el rechazo de campo con la asignatura y el valor que debe corregirse.
     const error = (fila: number, columna: string, mensaje: string) => {
       const indice = encabezadosExcelExternos.indexOf(columna);
       errores.push({ fila, columna, mensaje, codigoAsignatura: codigo, nombreAsignatura: asignatura?.nombre ?? texto(2), valor: indice >= 0 ? texto(indice + 1) : "" });
@@ -54,7 +59,7 @@ export async function importarHorariosExternos(planificacionSemestreId: number, 
     if (!asignatura) return;
     filas.push({ codigo, numeroFila, texto, error });
   });
-  // Collect independent field errors across the workbook before business rules.
+  // Reúne errores de campos independientes de todo el libro antes de aplicar reglas de negocio.
   const filasConFormato = filas.map(fila => {
     const { texto, error, numeroFila } = fila;
     const rut = normalizarRut(texto(5));
@@ -93,7 +98,7 @@ export async function importarHorariosExternos(planificacionSemestreId: number, 
   });
   if (errores.length) return rechazado();
 
-  // Resolve identities before constructing shared resource occupancy keys.
+  // Resuelve las identidades antes de construir las claves de ocupación compartida.
   const filasConProfesor = filasConFormato.flatMap(fila => {
     const profesores = contexto.profesores.filter(profesor => normalizarRut(profesor.rut) === fila.rut);
     const profesor = profesores.length === 1 && profesores[0]!.departamentoId === departamentoId ? profesores[0] : undefined;

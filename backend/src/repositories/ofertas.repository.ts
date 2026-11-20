@@ -13,6 +13,7 @@ import { BadRequestError, ConflictError, NotFoundError } from "../utils/errors.j
 import { conPlanificacionesEditables, exigirVinculoEsperado, type TransaccionPlanificacion } from "./planificacion-escritura.js";
 import { exigirBloquesNoReservados } from "./bloques-reservados.js";
 
+// Resuelve el período propietario y rechaza un origen cambiado desde la consulta previa.
 async function vinculoOferta(tx: TransaccionPlanificacion, id: number, origenEsperado?: number) {
   const oferta = await tx.query.ofertasAsignaturas.findFirst({ where: eq(ofertasAsignaturas.id, id) });
   if (!oferta) throw new NotFoundError("Oferta no encontrada");
@@ -27,6 +28,7 @@ const relacionesOferta = {
   horarios: { with: { sala: true as const, bloque: true as const, tipoHora: true as const } },
 };
 
+// Sincroniza docentes por componente sin dejar clases sin asignación ni crear ocupaciones incompatibles.
 async function guardarAsignaciones(tx: TransaccionPlanificacion, oferta: typeof ofertasAsignaturas.$inferSelect,
   asignaciones: CreateOfertaDTO["asignaciones"]) {
   const tipos = await tx.query.asignaturaTipoHora.findMany({ where: eq(asignaturaTipoHora.asignaturaCodigo, oferta.asignaturaCodigo) });
@@ -57,6 +59,7 @@ async function guardarAsignaciones(tx: TransaccionPlanificacion, oferta: typeof 
     .onConflictDoUpdate({ target: [ofertaTipoHora.ofertaId, ofertaTipoHora.tipoHoraId], set: { profesorId: asignacion.profesorId } });
 }
 export const ofertasRepository = {
+  // Consulta secciones y asignaciones filtradas por período, docente y alcance de carrera.
   async findAll(filtro?: { planificacionSemestreId?: number; profesorId?: number; asignaturaCodigo?: string }, alcance?: AlcanceCarrera) {
     return db.query.ofertasAsignaturas.findMany({
       where: and(
@@ -67,27 +70,34 @@ export const ofertasRepository = {
       ), with: relacionesOferta,
     });
   },
+  // Carga la sección con los vínculos necesarios para verificar su pertenencia y sus clases.
   async findById(id: number) {
     return db.query.ofertasAsignaturas.findFirst({ where: eq(ofertasAsignaturas.id, id), with: relacionesOferta });
   },
+  // Detecta una sección ya ofertada de la misma asignatura en el mismo período.
   async findByUniqueConstraint(codigo: string, planificacionSemestreId: number, seccion: number) {
     return db.query.ofertasAsignaturas.findFirst({ where: and(eq(ofertasAsignaturas.asignaturaCodigo, codigo), eq(ofertasAsignaturas.planificacionSemestreId, planificacionSemestreId), eq(ofertasAsignaturas.seccion, seccion)) });
   },
+  // Comprueba que el código ofertado tenga una definición académica registrada.
   async checkAsignaturaExists(codigo: string) {
     return !!await db.query.asignaturas.findFirst({ where: eq(asignaturas.codigo, codigo) });
   },
+  // Comprueba la existencia del perfil docente que se quiere asignar.
   async checkProfesorExists(id: number) {
     return !!await db.query.profesores.findFirst({ where: eq(profesores.id, id), columns: { id: true } });
   },
+  // Verifica que el docente pertenezca al departamento responsable de la asignatura.
   async checkProfesorDepartamento(id: number, codigo: string) {
     const [profesor] = await db.select({ id: profesores.id }).from(profesores)
       .innerJoin(asignaturas, eq(asignaturas.departamentoId, profesores.departamentoId))
       .where(and(eq(profesores.id, id), eq(asignaturas.codigo, codigo))).limit(1);
     return !!profesor;
   },
+  // Recupera los componentes definidos para validar las asignaciones docentes propuestas.
   async findTiposAsignatura(codigo: string) {
     return db.query.asignaturaTipoHora.findMany({ where: eq(asignaturaTipoHora.asignaturaCodigo, codigo) });
   },
+  // Crea la sección y sus asignaciones en conjunto sobre una planificación editable.
   async create(datos: CreateOfertaDTO) {
     return conPlanificacionesEditables(async () => [datos.planificacionSemestreId], async tx => {
       const { asignaciones, ...oferta } = datos;
@@ -96,6 +106,7 @@ export const ofertasRepository = {
       return creada;
     });
   },
+  // Modifica la sección y sus docentes con origen, destino y reservas revalidados bajo bloqueo.
   async update(id: number, datos: UpdateOfertaDTO, origenEsperado?: number) {
     return conPlanificacionesEditables(async tx => {
       const origen = await vinculoOferta(tx, id, origenEsperado);
@@ -114,6 +125,7 @@ export const ofertasRepository = {
       return actualizada;
     });
   },
+  // Retira una oferta en preparación solo si no tiene clases asociadas.
   async delete(id: number, origenEsperado?: number): Promise<boolean> {
     return conPlanificacionesEditables(async tx => [await vinculoOferta(tx, id, origenEsperado)], async tx => {
       // Conserva la exclusión con el KEY SHARE de nuevas entradas.

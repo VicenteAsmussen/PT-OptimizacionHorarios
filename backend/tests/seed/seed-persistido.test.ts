@@ -5,9 +5,9 @@ import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { datosProfesores } from "../../src/db/seeds/data/usuarios.js";
 
-// Opt in only for a migrated, disposable PostgreSQL container on an ephemeral port.
+// Habilitar solo con un contenedor PostgreSQL descartable, con migraciones aplicadas y puerto efímero.
 const habilitado = process.env.SEED_PROBE_DISPOSABLE === "yes" && !!process.env.SEED_PROBE_URL;
-it.skipIf(!habilitado)("preserves protected rows and rolls back a failed academic replacement", async () => {
+it.skipIf(!habilitado)("conserva filas protegidas y revierte un reemplazo académico fallido", async () => {
   const conexion = process.env.SEED_PROBE_URL!;
   const destino = new URL(conexion);
   expect(["localhost", "127.0.0.1", "[::1]"]).toContain(destino.hostname);

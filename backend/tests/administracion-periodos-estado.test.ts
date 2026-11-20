@@ -1,11 +1,11 @@
 import { beforeEach, expect, it, vi } from "vitest";
-// Esta suite aísla las transiciones, la exclusión real se prueba con PostgreSQL aislado.
+// Estas pruebas aíslan las transiciones, la exclusión real se prueba con PostgreSQL aislado.
 vi.mock("../src/repositories/optimizacion-bloqueos.js", () => ({ exigirSinEjecucionActiva: vi.fn() }));
 import { getTableName } from "drizzle-orm";
 import { PgDialect } from "drizzle-orm/pg-core";
 import { administracionPeriodosRepository as repositorio } from "../src/repositories/administracion-periodos.repository.js";
 
-// Independent-verifier regressions: inspect lock/check/write ordering without a database.
+// Comprueba regresiones en el orden de bloqueo, validación y escritura, sin base de datos.
 const contexto = vi.hoisted(() => ({ estado: "publicado", horarios: 1, eventos: [] as string[], campos: {} as Record<string, unknown>, resultado: {} as any }));
 vi.mock("../src/repositories/resultados-horarios.repository.js", () => ({
   cargarContextoResultado: vi.fn(async () => { contexto.eventos.push("validacion-resultado"); return structuredClone(contexto.resultado); }),
@@ -57,7 +57,7 @@ beforeEach(() => {
     entradas: bloques.map(bloque => ({ id: 90 + bloque.id, ofertaId: 10, tipoHoraId: 1, salaId: 1, bloqueId: bloque.id, bloque, oferta,
       asignacion: { profesorId: 1 }, tipoHora: { id: 1, tipo: "Teórica" } })) };
 });
-it.each(["propuesta", "publicado"] as const)("rejects occupied return from %s after career and plan locks", async estadoAnterior => {
+it.each(["propuesta", "publicado"] as const)("rechaza volver desde %s con horarios tras bloquear la carrera y la planificación", async estadoAnterior => {
   contexto.estado = estadoAnterior;
   await expect(repositorio.cambiarEstado(7, { estadoAnterior, estadoPlanificacion: "preparacion" })).rejects.toMatchObject({ statusCode: 409 });
   expect(contexto.eventos.slice(0, 2)).toEqual(["carreras:update", "planificaciones_semestres:update"]);
@@ -65,25 +65,25 @@ it.each(["propuesta", "publicado"] as const)("rejects occupied return from %s af
   expect(contexto.eventos).not.toContain("escritura");
   expect(contexto.campos).toEqual({});
 });
-it.each(["propuesta", "publicado"] as const)("admits empty return from %s without changing current markers", async estadoAnterior => {
+it.each(["propuesta", "publicado"] as const)("admite volver desde %s sin horarios ni cambios en las marcas de período actual", async estadoAnterior => {
   contexto.estado = estadoAnterior; contexto.horarios = 0;
   await repositorio.cambiarEstado(7, { estadoAnterior, estadoPlanificacion: "preparacion" });
   expect(contexto.eventos.slice(0, 2)).toEqual(["carreras:update", "planificaciones_semestres:update"]);
   expect(contexto.eventos.indexOf("escritura")).toBeGreaterThan(contexto.eventos.indexOf("consulta-horarios"));
   expect(contexto.campos).toEqual({ estadoPlanificacion: "preparacion" });
 });
-it("rejects stale state before querying schedules or writing", async () => {
+it("rechaza un estado desactualizado antes de consultar horarios o escribir", async () => {
   await expect(repositorio.cambiarEstado(7, { estadoAnterior: "propuesta", estadoPlanificacion: "preparacion" })).rejects.toMatchObject({ statusCode: 409 });
   expect(contexto.eventos).toEqual(["carreras:update", "planificaciones_semestres:update"]);
   expect(contexto.campos).toEqual({});
 });
-it.each(["propuesta", "publicado"] as const)("rejects %s with no managed schedules before any state write", async estadoPlanificacion => {
+it.each(["propuesta", "publicado"] as const)("rechaza %s sin horarios gestionados antes de escribir el estado", async estadoPlanificacion => {
   contexto.estado = "preparacion"; contexto.horarios = 0;
   await expect(repositorio.cambiarEstado(7, { estadoAnterior: "preparacion", estadoPlanificacion })).rejects.toMatchObject({ statusCode: 409 });
   expect(contexto.eventos.slice(0, 2)).toEqual(["carreras:update", "planificaciones_semestres:update"]);
   expect(contexto.eventos).not.toContain("escritura"); expect(contexto.campos).toEqual({});
 });
-it.each(["propuesta", "publicado"] as const)("rechecks managed schedules after locking before admitting %s", async estadoPlanificacion => {
+it.each(["propuesta", "publicado"] as const)("revalida horarios gestionados tras bloquear y antes de admitir %s", async estadoPlanificacion => {
   contexto.estado = "preparacion"; contexto.horarios = 1;
   const registrar = contexto.eventos.push.bind(contexto.eventos);
   const observar = vi.spyOn(contexto.eventos, "push").mockImplementation((...eventos) => {
@@ -98,7 +98,7 @@ it.each(["propuesta", "publicado"] as const)("rechecks managed schedules after l
     expect(contexto.eventos).not.toContain("escritura"); expect(contexto.campos).toEqual({});
   } finally { observar.mockRestore(); }
 });
-it.each([["publicado", "propuesta"], ["propuesta", "publicado"]] as const)("allows covered %s -> %s without applying the preparation-only blocker", async (estadoAnterior, estadoPlanificacion) => {
+it.each([["publicado", "propuesta"], ["propuesta", "publicado"]] as const)("permite %s -> %s con cobertura sin aplicar el bloqueo exclusivo del retorno a preparación", async (estadoAnterior, estadoPlanificacion) => {
   contexto.estado = estadoAnterior;
   await repositorio.cambiarEstado(7, { estadoAnterior, estadoPlanificacion });
   expect(contexto.eventos).toContain("consulta-horarios");

@@ -37,7 +37,8 @@ export interface FilaExcelSala {
   sesiones: (HorarioExcelSala & { tipoHora: string; dia: DiaExcelSala; codigoSala: string })[];
 }
 
-/** Usa el resultado almacenado de una fórmula; nunca evalúa fórmulas del archivo. */
+/** Usa el resultado almacenado de una fórmula, nunca evalúa fórmulas del archivo. */
+// Extrae el texto visible de una celda para identificar los campos del intercambio académico.
 export function normalizarTextoCelda(valor: CellValue | undefined): string {
   if (valor === null || valor === undefined) return "";
   if (typeof valor === "object") {
@@ -51,10 +52,12 @@ export function normalizarTextoCelda(valor: CellValue | undefined): string {
   return String(valor).trim().replace(/\s+/g, " ");
 }
 
+// Permite comparar nombres de días sin diferencias de mayúsculas o acentos.
 function sinAcentos(valor: string): string {
   return valor.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 }
 
+// Resuelve un día reconocido del archivo o devuelve una indicación de corrección.
 export function normalizarDia(valor: CellValue | undefined): ResultadoExcelSala<DiaExcelSala> {
   const texto = sinAcentos(normalizarTextoCelda(valor));
   const dia = diasExcelSalas.find((candidato) => sinAcentos(candidato) === texto);
@@ -63,15 +66,18 @@ export function normalizarDia(valor: CellValue | undefined): ResultadoExcelSala<
   };
 }
 
+// Unifica separadores y mayúsculas para contrastar códigos de salas del archivo y del catálogo.
 export function normalizarCodigoSala(valor: CellValue | undefined): string {
   return normalizarTextoCelda(valor).toUpperCase().replace(/[-\s]/g, "");
 }
 
+// Expresa una hora en minutos del día para comparar rangos y pausas de sesiones.
 function minutosHora(hora: string): number {
   const [horas, minutos] = hora.split(":").map(Number);
   return horas! * 60 + minutos!;
 }
 
+// Valida que la sesión declare un rango horario creciente dentro del mismo día.
 export function analizarHorario(valor: CellValue | undefined): ResultadoExcelSala<HorarioExcelSala> {
   const coincidencia = /^(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})$/.exec(normalizarTextoCelda(valor));
   if (!coincidencia) return { exito: false, error: "Indique el horario en formato HH:MM-HH:MM, por ejemplo 08:10-09:30." };
@@ -87,15 +93,17 @@ export function analizarHorario(valor: CellValue | undefined): ResultadoExcelSal
 }
 
 /** Recibe un rango previamente validado con analizarHorario. */
+// Presenta el rango validado con la clave horaria utilizada en el intercambio de sesiones.
 export function formatearHorario(horario: HorarioExcelSala): string {
   return `${horario.horaInicio}-${horario.horaTermino}`;
 }
 
 /**
- * Recibe bloques de una sola asignatura/sección/tipo; el llamador separa esas claves.
- * No trunca a cinco sesiones: el llamador debe reportar el exceso al exportar.
+ * Recibe bloques de una sola asignatura/sección/tipo, separados por quien llama a esta función.
+ * No limita a cinco sesiones, quien exporta debe informar si se supera ese máximo.
  * La pausa depende del par institucional (2→3, 4→5...), no del tamaño de la sesión.
  */
+// Reconstruye sesiones por continuidad institucional sin ocultar bloques duplicados ni rangos inválidos.
 export function agruparBloquesEnSesiones(bloques: readonly BloqueExcelSala[]): ResultadoExcelSala<SesionExcelSala[]> {
   const normalizados: (BloqueExcelSala & { dia: DiaExcelSala })[] = [];
   const claves = new Set<string>();

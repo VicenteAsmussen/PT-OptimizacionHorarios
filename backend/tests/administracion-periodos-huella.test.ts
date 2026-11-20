@@ -4,8 +4,8 @@ import { createHash } from "node:crypto";
 import { getTableName } from "drizzle-orm";
 import { administracionPeriodosRepository as repositorio } from "../src/repositories/administracion-periodos.repository.js";
 
-// These independent-verifier regressions exercise fingerprint admission only.
-// SQL filtering, actual deletes, concurrency and rollback are tested on isolated PostgreSQL.
+// Estos casos aíslan la admisión por huella, el doble no filtra SQL ni ejecuta borrados reales.
+// La concurrencia y la reversión de transacciones se comprueban con PostgreSQL aislado.
 const contexto = vi.hoisted(() => ({ filas: {} as Record<string, Record<string, unknown>[]>, escrituras: [] as string[] }));
 vi.mock("../src/config/db.js", () => {
   const transaccion = {
@@ -33,7 +33,7 @@ beforeEach(() => {
     horarios_asignaturas: [{ id: 20, ofertaId: 10, tipoHoraId: 1, planificacionSemestreId: 1, salaId: 1, bloqueId: 1 }],
   };
 });
-it.each(["docente", "sala", "identidad", "carrera", "gestion", "confirmacion", "alcance", "ejecucion"])("rejects stale %s without scheduling a write", async cambio => {
+it.each(["docente", "sala", "identidad", "carrera", "gestion", "confirmacion", "alcance", "ejecucion"])("rechaza %s desactualizado sin programar escrituras", async cambio => {
   const resumen = await repositorio.resumen(1, "gestionadas");
   if (cambio === "docente") contexto.filas.oferta_tipo_hora[0].profesorId = 2;
   if (cambio === "sala") contexto.filas.horarios_asignaturas[0].salaId = 2;
@@ -47,7 +47,7 @@ it.each(["docente", "sala", "identidad", "carrera", "gestion", "confirmacion", "
   expect(huellaDatos()).toBe(antes);
   expect(contexto.escrituras).toEqual([]);
 });
-it.each(["gestionadas", "todas"] as const)("schedule-only command never schedules offer/assignment deletion in %s", async alcance => {
+it.each(["gestionadas", "todas"] as const)("el comando exclusivo de horarios nunca programa borrar ofertas ni asignaciones en %s", async alcance => {
   const resumen = await repositorio.resumen(1, alcance);
   expect(await repositorio.reiniciar(1, { objetivo: "horarios", alcance, confirmacion: "2026-2", huella: resumen.huella }))
     .toEqual({ ofertas: 0, asignaciones: 0, horarios: 1 });

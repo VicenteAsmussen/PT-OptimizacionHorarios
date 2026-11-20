@@ -47,6 +47,7 @@ export interface DiagnosticoProcesoJulia {
 }
 
 /** El registro nativo solo transporta códigos cerrados y un límite numérico. */
+// Reconoce únicamente hitos y configuración permitidos del registro nativo del cálculo.
 export function leerRegistroHiGHS(linea: string): EventoRegistroHiGHS | undefined {
   if (Object.hasOwn(hitosHiGHS, linea)) return { tipo: "hito", hito: hitosHiGHS[linea as keyof typeof hitosHiGHS] };
   if (linea === "OPTIMIZACION:HIGHS_NO_DISPONIBLE") return { tipo: "no_disponible" };
@@ -61,7 +62,8 @@ export function leerRegistroHiGHS(linea: string): EventoRegistroHiGHS | undefine
   } catch { return; }
 }
 
-/** Solo admite métricas numéricas, nunca texto del solver, rutas o entradas. */
+/** Solo admite métricas numéricas, nunca texto del solucionador, rutas o entradas. */
+// Extrae métricas numéricas acotadas del canal de progreso sin propagar texto arbitrario.
 export function leerProgresoSolver(linea: string): ProgresoSolverJulia | undefined {
   const prefijo = "OPTIMIZACION:PROGRESO ";
   if (!linea.startsWith(prefijo) || linea.length > 512) return;
@@ -70,6 +72,7 @@ export function leerProgresoSolver(linea: string): ProgresoSolverJulia | undefin
     const campos = ["tiempoSolverSegundos", "nodos", "objetivoCandidato", "cotaDual", "brechaRelativa"];
     if (!dato || typeof dato !== "object" || Array.isArray(dato) ||
       Object.keys(dato).length !== campos.length || campos.some(campo => !Object.hasOwn(dato, campo))) return;
+    // Descarta valores no numéricos o desmesurados antes de guardar métricas del solucionador.
     const finito = (valor: unknown): valor is number => typeof valor === "number" && Number.isFinite(valor) && Math.abs(valor) <= 1e30;
     if (!finito(dato.tiempoSolverSegundos) || dato.tiempoSolverSegundos < 0 ||
       !Number.isSafeInteger(dato.nodos) || dato.nodos < 0 ||

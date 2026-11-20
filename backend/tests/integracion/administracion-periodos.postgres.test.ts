@@ -10,7 +10,7 @@ import { exigirBasePruebas } from "../soporte/base-pruebas.js";
 
 const habilitado = process.env.BASE_PRUEBAS_REINICIABLE !== undefined;
 if (habilitado) exigirBasePruebas(process.env);
-describe.skipIf(!habilitado)("Period administration on isolated PostgreSQL", () => {
+describe.skipIf(!habilitado)("Administración de períodos en PostgreSQL aislado", () => {
   let cliente: ReturnType<typeof postgres>;
   let cerrar: () => Promise<void>;
   let app: Express;
@@ -30,7 +30,7 @@ describe.skipIf(!habilitado)("Period administration on isolated PostgreSQL", () 
   }, 30000);
   afterAll(async () => { try { await cerrar?.(); } finally { await cliente?.end(); } });
   beforeEach(async () => {
-    // Never enabled for the development database: the raw environment and DB identity were checked above.
+    // Nunca se habilita en desarrollo, antes se verificaron el entorno original y la identidad de la base.
     await cliente`truncate carreras, departamentos, usuarios, bloques_horarios, tipos_hora, salas restart identity cascade`;
     await cliente.begin(async sql => {
       await sql`insert into usuarios (id,nombre,correo,clave,rol) values
@@ -102,7 +102,7 @@ describe.skipIf(!habilitado)("Period administration on isolated PostgreSQL", () 
       materias: await cliente`select * from asignaturas order by codigo`, profesores: await cliente`select * from profesores`, salas: await cliente`select * from salas`,
     };
   }
-  it.each(["gestionadas", "externas", "todas"])("deletes complete offers only within %s and preserves every other planning and catalog", async alcance => {
+  it.each(["gestionadas", "externas", "todas"])("borra ofertas completas solo dentro de %s y conserva las demás planificaciones y catálogos", async alcance => {
     const anterior = await resumen(alcance);
     expect((await autorizada(request(app).post(`${raiz}/reiniciar`)).send({ alcance, objetivo: "horarios", confirmacion: "2099-2", huella: anterior.huella })).status).toBe(200);
     const antes = await preservados();
@@ -119,13 +119,13 @@ describe.skipIf(!habilitado)("Period administration on isolated PostgreSQL", () 
     expect((await cliente`select oferta_id from oferta_tipo_hora where oferta_id in (10,11,12) order by oferta_id`).map(fila => fila.oferta_id)).toEqual(restantes);
     expect((await cliente`select oferta_id from horarios_asignaturas where planificacion_semestre_id=1 order by oferta_id`).map(fila => fila.oferta_id)).toEqual(restantes);
   });
-  it.each(["gestionadas", "externas", "todas"])("refuses offer reset in %s until its schedules are reset, with unchanged database hash", async alcance => {
+  it.each(["gestionadas", "externas", "todas"])("rechaza reiniciar ofertas en %s hasta reiniciar sus horarios y conserva la huella de la base", async alcance => {
     const vista = await resumen(alcance); const antes = await huellaDatos();
     const respuesta = await autorizada(request(app).post(`${raiz}/reiniciar`)).send({ alcance, objetivo: "ofertas", confirmacion: "2099-2", huella: vista.huella });
     expect(respuesta.status).toBe(409); expect(respuesta.body.message).toContain("horarios");
     expect(await huellaDatos()).toBe(antes);
   });
-  it.each(["vacio", "ofertas", "externos"])("keeps preparation and refuses proposal/publication with %s only", async escenario => {
+  it.each(["vacio", "ofertas", "externos"])("conserva preparación y rechaza propuesta o publicación con solo %s", async escenario => {
     await cliente`update planificaciones_semestres set estado_planificacion='preparacion' where id=1`;
     if (escenario === "externos") await cliente`delete from horarios_asignaturas where planificacion_semestre_id=1 and oferta_id<>12`;
     else await cliente`delete from horarios_asignaturas where planificacion_semestre_id=1`;
@@ -187,14 +187,14 @@ describe.skipIf(!habilitado)("Period administration on isolated PostgreSQL", () 
     expect(publicada.body.data.estadoPlanificacion).toBe("publicado");
     expect((await resumen()).planificacion.estadoPlanificacion).toBe("publicado");
   });
-  it("rejects returning to proposal/published after a formerly valid managed preview becomes empty", async () => {
+  it("rechaza volver a propuesta o publicado si una vista previa gestionada antes válida queda vacía", async () => {
     expect((await resumen("gestionadas")).horarios).toBe(2);
     await cliente`delete from horarios_asignaturas where planificacion_semestre_id=1 and oferta_id<>12`;
     const antes = await huellaDatos();
     expect((await autorizada(request(app).patch(`${raiz}/estado`)).send({ estadoAnterior: "publicado", estadoPlanificacion: "propuesta" })).status).toBe(409);
     expect(await huellaDatos()).toBe(antes);
   });
-  it.each(["gestionadas", "externas", "todas"])("schedule reset preserves offers and assignments for %s", async alcance => {
+  it.each(["gestionadas", "externas", "todas"])("el reinicio de horarios conserva ofertas y asignaciones de %s", async alcance => {
     const antes = await preservados();
     const ofertas = await cliente`select * from ofertas_asignaturas order by id`;
     const asignaciones = await cliente`select * from oferta_tipo_hora order by oferta_id`;
@@ -207,7 +207,7 @@ describe.skipIf(!habilitado)("Period administration on isolated PostgreSQL", () 
     expect(await preservados()).toEqual(antes);
     expect((await resumen(alcance)).horarios).toBe(0);
   });
-  it.each(["preparacion", "propuesta", "publicado"])("applies transitions from %s without bypassing the schedule guard", async estadoAnterior => {
+  it.each(["preparacion", "propuesta", "publicado"])("aplica transiciones desde %s sin eludir la guarda de horarios", async estadoAnterior => {
     await prepararHorarioValido();
     for (const estadoPlanificacion of ["preparacion", "propuesta", "publicado"]) {
       await cliente`update planificaciones_semestres set estado_planificacion=${estadoAnterior} where id=1`;
@@ -228,7 +228,7 @@ describe.skipIf(!habilitado)("Period administration on isolated PostgreSQL", () 
       expect(await huellaDatos()).toBe(huellaAnterior);
     }
   });
-  it.each([10, 12])("return to preparation is blocked only by a remaining managed schedule on offer %s", async ofertaId => {
+  it.each([10, 12])("solo un horario gestionado restante en la oferta %s bloquea el retorno a preparación", async ofertaId => {
     await cliente`delete from horarios_asignaturas where planificacion_semestre_id=1 and oferta_id<>${ofertaId}`;
     const antes = await huellaDatos();
     const respuesta = await autorizada(request(app).patch(`${raiz}/estado`)).send({ estadoAnterior: "publicado", estadoPlanificacion: "preparacion" });
@@ -237,7 +237,7 @@ describe.skipIf(!habilitado)("Period administration on isolated PostgreSQL", () 
     if (ofertaId === 12) await cliente`update planificaciones_semestres set estado_planificacion='publicado' where id=1`;
     expect(await huellaDatos()).toBe(antes);
   });
-  it.each(["propuesta", "publicado"])("returns from %s after resetting managed schedules, preserving external schedules and teachers", async estadoAnterior => {
+  it.each(["propuesta", "publicado"])("retorna desde %s tras reiniciar horarios gestionados y conserva horarios externos y profesores", async estadoAnterior => {
     await cliente`update planificaciones_semestres set estado_planificacion=${estadoAnterior} where id=1`;
     const vista = await resumen("gestionadas");
     expect((await autorizada(request(app).post(`${raiz}/reiniciar`)).send({ objetivo: "horarios", alcance: "gestionadas", confirmacion: "2099-2", huella: vista.huella })).status).toBe(200);
@@ -250,7 +250,7 @@ describe.skipIf(!habilitado)("Period administration on isolated PostgreSQL", () 
     await cliente`update planificaciones_semestres set estado_planificacion=${estadoAnterior} where id=1`;
     expect(await huellaDatos()).toBe(antes);
   });
-  it("returns to preparation once this period is empty even if other periods/careers retain schedules", async () => {
+  it("retorna a preparación cuando este período queda vacío aunque otros períodos o carreras conserven horarios", async () => {
     await cliente`delete from horarios_asignaturas where planificacion_semestre_id=1`;
     const anteriores = await preservados();
     const respuesta = await autorizada(request(app).patch(`${raiz}/estado`)).send({ estadoAnterior: "publicado", estadoPlanificacion: "preparacion" });
@@ -258,7 +258,7 @@ describe.skipIf(!habilitado)("Period administration on isolated PostgreSQL", () 
     anteriores.planes[0].estado_planificacion = "preparacion";
     expect(await preservados()).toEqual(anteriores);
   });
-  it("external reset excludes unclassified departments instead of broadening the destructive scope", async () => {
+  it("el reinicio externo excluye departamentos sin clasificar en lugar de ampliar el alcance del borrado", async () => {
     await cliente`delete from carrera_departamento where carrera_id=1 and departamento_id=2`;
     const vista = await resumen("externas");
     const antes = await huellaDatos();
@@ -268,7 +268,7 @@ describe.skipIf(!habilitado)("Period administration on isolated PostgreSQL", () 
     expect(respuesta.body.data).toEqual({ ofertas: 0, asignaciones: 0, horarios: 0 });
     expect(await huellaDatos()).toBe(antes);
   });
-  it("rejects changed rows, management scope, state or incorrect confirmation without further mutations", async () => {
+  it("rechaza filas, alcance de gestión o estado modificados y confirmaciones incorrectas sin nuevas mutaciones", async () => {
     for (const cambio of ["cupos", "gestion", "estado", "confirmacion", "alcance"]) {
       const vista = await resumen();
       if (cambio === "cupos") await cliente`update ofertas_asignaturas set cupos=cupos+1 where id=10`;
@@ -283,14 +283,14 @@ describe.skipIf(!habilitado)("Period administration on isolated PostgreSQL", () 
     expect((await autorizada(request(app).patch(`${raiz}/estado`)).send({ estadoAnterior: "publicado", estadoPlanificacion: "propuesta" })).status).toBe(409);
     expect(await huellaDatos()).toBe(antes);
   });
-  it("serializes concurrent resets: only one stale snapshot can be consumed", async () => {
+  it("serializa reinicios concurrentes, una misma captura previa solo puede consumirse una vez", async () => {
     const vista = await resumen();
     const reiniciar = () => autorizada(request(app).post(`${raiz}/reiniciar`)).send({ objetivo: "horarios", alcance: "gestionadas", huella: vista.huella, confirmacion: "2099-2" });
     const respuestas = await Promise.all([reiniciar(), reiniciar()]);
     expect(respuestas.map(respuesta => respuesta.status).sort()).toEqual([200, 409]);
     expect((await resumen()).horarios).toBe(0);
   });
-  it("rolls back assignment deletions on a later offer deletion failure after schedules were reset", async () => {
+  it("revierte el borrado de asignaciones si falla después el borrado de ofertas con horarios ya reiniciados", async () => {
     await cliente`delete from horarios_asignaturas where planificacion_semestre_id=1`;
     const vista = await resumen();
     const antes = await huellaDatos();
@@ -305,7 +305,7 @@ describe.skipIf(!habilitado)("Period administration on isolated PostgreSQL", () 
       await cliente`drop function impedir_reinicio_prueba()`;
     }
   });
-  it("handles empty managed scopes without expanding to all offers, and missing plans return 404", async () => {
+  it("procesa alcances gestionados vacíos sin abarcar todas las ofertas y devuelve 404 para planificaciones ausentes", async () => {
     await cliente`delete from carrera_departamento where carrera_id=1`;
     const vista = await resumen();
     const antes = await huellaDatos();
@@ -315,7 +315,7 @@ describe.skipIf(!habilitado)("Period administration on isolated PostgreSQL", () 
     expect(await huellaDatos()).toBe(antes);
     expect((await autorizada(request(app).get("/api/administracion-periodos/404/resumen?alcance=todas"))).status).toBe(404);
   });
-  it("enforces real authentication and administrator authorization without changing any data", async () => {
+  it("exige autenticación real y autorización administrativa sin cambiar datos", async () => {
     const antes = await huellaDatos();
     const vista = await resumen();
     for (const rol of [null, "secretaria", "profesor"] as const) {

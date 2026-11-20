@@ -34,8 +34,8 @@ beforeEach(() => {
   vi.mocked(planificacionesSemestresRepository.update).mockResolvedValue(planificacion as never);
   vi.mocked(planificacionesSemestresRepository.delete).mockResolvedValue(planificacion as never);
 });
-describe("Planificaciones semestre HTTP (offline; reemplazo de semestres)", () => {
-  it.each(["preparacion", "propuesta", "publicado"])("actual-only PATCH conserva estado %s", async estadoPlanificacion => {
+describe("Planificaciones semestre HTTP (sin conexión externa, reemplazo de semestres)", () => {
+  it.each(["preparacion", "propuesta", "publicado"])("PATCH de solo actual conserva el estado %s", async estadoPlanificacion => {
     const fila = { ...planificacion, estadoPlanificacion };
     vi.mocked(planificacionesSemestresRepository.findById).mockResolvedValue(fila as never);
     vi.mocked(planificacionesSemestresRepository.update).mockResolvedValue(fila as never);
@@ -222,7 +222,7 @@ describe("Planificaciones semestre HTTP (offline; reemplazo de semestres)", () =
     expect(respuesta.status).toBe(500);
     expect(respuesta.body).toEqual({ status: "error", statusCode: 500, message: "Internal server error" });
   });
-  it("finds a deeply wrapped known duplicate without broadening unrelated errors", async () => {
+  it("encuentra un duplicado conocido en errores anidados a varios niveles sin incluir errores ajenos", async () => {
     let error = Object.assign(new Error("duplicate"), { code: "23505", constraint: "planificaciones_semestres_carrera_codigo_unique" });
     for (let nivel = 0; nivel < 12; nivel++) error = new Error("query", { cause: error }) as typeof error;
     vi.mocked(planificacionesSemestresRepository.create).mockRejectedValue(error);

@@ -7,6 +7,7 @@ export interface PlanificacionPanel {
 }
 export interface ResumenPanel { mensaje: string; nota: string }
 
+// Prioriza el siguiente destino académico según el perfil y el estado del período.
 export function accionesPanel(rol: string, planificacion?: PlanificacionPanel) {
   const gestion = {
     nombre: 'Gestión del horario',

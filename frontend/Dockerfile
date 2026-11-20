@@ -2,19 +2,19 @@ FROM node:22-alpine
 
 WORKDIR /app
 
-# Enable corepack and install pnpm
+# Habilita corepack e instala pnpm.
 RUN corepack enable && corepack prepare pnpm@11.25.0 --activate
 
-# Copy package management files
+# Copia los archivos de gestión de paquetes.
 COPY package.json ./
 
-# Install dependencies
+# Instala las dependencias.
 RUN pnpm install
 
-# Copy the rest of the application
+# Copia el resto de la aplicación.
 COPY . .
 
 EXPOSE 5173
 
-# Start development server
+# Inicia el servidor de desarrollo.
 CMD ["pnpm", "run", "dev"]

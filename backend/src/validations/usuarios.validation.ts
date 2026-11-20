@@ -27,6 +27,7 @@ export const createUsuarioValidation = z
       .optional(),
   })
   .refine(
+    // Exige la carrera que delimitará el alcance de una cuenta nueva de secretaría.
     (data) => {
       if (data.rol === "secretaria" && !data.carreraId) {
         return false;

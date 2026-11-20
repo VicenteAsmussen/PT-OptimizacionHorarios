@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const raiz = fileURLToPath(new URL("../", import.meta.url));
 
-// Listas positivas revisadas. Un archivo nuevo requiere revisar imports y efectos antes de añadirlo.
+// Listas de archivos permitidos y revisados, cada incorporación exige revisar importaciones y efectos.
 export const comprobaciones = {
   transporte: { directorio: "frontend", archivos: ["tests/api.test.mjs"] },
   frontend: { directorio: "frontend", archivos: [
@@ -72,11 +72,13 @@ export const comprobaciones = {
   "tipos-backend": { directorio: "backend", archivos: [] },
 };
 
+// Restringe la verificación a grupos cuyo inventario y efectos se revisaron explícitamente.
 export function seleccionarComprobacion(nombre) {
   if (!Object.hasOwn(comprobaciones, nombre)) throw new Error("Comprobación desconocida. Usa --listar.");
   return comprobaciones[nombre];
 }
 
+// Aísla el proceso hijo de credenciales heredadas y dirige sus archivos al temporal externo.
 export function crearEntorno(temporal, origen = process.env) {
   const entorno = {};
   for (const clave of ["PATH", "Path", "SystemRoot", "SYSTEMROOT", "WINDIR", "COMSPEC", "PATHEXT", "NUMBER_OF_PROCESSORS"]) {
@@ -88,6 +90,7 @@ export function crearEntorno(temporal, origen = process.env) {
     APPDATA: temporal, LOCALAPPDATA: temporal, XDG_CACHE_HOME: temporal };
 }
 
+// Ejecuta el grupo local con herramientas existentes y retira sus temporales al terminar.
 function ejecutar(nombre) {
   const comprobacion = seleccionarComprobacion(nombre);
   const directorio = join(raiz, comprobacion.directorio);

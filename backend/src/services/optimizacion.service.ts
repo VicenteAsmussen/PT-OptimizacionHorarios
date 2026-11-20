@@ -13,6 +13,7 @@ const propietario = randomUUID();
 const procesos = new Map<string, { cancelar: AbortController; tarea: Promise<void> }>();
 let cerrando = false;
 
+// Convierte la captura académica en una entrada matemática con carga externa y recursos verificados.
 export function adaptarCapturaOptimizacion(captura: CapturaOptimizacion, recursos: InicioOptimizacionDTO["recursos"]): EntradaOptimizacion {
   const catalogo = prepararCategoriasSalas(captura.catalogoSalas);
   for (const recurso of recursos.filter(recurso => recurso.tipo === "Sala")) {
@@ -60,12 +61,14 @@ export function adaptarCapturaOptimizacion(captura: CapturaOptimizacion, recurso
   }
 }
 
+// Expone el seguimiento del cálculo sin publicar su propietario ni su captura interna completa.
 function presentar(ejecucion: EjecucionOptimizacion) {
   return { id: ejecucion.id, planificacionSemestreId: ejecucion.planificacionSemestreId, estado: ejecucion.estado,
     versionModelo: ejecucion.versionModelo, revisionEntrada: ejecucion.revisionEntrada, parametros: ejecucion.parametros,
     iniciadaEn: ejecucion.iniciadaEn, finalizadaEn: ejecucion.finalizadaEn, resultado: ejecucion.resultado, diagnostico: ejecucion.diagnostico };
 }
 
+// Mantiene vigente el cálculo y solo intenta incorporar una salida completa validada.
 async function calcular(ejecucion: EjecucionOptimizacion, cancelar: AbortController) {
   const entrada = ejecucion.entrada as EntradaOptimizacion;
   let procesoJulia: DiagnosticoProcesoJulia | undefined;
@@ -116,6 +119,7 @@ async function calcular(ejecucion: EjecucionOptimizacion, cancelar: AbortControl
 }
 
 export const optimizacionService = {
+  // Resume las entradas, los recursos sugeridos y los bloqueos previos a generar una propuesta.
   async preparar(id: number, alcance?: AlcanceCarrera) {
     const { captura, activa } = await optimizacionRepository.preparar(id, alcance);
     const categorias = prepararCategoriasSalas(captura.catalogoSalas);
@@ -134,25 +138,29 @@ export const optimizacionService = {
       certificadoPrioridad: entrada?.certificadoPrioridad ?? null,
       advertencia: "Las cantidades de salas sugeridas no constituyen disponibilidad garantizada. Deben confirmarse para esta ejecución." };
   },
+  // Registra o reutiliza la solicitud y desacopla el cálculo del ciclo de la respuesta HTTP.
   async iniciar(id: number, parametros: InicioOptimizacionDTO, alcance?: AlcanceCarrera) {
     if (cerrando) throw new BadRequestError("El backend está cerrando, no se iniciarán nuevas ejecuciones.");
     const { ejecucion, nueva } = await optimizacionRepository.iniciar(id, parametros, propietario, VERSION_MODELO,
       captura => adaptarCapturaOptimizacion(captura, parametros.recursos), alcance);
     if (nueva) {
       const cancelar = new AbortController();
-      // La tarea pertenece al backend, no al ciclo de vida de la solicitud HTTP.
+      // La tarea pertenece al servidor, no al ciclo de vida de la solicitud HTTP.
       const tarea = calcular(ejecucion, cancelar).catch(() => {
-        // Una pérdida de conexión a DB queda recuperable por vencimiento del arrendamiento.
+        // Si se pierde la conexión a la base de datos, el intento se puede recuperar al vencer el arrendamiento.
         console.error("No se pudo registrar el término de una ejecución del modelo.");
       });
       procesos.set(ejecucion.id, { cancelar, tarea });
     }
     return { ...presentar(ejecucion), reutilizada: !nueva };
   },
+  // Entrega el estado visible de una ejecución accesible para la carrera solicitante.
   async consultar(id: string, alcance?: AlcanceCarrera) { return presentar(await optimizacionRepository.consultar(id, alcance)); },
+  // Recupera el último intento del período, si existe, sin iniciar otro cálculo.
   async ultima(id: number, alcance?: AlcanceCarrera) { const ejecucion = await optimizacionRepository.ultima(id, alcance); return ejecucion ? presentar(ejecucion) : null; },
 };
 
+// Impide nuevos cálculos y espera el término de las tareas canceladas durante el apagado.
 export async function cerrarOptimizacion() {
   cerrando = true;
   for (const proceso of procesos.values()) proceso.cancelar.abort();

@@ -12,14 +12,17 @@ import base from '../../styles/paginas.module.css';
 import estilos from './AdministracionPeriodos.module.css';
 import { AvisoBloqueo, useBloqueoOptimizacion } from '../optimizacion/SeguimientoOptimizacion';
 
+// Reserva las operaciones administrativas de períodos para el administrador.
 export function RequireAdministracionPeriodos() {
   const { usuario } = useAuth();
   return puedeAdministrarPeriodos(usuario?.rol) ? <Outlet /> : <Navigate to="/app/dashboard" replace />;
 }
+// Aísla la selección administrativa cuando cambia la cuenta autenticada.
 export default function AdministracionPeriodosPage() {
   const { usuario } = useAuth();
   return <PaginaAdministracion key={usuario?.id} />;
 }
+// Coordina carreras, selección de períodos y resultados administrativos confirmados.
 function PaginaAdministracion() {
   const [planificaciones, setPlanificaciones] = useState<PlanificacionSemestre[] | null>(null);
   const [carreras, setCarreras] = useState<PlanificacionSemestre['carrera'][] | null>(null);
@@ -36,6 +39,7 @@ function PaginaAdministracion() {
   const bloqueo = useRef(false);
   const seleccion = useRef({ carreraId: '', planificacionId: '' });
   const codigoVigente = useRef('');
+  // Sincroniza el código del nuevo período y reinicia su validación visible.
   function cambiarCodigo(valor: string) { codigoVigente.current = valor; setCodigo(valor); setCodigoRevisado(false); }
   const carrera = carreras?.find(fila => fila.id === Number(carreraId));
   const bloqueoModelo = useBloqueoOptimizacion(null, carrera?.id);
@@ -50,11 +54,14 @@ function PaginaAdministracion() {
     }).catch(fallo => { if (activa) setError(fallo instanceof Error ? fallo.message : 'No se pudieron cargar las carreras y los períodos.'); });
     return () => { activa = false; vigente.current = false; };
   }, [intento]);
+  // Bloquea cambios de selección mientras una operación administrativa está en curso.
   function iniciar() {
     if (bloqueo.current) return false;
     bloqueo.current = true; setOcupado(true); return true;
   }
+  // Libera el bloqueo de selección incluso si el panel del período fue desmontado.
   function terminar() { bloqueo.current = false; if (vigente.current) setOcupado(false); }
+  // Renueva la lista sin reinterpretar como fallida una escritura ya confirmada.
   async function refrescarLista() {
     setErrorLista('');
     try {
@@ -64,10 +71,12 @@ function PaginaAdministracion() {
       if (vigente.current) setErrorLista(`No se pudo actualizar la lista de períodos. ${fallo instanceof Error ? fallo.message : 'Intenta actualizarla nuevamente.'}`);
     }
   }
+  // Reintenta únicamente la lectura de períodos bajo el bloqueo compartido.
   async function actualizar() {
     if (!iniciar()) return;
     try { await refrescarLista(); } finally { terminar(); }
   }
+  // Crea el período del contexto vigente y conserva la respuesta antes de recargar.
   async function crear() {
     if (!vigente.current || bloqueo.current || bloqueoModelo || seleccion.current.planificacionId || seleccion.current.carreraId !== carreraId) return;
     if (!carrera || !codigoValido || codigo !== codigoVigente.current) return;
@@ -76,7 +85,7 @@ function PaginaAdministracion() {
     try {
       const creada = await servicio.crear({ carreraId: carrera.id, codigo });
       if (!vigente.current) return;
-      // Keep the confirmed result if the subsequent GET fails; never repeat POST.
+      // Conserva el resultado confirmado si falla el GET posterior, sin repetir el POST.
       setPlanificaciones(filas => [...(filas ?? []).filter(fila => fila.id !== creada.id).map(fila =>
         fila.carreraId === creada.carreraId ? { ...fila, actual: false } : fila), { ...creada, carrera }]);
       setCarreraId(String(creada.carreraId)); setPlanificacionId(String(creada.id)); cambiarCodigo('');
@@ -90,6 +99,7 @@ function PaginaAdministracion() {
       terminar();
     }
   }
+  // Refleja el período confirmado como actual y luego contrasta la lista del servidor.
   async function actualizada(fila: Omit<PlanificacionSemestre, 'carrera'>) {
     if (!vigente.current) return;
     setPlanificaciones(filas => (filas ?? []).map(periodo => periodo.carreraId !== fila.carreraId ? periodo
@@ -97,16 +107,18 @@ function PaginaAdministracion() {
     notificaciones.exito(`Período ${fila.codigo} marcado como actual. Su estado y sus datos se conservan.`);
     await refrescarLista();
   }
+  // Refleja la transición académica confirmada en el período de la lista.
   function estadoCambiado(id: number, estado: EstadoPeriodo) {
     if (!vigente.current) return;
     setPlanificaciones(filas => filas?.map(periodo => periodo.id === id
       ? { ...periodo, estadoPlanificacion: estado } : periodo) ?? null);
   }
+  // Retira el período eliminado y confirma el resultado desde el contenedor persistente.
   async function eliminada(id: number, codigo: string) {
     if (!vigente.current) return;
     setPlanificaciones(filas => (filas ?? []).filter(periodo => periodo.id !== id));
     seleccion.current.planificacionId = ''; setPlanificacionId(''); cambiarCodigo('');
-    // The parent owns this outcome because clearing selection unmounts the panel.
+    // El contenedor conserva el aviso porque limpiar la selección desmonta el panel.
     notificaciones.exito(`Período ${codigo} eliminado. No se ha marcado otro período como actual.`);
     await refrescarLista();
   }
@@ -176,6 +188,7 @@ function PaginaAdministracion() {
   </div>;
 }
 
+// Coordina resúmenes, confirmaciones y operaciones del período seleccionado.
 function PanelPeriodo({ planificacion, bloqueado, alIniciar, alTerminar, alActualizada, alEstadoCambiado, alEliminada }: {
   planificacion: PlanificacionSemestre; bloqueado: boolean; alIniciar: () => boolean; alTerminar: () => void;
   alActualizada: (fila: Omit<PlanificacionSemestre, 'carrera'>) => Promise<void>;
@@ -195,6 +208,7 @@ function PanelPeriodo({ planificacion, bloqueado, alIniciar, alTerminar, alActua
   const enviando = useRef(false);
   const consulta = useRef(0);
   const confirmacionVigente = useRef<string | null>(null);
+  // Mantiene sincronizada la confirmación vigente usada para eliminar el período.
   function confirmarEliminacion(texto: string | null) {
     confirmacionVigente.current = texto; setConfirmacionEliminacion(texto);
   }
@@ -203,8 +217,10 @@ function PanelPeriodo({ planificacion, bloqueado, alIniciar, alTerminar, alActua
     void cargar();
     return () => { vigente.current = false; consulta.current++; };
   }, []);
+  // Renueva los tres alcances del período e invalida confirmaciones anteriores.
   async function cargar() {
     const revision = ++consulta.current;
+    // Comprueba que el resumen pertenece a la última lectura del panel activo.
     const actual = () => vigente.current && revision === consulta.current;
     setCargando(true); setResumenes(null); setAccion(null); setConfirmacion(''); confirmarEliminacion(null); setError('');
     try {
@@ -216,12 +232,14 @@ function PanelPeriodo({ planificacion, bloqueado, alIniciar, alTerminar, alActua
       if (actual()) setError(fallo instanceof Error ? fallo.message : 'No se pudo cargar el período.');
     } finally { if (actual()) setCargando(false); }
   }
+  // Reintenta los resúmenes sin ejecutar una operación administrativa pendiente.
   async function reintentar() {
     if (!vigente.current || enviando.current || !alIniciar()) return;
     enviando.current = true;
     try { await cargar(); }
     finally { enviando.current = false; alTerminar(); }
   }
+  // Serializa una operación y revisa los resúmenes antes de permitir otra confirmación.
   async function ejecutar(accion: () => Promise<string | void>, recargar = true) {
     if (!vigente.current || enviando.current || bloqueoModelo || !alIniciar()) return;
     enviando.current = true; setOcupado(true);
@@ -238,12 +256,13 @@ function PanelPeriodo({ planificacion, bloqueado, alIniciar, alTerminar, alActua
       finally {
         enviando.current = false;
         if (vigente.current) setOcupado(false);
-        // Deletion unmounts this panel before GET finishes. The parent still
-        // owns the lock and must always receive its release.
+        // La eliminación desmonta el panel antes de terminar el GET, el contenedor
+        // conserva el bloqueo y siempre debe recibir su liberación.
         alTerminar();
       }
     }
   }
+  // Envía el reinicio del alcance revisado solo con confirmación y huella vigentes.
   function reiniciar() {
     if (!resumenes || !accion) return;
     const resumen = resumenes[accion.alcance];
@@ -253,6 +272,7 @@ function PanelPeriodo({ planificacion, bloqueado, alIniciar, alTerminar, alActua
       return `Reinicio completado: ${resultado.ofertas} ofertas, ${resultado.asignaciones} asignaciones y ${resultado.horarios} bloques eliminados.${accion.objetivo === 'horarios' && accion.alcance === 'gestionadas' && (resumen.ejecuciones ?? 0) > 0 ? ' Se eliminaron los registros de ejecución del modelo.' : ''}`;
     });
   }
+  // Solicita una transición permitida desde el estado del último resumen.
   function cambiarEstado() {
     if (!resumenes) return;
     const { planificacion: actual } = resumenes.todas;
@@ -263,6 +283,7 @@ function PanelPeriodo({ planificacion, bloqueado, alIniciar, alTerminar, alActua
       return `Estado cambiado a ${estadosPeriodo[nuevoEstado]}.`;
     });
   }
+  // Solicita convertir el período revisado en el actual de su carrera.
   function marcarActual() {
     if (!resumenes || resumenes.todas.planificacion.id !== planificacion.id || resumenes.todas.planificacion.actual) return;
     void ejecutar(async () => {
@@ -270,6 +291,7 @@ function PanelPeriodo({ planificacion, bloqueado, alIniciar, alTerminar, alActua
       await alActualizada(fila);
     });
   }
+  // Solicita eliminar el período vacío confirmado sin designar otro como actual.
   function eliminar() {
     const codigoConfirmado = confirmacionVigente.current;
     if (!resumenes || codigoConfirmado === null || !puedeEliminarPeriodo(resumenes.todas, planificacion.id)

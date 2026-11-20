@@ -21,25 +21,25 @@ function crearBase(conflicto = false) {
   return { base: base as unknown as BaseDatosSeed, eliminaciones };
 }
 
-describe("explicit local academic replacement", () => {
+describe("Reemplazo académico local explícito", () => {
   it.each([
     ["postgres://postgres:postgres@db.example.com/horarios_db", "development"],
     ["postgres://postgres:postgres@localhost/production", "development"],
     ["postgres://postgres:postgres@localhost/horarios_db", "production"],
-  ])("refuses unsafe targets before any query", async (conexion, entorno) => {
+  ])("rechaza destinos inseguros antes de cualquier consulta", async (conexion, entorno) => {
     const { base, eliminaciones } = crearBase();
     await expect(reemplazarAcademico(base, conexion, entorno)).rejects.toThrow();
     expect(eliminaciones).toEqual([]);
     expect(base.transaction).not.toHaveBeenCalled();
   });
 
-  it("refuses to delete a teacher profile linked to an administrative account", async () => {
+  it("rechaza borrar un perfil docente vinculado a una cuenta administrativa", async () => {
     const { base, eliminaciones } = crearBase(true);
     await expect(reemplazarAcademico(base, "postgres://postgres:postgres@localhost/horarios_db", "development")).rejects.toThrow();
     expect(eliminaciones).toEqual([]);
   });
 
-  it("replaces dependent academic data in one transaction without deleting administrative catalogs", async () => {
+  it("reemplaza datos académicos dependientes en una transacción sin borrar catálogos administrativos", async () => {
     const { base, eliminaciones } = crearBase();
     await reemplazarAcademico(base, "postgres://postgres:postgres@localhost/horarios_db", "development");
     expect(eliminaciones).toEqual([esquema.ofertasAsignaturas, esquema.profesores, esquema.usuarios, esquema.asignaturas]);
@@ -48,7 +48,7 @@ describe("explicit local academic replacement", () => {
     expect(sembrarUsuarios).toHaveBeenCalledWith(base, { carreras: [], departamentos: [] }, true);
   });
 
-  it("propagates insertion errors so the database transaction rolls back", async () => {
+  it("propaga errores de inserción para revertir la transacción de base de datos", async () => {
     vi.mocked(sembrarAcademico).mockRejectedValueOnce(new Error("insertion failed"));
     const { base } = crearBase();
     await expect(reemplazarAcademico(base, "postgres://postgres:postgres@localhost/horarios_db", "development")).rejects.toThrow("insertion failed");

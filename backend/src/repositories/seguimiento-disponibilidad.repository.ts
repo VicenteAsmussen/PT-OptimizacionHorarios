@@ -6,6 +6,7 @@ import { ofertaTipoHora } from "../db/schema/oferta-tipo-hora.schema.js";
 import { ofertasAsignaturas } from "../db/schema/ofertas-asignaturas.schema.js";
 
 export const seguimientoDisponibilidadRepository = {
+  // Consulta docentes, carga y disponibilidad del período sin exponer datos de acceso.
   async profesores(planificacionSemestreId: number, departamentosIds: number[]) {
     if (!departamentosIds.length) return [];
     return db.query.profesores.findMany({

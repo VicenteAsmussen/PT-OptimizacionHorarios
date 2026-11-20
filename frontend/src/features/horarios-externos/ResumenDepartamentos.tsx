@@ -8,6 +8,7 @@ import estilos from './HorariosExternos.module.css';
 
 type EstadoResumen = { tipo: 'cargando' } | { tipo: 'error'; mensaje: string } | { tipo: 'listo'; filas: ResumenDepartamento[] };
 
+// Consulta la cobertura guardada de los departamentos externos del período.
 export default function ResumenDepartamentos({ planificacionId, departamentos }: {
   planificacionId: number; departamentos: DepartamentoExterno[];
 }) {
@@ -24,6 +25,7 @@ export default function ResumenDepartamentos({ planificacionId, departamentos }:
   return <VistaResumenDepartamentos estado={estado} alReintentar={() => setIntento(valor => valor + 1)} />;
 }
 
+// Presenta el avance de carga externa sin confundir un fallo con ausencia de horarios.
 export function VistaResumenDepartamentos({ estado, alReintentar }: { estado: EstadoResumen; alReintentar: () => void }) {
   const { referencia, desborda } = useDesbordamientoTabla();
   return <section aria-labelledby="titulo-resumen-departamentos">

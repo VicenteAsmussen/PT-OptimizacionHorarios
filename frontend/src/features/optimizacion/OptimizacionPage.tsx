@@ -13,10 +13,12 @@ import type { BorradorRecurso, Preparacion, Recurso } from './types';
 import estilos from '../resultados-horarios/ResultadosHorarios.module.css';
 import './optimizacion.css';
 
+// Redirige a las cuentas sin permiso para solicitar el cálculo del modelo.
 export function RequireOptimizacion() {
   const { usuario } = useAuth();
   return puedeOptimizar(usuario?.rol) ? <Outlet /> : <Navigate to="/app/dashboard" replace />;
 }
+// Sitúa la preparación y el seguimiento en el período autorizado de secretaría.
 export default function OptimizacionPage() {
   const { usuario } = useAuth();
   const { planificaciones, error, reintentar } = useOptimizacion();
@@ -47,6 +49,7 @@ export default function OptimizacionPage() {
       : <PreparacionModelo key={planificacion.id} id={planificacion.id} />}
   </section>;
 }
+// Coordina recursos declarados, confirmación del inicio y diagnóstico del intento.
 function PreparacionModelo({ id }: { id: number }) {
   const { usuario } = useAuth();
   const { seguimiento, filas } = useOptimizacion();
@@ -86,6 +89,7 @@ function PreparacionModelo({ id }: { id: number }) {
     return () => { actual = false; controlador.abort(); };
   }, [id, intento, seguimiento, activa, ejecucion?.id]);
   const bloqueado = activa || estado?.enviando || estado?.incierta;
+  // Inicia un cálculo validado o reenvía la solicitud incierta con sus parámetros originales.
   async function iniciar() {
     if (activa || estado?.enviando) return;
     setError('');

@@ -9,6 +9,7 @@ registerHooks({ resolve(nombre, contexto, siguiente) {
   return siguiente(nombre, contexto);
 } });
 
+// Los IDs decrecientes separan identidad persistida de orden institucional y paridad del bloque.
 export const bloques = Array.from({ length: 6 }, (_, i) => ({ id: 90 - i * 3, dia: 'Lunes', numeroBloque: i + 1,
   horaInicio: ['08:10', '08:50', '09:40', '10:20', '11:10', '11:50'][i],
   horaTermino: ['08:50', '09:30', '10:20', '11:00', '11:50', '12:30'][i] }));
@@ -369,7 +370,7 @@ test('S6 clic y teclado eligen destinos existentes sin guardar ni seleccionar ot
   } finally { calendario.cerrar(); }
 });
 
-test('only secretary/admin manage results and only a current proposal is mutable', async () => {
+test('solo secretaría y administración gestionan resultados y solo una propuesta actual se puede modificar', async () => {
   const m = await import('./modelo.ts');
   for (const rol of ['secretaria', 'admin']) assert.equal(m.puedeGestionarResultados(rol), true);
   for (const rol of ['profesor', undefined, null]) assert.equal(m.puedeGestionarResultados(rol), false);
@@ -410,7 +411,7 @@ test('S6 consulta conserva tarjetas accesibles y edición deshabilita las que no
   } finally { calendario.cerrar(); }
 });
 
-test('S6 manejadores reales preparan selección antes del long press, drop solo elige y cancelaciones conservan preview', async () => {
+test('S6 los manejadores reales preparan la selección antes de la pulsación prolongada, soltar solo elige y cancelar conserva la vista previa', async () => {
   let reloj; const eventos = new Map(); const elecciones = []; const selecciones = []; let capturas = 0;
   const ventana = { addEventListener: (tipo, fn) => eventos.set(tipo, fn), removeEventListener: tipo => eventos.delete(tipo) };
   const propiedades = { resultado, nivel: '3', editar: true, seleccionar: actual => selecciones.push(actual) };
@@ -434,7 +435,7 @@ test('S6 manejadores reales preparan selección antes del long press, drop solo 
     eventos.get('pointermove')(evento({ clientX: 500, clientY: 900 }));
     eventos.get('pointerup')(evento({ clientX: 500, clientY: 900 })); calendario.renderizar();
     assert.deepEqual(elecciones, [190]); assert.equal(capturas, 0);
-    tarjeta().props.onClick({ detail: 1 }); assert.equal(selecciones.length, 1, 'El click sintético del drag no vuelve a seleccionar.');
+  tarjeta().props.onClick({ detail: 1 }); assert.equal(selecciones.length, 1, 'El clic sintético del arrastre no vuelve a seleccionar.');
     for (const cancelar of ['pointercancel', 'lostpointercapture', 'scroll', 'Escape', 'unmount']) {
       preparar(); reloj(); calendario.renderizar();
       if (cancelar === 'Escape') eventos.get('keydown')({ key: 'Escape', preventDefault() {} });
@@ -450,7 +451,7 @@ test('S6 manejadores reales preparan selección antes del long press, drop solo 
   } finally { calendario.cerrar(); }
 });
 
-test('S15 el mouse inicia al arrastrar, el touch conserva la pulsación y el scroll del usuario cancela', async () => {
+test('S15 el ratón inicia al arrastrar, el contacto táctil conserva la pulsación y el desplazamiento del usuario cancela', async () => {
   const eventos = new Map(), documento = { elementsFromPoint: () => [{ closest: () => ({ dataset: { destinoId: '187' } }) }] };
   const elecciones = []; let reloj, capturas = 0;
   const propiedades = { resultado, nivel: '3', editar: true, seleccionar() {},
@@ -463,22 +464,22 @@ test('S15 el mouse inicia al arrastrar, el touch conserva la pulsación y el scr
     currentTarget: { setPointerCapture() { capturas++; }, hasPointerCapture: () => capturas > 0, releasePointerCapture() { capturas--; } } };
   const iniciar = cambios => calendario.buscar('button').find(b => b.props['data-sesion']).props.onPointerDown({ ...puntero, ...cambios });
   try {
-    iniciar(); eventos.get('scroll')({ target: documento }); // Reflujo observado al seleccionar, sin acción de scroll.
+    iniciar(); eventos.get('scroll')({ target: documento }); // Reflujo al seleccionar, sin desplazamiento del usuario.
     eventos.get('pointermove')({ ...puntero, clientX: 18 });
-    assert.equal(capturas, 1, 'Arrastrar con mouse no exige esperar el temporizador.');
+  assert.equal(capturas, 1, 'Arrastrar con ratón no exige esperar el temporizador.');
     eventos.get('pointerup')(puntero); assert.deepEqual(elecciones, [190]);
     iniciar({ pointerType: 'touch' });
     eventos.get('pointermove')({ ...puntero, pointerType: 'touch', clientX: 18 });
     assert.equal(reloj, null); assert.equal(capturas, 0);
     iniciar({ pointerType: 'touch' }); eventos.get('scroll')({ target: documento });
     reloj(); assert.equal(capturas, 1, 'La selección no cancela la primera pulsación táctil.');
-    eventos.get('scroll')({ target: documento }); assert.equal(capturas, 0, 'Un scroll durante el arrastre activo sí cancela.');
+  eventos.get('scroll')({ target: documento }); assert.equal(capturas, 0, 'Un desplazamiento durante el arrastre activo sí cancela.');
     for (const tipo of ['wheel', 'keydown']) {
       iniciar(); eventos.get(tipo)({ key: 'PageDown' });
       assert.equal(reloj, null); assert.equal(capturas, 0);
     }
     iniciar(); eventos.get('scroll')({ target: {} });
-    assert.equal(reloj, null, 'El scroll interno cancela incluso antes de activar.');
+  assert.equal(reloj, null, 'El desplazamiento interno cancela incluso antes de activar.');
     assert.deepEqual(elecciones, [190]);
   } finally { calendario.cerrar(); }
 });
@@ -544,7 +545,7 @@ for (const caso of [
   } finally { calendario.cerrar(); }
 });
 
-test('S6 integración de long press inicial y grupo parcial valida al soltar pero solo confirma una escritura', async () => {
+test('S6 la integración de pulsación prolongada inicial y grupo parcial valida al soltar pero solo confirma una escritura', async () => {
   const validaciones = []; const escrituras = []; let reloj; const eventos = new Map(); let bloqueBajoPuntero = '190';
   const original = JSON.stringify(resultado);
   const pagina = await montar('./ResultadosHorariosPage.tsx', 'ContenidoResultados', { id: 2, ocupado: false, actualizarPlanificacion() {} }, {
@@ -614,7 +615,7 @@ test('S6 integración de long press inicial y grupo parcial valida al soltar per
   } finally { calendario?.cerrar(); pagina.cerrar(); }
 });
 
-test('room-assigned and external sessions are green read-only and cannot confirm movement', async () => {
+test('las sesiones con sala y las externas son verdes de solo lectura y no permiten confirmar movimientos', async () => {
   const m = await import('./modelo.ts');
   const datos = { revision: resultado.revision, idsHorarios: [11, 12], bloqueInicioId: 190 };
   const validacion = { clave: m.claveMovimiento(2, datos), valido: true, problemas: [] };
@@ -629,7 +630,7 @@ test('room-assigned and external sessions are green read-only and cannot confirm
   }
 });
 
-test('laboratories are ready, noneditable and labeled only Laboratorio', async () => {
+test('los laboratorios están listos, no son editables y solo se etiquetan como Laboratorio', async () => {
   const m = await import('./modelo.ts');
   const laboratorio = { ...sesion, estadoSala: 'laboratorio', tipoHora: { id: 3, tipo: 'Laboratorio' } };
   assert.equal(m.etiquetasSala.laboratorio, 'Laboratorio');
@@ -652,7 +653,7 @@ test('S15 el anclaje usa la pareja del día por número institucional, nunca por
   assert.equal(m.inicioParejaDestino(resultado.bloques.filter(b => b.id !== 190), 187), undefined);
 });
 
-for (const cantidad of [2, 3, 4]) test(`S15 clic, teclado y drop sobre ambas mitades conservan ${cantidad} bloques`, async () => {
+for (const cantidad of [2, 3, 4]) test(`S15 clic, teclado y soltar sobre ambas mitades conservan ${cantidad} bloques`, async () => {
   const elecciones = [], eventos = new Map(); let reloj, apuntado = '187';
   const propiedades = { resultado, nivel: '3', editar: true, seleccionar() {},
     movimiento: { sesion, idsHorarios: sesion.idsHorarios.slice(0, cantidad), cantidad, inicioId: 0, invalido: false, elegir: id => elecciones.push(id) } };
@@ -690,7 +691,7 @@ for (const cantidad of [2, 3, 4]) test(`S15 clic, teclado y drop sobre ambas mit
   } finally { calendario.cerrar(); }
 });
 
-test('movement targets are green only when the full group is free and available', async () => {
+test('los destinos de movimiento son verdes solo cuando el grupo completo está libre y disponible', async () => {
   const m = await import('./modelo.ts');
   assert.equal(m.estadoDestino(resultado, sesion, 190, 2), 'disponible');
   assert.equal(m.estadoDestino(resultado, sesion, 84, 2), 'ocupado');
@@ -721,14 +722,14 @@ test('las reservas impiden destinos completos y parciales sin bloquear otra carr
   assert.equal(m.destinoDisponible(resultado, sesion, 190, 2), true);
 });
 
-test('whole session is first and groups never leave isolated or nonconsecutive blocks', async () => {
+test('la sesión completa aparece primero y los grupos nunca dejan bloques aislados ni discontinuos', async () => {
   const { gruposMovibles } = await import('./modelo.ts');
   assert.deepEqual(gruposMovibles(sesion, bloques), [[11, 12, 13, 14], [11, 12], [13, 14]]);
   for (const longitud of [2, 3]) assert.deepEqual(gruposMovibles({ ...sesion, idsHorarios: sesion.idsHorarios.slice(0, longitud) }, bloques), [sesion.idsHorarios.slice(0, longitud)]);
   assert.deepEqual(gruposMovibles({ ...sesion, editable: false }, bloques), []);
 });
 
-test('destinations use block chronology, full duration and declared planning-specific availability', async () => {
+test('los destinos usan la cronología de bloques, la duración completa y la disponibilidad declarada para la planificación', async () => {
   const { bloquesDestino, destinoDisponible } = await import('./modelo.ts');
   assert.deepEqual(bloquesDestino(bloques, 84, 2).map(b => b.id), [84, 81]);
   assert.deepEqual(bloquesDestino(bloques, 75, 2), []);
@@ -737,7 +738,7 @@ test('destinations use block chronology, full duration and declared planning-spe
   assert.equal(destinoDisponible({ ...resultado, disponibilidades: resultado.disponibilidades.map(d => ({ ...d, planificacionSemestreId: 7 })) }, sesion, 84, 2), false);
 });
 
-test('movement confirmation requires the exact revision, group and destination and backend validation', async () => {
+test('confirmar un movimiento exige revisión, grupo y destino exactos y validación del backend', async () => {
   const m = await import('./modelo.ts');
   const datos = { revision: resultado.revision, idsHorarios: [11, 12], bloqueInicioId: 190 };
   const validacion = { clave: m.claveMovimiento(2, datos), valido: true, problemas: [] };
@@ -750,7 +751,7 @@ test('movement confirmation requires the exact revision, group and destination a
   assert.equal(m.puedeConfirmarMovimiento(resultado, { ...sesion, editable: false }, datos, validacion), false);
 });
 
-test('level filtering never hides planning-wide pending counts or discards fixed sessions', async () => {
+test('filtrar por nivel nunca oculta los pendientes globales de la planificación ni descarta sesiones fijas', async () => {
   const m = await import('./modelo.ts');
   const completa = { ...resultado, sesiones: [sesion, { ...sesion, ofertaId: 6, editable: false, estadoSala: 'externa', asignatura: { ...sesion.asignatura, semestreMalla: 5 } }] };
   assert.deepEqual(m.sesionesVisibles(completa, '5').map(s => s.estadoSala), ['externa']);
@@ -758,7 +759,7 @@ test('level filtering never hides planning-wide pending counts or discards fixed
   assert.equal(m.sesionesVisibles(completa, '').length, 2);
 });
 
-test('read lifecycle rejects obsolete same-plan replies and clears old data before reload', async () => {
+test('el ciclo de lectura rechaza respuestas obsoletas de la misma planificación y limpia los datos anteriores antes de recargar', async () => {
   const m = await import('./modelo.ts');
   let estado = m.reducirResultados(m.estadoInicial, { tipo: 'seleccionar', id: 2 });
   const anterior = estado.secuencia;
@@ -772,7 +773,7 @@ test('read lifecycle rejects obsolete same-plan replies and clears old data befo
   assert.equal(m.reducirResultados(estado, { tipo: 'cargado', secuencia: estado.secuencia, resultado: { ...resultado, planificacion: { ...resultado.planificacion, id: 7 } } }), estado);
 });
 
-test('publication confirmation is revision-bound and forbidden after publication', async () => {
+test('la confirmación de publicación está vinculada a la revisión y se prohíbe después de publicar', async () => {
   const { puedePublicar } = await import('./modelo.ts');
   const valida = { valido: true, problemas: [], revision: resultado.revision };
   assert.equal(puedePublicar(resultado, valida), true);
@@ -781,7 +782,7 @@ test('publication confirmation is revision-bound and forbidden after publication
   assert.equal(puedePublicar({ ...resultado, planificacion: { ...resultado.planificacion, estadoPlanificacion: 'publicado' } }, valida), false);
 });
 
-test('public API uses only proposal-result endpoints and preserves revision-bound multipart', async () => {
+test('la API pública usa solo rutas de resultados de propuesta y conserva el envío multipart vinculado a revisión', async () => {
   const { resultadosHorariosApi: api } = await import('./resultados-horarios.api.ts');
   const anterior = globalThis.fetch;
   const solicitudes = [];
@@ -806,7 +807,7 @@ test('public API uses only proposal-result endpoints and preserves revision-boun
   } finally { globalThis.fetch = anterior; }
 });
 
-test('calendar distinguishes neutral external sessions and ready managed sessions without changing consultation', async () => {
+test('el calendario distingue sesiones externas neutras y gestionadas listas sin cambiar la consulta', async () => {
   const { createServer } = await import('../../../tests/soporte/vite.mjs');
   const { createElement } = await import('react');
   const { renderToStaticMarkup } = await import('react-dom/server');
@@ -905,7 +906,7 @@ test('calendar distinguishes neutral external sessions and ready managed session
   } finally { await servidor.close(); }
 });
 
-test('selected group is grey and its unsaved destination preview does not mutate the timetable', async () => {
+test('el grupo seleccionado es gris y la vista previa de destino sin guardar no modifica el horario', async () => {
   const { createServer } = await import('../../../tests/soporte/vite.mjs');
   const { createElement } = await import('react');
   const { renderToStaticMarkup } = await import('react-dom/server');
@@ -940,7 +941,7 @@ test('selected group is grey and its unsaved destination preview does not mutate
   } finally { await servidor.close(); }
 });
 
-test('S11 cells show their own availability while only odd starts admit a full group', async () => {
+test('S11 las celdas muestran su disponibilidad y solo los inicios impares admiten un grupo completo', async () => {
   const { createServer } = await import('../../../tests/soporte/vite.mjs');
   const { createElement } = await import('react');
   const { renderToStaticMarkup } = await import('react-dom/server');
@@ -995,7 +996,7 @@ test('S11 cells show their own availability while only odd starts admit a full g
   } finally { await servidor.close(); }
 });
 
-test('S11 partial group options use institutional residual starts and keep whole legacy sessions', async () => {
+test('S11 las opciones de grupo parcial usan inicios residuales institucionales y conservan completas las sesiones anteriores', async () => {
   const quinta = { ...sesion, idsHorarios: [11, 12, 13, 14, 15], bloquesIds: bloques.slice(0, 5).map(b => b.id) };
   const props = sesionActual => ({ resultado: { ...resultado, sesiones: [sesionActual] }, sesion: sesionActual, grupo: 0,
     datos: { revision: resultado.revision, idsHorarios: sesionActual.idsHorarios, bloqueInicioId: 0 },
@@ -1011,7 +1012,7 @@ test('S11 partial group options use institutional residual starts and keep whole
   } finally { controles.cerrar(); }
 });
 
-test('S11 imperative even starts are ignored and obsolete previews cannot approve invalid destinations', async () => {
+test('S11 se ignoran los inicios pares imperativos y las vistas previas obsoletas no aprueban destinos inválidos', async () => {
   const solicitudes = []; let guardados = 0;
   const pagina = await montar('./ResultadosHorariosPage.tsx', 'ContenidoResultados', { id: 2, ocupado: false, actualizarPlanificacion() {} }, {
     consultar: async () => resultado,
@@ -1028,7 +1029,7 @@ test('S11 imperative even starts are ignored and obsolete previews cannot approv
     assert.equal(solicitudes[0].signal.aborted, true);
     elegir(187);
     assert.equal(pagina.componente('ControlesMovimiento').props.datos.bloqueInicioId, 184);
-    elegir(178); // Odd number 5, but too short for the whole four-block group.
+    elegir(178); // El número 5 es impar, pero no quedan bloques para el grupo completo de cuatro.
     solicitudes[0].resolver({ valido: true, problemas: [] }); solicitudes[1].resolver({ valido: true, problemas: [] });
     await pagina.asentar();
     assert.equal(pagina.componente('ControlesMovimiento').props.aprobado, false);
@@ -1038,7 +1039,7 @@ test('S11 imperative even starts are ignored and obsolete previews cannot approv
   } finally { pagina.cerrar(); }
 });
 
-test('S11 period state is immediately beside refresh and the removed paragraph stays absent', async () => {
+test('S11 el estado del período está junto a actualizar y el párrafo eliminado sigue ausente', async () => {
   const pagina = await montar('./ResultadosHorariosPage.tsx', 'ContenidoResultados', { id: 2, ocupado: false, actualizarPlanificacion() {} }, { consultar: async () => resultado });
   try {
     await pagina.asentar();
@@ -1050,7 +1051,7 @@ test('S11 period state is immediately beside refresh and the removed paragraph s
   } finally { pagina.cerrar(); }
 });
 
-test('S11 an unavailable third block prevents server preview and saving the whole group', async () => {
+test('S11 un tercer bloque no disponible impide la vista previa del servidor y guardar el grupo completo', async () => {
   const triple = { ...sesion, idsHorarios: [11, 12, 13], bloquesIds: [90, 87, 84], salas: [null, null, null] };
   const contexto = { ...resultado, sesiones: [triple], disponibilidades: resultado.disponibilidades.filter(d => d.bloqueId !== 184) };
   const original = JSON.stringify(contexto); let solicitudes = 0; let guardados = 0;
@@ -1081,7 +1082,7 @@ test('la consulta selecciona solo una planificación autorizada sin alterar la s
   }
 });
 
-// Execute the real component's hooks and handlers with deferred requests, without a DOM or network.
+// Ejecuta los hooks y manejadores reales del componente con solicitudes diferidas, sin DOM ni red.
 async function montar(nombreArchivo, nombreFuncion, propiedades, api) {
   const React = await import('react');
   const { readFile } = await import('node:fs/promises');
@@ -1292,7 +1293,7 @@ test('el botón para consultar pendientes se bloquea al estar ocupado o no tener
   } finally { pagina.cerrar(); }
 });
 
-test('selecting a session projects availability onto the same semester calendar without a movement dialog', async () => {
+test('seleccionar una sesión proyecta disponibilidad en el mismo calendario semestral sin diálogo de movimiento', async () => {
   const pagina = await montar('./ResultadosHorariosPage.tsx', 'ContenidoResultados', { id: 2, ocupado: false, actualizarPlanificacion() {} }, {
     consultar: async () => resultado,
   });
@@ -1310,7 +1311,7 @@ test('selecting a session projects availability onto the same semester calendar 
   } finally { pagina.cerrar(); }
 });
 
-for (const accion of ['cancel', 'semester', 'group', 'refresh']) test(`inline ${accion} invalidates pending previews without saving`, async () => {
+for (const accion of ['cancel', 'semester', 'group', 'refresh']) test(`la acción ${accion} en el calendario invalida vistas previas pendientes sin guardar`, async () => {
   const solicitudes = [];
   let guardados = 0;
   let lecturas = 0;
@@ -1342,7 +1343,7 @@ for (const accion of ['cancel', 'semester', 'group', 'refresh']) test(`inline ${
   } finally { pagina.cerrar(); }
 });
 
-test('green read-only sessions cannot enter inline editing through either selection entry point', async () => {
+test('las sesiones verdes de solo lectura no entran en edición en el calendario por ninguno de los dos accesos de selección', async () => {
   const protegidas = [{ ...sesion, estadoSala: 'asignada', salas: sesion.salas.map(() => ({ id: 1, nombre: 'A-101' })) },
     { ...sesion, estadoSala: 'laboratorio', idsHorarios: [41, 42] },
     { ...sesion, estadoSala: 'externa', idsHorarios: [21, 22] },
@@ -1360,7 +1361,7 @@ test('green read-only sessions cannot enter inline editing through either select
   } finally { pagina.cerrar(); }
 });
 
-test('visual group choices show origin and full destination ranges and preserve selection while busy', async () => {
+test('las opciones visuales de grupo muestran origen y rangos completos de destino y conservan la selección mientras están ocupadas', async () => {
   const cambios = [];
   const propiedades = { resultado, sesion, grupo: 1,
     datos: { revision: resultado.revision, idsHorarios: [11, 12], bloqueInicioId: 190 },
@@ -1385,7 +1386,7 @@ test('visual group choices show origin and full destination ranges and preserve 
   } finally { pagina.cerrar(); }
 });
 
-test('two-block sessions omit redundant choices and identify the exact origin group and two unsaved destination blocks', async () => {
+test('las sesiones de dos bloques omiten opciones redundantes e identifican el grupo de origen exacto y los dos bloques de destino sin guardar', async () => {
   const { createServer } = await import('../../../tests/soporte/vite.mjs');
   const { createElement } = await import('react');
   const { renderToStaticMarkup } = await import('react-dom/server');
@@ -1412,7 +1413,7 @@ test('two-block sessions omit redundant choices and identify the exact origin gr
   } finally { await servidor.close(); }
 });
 
-for (const cantidad of [2, 3]) test(`whole-only ${cantidad}-block controls omit redundant choices and keep concise confirmation`, async () => {
+for (const cantidad of [2, 3]) test(`los controles de sesión completa de ${cantidad} bloques omiten opciones redundantes y mantienen una confirmación breve`, async () => {
   const completa = { ...sesion, idsHorarios: sesion.idsHorarios.slice(0, cantidad), bloquesIds: sesion.bloquesIds.slice(0, cantidad),
     horaTermino: bloques[cantidad - 1].horaTermino, salas: Array(cantidad).fill(null) };
   const contexto = { ...resultado, sesiones: [completa] };
@@ -1421,7 +1422,7 @@ for (const cantidad of [2, 3]) test(`whole-only ${cantidad}-block controls omit 
     resultado: contexto, sesion: completa, grupo: 0,
     datos: { revision: contexto.revision, idsHorarios: completa.idsHorarios, bloqueInicioId: 190 },
     validacion: { valido: true, problemas: [] }, error: '', aprobado: true, ocupado: false,
-    cambiarGrupo() { assert.fail('A whole-only session must not offer another group'); }, cancelar() {}, confirmar() { confirmaciones++; },
+    cambiarGrupo() { assert.fail('Una sesión que solo admite movimiento completo no debe ofrecer otro grupo'); }, cancelar() {}, confirmar() { confirmaciones++; },
   }, {});
   try {
     assert.equal(pagina.buscar('fieldset').length, 0);
@@ -1438,7 +1439,7 @@ for (const cantidad of [2, 3]) test(`whole-only ${cantidad}-block controls omit 
   } finally { pagina.cerrar(); }
 });
 
-test('movement summary cards use compact platform-blue styling without recoloring the grey calendar projection', async () => {
+test('las tarjetas de resumen de movimiento usan el azul institucional compacto sin recolorear la proyección gris del calendario', async () => {
   const { readFile } = await import('node:fs/promises');
   const css = await readFile(new URL('./ResultadosHorarios.module.css', import.meta.url), 'utf8');
   const tarjeta = css.match(/\.tramoMovimiento\s*\{([^}]+)\}/)?.[1];
@@ -1457,7 +1458,7 @@ test('movement summary cards use compact platform-blue styling without recolorin
   assert.match(css, /\.vistaPrevia\s*\{[^}]*background:\s*#e5e7eb/);
 });
 
-test('two-block whole-session movement cancels without writes and persists both blocks only after confirmation', async () => {
+test('el movimiento de sesión completa de dos bloques se cancela sin escrituras y persiste ambos bloques solo tras confirmar', async () => {
   const doble = { ...sesion, idsHorarios: [11, 12], bloquesIds: [90, 87], horaTermino: '09:30', salas: [null, null] };
   const contexto = { ...resultado, sesiones: [doble] };
   const original = JSON.stringify(contexto);
@@ -1496,7 +1497,7 @@ test('two-block whole-session movement cancels without writes and persists both 
   } finally { pagina.cerrar(); }
 });
 
-test('two-block movement rejects an unavailable continuation without preview or persistence', async () => {
+test('el movimiento de dos bloques rechaza una continuación no disponible sin vista previa ni persistencia', async () => {
   const doble = { ...sesion, idsHorarios: [11, 12], bloquesIds: [90, 87], horaTermino: '09:30', salas: [null, null] };
   const contexto = { ...resultado, sesiones: [doble], disponibilidades: resultado.disponibilidades.filter(d => d.bloqueId !== 187) };
   const original = JSON.stringify(contexto);
@@ -1516,7 +1517,7 @@ test('two-block movement rejects an unavailable continuation without preview or 
   } finally { pagina.cerrar(); }
 });
 
-test('a pending-room link selects its semester before preparing the inline movement', async () => {
+test('un enlace de sala pendiente selecciona su semestre antes de preparar el movimiento en el calendario', async () => {
   const pagina = await montar('./ResultadosHorariosPage.tsx', 'ContenidoResultados', { id: 2, ocupado: false, actualizarPlanificacion() {} }, {
     consultar: async () => resultado,
   });
@@ -1581,7 +1582,7 @@ test('una reserva parcial impide solicitar validación y guardar desde los manej
   } finally { pagina.cerrar(); }
 });
 
-test('semester buttons default to the first semester and select only one of ten ordered semesters', async () => {
+test('los botones de semestre eligen el primero por defecto y seleccionan solo uno de diez semestres ordenados', async () => {
   let lecturas = 0;
   const original = JSON.stringify(resultado);
   const pagina = await montar('./ResultadosHorariosPage.tsx', 'ContenidoResultados', { id: 2, ocupado: false, actualizarPlanificacion() {} }, {
@@ -1609,13 +1610,13 @@ test('semester buttons default to the first semester and select only one of ten 
   } finally { pagina.cerrar(); }
 });
 
-test('semester strip keeps ten buttons in one horizontal scrollable row', async () => {
+test('la franja de semestres mantiene diez botones en una fila horizontal desplazable', async () => {
   const { readFile } = await import('node:fs/promises');
   const css = await readFile(new URL('./ResultadosHorarios.module.css', import.meta.url), 'utf8');
   assert.match(css, /\.semestres\s*\{[^}]*display:\s*flex\s*;[^}]*flex-wrap:\s*nowrap\s*;[^}]*overflow-x:\s*auto\s*;/);
 });
 
-test('calendar palette distinguishes neutral external cards, blue managed ready cards and yellow pending cards', async () => {
+test('la paleta del calendario distingue tarjetas externas neutras, gestionadas listas azules y pendientes amarillas', async () => {
   const { readFile } = await import('node:fs/promises');
   const css = await readFile(new URL('./ResultadosHorarios.module.css', import.meta.url), 'utf8');
   for (const [clase, color] of [['sesionExterna', '#f3f4f6'], ['sesionLista', '#e0f2fe'], ['sesionPendiente', '#fff6ce'],
@@ -1626,7 +1627,7 @@ test('calendar palette distinguishes neutral external cards, blue managed ready 
   assert.match(css, /\.sesionExterna[^{}]*\{[^}]*border-color:\s*#6b7280;[^}]*color:\s*#374151;[^}]*opacity:\s*1/);
 });
 
-test('results calendar fixes day widths without changing the shared professor calendar styles', async () => {
+test('el calendario de resultados fija los anchos de los días sin cambiar los estilos compartidos del calendario de profesores', async () => {
   const { readFile } = await import('node:fs/promises');
   const css = await readFile(new URL('./ResultadosHorarios.module.css', import.meta.url), 'utf8');
   assert.match(css, /\.tablaResultados\s*\{[^}]*table-layout:\s*fixed\s*;/);
@@ -1635,7 +1636,7 @@ test('results calendar fixes day widths without changing the shared professor ca
   assert.doesNotMatch(compartido, /table-layout:\s*fixed/);
 });
 
-test('inline movement effects discard late previews and preserve validation on same-destination reselection', async () => {
+test('los efectos del movimiento en el calendario descartan vistas previas tardías y conservan la validación al reseleccionar el mismo destino', async () => {
   const solicitudes = [];
   let guardados = 0;
   const pagina = await montar('./ResultadosHorariosPage.tsx', 'ContenidoResultados', { id: 2, ocupado: false, actualizarPlanificacion() {} }, {
@@ -1673,7 +1674,7 @@ test('inline movement effects discard late previews and preserve validation on s
   } finally { pagina.cerrar(); }
 });
 
-for (const tipo of ['rejected', 'unknown']) test(`real save locks duplicate submissions and reconciles ${tipo} outcomes before editing`, async () => {
+for (const tipo of ['rejected', 'unknown']) test(`el guardado real bloquea envíos duplicados y reconcilia resultados ${tipo} antes de editar`, async () => {
   const lecturas = [], escrituras = [];
   const pagina = await montar('./ResultadosHorariosPage.tsx', 'ContenidoResultados', { id: 2, ocupado: false, actualizarPlanificacion() {} }, {
     consultar() { const llamada = diferida(); lecturas.push(llamada); return llamada.promesa; },
@@ -1753,7 +1754,7 @@ test('las solicitudes completas y pendientes se descargan con la carrera y el pe
   }
 });
 
-for (const etapa of ['fetch', 'body']) test(`room export can cancel a pending ${etapa} without unlocking a later write or downloading stale data`, async () => {
+for (const etapa of ['fetch', 'body']) test(`la exportación de salas cancela la etapa pendiente ${etapa} sin desbloquear una escritura posterior ni descargar datos obsoletos`, async () => {
   const { resultadosHorariosApi } = await import('./resultados-horarios.api.ts');
   const anterior = globalThis.fetch;
   const documento = globalThis.document;
@@ -1765,7 +1766,7 @@ for (const etapa of ['fetch', 'body']) test(`room export can cancel a pending ${
   globalThis.fetch = async (_url, opciones) => {
     const llamada = { ...diferida(), signal: opciones.signal };
     solicitudes.push(llamada);
-    // Intentionally ignore abort to exercise late results from an obsolete export.
+    // Ignora la cancelación a propósito para probar respuestas tardías de una exportación obsoleta.
     return etapa === 'fetch' ? llamada.promesa : { ok: true, blob: () => llamada.promesa };
   };
   const pagina = await montar('./ResultadosHorariosPage.tsx', 'ContenidoResultados', { id: 2, ocupado: false, actualizarPlanificacion() {} }, {
@@ -1818,7 +1819,7 @@ for (const etapa of ['fetch', 'body']) test(`room export can cancel a pending ${
   }
 });
 
-test('leaving the results page aborts an export and ignores its late completion', async () => {
+test('salir de resultados aborta la exportación e ignora su finalización tardía', async () => {
   const llamada = diferida();
   const cambios = [];
   let signal;
@@ -1839,7 +1840,7 @@ test('leaving the results page aborts an export and ignores its late completion'
   } finally { pagina.cerrar(); }
 });
 
-test('a lost publication response reconciles the real parent selector and child read-only state', async () => {
+test('una respuesta de publicación perdida reconcilia el selector real del padre y el estado de solo lectura del hijo', async () => {
   const planificacion = { ...resultado.planificacion, carrera: { nombre: 'Carrera sintética' } };
   const publicado = { ...resultado, revision: 'b'.repeat(64), planificacion: { ...resultado.planificacion, estadoPlanificacion: 'publicado' } };
   const original = JSON.stringify(resultado);
@@ -1875,7 +1876,7 @@ test('a lost publication response reconciles the real parent selector and child 
   } finally { pagina?.cerrar(); padre.cerrar(); }
 });
 
-for (const etapa of ['fetch', 'body']) test(`obsolete ${etapa} failure preserves the newer export lock`, async () => {
+for (const etapa of ['fetch', 'body']) test(`un fallo obsoleto en ${etapa} conserva el bloqueo de la exportación más reciente`, async () => {
   const { resultadosHorariosApi } = await import('./resultados-horarios.api.ts');
   const anterior = globalThis.fetch;
   const vieja = diferida(); const nueva = diferida();
@@ -1903,7 +1904,7 @@ for (const etapa of ['fetch', 'body']) test(`obsolete ${etapa} failure preserves
   } finally { pagina.cerrar(); globalThis.fetch = anterior; }
 });
 
-test('metadata sync ignores callback churn and wrong-plan reads', async () => {
+test('la sincronización de metadatos ignora cambios de funciones de retorno y lecturas de otra planificación', async () => {
   let lecturas = 0; const metadatos = [];
   const propiedades = { id: 2, ocupado: false, actualizarPlanificacion: datos => metadatos.push(datos) };
   const pagina = await montar('./ResultadosHorariosPage.tsx', 'ContenidoResultados', propiedades, {
@@ -1923,7 +1924,7 @@ test('metadata sync ignores callback churn and wrong-plan reads', async () => {
   finally { otra.cerrar(); }
 });
 
-test('an obsolete read never updates parent planning metadata', async () => {
+test('una lectura obsoleta nunca actualiza los metadatos de planificación del padre', async () => {
   const llamada = diferida(); const metadatos = [];
   const pagina = await montar('./ResultadosHorariosPage.tsx', 'ContenidoResultados', {
     id: 2, ocupado: false, actualizarPlanificacion: datos => metadatos.push(datos),
@@ -1933,7 +1934,7 @@ test('an obsolete read never updates parent planning metadata', async () => {
   assert.deepEqual(metadatos, []);
 });
 
-test('successful publication refreshes metadata and removes mutation controls without another write', async () => {
+test('una publicación exitosa actualiza metadatos y retira controles de modificación sin otra escritura', async () => {
   const llamada = diferida();
   const metadatos = [];
   let escrituras = 0;
@@ -1963,7 +1964,7 @@ test('successful publication refreshes metadata and removes mutation controls wi
   } finally { pagina.cerrar(); }
 });
 
-test('active export failures use a shared error notice instead of an embedded outcome card', async () => {
+test('los fallos de exportación activa usan un aviso de error compartido en lugar de una tarjeta de resultado integrada', async () => {
   const original = JSON.stringify(resultado);
   const pagina = await montar('./ResultadosHorariosPage.tsx', 'ContenidoResultados', { id: 2, ocupado: false, actualizarPlanificacion() {} }, {
     consultar: async () => resultado, exportar: async () => { throw new Error('Failed to fetch'); },
@@ -1981,7 +1982,7 @@ test('active export failures use a shared error notice instead of an embedded ou
   } finally { pagina.cerrar(); }
 });
 
-test('page-owned notices are replaced by new operations and dismissed on manual refresh or exit', async () => {
+test('las nuevas operaciones reemplazan los avisos de la página y actualizar manualmente o salir los cierra', async () => {
   const completo = { ...resultado, pendientesSala: 0, sesiones: [] };
   const pagina = await montar('./ResultadosHorariosPage.tsx', 'ContenidoResultados', { id: 2, ocupado: false, actualizarPlanificacion() {} }, {
     consultar: async () => completo,
@@ -2017,7 +2018,7 @@ for (const caso of [
   { actualizadas: 2, pendientes: 0, mensaje: 'Archivo importado. Se actualizaron 2 sesiones.' },
   { actualizadas: 0, pendientes: 0, omitidas: 3, mensaje: 'Archivo importado. No hubo cambios. Se omitieron 3 sesiones que ya tenían sala.' },
   { actualizadas: 1, pendientes: 0, omitidas: 1, mensaje: 'Archivo importado. Se actualizó 1 sesión. Se omitió 1 sesión que ya tenía sala.' },
-]) test(`import notices use natural counts for ${caso.actualizadas} updated, ${caso.pendientes} pending and ${caso.omitidas ?? 0} skipped sessions`, async () => {
+]) test(`los avisos de importación usan recuentos naturales para ${caso.actualizadas} sesiones actualizadas, ${caso.pendientes} pendientes y ${caso.omitidas ?? 0} omitidas`, async () => {
   const completo = { ...resultado, pendientesSala: 0, sesiones: [] };
   const pagina = await montar('./ResultadosHorariosPage.tsx', 'ContenidoResultados', { id: 2, ocupado: false, actualizarPlanificacion() {} }, {
     consultar: async () => completo, importar: async () => caso,
@@ -2034,7 +2035,7 @@ for (const caso of [
   } finally { pagina.cerrar(); }
 });
 
-test('an import completion after leaving the page cannot emit a notification', async () => {
+test('una importación que termina tras salir de la página no emite notificaciones', async () => {
   const llamada = diferida();
   const pagina = await montar('./ResultadosHorariosPage.tsx', 'ContenidoResultados', { id: 2, ocupado: false, actualizarPlanificacion() {} }, {
     consultar: async () => resultado, importar: () => llamada.promesa,
@@ -2046,7 +2047,7 @@ test('an import completion after leaving the page cannot emit a notification', a
   assert.deepEqual(pagina.avisos, []); assert.deepEqual(pagina.avisosCerrados, []);
 });
 
-test('a result read failure keeps its inline retry without producing an operation toast', async () => {
+test('un fallo de lectura de resultados conserva el reintento junto al contenido sin emitir una notificación de operación', async () => {
   let lecturas = 0;
   const pagina = await montar('./ResultadosHorariosPage.tsx', 'ContenidoResultados', { id: 2, ocupado: false, actualizarPlanificacion() {} }, {
     consultar: async () => { if (++lecturas === 1) throw new Error('No se pudo consultar el horario.'); return resultado; },
@@ -2150,7 +2151,7 @@ test('una importación confirmada con consulta fallida permite revisar el estado
   } finally { pagina.cerrar(); }
 });
 
-test('a successful unfiltered movement keeps the selected level and updates only confirmed data', async () => {
+test('un movimiento exitoso sin filtro conserva el nivel seleccionado y actualiza solo datos confirmados', async () => {
   const llamada = diferida();
   const pagina = await montar('./ResultadosHorariosPage.tsx', 'ContenidoResultados', { id: 2, ocupado: false, actualizarPlanificacion() {} }, {
     consultar: async () => resultado, mover: () => llamada.promesa, validarMovimiento: async () => ({ valido: true, problemas: [] }),
@@ -2176,7 +2177,7 @@ test('a successful unfiltered movement keeps the selected level and updates only
   } finally { pagina.cerrar(); }
 });
 
-test('publication groups per-block missing rooms into session details across all semesters', async () => {
+test('la publicación agrupa las salas faltantes por bloque en detalles de sesión de todos los semestres', async () => {
   const primera = { ...sesion, idsHorarios: [11, 12, 13], bloquesIds: [90, 87, 84], horaTermino: '10:20', salas: [null, null, null] };
   const segunda = { ...primera, idsHorarios: [21, 22, 23], bloquesIds: [190, 187, 184], ofertaId: 6, seccion: 2, dia: 'Martes',
     asignatura: { codigo: '200', nombre: 'Economía', semestreMalla: 5 }, tipoHora: { id: 2, tipo: 'Práctica' } };
@@ -2209,7 +2210,7 @@ test('publication groups per-block missing rooms into session details across all
   } finally { pagina.cerrar(); }
 });
 
-test('publication keeps separate sessions of one subject and retains unresolved room problems', async () => {
+test('la publicación mantiene separadas las sesiones de una asignatura y conserva los problemas de sala sin resolver', async () => {
   const otra = { ...sesion, idsHorarios: [21, 22, 23, 24], bloquesIds: [190, 187, 184, 181], dia: 'Martes' };
   const contexto = { ...resultado, sesiones: [sesion, otra], pendientesSala: 2 };
   const mensaje = 'Hay una clase que requiere sala sin asignación.';
@@ -2290,7 +2291,7 @@ test('publicación conserva reservas no identificadas y pendientes de sala junto
   } finally { pagina.cerrar(); }
 });
 
-test('a publication without blocking problems retains its revision-bound confirmation', async () => {
+test('una publicación sin problemas bloqueantes conserva la confirmación vinculada a revisión', async () => {
   const publicadas = [];
   const contexto = { ...resultado, pendientesSala: 0, sesiones: [
     { ...sesion, estadoSala: 'asignada', salas: sesion.salas.map(() => ({ id: 1, nombre: 'A-101' })) },
@@ -2325,7 +2326,7 @@ test('la publicación mantiene el ancho compacto incluso sin sesiones pendientes
   assert.match(fuente, /<article className=\{estilos\.tarjeta\}/);
 });
 
-test('a stale publication check never enables or invokes publication', async () => {
+test('una comprobación obsoleta de publicación nunca habilita ni invoca la publicación', async () => {
   const llamada = diferida();
   let publicadas = 0;
   const pagina = await montar('./PublicacionDialogo.tsx', 'PublicacionDialogo', {
@@ -2341,7 +2342,7 @@ test('a stale publication check never enables or invokes publication', async () 
   } finally { pagina.cerrar(); }
 });
 
-test('room upload validates extension, nonempty size and limit before submitting a workbook', async () => {
+test('la carga de salas valida extensión, tamaño no vacío y límite antes de enviar la planilla', async () => {
   const importados = [];
   const pagina = await montar('./GestionSalas.tsx', 'GestionSalas', {
     resultado, ocupado: false, exportar() {}, seleccionar() {}, importar: archivo => importados.push(archivo),

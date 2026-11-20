@@ -3,6 +3,7 @@ import { migrate } from "drizzle-orm/postgres-js/migrator";
 import postgres from "postgres";
 import { env } from "../config/env.js";
 
+// Aplica el historial de esquema con conexión propia y conserva el fallo primario si el cierre falla.
 async function ejecutarMigraciones() {
   console.log("Iniciando migraciones...");
   const conexion = postgres(env.DATABASE_URL, { max: 1 });

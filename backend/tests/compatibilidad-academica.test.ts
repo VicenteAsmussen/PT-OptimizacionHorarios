@@ -122,7 +122,7 @@ describe("Presupuesto abstracto de la ejecución", () => {
     recursos(contexto);
     expect(codigos(contexto)).toContain("recursos");
   });
-  it("rechaza un movimiento que excede el snapshot y no modifica el contexto", () => {
+  it("rechaza un movimiento que excede la captura de recursos y no modifica el contexto", () => {
     const { contexto, agregar } = escenario(); agregar("A", 1, [1, 2]); agregar("B", 1, [5, 6], { nivel: 3 }); recursos(contexto);
     const antes = structuredClone(contexto);
     const resultado = prepararMovimiento(contexto, { revision: "", idsHorarios: [100, 101], bloqueInicioId: 5 });

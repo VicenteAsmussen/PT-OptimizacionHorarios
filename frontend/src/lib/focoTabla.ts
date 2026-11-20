@@ -1,6 +1,7 @@
 import type { FocusEvent } from 'react';
 
 // El desplazamiento nativo no siempre considera la columna fija al tabular.
+// Mantiene visible el control enfocado sin ocultarlo bajo la columna fija.
 export function mantenerFocoEnTabla(evento: FocusEvent<HTMLDivElement>) {
   const contenedor = evento.currentTarget;
   const objetivo = evento.target;

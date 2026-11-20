@@ -19,6 +19,7 @@ interface Props {
   alCompletar: () => void;
 }
 
+// Presenta la ficha docente y las confirmaciones de identidad o acceso permitidas.
 export default function AccionesProfesor({ accion, profesor, rol, alcance, alCerrar, alCompletar }: Props) {
   const [correo, setCorreo] = useState(accion === "editarAcceso" ? profesor.usuario?.correo ?? "" : "");
   const [clave, setClave] = useState("");
@@ -27,6 +28,7 @@ export default function AccionesProfesor({ accion, profesor, rol, alcance, alCer
     editarAcceso: "Editar acceso al sistema", eliminarAcceso: "Retirar acceso al sistema" };
   const esFormulario = accion === "crearAcceso" || accion === "editarAcceso";
   const destructivo = accion === "eliminar" || accion === "eliminarAcceso";
+  // Aplica la acción docente solicitada después de comprobar su permiso local.
   async function guardar() {
     if (accion === "eliminar") {
       if (!puedeEliminarProfesor(rol, profesor, alcance)) throw new Error("No tienes permiso para eliminar este profesor con sus dependencias actuales.");

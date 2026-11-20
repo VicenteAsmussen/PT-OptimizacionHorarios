@@ -5,12 +5,14 @@ import { ConflictError, NotFoundError } from "../utils/errors.js";
 import { mensajeBloqueReservado } from "../utils/bloques-reservados.js";
 import type { TransaccionPlanificacion } from "./planificacion-escritura.js";
 
+// Resuelve los bloques excluidos de la programación para la carrera propietaria del período.
 export async function leerBloquesReservados(conexion: Pick<TransaccionPlanificacion, "query">, carreraId: number) {
   const reservas = await conexion.query.bloquesReservados.findMany({ where: eq(bloquesReservados.carreraId, carreraId) });
   return reservas.map(reserva => reserva.bloqueHorarioId);
 }
 
 /** Revalidar dentro de la transacción, antes de modificar cualquier fila del lote. */
+// Rechaza cualquier bloque del lote que esté reservado para la carrera del período.
 export async function exigirBloquesNoReservados(tx: TransaccionPlanificacion, planificacionSemestreId: number, bloquesIds: number[]) {
   if (!bloquesIds.length) return;
   const planificacion = await tx.query.planificacionesSemestres.findFirst({ where: eq(planificacionesSemestres.id, planificacionSemestreId) });

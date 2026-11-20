@@ -32,6 +32,7 @@ function entrada(id = 1, codigo = "INF100", salaId: number | null = null) {
     bloque: { dia: "Lunes", numeroBloque: 1, horaInicio: "08:10", horaTermino: "08:50" }, tipoHora: { tipo: "Teórica" } };
 }
 const fila = () => ["INF100", "Programación", 2, 40, "Ana Pérez", "Teórica", "Lunes", "08:10-08:50", "101AA"];
+// Genera XLSX reales en memoria para ejercitar el lector, con persistencia sustituida por dobles.
 async function archivo(filas: (string | number)[][] = [fila()], encabezados: readonly string[] = encabezadosExcelSalas) {
   const libro = new ExcelJS.Workbook(); const hoja = libro.addWorksheet("Asignación Salas");
   hoja.addRow([...encabezados]); filas.forEach((datos) => hoja.addRow(datos));
@@ -79,14 +80,14 @@ describe("Importación Excel todo-o-nada", () => {
     expect(entradas).toEqual(anteriores);
     expect(horariosRepository.actualizarSalasEnTransaccion).not.toHaveBeenCalled();
   });
-  it.each(["Teórica", "Práctica"])("assigns %s sessions to classrooms", async tipo => {
+  it.each(["Teórica", "Práctica"])("asigna sesiones de tipo %s a salas", async tipo => {
     const sesion = entrada(); sesion.tipoHora.tipo = tipo;
     vi.mocked(horariosRepository.findParaImportarSalas).mockResolvedValue({ entradas: [sesion], salas: [{ id: 4, nombre: "101-AA", tipo: "Sala" }] } as never);
     const datos = fila(); datos[5] = tipo;
     expect(await horariosService.importarExcelSalas(9, await archivo([datos]))).toEqual({ actualizadas: 1, pendientes: 0, errores: [] });
     expect(horariosRepository.actualizarSalasEnTransaccion).toHaveBeenCalledExactlyOnceWith(9, [{ id: 1, salaId: 4 }], 3);
   });
-  it.each(["Teórica", "Práctica"])("rejects assigning %s sessions to a laboratory without applying valid rows", async tipo => {
+  it.each(["Teórica", "Práctica"])("rechaza asignar sesiones de tipo %s a un laboratorio sin aplicar las filas válidas", async tipo => {
     const primera = entrada(); primera.tipoHora.tipo = tipo;
     const segunda = entrada(2, "INF200"); segunda.tipoHora.tipo = tipo;
     vi.mocked(horariosRepository.findParaImportarSalas).mockResolvedValue({ entradas: [primera, segunda], salas: [
@@ -185,7 +186,7 @@ describe("Importación Excel todo-o-nada", () => {
     expect((await horariosService.importarExcelSalas(9, await archivo([fila(), fila()]))).errores.length).toBeGreaterThan(0);
     expect(horariosRepository.actualizarSalasEnTransaccion).not.toHaveBeenCalled();
   });
-  it("actualiza todos los bloques de una sesión y procesa el quinto slot", async () => {
+  it("actualiza todos los bloques de una sesión y procesa el quinto espacio de sesión", async () => {
     const segundo = entrada(2); segundo.ofertaId = 1; segundo.bloqueId = 11;
     segundo.bloque = { dia: "Lunes", numeroBloque: 2, horaInicio: "08:50", horaTermino: "09:30" };
     vi.mocked(horariosRepository.findParaImportarSalas).mockResolvedValue({ entradas: [entrada(), segundo], salas: [{ id: 4, nombre: "101-AA", tipo: "Sala" }] } as never);
@@ -194,6 +195,7 @@ describe("Importación Excel todo-o-nada", () => {
     expect(horariosRepository.actualizarSalasEnTransaccion).toHaveBeenCalledWith(9, [{ id: 1, salaId: 4 }, { id: 2, salaId: 4 }], 3);
   });
   it("permite intercambio de salas al validar el estado final", async () => {
+    // Evaluar las asignaciones una a una produciría un falso conflicto con la sala que se libera.
     vi.mocked(horariosRepository.findParaImportarSalas).mockResolvedValue({ entradas: [entrada(1, "INF100", 5), entrada(2, "INF200", 4)], salas: [{ id: 4, nombre: "101-AA", tipo: "Sala" }, { id: 5, nombre: "102-AA", tipo: "Sala" }] } as never);
     const otra = fila(); otra[0] = "INF200"; otra[8] = "102AA";
     expect((await horariosService.importarExcelSalas(9, await archivo([fila(), otra]))).errores).toEqual([]);
@@ -219,14 +221,14 @@ describe("Importación Excel todo-o-nada", () => {
     expect(respuesta.body.errores[0]).toMatchObject({ fila: 2, columna: "Sala 1" });
     expect(horariosRepository.actualizarSalasEnTransaccion).not.toHaveBeenCalled();
   });
-  it("upload HTTP para secretaría dentro de su carrera", async () => {
+  it("carga de archivo HTTP para secretaría dentro de su carrera", async () => {
     const respuesta = await request(aplicacion).post("/horarios/excel/salas/importar?planificacionSemestreId=9").set("x-rol-prueba", "secretaria").attach("archivo", await archivo(), "salas.xlsx");
     expect(respuesta.status).toBe(200); expect(respuesta.body.data.actualizadas).toBe(1);
     expect(horariosRepository.findCarreraSecretariaByUsuarioId).toHaveBeenCalledWith(1);
     expect(horariosRepository.findParaImportarSalas).toHaveBeenCalledWith(9, 3);
     expect(horariosRepository.actualizarSalasEnTransaccion).toHaveBeenCalledWith(9, [{ id: 1, salaId: 4 }], 3);
   });
-  it("HTTP devuelve detalles para query, archivo ausente, upload incorrecto y formato inválido", async () => {
+  it("HTTP devuelve detalles para parámetros de consulta, archivo ausente, carga incorrecta y formato inválido", async () => {
     for (const consulta of ["", "?planificacionSemestreId=0", "?planificacionSemestreId=9"]) {
       const respuesta = await request(aplicacion).post(`/horarios/excel/salas/importar${consulta}`).set("x-rol-prueba", "secretaria");
       expect(respuesta.status).toBe(400); expect(respuesta.body.errores.length).toBeGreaterThan(0);

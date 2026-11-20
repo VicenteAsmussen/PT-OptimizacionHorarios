@@ -100,14 +100,14 @@ test('la importación confirmada conserva el flujo anterior de éxito y consulta
   assert.deepEqual(avisos, ['Importación completada. Los horarios se guardaron correctamente.']);
 });
 
-test('external department selection belongs to the selected career, not a global flag', async () => {
+test('la selección de departamentos externos pertenece a la carrera seleccionada, no a una marca global', async () => {
   const { departamentosExternos } = await import('./datos.ts');
   const departamentos = [{ id: 1, carreraDepartamentos: [{ carreraId: 2, esGestionado: false }, { carreraId: 1, esGestionado: true }] },
     { id: 2, carreraDepartamentos: [{ carreraId: 1, esGestionado: false }] }];
   assert.deepEqual(departamentosExternos(departamentos, 1).map(d => d.id), [2]);
   assert.deepEqual(departamentosExternos(departamentos, undefined), []);
 });
-test('coverage colors distinguish loaded, mandatory missing, optional missing and invalid', async () => {
+test('los colores de cobertura distinguen carga completa, faltantes obligatorios, faltantes opcionales y datos inválidos', async () => {
   const { presentacionCobertura } = await import('./datos.ts');
   assert.equal(presentacionCobertura('cargada', false).color, 'verde');
   assert.match(presentacionCobertura('cargada', true).texto, /sin guardar/);
@@ -115,7 +115,7 @@ test('coverage colors distinguish loaded, mandatory missing, optional missing an
   assert.equal(presentacionCobertura('faltante_opcional', false).color, 'amarillo');
   assert.equal(presentacionCobertura('invalida', true).color, 'rojo');
 });
-test('current period is fixed, cannot be changed, and the page uses the requested title', async () => {
+test('el período actual es fijo, no se puede cambiar y la página usa el título solicitado', async () => {
   const ts = await import('typescript');
   const React = await import('react');
   const { renderToStaticMarkup } = await import('react-dom/server');
@@ -153,7 +153,7 @@ test('current period is fixed, cannot be changed, and the page uses the requeste
   const layout = await readFile(new URL('../../components/layout/AppLayout.tsx', import.meta.url), 'utf8');
   assert.match(layout, /<span>Horarios departamentos externos<\/span>/);
 });
-test('coverage failures expose HTTP status instead of hiding missing-route responses', async () => {
+test('los fallos de cobertura muestran el estado HTTP en lugar de ocultar respuestas de ruta inexistente', async () => {
   const { mensajeErrorCobertura } = await import('./datos.ts');
   assert.equal(typeof mensajeErrorCobertura, 'function');
   const fallo = Object.assign(new Error('No se pudo completar la solicitud.'), { status: 404 });
@@ -161,7 +161,7 @@ test('coverage failures expose HTTP status instead of hiding missing-route respo
   assert.match(mensajeErrorCobertura(fallo), /backend/);
   assert.match(mensajeErrorCobertura(Object.assign(new Error('La planificación no pertenece a su carrera'), { status: 403 })), /carrera.*HTTP 403/);
 });
-test('reloading after the current semester changes uses the new planning for display and persisted coverage', async () => {
+test('recargar tras cambiar el semestre actual usa la nueva planificación para la vista y la cobertura persistida', async () => {
   const ts = await import('typescript');
   const React = await import('react');
   const { renderToStaticMarkup } = await import('react-dom/server');

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-test('summary reads persisted coverage per external department and counts subjects, not sections', async () => {
+test('el resumen lee la cobertura persistida por departamento externo y cuenta asignaturas, no secciones', async () => {
   const { cargarResumenDepartamentos, departamentosExternos } = await import('./datos.ts');
   const departamentos = departamentosExternos([
     { id: 6, nombre: 'Matemática', carreraDepartamentos: [{ carreraId: 1, esGestionado: false }] },
@@ -25,11 +25,11 @@ test('summary reads persisted coverage per external department and counts subjec
   ]);
   assert.deepEqual(consultas, [[2, 6], [2, 7]]);
   await cargarResumenDepartamentos(3, departamentos, consultar);
-  assert.deepEqual(consultas.slice(2), [[3, 6], [3, 7]], 'changing period rereads its persisted state');
+  assert.deepEqual(consultas.slice(2), [[3, 6], [3, 7]], 'cambiar de período vuelve a leer su estado persistido');
   await assert.rejects(cargarResumenDepartamentos(2, departamentos, async () => { throw new Error('Unavailable'); }), /Unavailable/);
 });
 
-test('summary renders loaded counts and zero counts, loading and errors distinctly', async () => {
+test('el resumen distingue recuentos cargados, ceros, carga en curso y errores', async () => {
   const ts = await import('typescript');
   const React = await import('react');
   const { renderToStaticMarkup } = await import('react-dom/server');

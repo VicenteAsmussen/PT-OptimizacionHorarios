@@ -1,5 +1,6 @@
 import type { PlanificacionSemestre } from '../types/periodos.ts';
 
+// Presenta primero los períodos académicos de año y semestre más recientes.
 export function ordenarPeriodosPorFechaAcademica<T extends { codigo: string }>(periodos: readonly T[]): T[] {
   return [...periodos].sort((primero, segundo) => {
     const [anioPrimero, semestrePrimero] = primero.codigo.split('-').map(Number);
@@ -8,11 +9,13 @@ export function ordenarPeriodosPorFechaAcademica<T extends { codigo: string }>(p
   });
 }
 
+// Preselecciona un período solo cuando existe una única planificación actual.
 export function planificacionInicial(planificaciones: readonly PlanificacionSemestre[]) {
   const actuales = planificaciones.filter(planificacion => planificacion.actual);
-  // Un admin con varias carreras debe elegir; no inferir dueño por código compartido.
+  // El administrador con varias carreras debe elegir, el código puede ser compartido.
   return actuales.length === 1 ? actuales[0].id : null;
 }
+// Explica si las secciones pueden editarse según la vigencia y el estado del período.
 export function estadoSecciones(planificacion?: { actual?: unknown; estadoPlanificacion?: unknown } | null) {
   const estado = planificacion?.estadoPlanificacion;
   const etiqueta = estado === 'preparacion' ? 'Preparación'

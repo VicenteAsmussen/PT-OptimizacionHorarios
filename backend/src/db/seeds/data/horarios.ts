@@ -35,9 +35,9 @@ export const datosBloques = dias.flatMap((dia) =>
   }))
 );
 
-// Institutional classrooms approved for ICINF; laboratories will be added separately.
-// Source: Resumen Salas Institucionales UBB al 16.11.2022.xls,
-// Salas_Institucionales, columns B/H, rows 7–68 (blank separator rows excluded).
+// Salas institucionales aprobadas para ICINF, los laboratorios se agregarán por separado.
+// Fuente: Resumen Salas Institucionales UBB al 16.11.2022.xls,
+// hoja Salas_Institucionales, columnas B/H, filas 7–68, sin separadores vacíos.
 export const datosSalas = [
   { nombre: "A101AA", capacidad: 90, tipo: "Sala" },
   { nombre: "A102AA", capacidad: 90, tipo: "Sala" },

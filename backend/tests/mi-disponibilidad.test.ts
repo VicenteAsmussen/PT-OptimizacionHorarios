@@ -43,6 +43,7 @@ vi.mock("../src/config/db.js", () => {
   } };
 });
 vi.mock("../src/repositories/planificacion-escritura.js", async () => {
+  // Repite la lectura tras el cambio inyectado, sin simular contención entre transacciones reales.
   const { db } = await import("../src/config/db.js");
   return { conPlanificacionesEditables: async (_resolver: any, escribir: any) => {
     await _resolver(db);
@@ -178,6 +179,7 @@ describe("Autoservicio de disponibilidad", () => {
     expect(posterior.body.data.seleccion.bloquesIds).toEqual([1, 2, 3, 4, 5, 7]);
   });
   it("bloquea el mínimo imposible sin reducirlo ni reemplazar datos anteriores", async () => {
+    // Las reservas reducen capacidad utilizable, pero no la carga que origina el mínimo docente.
     datos.reservas = [1, 2].map(bloqueHorarioId => ({ carreraId: 30, bloqueHorarioId }));
     const respuesta = await request(app).post(ruta).set("Authorization", "profesor")
       .send({ planificacionSemestreId: 10, bloquesIds: [1, 2, 3, 4, 5, 6] });
@@ -337,7 +339,7 @@ describe("Autoservicio de disponibilidad", () => {
     expect((await escritura).status).toBe(rol ? 403 : 401);
     expect(datos.filas.map(fila => fila.bloqueId)).toEqual([6]);
   });
-  it("rechaza suplantación y query no positiva", async () => {
+  it("rechaza suplantación y un parámetro de consulta no positivo", async () => {
     expect((await request(app).post(ruta).set("Authorization", "profesor").send({ profesorId: 8, planificacionSemestreId: 10, bloquesIds: [1, 2, 3, 4, 5] })).status).toBe(400);
     expect((await request(app).get(`${ruta}?planificacionSemestreId=0`).set("Authorization", "profesor")).status).toBe(400);
   });

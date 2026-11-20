@@ -4,6 +4,7 @@ import { authService } from "../services/auth.service.js";
 
 export const COOKIE_AUTH_NAME = "auth_token";
 
+// Prioriza la sesión de la cookie y admite Bearer cuando aquella no está presente.
 export function extraerToken(req: Request): string | undefined {
   const cookie: unknown = req.cookies?.[COOKIE_AUTH_NAME];
   if (typeof cookie === "string" && cookie) return cookie;
@@ -11,6 +12,7 @@ export function extraerToken(req: Request): string | undefined {
   return undefined;
 }
 
+// Incorpora a la petición la identidad vigente o deriva el rechazo de autenticación.
 export async function authenticate(req: Request, _res: Response, next: NextFunction): Promise<void> {
   try {
     const token = extraerToken(req);

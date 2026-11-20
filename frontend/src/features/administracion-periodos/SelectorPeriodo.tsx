@@ -12,6 +12,7 @@ interface Propiedades {
   alSeleccionar: (valor: string) => void;
 }
 
+// Ofrece períodos ordenados con estado y selección accesible por teclado.
 export default function SelectorPeriodo({ periodos, valor, deshabilitado, alSeleccionar }: Propiedades) {
   const id = useId();
   const [abierto, setAbierto] = useState(false);
@@ -26,6 +27,7 @@ export default function SelectorPeriodo({ periodos, valor, deshabilitado, alSele
   const indiceActivo = Math.max(0, valores.indexOf(activo));
   const expandido = abierto && !deshabilitado;
   const seleccionado = periodos.find(periodo => String(periodo.id) === valor);
+  // Identifica la opción activa del período para las tecnologías de asistencia.
   const opcionId = (indice: number) => `${id}-opcion-${indice}`;
 
   useEffect(() => {
@@ -33,6 +35,7 @@ export default function SelectorPeriodo({ periodos, valor, deshabilitado, alSele
   }, [deshabilitado]);
   useEffect(() => {
     if (!expandido || typeof document === 'undefined') return;
+    // Cierra la lista de períodos al interactuar fuera del selector.
     function cerrarFuera(evento: PointerEvent) {
       if (evento.target && !contenedor.current?.contains(evento.target as Node)) setAbierto(false);
     }
@@ -43,14 +46,17 @@ export default function SelectorPeriodo({ periodos, valor, deshabilitado, alSele
     if (expandido) lista.current?.children[indiceActivo]?.scrollIntoView?.({ block: 'nearest' });
   }, [expandido, indiceActivo]);
 
+  // Abre las opciones situando la navegación en el período seleccionado.
   function abrir() {
     if (!habilitado.current) return;
     setActivo(valor); setAbierto(true);
   }
+  // Confirma una opción existente cuando la selección de períodos está habilitada.
   function elegir(opcion: string) {
     if (!habilitado.current || !valores.includes(opcion)) return;
     alSeleccionar(opcion); setAbierto(false); boton.current?.focus();
   }
+  // Recorre y confirma períodos mediante las teclas admitidas por el selector.
   function navegar(evento: KeyboardEvent<HTMLButtonElement>) {
     if (!habilitado.current) return;
     const tecla = evento.key;
@@ -70,6 +76,7 @@ export default function SelectorPeriodo({ periodos, valor, deshabilitado, alSele
       : Math.max(0, Math.min(valores.length - 1, indiceActivo + (tecla === 'ArrowDown' ? 1 : -1)));
     setActivo(valores[indice]); setAbierto(true);
   }
+  // Presenta código, estado y vigencia para distinguir períodos de una carrera.
   function etiqueta(periodo: PlanificacionSemestre) {
     return <>{periodo.codigo}<span className={estilos.estadoPeriodo}>{estadosPeriodo[periodo.estadoPlanificacion]}</span>
       {periodo.actual && <span className={estilos.distintivo}>Actual</span>}</>;

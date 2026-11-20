@@ -10,8 +10,9 @@ import { cargarContextoResultado } from "./resultados-horarios.repository.js";
 import { validarPropuestaResultado, validarPublicacionResultado } from "../utils/resultados-horarios.js";
 import { exigirSinEjecucionActiva } from "./optimizacion-bloqueos.js";
 
-// Maintenance is an explicit admin command, not an exception in ordinary write guards.
-// Keep the same career -> planning lock order as conPlanificacionesEditables.
+// El mantenimiento es un comando administrativo explícito, no una excepción a la escritura ordinaria.
+// Conserva el orden de bloqueo carrera -> planificación de conPlanificacionesEditables.
+// Ejecuta el mantenimiento con la carrera y el período bloqueados y su vínculo revalidado.
 async function conPeriodoBloqueado<T>(id: number, ejecutar: (tx: TransaccionPlanificacion,
   planificacion: typeof planificacionesSemestres.$inferSelect, carrera: typeof carreras.$inferSelect) => Promise<T>) {
   return db.transaction(async tx => {
@@ -26,6 +27,7 @@ async function conPeriodoBloqueado<T>(id: number, ejecutar: (tx: TransaccionPlan
   }, { isolationLevel: "read committed" });
 }
 
+// Calcula el alcance y la huella de los datos que una confirmación administrativa afectaría.
 async function capturar(tx: TransaccionPlanificacion, planificacion: typeof planificacionesSemestres.$inferSelect,
   carrera: typeof carreras.$inferSelect, alcance: AlcanceReinicio, incluirEjecuciones = true) {
   const relaciones = await tx.select().from(carreraDepartamento)
@@ -58,12 +60,14 @@ async function capturar(tx: TransaccionPlanificacion, planificacion: typeof plan
 }
 
 export const administracionPeriodosRepository = {
+  // Presenta cantidades y revisión para confirmar un reinicio sobre el alcance elegido.
   resumen(id: number, alcance: AlcanceReinicio) {
     return conPeriodoBloqueado(id, async (tx, planificacion, carrera) => {
       const captura = await capturar(tx, planificacion, carrera, alcance);
       return captura.resumen;
     });
   },
+  // Elimina únicamente los datos confirmados del alcance, rechazando revisiones desactualizadas.
   reiniciar(id: number, datos: ReiniciarPeriodoDTO) {
     return conPeriodoBloqueado(id, async (tx, planificacion, carrera) => {
       await exigirSinEjecucionActiva(tx, [id]);
@@ -89,6 +93,7 @@ export const administracionPeriodosRepository = {
         asignaciones: datos.objetivo === "ofertas" ? resumen.asignaciones : 0, horarios: resumen.horarios };
     });
   },
+  // Cambia el estado administrativo tras contrastar el anterior y validar los horarios requeridos.
   cambiarEstado(id: number, datos: EstadoPeriodoDTO) {
     return conPeriodoBloqueado(id, async (tx, planificacion, carrera) => {
       await exigirSinEjecucionActiva(tx, [id]);

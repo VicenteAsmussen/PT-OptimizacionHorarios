@@ -22,6 +22,7 @@ interface Propiedades {
   alCancelarEliminacion: () => void;
   alEliminar: () => void;
 }
+// Presenta los efectos y confirmaciones de estado, reinicio y eliminación del período.
 export default function VistaPeriodo({ resumenes, nuevoEstado, accion, confirmacion, bloqueado,
   alNuevoEstado, alSeleccionarAccion, alConfirmacion, alReiniciar, alCancelar, alCambiarEstado,
   alMarcarActual, alSolicitarEliminacion, confirmacionEliminacion = null, alConfirmacionEliminacion, alCancelarEliminacion, alEliminar }: Propiedades) {

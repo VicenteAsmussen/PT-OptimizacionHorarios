@@ -32,7 +32,7 @@ it("admin borra por la guarda atómica, nunca por la limpieza académica", async
   expect(dobles.borrarSeguro).toHaveBeenCalledWith(7, 8);
   expect(dobles.borrarPartTime).not.toHaveBeenCalled();
 });
-it("secretaría conserva el borrado part time autorizado sin un veto nuevo por disponibilidad", async () => {
+it("secretaría conserva el borrado autorizado de docentes de jornada parcial sin un veto nuevo por disponibilidad", async () => {
   const respuesta = await request(aplicacion).delete("/profesores/7").set("x-rol", "secretaria");
   expect(respuesta.status).toBe(204);
   expect(respuesta.text).toBe("");

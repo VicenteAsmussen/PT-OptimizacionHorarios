@@ -17,14 +17,14 @@ const cargar = (modelo, datos = seleccion) => modelo.reducirDisponibilidad(
   modelo.reducirDisponibilidad(modelo.estadoInicial, { tipo: 'consultar', id: 7 }),
   { tipo: 'cargada', id: 7, seleccion: datos });
 
-test('only professors may access availability; only current assigned contexts are offered', async () => {
+test('solo profesores acceden a disponibilidad y solo se ofrecen contextos actuales asignados', async () => {
   const m = await import('./estado.ts');
   for (const rol of ['admin', 'secretaria', 'jefe_carrera', undefined, null]) assert.equal(m.puedeRegistrarDisponibilidad(rol), false);
   assert.equal(m.puedeRegistrarDisponibilidad('profesor'), true);
   assert.deepEqual(m.planificacionesActuales([{ id: 1, actual: false }, { id: 2, actual: true }]).map(p => p.id), [2]);
 });
 
-test('unsaved availability starts empty, never prefills minimum; selection is local and reversible', async () => {
+test('la disponibilidad sin guardar empieza vacía sin rellenar el mínimo, la selección es local y reversible', async () => {
   const m = await import('./estado.ts');
   let estado = cargar(m);
   assert.deepEqual(estado.bloquesIds, []);
@@ -41,7 +41,7 @@ test('unsaved availability starts empty, never prefills minimum; selection is lo
   assert.equal(m.puedeEnviar(cargar(m, { ...seleccion, minimoBloques: 0 })), false);
 });
 
-test('saved blocks lock, edit explicitly unlocks, and cancellation restores saved values', async () => {
+test('los bloques guardados se bloquean, editar los desbloquea explícitamente y cancelar restaura los valores guardados', async () => {
   const m = await import('./estado.ts');
   let estado = cargar(m, { ...seleccion, bloquesIds: [20, 10] });
   assert.equal(estado.modo, 'guardada');
@@ -55,7 +55,7 @@ test('saved blocks lock, edit explicitly unlocks, and cancellation restores save
   assert.equal(estado.modo, 'guardada');
 });
 
-test('bulk selection changes only the editable draft and respects saved, sending and frozen states', async () => {
+test('la selección masiva cambia solo el borrador editable y respeta los estados guardado, enviando y congelado', async () => {
   const m = await import('./estado.ts');
   const todos = { tipo: 'seleccionar_todos', bloquesIds: [20, 10, 20] };
   const ninguno = { tipo: 'deseleccionar_todos' };
@@ -77,7 +77,7 @@ test('bulk selection changes only the editable draft and respects saved, sending
   assert.equal(estado.modo, 'edicion');
 });
 
-test('explicit submit locks on success; failure retains draft; saving blocks duplicate submit and context changes', async () => {
+test('el envío explícito bloquea tras el éxito, el fallo conserva el borrador y guardar impide envíos duplicados y cambios de contexto', async () => {
   const m = await import('./estado.ts');
   let estado = cargar(m);
   assert.deepEqual(m.reducirDisponibilidad(estado, { tipo: 'enviar' }), estado);
@@ -98,7 +98,7 @@ test('explicit submit locks on success; failure retains draft; saving blocks dup
   assert.deepEqual(guardada.bloquesIds, [20, 10]);
 });
 
-test('planning switches clear drafts without saving and ignore old responses; frozen contexts cannot edit', async () => {
+test('cambiar de planificación limpia borradores sin guardar e ignora respuestas antiguas, los contextos congelados no permiten editar', async () => {
   const m = await import('./estado.ts');
   const anterior = m.reducirDisponibilidad(cargar(m), { tipo: 'alternar', id: 20 });
   const nueva = m.reducirDisponibilidad(anterior, { tipo: 'consultar', id: 8 });
@@ -115,7 +115,7 @@ test('planning switches clear drafts without saving and ignore old responses; fr
   }
 });
 
-test('grid orders explicit weekdays and block numbers, not database IDs or alphabetically', async () => {
+test('la grilla ordena por días explícitos y números de bloque, no por ID de base de datos ni alfabéticamente', async () => {
   const { ordenarBloques } = await import('./estado.ts');
   const bloques = [{ id: 1, dia: 'Miercoles', numeroBloque: 1 }, { id: 2, dia: 'Lunes', numeroBloque: 10 },
     { id: 99, dia: 'Lunes', numeroBloque: 2 }, { id: 3, dia: 'Martes', numeroBloque: 1 }];
@@ -123,7 +123,7 @@ test('grid orders explicit weekdays and block numbers, not database IDs or alpha
   assert.deepEqual(bloques.map(b => b.id), [1, 2, 99, 3]);
 });
 
-test('route and sidebar reuse the professor permission, preserving existing routes and navigation', async () => {
+test('la ruta y la barra lateral reutilizan el permiso de profesor y conservan las rutas y la navegación existentes', async () => {
   const ruta = await readFile(new URL('../../app/router.tsx', import.meta.url), 'utf8');
   const layout = await readFile(new URL('../../components/layout/AppLayout.tsx', import.meta.url), 'utf8');
   assert.match(ruta, /element: <RequireDisponibilidad \/>, children: \[\s*\{ path: "disponibilidad", element: <DisponibilidadPage \/> \}/);
@@ -134,7 +134,7 @@ test('route and sidebar reuse the professor permission, preserving existing rout
   }
 });
 
-// Compile JSX in memory: no browser dependency, filesystem output, or production-only test hooks.
+// Compila JSX en memoria, sin navegador, archivos de salida ni puntos de prueba en producción.
 async function compilar(archivo, dependencias) {
   const ts = await import('typescript');
   const fuente = await readFile(new URL(archivo, import.meta.url), 'utf8');
@@ -144,7 +144,7 @@ async function compilar(archivo, dependencias) {
   const modulo = { exports: {} };
   new Function('require', 'exports', 'module', codigo)(nombre => {
     if (nombre === 'react' && !(nombre in dependencias)) return { useRef: inicial => ({ current: inicial }), useEffect: () => {} };
-    assert.ok(nombre in dependencias, `Unexpected dependency: ${nombre}`);
+      assert.ok(nombre in dependencias, `Dependencia inesperada: ${nombre}`);
     return dependencias[nombre];
   }, modulo.exports, modulo);
   return modulo.exports;
@@ -197,7 +197,7 @@ async function montarPagina(api, rol = 'profesor') {
   function renderizar() {
     let vueltas = 0;
     do {
-      assert.ok(++vueltas < 30, 'render settled');
+        assert.ok(++vueltas < 30, 'la vista debe estabilizarse');
       sucio = false; indice = 0; efectos = [];
       arbol = modulo.default();
       efectos.forEach(efecto => efecto());
@@ -257,7 +257,7 @@ test('sondeo de cálculo bloquea edición y conserva borrador al bloquear, falla
   } finally { pagina.desmontar(); t.mock.timers.reset(); }
 });
 
-test('page selects the first current career without a placeholder, never autosaves, and preserves failed drafts', async () => {
+test('la página selecciona la primera carrera actual sin opción vacía, nunca guarda automáticamente y conserva los borradores fallidos', async () => {
   const consultas = []; const envios = []; let fallar = false; let resolverEnvio;
   const api = {
     consultar: async id => { consultas.push(id); return { planificaciones: planes, bloques,
@@ -316,7 +316,7 @@ test('la cabecera amplía carga docente y reserva una línea para la ayuda en es
   assert.match(cabecera, /grid-template-columns:\s*minmax\(0, 1fr\)/);
 });
 
-test('workload is a collapsed native disclosure with a visible total and expandable assignment details', async () => {
+test('la carga académica usa un desplegable nativo contraído con total visible y detalles de asignación expandibles', async () => {
   const { renderToStaticMarkup } = await import('react-dom/server');
   const p = await montarPagina({ consultar: async id => ({ planificaciones: [planes[0]], bloques,
     seleccion: id ? seleccion : null }) });
@@ -457,7 +457,7 @@ test('la instrucción es breve y la recomendación no repite el mínimo', async 
   } finally { p.desmontar(); }
 });
 
-test('one current context auto-selects; stale GET cannot overwrite another context; frozen planning is read-only', async () => {
+test('un único contexto actual se selecciona automáticamente, un GET obsoleto no sobrescribe otro contexto y la planificación congelada es de solo lectura', async () => {
   const rechazado = await montarPagina({ consultar: async () => ({ planificaciones: [], bloques, seleccion: null }) }, 'admin');
   assert.equal(rechazado.guardia().type, 'navigate');
   assert.equal(rechazado.guardia().props.to, '/app/dashboard');
@@ -599,7 +599,7 @@ test('los SVG elegidos acompañan navegación y envío sin reemplazar los nombre
   } finally { guardada.desmontar(); }
 });
 
-test('a rejected save rechecks planning editability without losing the unsaved selection', async () => {
+test('un guardado rechazado vuelve a consultar si la planificación es editable sin perder la selección pendiente', async () => {
   let congelada = false;
   let p;
   p = await montarPagina({
@@ -621,7 +621,7 @@ test('a rejected save rechecks planning editability without losing the unsaved s
   } finally { p.desmontar(); }
 });
 
-test('API uses only self-service endpoints and the frozen request contract, preserving shared credentials', async () => {
+test('la API usa solo rutas de autoservicio y el contrato fijo de solicitud, conservando las credenciales compartidas', async () => {
   const { api, ApiError } = await import('../../lib/api.ts');
   const { disponibilidadApi } = await compilar('./disponibilidad.api.ts', { '../../lib/api': { api } });
   const anterior = globalThis.fetch;

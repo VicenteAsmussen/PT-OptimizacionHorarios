@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-test('JSON requests retain headers, credentials, body and successful responses', async () => {
+test('las solicitudes JSON conservan cabeceras, credenciales, cuerpo y respuestas exitosas', async () => {
   const { api } = await import('./api.ts');
   const anterior = globalThis.fetch;
   try {
@@ -16,7 +16,7 @@ test('JSON requests retain headers, credentials, body and successful responses',
     assert.deepEqual(await api('/asignaturas', { method: 'PUT', body: '{"nombre":"Course"}' }), { status: 'success' });
   } finally { globalThis.fetch = anterior; }
 });
-test('multipart leaves its boundary to fetch and retains structured import failures', async () => {
+test('el envío multipart deja su delimitador a fetch y conserva los fallos estructurados de importación', async () => {
   const { api, ApiError } = await import('./api.ts');
   const anterior = globalThis.fetch;
   const detalle = { status: 'error', errores: [{ fila: 2, columna: 'Cupos', valor: '-1' }], data: { cobertura: [] } };
@@ -33,7 +33,7 @@ test('multipart leaves its boundary to fetch and retains structured import failu
     });
   } finally { globalThis.fetch = anterior; }
 });
-test('existing API error messages and no-content responses remain unchanged', async () => {
+test('los mensajes de error existentes de la API y las respuestas sin contenido permanecen intactos', async () => {
   const { api, ApiError } = await import('./api.ts');
   const anterior = globalThis.fetch;
   try {
@@ -44,7 +44,7 @@ test('existing API error messages and no-content responses remain unchanged', as
   } finally { globalThis.fetch = anterior; }
 });
 
-test('binary downloads retain cookie credentials, abort signal and structured failures', async () => {
+test('las descargas binarias conservan las credenciales por cookies, la señal de aborto y los fallos estructurados', async () => {
   const { apiArchivo, ApiError } = await import('./api.ts');
   const anterior = globalThis.fetch;
   const controlador = new AbortController();

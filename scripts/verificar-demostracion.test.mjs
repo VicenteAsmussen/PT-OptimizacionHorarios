@@ -2,12 +2,13 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { validarOpciones, validarDestino, crearEntornoDemostracion } from "./verificar-demostracion.mjs";
 
+// Importar el arnés no arranca PostgreSQL, estos casos solo comprueban validaciones sin efectos externos.
 test("exige autorización explícita y rechaza opciones desconocidas sin efectos", () => {
   assert.throws(() => validarOpciones([]), /autorizar/);
   assert.throws(() => validarOpciones(["--autorizar-entorno-efimero", "--otra"]), /desconocida/);
   assert.deepEqual(validarOpciones(["--autorizar-entorno-efimero"]), {});
 });
-test("el destino no admite otra base, host, puerto ni parámetros", () => {
+test("el destino no admite otra base, servidor, puerto ni parámetros", () => {
   const destino = "postgres://demo_tesis:clave-sintetica@127.0.0.1:55432/demo_tesis_fase2";
   assert.equal(validarDestino(destino).database, "demo_tesis_fase2");
   for (const otra of [destino.replace("127.0.0.1", "localhost"), destino.replace("55432", "5432"),

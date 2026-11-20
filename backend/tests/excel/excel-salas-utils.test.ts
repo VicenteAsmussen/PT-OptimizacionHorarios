@@ -68,6 +68,7 @@ describe("agrupación pura de bloques", () => {
   });
 
   it("acepta pausa de diez minutos tras pares institucionales de cuarenta minutos", () => {
+    // Este agrupador representa el Excel, no impone la regla de inicio impar del movimiento de propuestas.
     expect(agruparBloquesEnSesiones([
       bloque(1, "08:10", "08:50"), bloque(2, "08:50", "09:30"),
       bloque(3, "09:40", "10:20"), bloque(4, "10:20", "11:00"), bloque(5, "11:10", "11:50"),

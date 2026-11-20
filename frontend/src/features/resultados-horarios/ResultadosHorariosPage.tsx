@@ -18,17 +18,22 @@ import Dialogo from './Dialogo';
 import DetalleSesionDialogo from './DetalleSesionDialogo';
 import estilos from './ResultadosHorarios.module.css';
 
+// Restringe la consulta de resultados a los roles de gestión académica.
 export function RequireResultadosHorarios() {
   const { usuario } = useAuth();
   return puedeGestionarResultados(usuario?.rol) ? <Outlet /> : <Navigate to="/app/dashboard" replace />;
 }
+// Reinicia la gestión del horario cuando cambia la cuenta autenticada.
 export default function ResultadosHorariosPage() {
   const { usuario } = useAuth();
   return <ConsultaResultados key={usuario?.id} />;
 }
+// Conserva el diagnóstico disponible para una operación sobre el horario.
 const mensajeError = (fallo: unknown) => fallo instanceof Error ? fallo.message : 'No se pudo completar la solicitud.';
+// Explica cuántas sesiones conservaron su sala durante la importación de respuesta.
 const mensajeOmitidas = (cantidad: number) => cantidad === 0 ? '' : cantidad === 1
   ? 'Se omitió 1 sesión que ya tenía sala.' : `Se omitieron ${cantidad} sesiones que ya tenían sala.`;
+// Extrae únicamente diagnósticos de planilla con fila, columna y mensaje reconocibles.
 function erroresPlanilla(fallo: unknown): ErrorPlanilla[] {
   const detalle = fallo instanceof ApiError ? fallo.detalle : null;
   if (!detalle || typeof detalle !== 'object' || !('errores' in detalle) || !Array.isArray(detalle.errores)) return [];
@@ -38,6 +43,7 @@ function erroresPlanilla(fallo: unknown): ErrorPlanilla[] {
 type AvisoImportacion = { tipo: 'error'; errores: ErrorPlanilla[]; sinCambios: boolean }
   | { tipo: 'pendientes'; sesiones: SesionResultado[]; trasImportacion: boolean; omitidas?: number } | { tipo: 'consulta' };
 
+// Selecciona una planificación autorizada y distingue preparación de resultados consultables.
 export function ConsultaResultados() {
   const { usuario } = useAuth();
   const puedeOperar = puedeOperarResultados(usuario?.rol);
@@ -81,6 +87,7 @@ export function ConsultaResultados() {
   </section>;
 }
 
+// Coordina lectura, movimiento, salas y publicación de una revisión horaria.
 export function ContenidoResultados({ id, nombreCarrera, ocupado, cambiarOcupado, actualizarPlanificacion }: {
   id: number; nombreCarrera: string; ocupado: boolean; cambiarOcupado: (valor: boolean) => void;
   actualizarPlanificacion: (datos: ResultadoHorario['planificacion']) => void;
@@ -149,58 +156,71 @@ export function ContenidoResultados({ id, nombreCarrera, ocupado, cambiarOcupado
     }).catch(fallo => { if (activo) setErrorMovimiento(mensajeError(fallo)); });
     return () => { activo = false; controlador.abort(); };
   }, [clave, sesionMovimiento?.idsHorarios.join(','), disponible, ocupado, edicion]);
+  // Descarta la edición previa cuando no hay una operación horaria en curso.
   function cancelarMovimiento() {
     if (bloqueo.current) return;
     limpiarMovimiento();
   }
+  // Retira grupo, destino y validación para no reutilizarlos en otra edición.
   function limpiarMovimiento() {
     setEditando(false); setSeleccionada(null); setGrupo(0); setDestino(0); setValidacion(null); setErrorMovimiento(''); setEdicion(e => e + 1);
   }
+  // Abre la edición de una sesión vigente que todavía admite movimiento.
   function seleccionarSesion(sesion: SesionResultado) {
     if (!puedeOperar || !resultado || bloqueo.current || !disponibilidadCargada || seleccionada) return;
     const actual = resultado.sesiones.find(s => s.idsHorarios.join(',') === sesion.idsHorarios.join(','));
     if (!actual || !puedeMoverSesion(resultado, actual)) return;
     cancelarMovimiento(); setEditando(true); setDetalle(null); setSeleccionada(actual); setNivel(String(actual.asignatura.semestreMalla)); setPublicando(false);
   }
+  // Distingue la consulta de detalle de la selección de una sesión para mover.
   function consultarSesion(sesion: SesionResultado) {
     if (bloqueo.current) return;
     if (editando) seleccionarSesion(sesion);
     else setDetalle(sesion);
   }
+  // Cambia el inicio impar del destino e invalida la comprobación remota anterior.
   function elegirDestino(inicioId: number) {
     if (bloqueo.current || inicioId === destino) return;
     const inicio = resultado?.bloques.find(b => b.id === inicioId);
     if (!inicio || inicio.numeroBloque % 2 === 0) return;
     setValidacion(null); setErrorMovimiento(''); setDestino(inicioId);
   }
+  // Cambia el tramo que se moverá y exige elegir y validar un nuevo destino.
   function cambiarGrupo(indice: number) {
     if (bloqueo.current) return;
     setGrupo(indice); setDestino(0); setValidacion(null); setErrorMovimiento('');
   }
+  // Guarda solo el movimiento que conserva su validación y revisión vigentes.
   function confirmarMovimiento() {
     if (!resultado || !sesionMovimiento || !puedeConfirmarMovimiento(resultado, sesionMovimiento, datos, visible)) return;
     void ejecutar(async () => ({ resultado: await resultadosHorariosApi.mover(id, datos), mensaje: 'Horario actualizado.' }));
   }
+  // Retira el aviso temporal asociado a la última operación horaria.
   function cerrarAviso() {
     if (avisoActual.current === null) return;
     notificaciones.cerrar(avisoActual.current); avisoActual.current = null;
   }
+  // Actualiza el aviso de la operación solo mientras la gestión sigue montada.
   function mostrarAviso(tipo: 'exito' | 'error' | 'advertencia', mensaje: string) {
     if (!vivo.current) return;
     avisoActual.current = notificaciones[tipo](mensaje, avisoActual.current ?? undefined);
   }
+  // Invalida la edición y solicita una nueva lectura del resultado horario.
   function recargar() {
     limpiarMovimiento(); setDetalle(null); setPublicando(false); setRevisionDescarte(null); setConfirmaDescarte(false); dispatch({ tipo: 'seleccionar', id });
   }
+  // Reintenta consultar el horario sin repetir una escritura anterior.
   function actualizar() {
     cerrarAviso(); setAvisoImportacion(null); recargar();
   }
+  // Presenta las sesiones sin sala de toda la planificación sin filtro de nivel.
   function verPendientes() {
     if (!resultado || bloqueo.current || sesionMovimiento) return;
     const sesiones = resultado.sesiones.filter(sesion => sesion.estadoSala === 'pendiente');
     if (!sesiones.length) return;
     setPublicando(false); setAvisoImportacion({ tipo: 'pendientes', sesiones, trasImportacion: false });
   }
+  // Serializa cambios de propuesta y relee el resultado cuando la confirmación es incierta.
   async function ejecutar(operacion: () => Promise<{ resultado?: ResultadoHorario; planificacion?: ResultadoHorario['planificacion']; mensaje: string; omitidas?: number }>, esImportacion = false) {
     if (!puedeOperar || !resultado || !puedeEditarResultado(resultado) || bloqueo.current) return;
     bloqueo.current = true; cambiarOcupado(true); cerrarAviso(); setAvisoImportacion(null); importacionPorInformar.current = null;
@@ -230,6 +250,7 @@ export function ContenidoResultados({ id, nombreCarrera, ocupado, cambiarOcupado
       if (vivo.current) cambiarOcupado(false);
     }
   }
+  // Descarga la solicitud de salas con cancelación y libera su URL temporal.
   async function exportar(soloPendientes: boolean) {
     if (!puedeOperar || !resultado || bloqueo.current || !vivo.current) return;
     const controlador = new AbortController();
@@ -253,6 +274,7 @@ export function ContenidoResultados({ id, nombreCarrera, ocupado, cambiarOcupado
       }
     }
   }
+  // Aborta la descarga activa y libera la selección sin cambiar las salas.
   function cancelarDescarga() {
     const controlador = descarga.current;
     if (!controlador) return;

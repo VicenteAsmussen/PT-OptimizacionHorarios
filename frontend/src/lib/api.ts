@@ -1,12 +1,14 @@
 const baseUrl = import.meta.env?.VITE_API_URL ?? "/api";
 
 export class ApiError extends Error {
+  // Conserva el estado HTTP y el diagnóstico que las pantallas pueden mostrar.
   constructor(message: string, public readonly status: number, public readonly detalle?: unknown) {
     super(message);
     this.name = "ApiError";
   }
 }
 
+// Envía solicitudes con la cookie de sesión y propaga los rechazos de la API.
 export async function api<T>(ruta: string, opciones: RequestInit = {}): Promise<T> {
   const headers = new Headers(opciones.headers);
   headers.set("Accept", "application/json");
@@ -32,6 +34,7 @@ export async function api<T>(ruta: string, opciones: RequestInit = {}): Promise<
   return respuesta.json() as Promise<T>;
 }
 
+// Descarga la planilla de solicitud de salas o comunica el rechazo del servidor.
 export async function apiArchivo(ruta: string, signal?: AbortSignal): Promise<Blob> {
   const respuesta = await fetch(`${baseUrl.replace(/\/$/, "")}/${ruta.replace(/^\//, "")}`, {
     credentials: "include", signal,

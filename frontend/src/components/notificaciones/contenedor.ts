@@ -1,6 +1,8 @@
 // El portal conserva su nodo e instancia de Sonner al entrar o salir de un modal.
+// Sitúa los avisos en el último modal activo o en el documento principal.
 export function ubicarContenedorNotificaciones(contenedor: HTMLElement, documento: Document = document) {
   let dialogos = Array.from(documento.querySelectorAll<HTMLDialogElement>('dialog:modal'));
+  // Reubica los avisos cuando cambia el diálogo que puede recibir interacción.
   function ubicar() {
     dialogos = dialogos.filter(dialogo => dialogo.isConnected && dialogo.matches(':modal'));
     for (const dialogo of documento.querySelectorAll<HTMLDialogElement>('dialog:modal')) {

@@ -3,6 +3,7 @@ import { administracionPeriodosService as servicio } from "../services/administr
 import type { AlcanceReinicio } from "../validations/administracion-periodos.validation.js";
 
 export const administracionPeriodosController = {
+  // Presenta sin caché el resumen para confirmar qué datos del período se modificarán.
   async resumen(req: Request, res: Response, next: NextFunction) {
     try {
       const data = await servicio.resumen(Number(req.params.id), req.query.alcance as AlcanceReinicio);
@@ -10,12 +11,14 @@ export const administracionPeriodosController = {
       res.json({ status: "success", data });
     } catch (error) { next(error); }
   },
+  // Transmite la confirmación y la huella del reinicio administrativo solicitado.
   async reiniciar(req: Request, res: Response, next: NextFunction) {
     try {
       const data = await servicio.reiniciar(Number(req.params.id), req.body);
       res.json({ status: "success", data });
     } catch (error) { next(error); }
   },
+  // Devuelve el período tras la transición administrativa validada contra su estado anterior.
   async cambiarEstado(req: Request, res: Response, next: NextFunction) {
     try {
       const data = await servicio.cambiarEstado(Number(req.params.id), req.body);

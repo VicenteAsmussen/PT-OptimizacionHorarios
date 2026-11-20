@@ -53,19 +53,19 @@ test('el contexto de seguimiento explica el alcance junto al período sin repeti
   assert.equal([...html.matchAll(/departamentos que gestiona tu carrera/g)].length, 1);
 });
 
-test('only secretary may access monitoring', async () => {
+test('solo secretaría puede acceder al seguimiento', async () => {
   const { puedeVerSeguimiento } = await import('./estado.ts');
   assert.equal(puedeVerSeguimiento('secretaria'), true);
   for (const rol of ['admin', 'profesor', 'jefe_carrera', undefined, null]) assert.equal(puedeVerSeguimiento(rol), false);
 });
 
-test('submission status is presence only and zero is retained for missing submissions', async () => {
+test('el estado de envío indica solo presencia y conserva cero cuando no hay envíos', async () => {
   const { estadoEnvio } = await import('./estado.ts');
   assert.equal(estadoEnvio(false), 'No enviada');
   assert.equal(estadoEnvio(true), 'Enviada');
 });
 
-test('changing planning or refreshing clears previous results and rejects late responses', async () => {
+test('cambiar de planificación o actualizar limpia los resultados anteriores y rechaza respuestas tardías', async () => {
   const { estadoInicial, reducirSeguimiento } = await import('./estado.ts');
   let estado = reducirSeguimiento(estadoInicial, { tipo: 'seleccionar', id: 10 });
   const revisionAnterior = estado.revision;

@@ -2,6 +2,7 @@ import { z } from "zod";
 import { normalizarRut } from "../utils/rut.js";
 
 const rutValidation = z.string({ message: "El RUT del profesor es obligatorio" })
+  // Normaliza la identidad docente o incorpora un rechazo de validación al formulario recibido.
   .transform((valor, contexto) => {
     const rut = normalizarRut(valor);
     if (rut === null) {

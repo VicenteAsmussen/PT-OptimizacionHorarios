@@ -56,14 +56,18 @@ mutable struct ModeloRegistroSimulado
     fallar_restauracion::Bool
     pasos::Vector{Symbol}
 end
+# Expone solo el doble de registro, sin sustituir el backend de los modelos reales.
 JuMP.unsafe_backend(modelo::ModeloRegistroSimulado) = modelo
+# Fija un límite sintético para probar la configuración del registro sin resolver un modelo.
 JuMP.time_limit_sec(::ModeloRegistroSimulado) = 3.0
+# Lee los atributos del doble para comprobar que se conserva la configuración.
 function JuMP.MOI.get(modelo::ModeloRegistroSimulado, atributo::JuMP.MOI.RawOptimizerAttribute)
     atributo.name == "output_flag" && return modelo.salida
     atributo.name == "log_to_console" && return modelo.consola
     atributo.name == "time_limit" && return 3.0
     error("Atributo inesperado en el doble")
 end
+# Registra cambios de silencio y consola, con un fallo opcional para probar una restauración insegura.
 function JuMP.MOI.set(modelo::ModeloRegistroSimulado, atributo::JuMP.MOI.RawOptimizerAttribute, valor)
     push!(modelo.pasos, atributo.name == "output_flag" ? :silencio : :consola)
     if atributo.name == "output_flag"
@@ -74,6 +78,7 @@ function JuMP.MOI.set(modelo::ModeloRegistroSimulado, atributo::JuMP.MOI.RawOpti
     end
     return nothing
 end
+# Provoca el primer fallo de registro y permite observar si la recuperación sigue la secuencia esperada.
 function JuMP.MOI.set(modelo::ModeloRegistroSimulado, ::HiGHS.CallbackFunction, observar)
     push!(modelo.pasos, :registro)
     modelo.registros += 1
@@ -128,6 +133,7 @@ end
 end
 
 @testset "Cadencia según límite configurado, con máximo de 60 muestras" begin
+    # El reloj simulado recorre intervalos y límites históricos sin esperar tiempo real ni ejecutar optimize!.
     for (limite, intervalo) in [(1800.0, 30.0), (900.0, 15.0), (600.0, 10.0), (300.0, 5.0), (nothing, 5.0)]
         modelo = Model(HiGHS.Optimizer)
         if limite !== nothing

@@ -21,20 +21,24 @@ import { esObligatoriaExterna } from "../utils/cobertura-externos.js";
 import { esSalaCompatible, mensajeSalaIncompatible } from "../utils/compatibilidad-salas.js";
 import { exigirBloquesNoReservados, leerBloquesReservados } from "./bloques-reservados.js";
 
+// Resuelve la oferta que determina la propiedad académica de una escritura de horario.
 async function leerOferta(tx: TransaccionPlanificacion, id: number) {
   const oferta = await tx.query.ofertasAsignaturas.findFirst({ where: eq(ofertasAsignaturas.id, id) });
   if (!oferta) throw new NotFoundError("Oferta no encontrada");
   return oferta;
 }
+// Recupera la fila que se modificará dentro de la transacción del período.
 async function leerHorario(tx: TransaccionPlanificacion, id: number) {
   const horario = await tx.query.horariosAsignaturas.findFirst({ where: eq(horariosAsignaturas.id, id) });
   if (!horario) throw new NotFoundError("Horario no encontrado");
   return horario;
 }
+// Impide separar el horario del período al que pertenece su oferta.
 function exigirMismaPlanificacion(planificacionSemestreId: number, ofertaPlanificacionId: number) {
   if (planificacionSemestreId !== ofertaPlanificacionId) throw new BadRequestError("La planificación indicada no coincide con la planificación de la oferta");
 }
 
+// Comprueba la existencia y compatibilidad de la sala física cuando se proporciona.
 async function exigirSalaCompatible(tx: TransaccionPlanificacion, tipoHoraId: number, salaId?: number | null) {
   if (salaId == null) return;
   const sala = await tx.query.salas.findFirst({ where: eq(salas.id, salaId) });
@@ -44,6 +48,7 @@ async function exigirSalaCompatible(tx: TransaccionPlanificacion, tipoHoraId: nu
   if (!esSalaCompatible(tipoHora.tipo, sala.tipo)) throw new BadRequestError(mensajeSalaIncompatible);
 }
 
+// Revalida reservas y ocupaciones de sección, docente y sala en la transacción de escritura.
 async function exigirHorarioValido(tx: TransaccionPlanificacion, datos: NuevoHorarioAsignatura, id?: number) {
   await exigirBloquesNoReservados(tx, datos.planificacionSemestreId, [datos.bloqueId]);
   const asignacion = await tx.query.ofertaTipoHora.findFirst({ where: and(eq(ofertaTipoHora.ofertaId, datos.ofertaId), eq(ofertaTipoHora.tipoHoraId, datos.tipoHoraId)) });
@@ -58,6 +63,7 @@ async function exigirHorarioValido(tx: TransaccionPlanificacion, datos: NuevoHor
   if (datos.salaId && entradas.some(e => e.salaId === datos.salaId)) throw new ConflictError("Conflicto de horario: sala ocupada en esta planificación");
 }
 
+// Acota las filas del intercambio Excel a los períodos de la carrera indicada.
 function condicionAlcanceExcel(carreraId?: number) {
   if (carreraId === undefined) return undefined;
   return inArray(horariosAsignaturas.planificacionSemestreId,
@@ -73,6 +79,7 @@ const relacionesExcel = {
   asignacion: { with: { profesor: { columns: columnasProfesorSinRut } } }, bloque: true as const, tipoHora: true as const,
 };
 export const horariosRepository = {
+  // Reúne malla, docentes y ocupaciones para validar la carga del departamento externo.
   async findContextoExternos(planificacionSemestreId: number, departamentoId: number, carreraId?: number) {
     const planificacion = await planificacionesSemestresRepository.findById(planificacionSemestreId);
     const carreraContexto = planificacion?.carreraId;
@@ -96,6 +103,7 @@ export const horariosRepository = {
         .innerJoin(ofertaTipoHora, and(eq(ofertaTipoHora.ofertaId, horariosAsignaturas.ofertaId), eq(ofertaTipoHora.tipoHoraId, horariosAsignaturas.tipoHoraId))).where(eq(horariosAsignaturas.planificacionSemestreId, planificacionSemestreId)),
     };
   },
+  // Crea ofertas y bloques externos en conjunto sobre un período editable sin ofertas duplicadas.
   async crearExternosEnTransaccion(planificacionSemestreId: number, filas: { asignaturaCodigo: string; profesorId: number; seccion: number; cupos: number; sesiones: { bloqueId: number; tipoHoraId: number }[] }[]) {
     await conPlanificacionesEditables(async () => [planificacionSemestreId], async tx => {
       await exigirBloquesNoReservados(tx, planificacionSemestreId, filas.flatMap(fila => fila.sesiones.map(sesion => sesion.bloqueId)));
@@ -109,6 +117,7 @@ export const horariosRepository = {
       }
     });
   },
+  // Reemplaza atómicamente la carga externa del alcance tras revalidar cobertura y ocupación docente.
   async sincronizarExternosEnTransaccion(planificacionSemestreId: number, departamentoId: number, filas: { asignaturaCodigo: string; profesorId: number; seccion: number; cupos: number; sesiones: { bloqueId: number; tipoHoraId: number }[] }[], carreraId?: number) {
     return conPlanificacionesEditables(async () => [planificacionSemestreId], async tx => {
       const planificacion = await tx.query.planificacionesSemestres.findFirst({ where: eq(planificacionesSemestres.id, planificacionSemestreId) });
@@ -172,16 +181,19 @@ export const horariosRepository = {
       return { ofertasCreadas, ofertasActualizadas, ofertasEliminadas };
     });
   },
+  // Resuelve la carrera que limita el intercambio Excel de la cuenta de secretaría.
   async findCarreraSecretariaByUsuarioId(usuarioId: number) {
     const [perfil] = await db.select({ carreraId: secretarias.carreraId }).from(secretarias).where(eq(secretarias.usuarioId, usuarioId)).limit(1);
     return perfil;
   },
+  // Reúne sesiones y catálogo de salas para identificar el lote y comprobar sus colisiones.
   async findParaImportarSalas(planificacionSemestreId: number, carreraId?: number) {
     const entradas = await db.query.horariosAsignaturas.findMany({ where: and(eq(horariosAsignaturas.planificacionSemestreId, planificacionSemestreId), condicionAlcanceExcel(carreraId)), with: relacionesExcel });
     const salasExistentes = await db.select({ id: salas.id, nombre: salas.nombre, tipo: salas.tipo }).from(salas);
     // Conflictos de sala únicamente dentro de esta planificación.
     return { entradas, entradasParaConflictos: entradas, salas: salasExistentes };
   },
+  // Actualiza salas en preparación revalidando propiedad, reservas y compatibilidad de cada fila.
   async actualizarSalasEnTransaccion(planificacionSemestreId: number, cambios: { id: number; salaId: number | null }[], carreraId?: number) {
     await conPlanificacionesEditables(async tx => {
       const vinculos = [planificacionSemestreId];
@@ -198,15 +210,18 @@ export const horariosRepository = {
       }
     });
   },
+  // Resuelve el período que contextualiza la lectura o el intercambio de horarios.
   async findPlanificacionById(id: number) {
     return planificacionesSemestresRepository.findById(id);
   },
+  // Carga horarios y componentes de la carrera para construir las sesiones exportables.
   async findParaExportarSalas(planificacionSemestreId: number, carreraId?: number) {
     return db.query.horariosAsignaturas.findMany({
       where: and(eq(horariosAsignaturas.planificacionSemestreId, planificacionSemestreId), condicionAlcanceExcel(carreraId)),
       with: { ...relacionesExcel, oferta: { with: { asignatura: { with: { tiposHora: { with: { tipoHora: true } } } } } }, sala: true },
     });
   },
+  // Filtra la grilla por relaciones académicas y por los períodos de la carrera autorizada.
   async findAll(filtro?: { planificacionSemestreId?: number; ofertaId?: number; salaId?: number; bloqueId?: number; semestreMalla?: number; profesorId?: number }, alcance?: AlcanceCarrera) {
     return db.query.horariosAsignaturas.findMany({
       where: and(
@@ -222,28 +237,38 @@ export const horariosRepository = {
       ), with: relacionesEntrada,
     });
   },
+  // Recupera una fila con sus relaciones para resolver permisos y presentar la clase.
   async findById(id: number) {
     return db.query.horariosAsignaturas.findFirst({ where: eq(horariosAsignaturas.id, id), with: relacionesEntrada });
   },
+  // Detecta la ocupación física de una sala dentro del mismo período y bloque.
   async findBySalaBloquePlanificacion(salaId: number, bloqueId: number, planificacionSemestreId: number) {
     return db.query.horariosAsignaturas.findFirst({ where: and(eq(horariosAsignaturas.salaId, salaId), eq(horariosAsignaturas.bloqueId, bloqueId), eq(horariosAsignaturas.planificacionSemestreId, planificacionSemestreId)) });
   },
+  // Detecta si la sección ya tiene una clase en el bloque solicitado.
   async findByOfertaBloque(ofertaId: number, bloqueId: number) {
     return db.query.horariosAsignaturas.findFirst({ where: and(eq(horariosAsignaturas.ofertaId, ofertaId), eq(horariosAsignaturas.bloqueId, bloqueId)) });
   },
+  // Busca ocupación del docente mediante la asignación del componente de cada oferta.
   async findByProfesorBloquePlanificacion(profesorId: number, bloqueId: number, planificacionSemestreId: number) {
     const [resultado] = await db.select({ id: horariosAsignaturas.id, ofertaId: horariosAsignaturas.ofertaId }).from(horariosAsignaturas)
       .innerJoin(ofertaTipoHora, and(eq(horariosAsignaturas.ofertaId, ofertaTipoHora.ofertaId), eq(horariosAsignaturas.tipoHoraId, ofertaTipoHora.tipoHoraId)))
       .where(and(eq(ofertaTipoHora.profesorId, profesorId), eq(horariosAsignaturas.bloqueId, bloqueId), eq(horariosAsignaturas.planificacionSemestreId, planificacionSemestreId))).limit(1);
     return resultado;
   },
+  // Carga la oferta con período y docentes para validar la creación de una clase.
   async findOfertaWithDetails(ofertaId: number) {
     return db.query.ofertasAsignaturas.findFirst({ where: eq(ofertasAsignaturas.id, ofertaId), with: { asignatura: true, asignaciones: { with: { profesor: { columns: columnasProfesorSinRut } } }, planificacionSemestre: true } });
   },
+  // Comprueba que la sala propuesta pertenezca al catálogo físico.
   async checkSalaExists(id: number) { return !!await db.query.salas.findFirst({ where: eq(salas.id, id) }); },
+  // Comprueba que el bloque solicitado exista en la grilla horaria.
   async checkBloqueExists(id: number) { return !!await db.query.bloquesHorarios.findFirst({ where: eq(bloquesHorarios.id, id) }); },
+  // Comprueba que el componente horario use un tipo reconocido por el catálogo.
   async checkTipoHoraExists(id: number) { return !!await db.query.tiposHora.findFirst({ where: eq(tiposHora.id, id) }); },
+  // Comprueba la existencia del período al que se pretende asociar el horario.
   async checkPlanificacionExists(id: number) { return !!await planificacionesSemestresRepository.findById(id); },
+  // Inserta una clase con oferta y período coincidentes después de bloquear su preparación.
   async create(datos: NuevoHorarioAsignatura) {
     let ofertaPlanificacionId: number;
     return conPlanificacionesEditables(async tx => {
@@ -256,6 +281,7 @@ export const horariosRepository = {
       return creada;
     });
   },
+  // Revalida origen, destino y conflictos al modificar una fila de horario en preparación.
   async update(id: number, datos: Partial<Omit<NuevoHorarioAsignatura, "id">>, origenEsperado?: number) {
     let destino: number;
     let ofertaPlanificacionId: number;
@@ -273,6 +299,7 @@ export const horariosRepository = {
       return actualizada;
     });
   },
+  // Elimina la clase solo si su vínculo de origen y su preparación permanecen válidos.
   async delete(id: number, origenEsperado?: number) {
     return conPlanificacionesEditables(async tx => {
       const origen = (await leerHorario(tx, id)).planificacionSemestreId;
@@ -281,6 +308,7 @@ export const horariosRepository = {
     }, async tx =>
       !!(await tx.delete(horariosAsignaturas).where(eq(horariosAsignaturas.id, id)).returning()).length);
   },
+  // Retira los bloques de una oferta con su período editable y vínculo revalidado.
   async deleteByOferta(ofertaId: number, origenEsperado?: number) {
     return conPlanificacionesEditables(async tx => {
       const origen = (await leerOferta(tx, ofertaId)).planificacionSemestreId;
@@ -289,6 +317,7 @@ export const horariosRepository = {
     }, async tx =>
       (await tx.delete(horariosAsignaturas).where(eq(horariosAsignaturas.ofertaId, ofertaId)).returning()).length);
   },
+  // Vincula la cuenta autenticada con el perfil académico usado para la consulta propia.
   async findProfesorByUsuarioId(usuarioId: number) {
     return db.query.profesores.findFirst({ where: eq(profesores.usuarioId, usuarioId) });
   },

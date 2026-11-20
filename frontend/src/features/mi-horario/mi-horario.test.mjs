@@ -7,7 +7,7 @@ import { pathToFileURL } from 'node:url';
 import React from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
-// Match the app's bundler resolution without changing its TypeScript configuration.
+// Usa la misma resolución de módulos que el empaquetador, sin cambiar la configuración TypeScript.
 registerHooks({ resolve(especificador, contexto, siguiente) {
   if (contexto.parentURL?.includes('/frontend/src/') && especificador.startsWith('.') && !/\.[a-z]+$/i.test(especificador)) {
     return siguiente(`${especificador}.ts`, contexto);
@@ -15,7 +15,7 @@ registerHooks({ resolve(especificador, contexto, siguiente) {
   return siguiente(especificador, contexto);
 } });
 
-test('only professors can consult the page and only existing visible states are offered', async () => {
+test('solo profesores pueden consultar la página y solo se ofrecen estados visibles existentes', async () => {
   const m = await import('./modelo.ts');
   assert.equal(m.puedeConsultarMiHorario('profesor'), true);
   for (const rol of ['admin', 'secretaria', undefined, null]) assert.equal(m.puedeConsultarMiHorario(rol), false);
@@ -36,7 +36,7 @@ const bloques = [
 ];
 const clase = { id: 1, bloqueId: 1, planificacionSemestreId: 10, oferta: { asignatura: { nombre: 'Álgebra' }, seccion: 2 }, tipoHora: { tipo: 'Cátedra' }, sala: null };
 
-test('weekly calendar orders days and blocks, retains simultaneous classes and omits other plans', async () => {
+test('el calendario semanal ordena días y bloques, conserva clases simultáneas y omite otras planificaciones', async () => {
   const m = await import('./modelo.ts');
   const calendario = m.crearCalendario(bloques, [clase, { ...clase, id: 2 }, { ...clase, id: 3, planificacionSemestreId: 20 }], 10);
   assert.deepEqual(calendario.dias.map(d => d.nombre), ['Lunes', 'Miércoles']);
@@ -48,14 +48,14 @@ test('weekly calendar orders days and blocks, retains simultaneous classes and o
   assert.deepEqual(bloques.map(b => b.id), [3, 2, 1]);
 });
 
-test('subject initials include every word while the full description remains available', async () => {
+test('las siglas de asignatura incluyen cada palabra y mantienen disponible la descripción completa', async () => {
   const { inicialesAsignatura, describirClase } = await import('./modelo.ts');
   assert.equal(inicialesAsignatura('Introducción a la Programación'), 'IALP');
   assert.equal(inicialesAsignatura('Estructuras de Datos'), 'EDD');
   assert.equal(describirClase(clase).asignatura, 'Álgebra');
 });
 
-test('class type labels are compact without changing the full class description', async () => {
+test('las etiquetas de tipo de clase son compactas sin cambiar la descripción completa', async () => {
   const { abreviarTipoClase, describirClase } = await import('./modelo.ts');
   assert.equal(abreviarTipoClase('Teórica'), 'teo');
   assert.equal(abreviarTipoClase('Práctica'), 'prac');
@@ -63,20 +63,20 @@ test('class type labels are compact without changing the full class description'
   assert.equal(describirClase({ ...clase, tipoHora: { tipo: 'Teórica' } }).tipo, 'Teórica');
 });
 
-test('class description includes subject, section, class type and assigned or missing room', async () => {
+test('la descripción de clase incluye asignatura, sección, tipo y sala asignada o pendiente', async () => {
   const { describirClase } = await import('./modelo.ts');
   assert.deepEqual(describirClase(clase), { asignatura: 'Álgebra', seccion: 'Sección 2', tipo: 'Cátedra', sala: 'sin sala' });
   assert.equal(describirClase({ ...clase, sala: { nombre: 'A-101' } }).sala, 'A-101');
 });
 
-test('empty schedules retain the calendar structure without fabricating classes', async () => {
+test('los horarios vacíos conservan la estructura del calendario sin inventar clases', async () => {
   const { crearCalendario } = await import('./modelo.ts');
   const vacio = crearCalendario(bloques, [], 10);
   assert.equal(vacio.filas.every(f => f.celdas.every(c => c.clases.length === 0)), true);
   assert.deepEqual(crearCalendario([], [], 10), { dias: [], filas: [] });
 });
 
-test('calendar renders real read-only cells with all class details and no editing controls', async () => {
+test('el calendario muestra celdas reales de solo lectura con todos los detalles de clase y sin controles de edición', async () => {
   const { createServer } = await import('../../../tests/soporte/vite.mjs');
   const { createElement } = await import('react');
   const { renderToStaticMarkup } = await import('react-dom/server');
@@ -87,7 +87,7 @@ test('calendar renders real read-only cells with all class details and no editin
       bloques, horarios: [clase, { ...clase, id: 2, bloqueId: 3, sala: { nombre: 'A-101' } }], planificacionId: 10,
     }));
     for (const texto of ['Lunes', 'Miércoles', '08:10', '09:00', 'Álgebra', 'Sección 2', 'Cátedra', 'sin sala', 'A-101']) {
-      assert.ok(html.includes(texto), `Missing calendar content: ${texto}`);
+    assert.ok(html.includes(texto), `Falta contenido del calendario: ${texto}`);
     }
     assert.match(html, /<table/);
     assert.match(html, /<table[^>]*aria-label="Horario semanal"/);
@@ -156,7 +156,7 @@ test('calendar renders real read-only cells with all class details and no editin
       }));
       assert.match(detalle, /<dialog\b[^>]*aria-labelledby="titulo-detalle-clase"/);
       for (const texto of ['Introducción a la Programación', 'Sección 2', 'Teórica', 'Lunes', '08:10', '09:00', sala?.nombre ?? 'sin sala']) {
-        assert.ok(detalle.includes(texto), `Missing class detail: ${texto}`);
+    assert.ok(detalle.includes(texto), `Falta un detalle de clase: ${texto}`);
       }
       assert.match(detalle, /<button[^>]*>Cerrar<\/button>/);
       assert.match(detalle, /<header[^>]*class="[^"]*cabeceraDialogo/);
@@ -166,7 +166,7 @@ test('calendar renders real read-only cells with all class details and no editin
   } finally { await servidor.close(); }
 });
 
-test('las celdas crecen con clases simultáneas sin ocultarlas en un scroll interno', async () => {
+test('las celdas crecen con clases simultáneas sin ocultarlas en un área de desplazamiento interna', async () => {
   const css = await readFile(new URL('./MiHorario.module.css', import.meta.url), 'utf8');
   const contenido = css.match(/\.consulta \.contenidoCelda\s*\{([^}]+)\}/)[1];
   assert.match(contenido, /min-height:/);
@@ -178,7 +178,7 @@ test('las celdas crecen con clases simultáneas sin ocultarlas en un scroll inte
   assert.match(css, /@media \(max-width: 40rem\)[^]*\.consulta \.calendario tbody th\s*\{[^}]*position:\s*static/);
 });
 
-test('changing planning immediately clears old data and ignores stale responses', async () => {
+test('cambiar de planificación limpia inmediatamente los datos anteriores e ignora respuestas obsoletas', async () => {
   const m = await import('./modelo.ts');
   let estado = m.reducirHorario(m.estadoInicial, { tipo: 'seleccionar', id: 10 });
   estado = m.reducirHorario(estado, { tipo: 'cargado', id: 10, horarios: [clase] });
@@ -193,7 +193,7 @@ test('changing planning immediately clears old data and ignores stale responses'
   assert.equal(estado.error, 'No disponible');
 });
 
-// Run the page's real effects with controlled hooks and deferred API responses, without a DOM or sockets.
+// Ejecuta los efectos reales con hooks controlados y respuestas diferidas de la API, sin DOM ni conexiones de red.
 async function crearPaginaControlada(planificaciones) {
   const ts = await import('typescript');
   const resolver = createRequire(import.meta.url);
@@ -283,7 +283,7 @@ const periodos = [
 ];
 const avisoPreparacion = 'Este período está en Preparación. El horario aún no está habilitado para consulta.';
 
-test('preparation is selectable and shows the exact notice without requesting or rendering a calendar', async () => {
+test('preparación se puede seleccionar y muestra el aviso exacto sin solicitar ni mostrar un calendario', async () => {
   const pagina = await crearPaginaControlada([periodos[1]]);
   try {
     assert.match(pagina.html(), /<option value="20" selected="">Preparación<\/option>/);
@@ -349,7 +349,7 @@ test('un horario vacío informa la ausencia de clases y conserva solo las reserv
   } finally { pagina.cerrar(); }
 });
 
-test('switching proposal to preparation clears the calendar and published still loads its own classes', async () => {
+test('pasar de propuesta a preparación limpia el calendario y publicado sigue cargando sus propias clases', async () => {
   const pagina = await crearPaginaControlada(periodos);
   try {
     pagina.solicitudes[0].resolver([clase]); await pagina.asentar();
@@ -371,7 +371,7 @@ test('switching proposal to preparation clears the calendar and published still 
 });
 
 for (const resultado of ['success', 'failure']) {
-  test(`late ${resultado} cannot restore a calendar in preparation or after returning to the same period`, async () => {
+  test(`un resultado tardío ${resultado} no restaura el calendario en preparación ni al volver al mismo período`, async () => {
     const pagina = await crearPaginaControlada(periodos);
     try {
       const anterior = pagina.solicitudes[0];

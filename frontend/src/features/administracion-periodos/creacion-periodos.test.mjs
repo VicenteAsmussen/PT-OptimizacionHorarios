@@ -11,9 +11,10 @@ const nueva = { id: 8, carreraId: 1, codigo: '2027-1', actual: true, estadoPlani
 function nodos(elemento) {
   return elemento && typeof elemento === 'object' ? [elemento, ...React.Children.toArray(elemento.props?.children).flatMap(nodos)] : [];
 }
+// Controla el orden de respuestas para detectar dobles envíos, llamadas obsoletas y desmontajes.
 function diferida() { let resolver; const promesa = new Promise(resuelve => { resolver = resuelve; }); return { promesa, resolver }; }
 
-// Exercise page handlers/effects without a DOM dependency; this is not browser proof.
+// Prueba manejadores y efectos con hooks simulados, no el DOM ni la planificación real de React.
 async function montar(servicio, componente = 'PaginaAdministracion', propiedades = {}) {
   const avisos = [];
   const notificaciones = Object.fromEntries(['exito', 'error', 'advertencia'].map(tipo => [tipo, mensaje => avisos.push({ tipo, mensaje })]));
@@ -87,7 +88,7 @@ function elegirPeriodo(vista, valor) { selector(vista).props.alSeleccionar(valor
 function valoresSeleccionados(vista) { return [vista.nodos().find(nodo => nodo.type === 'select').props.value, selector(vista).props.valor]; }
 function texto(vista) { return JSON.stringify(vista.nodos().filter(nodo => typeof nodo.type === 'string').map(nodo => nodo.props.children), (_clave, valor) => typeof valor === 'function' ? undefined : valor); }
 
-test('catalog includes careers without periods and keeps the initial choice explicit', async () => {
+test('el catálogo incluye carreras sin períodos y mantiene explícita la elección inicial', async () => {
   const { vista } = await pagina({ planificaciones: async () => [] });
   assert.equal(vista.nodos().find(nodo => nodo.type === 'select').props.value, '');
   assert.ok(vista.nodos().some(nodo => nodo.type === 'option' && nodo.props.children === 'Carrera sin períodos'));
@@ -115,7 +116,7 @@ test('el código muestra su formato junto al campo después de revisarlo, sin cr
   assert.ok(!vista.nodos().some(nodo => nodo.props.id === 'error-codigo'));
   assert.equal(vista.nodos().find(nodo => nodo.type === 'button' && nodo.props.type === 'submit').props.disabled, false);
 });
-test('creates once, refreshes current markers and selects the created career/period', async () => {
+test('crea una sola vez, actualiza las marcas de período actual y selecciona la carrera y el período creados', async () => {
   const solicitud = diferida(); let lecturas = 0; const envios = [];
   const { vista } = await pagina({ crear: datos => { envios.push(datos); return solicitud.promesa; }, planificaciones: async () => ++lecturas === 1 ? [anterior] : [{ ...anterior, actual: false }, { ...nueva, carrera: carreras[0] }] });
   await seleccionar(vista); enviar(vista); enviar(vista); await vista.estabilizar();
@@ -132,7 +133,7 @@ test('creates once, refreshes current markers and selects the created career/per
   assert.deepEqual(vista.avisos, [{ tipo: 'exito', mensaje: 'Período 2027-1 creado como actual y en Preparación para Carrera A.' }]);
   assert.doesNotMatch(texto(vista), /creado como actual/);
 });
-test('first period may reuse another career code without changing that career current marker', async () => {
+test('el primer período puede reutilizar el código de otra carrera sin cambiar su marca de período actual', async () => {
   const creada = { ...nueva, carreraId: 2, codigo: anterior.codigo }; let lecturas = 0; const envios = [];
   const { vista } = await pagina({ crear: async datos => { envios.push(datos); return creada; },
     planificaciones: async () => ++lecturas === 1 ? [anterior] : [anterior, { ...creada, carrera: carreras[1] }] });
@@ -145,7 +146,7 @@ test('first period may reuse another career code without changing that career cu
   const opciones = selector(vista).props.periodos;
   assert.equal(opciones.length, 1); assert.equal(opciones[0].id, 7); assert.equal(opciones[0].actual, true);
 });
-test('rejects missing career and malformed code without creating a period', async () => {
+test('rechaza la ausencia de carrera y el código malformado sin crear un período', async () => {
   const { vista, llamadas } = await pagina(); enviar(vista); await vista.estabilizar();
   for (const [carrera, codigo] of [['', '2027-1'], ['99', '2027-1'], ...['', '2027-3', '2027-1\n', ' 2027-1', '2027-1 ', '２０２７-1', '2027–1'].map(codigo => ['1', codigo])]) {
     await seleccionar(vista, carrera, codigo);
@@ -158,7 +159,7 @@ test('rejects missing career and malformed code without creating a period', asyn
     assert.equal(vista.nodos().find(nodo => nodo.type === 'button' && nodo.props.type === 'submit').props.disabled, false);
   }
 });
-for (const [status, mensaje] of [[409, 'Período existente'], [500, 'Internal server error']]) test(`relays creation ${status} once and retains code/career without retrying`, async () => {
+for (const [status, mensaje] of [[409, 'Período existente'], [500, 'Internal server error']]) test(`comunica el estado ${status} de creación una vez y conserva código y carrera sin reintentar`, async () => {
   let envios = 0;
   const { vista, llamadas } = await pagina({ crear: async () => { envios++; throw Object.assign(new Error(mensaje), { status }); } });
   await seleccionar(vista); enviar(vista); await vista.estabilizar();
@@ -168,7 +169,7 @@ for (const [status, mensaje] of [[409, 'Período existente'], [500, 'Internal se
   assert.deepEqual(vista.avisos, [{ tipo: 'error', mensaje }]);
   assert.ok(!texto(vista).includes(mensaje));
 });
-test('failed refresh after success preserves known creation and retries GET only', async () => {
+test('un refresco fallido tras el éxito conserva la creación confirmada y reintenta solo GET', async () => {
   let lecturas = 0;
   const { vista, llamadas } = await pagina({ planificaciones: async () => { if (++lecturas === 2) throw new Error('Lista no disponible'); return lecturas === 1 ? [anterior] : [{ ...anterior, actual: false }, { ...nueva, carrera: carreras[0] }]; } });
   await seleccionar(vista); enviar(vista); await vista.estabilizar();
@@ -180,7 +181,7 @@ test('failed refresh after success preserves known creation and retries GET only
   assert.equal(llamadas.crear.length, 1); assert.equal(lecturas, 3); assert.doesNotMatch(texto(vista), /Lista no disponible/);
   assert.equal(vista.avisos.length, 1);
 });
-test('creation and existing state changes share a synchronous lock in both directions', async () => {
+test('la creación y los cambios de estado existentes comparten un bloqueo síncrono en ambas direcciones', async () => {
   const solicitud = diferida(); const estadoPendiente = diferida(); let envios = 0;
   const { vista, servicio, llamadas } = await pagina({ crear: () => { envios++; return solicitud.promesa; } });
   servicio.cambiarEstado = () => { llamadas.estados++; return estadoPendiente.promesa; };
@@ -200,7 +201,7 @@ test('creation and existing state changes share a synchronous lock in both direc
   assert.equal(envios, 1); assert.equal(llamadas.estados, 1);
   solicitud.resolver(nueva); await vista.estabilizar();
 });
-test('title has career only, edit/create are sibling cards with responsive dimmed creation', async () => {
+test('el título contiene solo la carrera y las tarjetas de edición y creación son hermanas, con creación atenuada y adaptable', async () => {
   const { vista, llamadas } = await pagina(); await seleccionar(vista);
   const titulo = vista.nodos().find(nodo => nodo.props['aria-labelledby'] === 'titulo-administracion');
   assert.equal(nodos(titulo).filter(nodo => nodo.type === 'select').length, 1);
@@ -232,7 +233,7 @@ async function gestion(opciones = {}) {
   const panel = await montar(servicio, 'PanelPeriodo', propiedades);
   return { vista, panel, servicio, llamadas, controles: () => panel.nodos().find(nodo => nodo.type?.name === 'VistaPeriodo').props };
 }
-test('confirmed state changes refresh selector data without changing current flags or other periods', async () => {
+test('los cambios de estado confirmados actualizan el selector sin cambiar marcas de período actual ni otros períodos', async () => {
   const historica = { ...anterior, id: 9, codigo: '2025-1', actual: false, estadoPlanificacion: 'publicado' };
   const ajena = { ...anterior, id: 10, carreraId: 2, carrera: carreras[1] };
   let estado = 'preparacion'; let lecturas = 0; const envios = [];
@@ -254,14 +255,14 @@ test('confirmed state changes refresh selector data without changing current fla
     assert.equal(selector(vista).props.valor, '7');
     assert.equal(vista.nodos().find(nodo => nodo.type === 'fieldset').props.disabled, false);
   }
-  assert.equal(lecturas, 1, 'confirmed updates do not require another list request');
+  assert.equal(lecturas, 1, 'las actualizaciones confirmadas no requieren otra solicitud del listado');
   assert.equal(envios.length, 3);
   assert.deepEqual(panel.avisos.map(aviso => aviso.mensaje), ['Estado cambiado a Propuesta.', 'Estado cambiado a Publicado.', 'Estado cambiado a Preparación.']);
   assert.deepEqual(vista.avisos, []);
   vista.nodos().find(nodo => nodo.type === 'select').props.onChange({ target: { value: '2' } }); await vista.estabilizar();
   assert.deepEqual(selector(vista).props.periodos, [ajena]);
 });
-test('failed or unmounted state changes leave the selector state unconfirmed', async () => {
+test('los cambios de estado fallidos o tras desmontar dejan sin confirmar el estado del selector', async () => {
   for (const falla of [false, true]) {
     const solicitud = diferida();
     const { vista, panel, controles } = await gestion({ cambiarEstado: async () => {
@@ -280,7 +281,7 @@ test('failed or unmounted state changes leave the selector state unconfirmed', a
     assert.deepEqual(panel.avisos.map(aviso => aviso.tipo), falla ? ['error'] : []);
   }
 });
-test('current marking preserves selection/state and refreshes all career badges with GET-only recovery', async () => {
+test('marcar como actual conserva selección y estado, y actualiza las insignias de todas las carreras con recuperación solo por GET', async () => {
   let lecturas = 0; const envios = [];
   const historica = { ...anterior, actual: false, estadoPlanificacion: 'publicado' };
   const { vista, panel, controles } = await gestion({ planificaciones: async () => { if (++lecturas > 1) throw new Error('GET pendiente'); return [historica]; },
@@ -297,7 +298,7 @@ test('current marking preserves selection/state and refreshes all career badges 
   assert.deepEqual(panel.avisos, []);
   assert.doesNotMatch(texto(vista) + texto(panel), /marcado como actual/);
 });
-test('delete exact confirmation binds all-scope summary, clears local selection and releases parent lock after child unmount', async () => {
+test('la confirmación exacta de borrado vincula el resumen global, limpia la selección local y libera el bloqueo del padre tras desmontar el hijo', async () => {
   let lecturas = 0; const envios = []; const lectura = diferida();
   const { vista, panel, controles } = await gestion({ planificaciones: async () => ++lecturas === 1 ? [anterior] : lectura.promesa,
     resumen: async (_id, alcance) => ({ planificacion: anterior, alcance, ofertas: 0, horarios: 0, huella: 'a'.repeat(64) }),
@@ -320,7 +321,7 @@ test('delete exact confirmation binds all-scope summary, clears local selection 
   assert.equal(envios.length, 1); assert.equal(lecturas, 3);
   assert.equal(vista.avisos.length + panel.avisos.length, 1);
 });
-test('delete rejects ineligible or mismatched summary even when handler is called directly', async () => {
+test('el borrado rechaza un resumen no elegible o discordante incluso al invocar directamente el manejador', async () => {
   for (const cambio of [{ ofertas: 1 }, { planificacion: { ...anterior, estadoPlanificacion: 'propuesta' } }, { planificacion: { ...anterior, estadoPlanificacion: 'publicado' } }, { planificacion: { ...anterior, id: 8 } }]) {
     let envios = 0;
     const { panel, controles } = await gestion({ resumen: async (_id, alcance) => ({ planificacion: anterior, alcance, ofertas: 0, horarios: 0, ...cambio }), eliminar: async () => { envios++; } });
@@ -330,7 +331,7 @@ test('delete rejects ineligible or mismatched summary even when handler is calle
     assert.deepEqual(panel.avisos, []);
   }
 });
-test('delete cannot reuse a confirmed callback after input changes or cancellation before render', async () => {
+test('el borrado no reutiliza una función de confirmación tras cambiar la entrada o cancelar antes de renderizar', async () => {
   let envios = 0;
   const { panel, controles } = await gestion({ resumen: async (_id, alcance) => ({ planificacion: anterior, alcance, ofertas: 0, horarios: 0 }), eliminar: async () => { envios++; return anterior; } });
   controles().alSolicitarEliminacion(); await panel.estabilizar();
@@ -342,7 +343,7 @@ test('delete cannot reuse a confirmed callback after input changes or cancellati
   const obsoletos = controles(); obsoletos.alCancelarEliminacion(); obsoletos.alEliminar();
   await panel.estabilizar(); assert.equal(envios, 0);
 });
-test('summary retry shares parent lock through its entire read and ignores duplicate callbacks', async () => {
+test('el reintento del resumen comparte el bloqueo del padre durante toda la lectura e ignora llamadas duplicadas', async () => {
   let lecturas = 0; const pendiente = diferida();
   const { vista, panel } = await gestion({ resumen: async (_id, alcance) => {
     if (++lecturas <= 3) throw new Error('Resumen pendiente');
@@ -358,7 +359,7 @@ test('summary retry shares parent lock through its entire read and ignores dupli
   assert.equal(vista.nodos().find(nodo => nodo.type === 'fieldset').props.disabled, false);
   assert.deepEqual(vista.avisos, []); assert.deepEqual(panel.avisos, []);
 });
-test('current and deletion successful GET preserve other careers and never activate a deletion replacement', async () => {
+test('los GET exitosos de marcado actual y borrado conservan otras carreras y nunca activan un reemplazo del período borrado', async () => {
   const historica = { ...anterior, actual: false };
   const actual = { ...anterior, id: 9, codigo: '2028-1' };
   const ajena = { ...anterior, id: 10, carreraId: 2, carrera: carreras[1] };
@@ -378,14 +379,14 @@ test('current and deletion successful GET preserve other careers and never activ
   assert.equal(selector(vista).props.periodos[0].codigo, '2026-2');
   assert.equal(selector(vista).props.periodos[0].actual, true);
 });
-test('late create response after navigation does not update unmounted page state', async () => {
+test('una respuesta tardía de creación tras navegar no actualiza el estado de la página desmontada', async () => {
   const solicitud = diferida(); const { vista } = await pagina({ crear: () => solicitud.promesa });
   await seleccionar(vista); enviar(vista); vista.salir(); solicitud.resolver(nueva); await vista.estabilizar();
   assert.equal(vista.escriturasTrasSalir(), 0);
   assert.deepEqual(vista.avisos, []);
 });
 
-test('initial load failure stays inline with retry and never notifies', async () => {
+test('el fallo de carga inicial permanece junto al contenido con reintento y no genera notificaciones', async () => {
   let lecturas = 0;
   const { vista } = await pagina({ carreras: async () => { if (++lecturas === 1) throw new Error('Catálogo no disponible'); return carreras; } });
   assert.match(texto(vista), /Catálogo no disponible/); assert.deepEqual(vista.avisos, []);
@@ -394,7 +395,7 @@ test('initial load failure stays inline with retry and never notifies', async ()
 });
 
 for (const operacion of ['estado', 'reinicio', 'actual', 'eliminar']) for (const falla of [false, true]) {
-  test(`${operacion} ${falla ? 'failure' : 'success'} has exactly one notification; failure keeps uncertain-outcome guidance`, async () => {
+test(`${operacion} ${falla ? 'failure' : 'success'} produce exactamente una notificación, el fallo conserva la orientación ante un resultado incierto`, async () => {
     const envios = [];
     const historica = { ...anterior, actual: false };
     const mutar = async (...datos) => { envios.push(datos); if (falla) throw new Error('Respuesta no confirmada'); return operacion === 'reinicio' ? { ofertas: 0, asignaciones: 0, horarios: 2 } : { ...historica, actual: true }; };
@@ -429,7 +430,7 @@ for (const operacion of ['estado', 'reinicio', 'actual', 'eliminar']) for (const
   });
 }
 
-test('ineligible maintenance and late unmounted outcomes are silent', async () => {
+test('las operaciones de mantenimiento no elegibles y los resultados tardíos tras desmontar no generan avisos', async () => {
   const solicitud = diferida(); let envios = 0;
   const { vista, panel, controles } = await gestion({ cambiarEstado: () => { envios++; return solicitud.promesa; } });
   controles().alCambiarEstado(); controles().alMarcarActual(); controles().alReiniciar(); controles().alEliminar();
@@ -440,7 +441,7 @@ test('ineligible maintenance and late unmounted outcomes are silent', async () =
   assert.equal(vista.nodos().find(nodo => nodo.type === 'fieldset').props.disabled, false);
 });
 
-test('period selection clears creation code synchronously, clearing keeps it empty, and no explanatory note remains', async () => {
+test('seleccionar un período limpia el código de creación de forma síncrona, vaciar la selección lo mantiene vacío y no queda una nota explicativa', async () => {
   const { vista, llamadas } = await pagina(); await seleccionar(vista);
   const envioAnterior = vista.formulario().props.onSubmit;
   elegirPeriodo(vista, '7'); envioAnterior({ preventDefault() {} }); await vista.estabilizar();
@@ -457,7 +458,7 @@ test('period selection clears creation code synchronously, clearing keeps it emp
   assert.equal(selector(vista).props.valor, ''); assert.deepEqual(llamadas.crear, []); assert.deepEqual(vista.avisos, []);
 });
 
-test('custom period selector retains explicit career isolation and stale callbacks cannot bypass locks or career changes', async () => {
+test('el selector de período mantiene el aislamiento explícito por carrera y las llamadas obsoletas no eluden bloqueos ni cambios de carrera', async () => {
   const solicitud = diferida(); const envios = [];
   const { vista } = await pagina({ crear: datos => { envios.push(datos); return solicitud.promesa; } });
   assert.equal(selector(vista).props.valor, ''); assert.equal(selector(vista).props.deshabilitado, true);

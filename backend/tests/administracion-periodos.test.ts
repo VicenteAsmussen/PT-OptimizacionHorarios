@@ -27,8 +27,8 @@ beforeEach(() => {
   vi.mocked(repositorio.reiniciar).mockResolvedValue({ ofertas: 2, asignaciones: 3, horarios: 4 });
   vi.mocked(repositorio.cambiarEstado).mockResolvedValue({ estadoPlanificacion: "publicado" } as never);
 });
-describe("Period maintenance HTTP (offline)", () => {
-  it.each([undefined, "secretaria", "profesor"])("rejects every operation for %s without repository access", async rol => {
+describe("Mantenimiento de períodos por HTTP (sin conexión externa)", () => {
+  it.each([undefined, "secretaria", "profesor"])("rechaza toda operación de %s sin acceder al repositorio", async rol => {
     for (const solicitud of [request(app).get(`${raiz}/resumen?alcance=todas`),
       request(app).post(`${raiz}/reiniciar`).send(reinicio),
       request(app).patch(`${raiz}/estado`).send({ estadoAnterior: "preparacion", estadoPlanificacion: "publicado" })]) {
@@ -39,7 +39,7 @@ describe("Period maintenance HTTP (offline)", () => {
     expect(repositorio.reiniciar).not.toHaveBeenCalled();
     expect(repositorio.cambiarEstado).not.toHaveBeenCalled();
   });
-  it.each(["gestionadas", "externas", "todas"])("previews and resets each target in scope %s", async alcance => {
+  it.each(["gestionadas", "externas", "todas"])("previsualiza y reinicia cada objetivo dentro del alcance %s", async alcance => {
     const respuesta = await request(app).get(`${raiz}/resumen?alcance=${alcance}`).set("x-rol", "admin");
     expect(respuesta.status).toBe(200);
     expect(respuesta.body.data).toEqual({ ofertas: 2, asignaciones: 3, horarios: 4 });
@@ -51,7 +51,7 @@ describe("Period maintenance HTTP (offline)", () => {
       expect(repositorio.reiniciar).toHaveBeenLastCalledWith(7, datos);
     }
   });
-  it.each(["preparacion", "propuesta", "publicado"])("accepts every transition from %s", async estadoAnterior => {
+  it.each(["preparacion", "propuesta", "publicado"])("acepta toda transición desde %s", async estadoAnterior => {
     for (const estadoPlanificacion of ["preparacion", "propuesta", "publicado"]) {
       const datos = { estadoAnterior, estadoPlanificacion };
       expect((await request(app).patch(`${raiz}/estado`).set("x-rol", "admin").send(datos)).status).toBe(200);
@@ -62,11 +62,11 @@ describe("Period maintenance HTTP (offline)", () => {
     { ...reinicio, alcance: "icinf" }, { ...reinicio, objetivo: "periodo" },
     { ...reinicio, huella: "" }, { ...reinicio, confirmacion: "CONFIRMAR" },
     { ...reinicio, carreraId: 9 }, { ...reinicio, actual: true }, {},
-  ])("rejects malformed or broadened reset input %j", async datos => {
+  ])("rechaza una entrada de reinicio malformada o con alcance ampliado %j", async datos => {
     expect((await request(app).post(`${raiz}/reiniciar`).set("x-rol", "admin").send(datos)).status).toBe(400);
     expect(repositorio.reiniciar).not.toHaveBeenCalled();
   });
-  it("rejects invalid state and additional fields without changing ordinary metadata", async () => {
+  it("rechaza un estado inválido y campos adicionales sin cambiar los metadatos habituales", async () => {
     for (const datos of [{ estadoPlanificacion: "otro", estadoAnterior: "preparacion" },
       { estadoPlanificacion: "publicado" }, { estadoPlanificacion: "publicado", estadoAnterior: "preparacion", actual: true }]) {
       expect((await request(app).patch(`${raiz}/estado`).set("x-rol", "admin").send(datos)).status).toBe(400);
@@ -75,7 +75,7 @@ describe("Period maintenance HTTP (offline)", () => {
     expect((await request(app).get(`${raiz}/resumen?alcance=todas&carreraId=2`).set("x-rol", "admin")).status).toBe(400);
     expect((await request(app).get("/api/administracion-periodos/0/resumen?alcance=todas").set("x-rol", "admin")).status).toBe(400);
   });
-  it("preserves stale-confirmation conflict responses", async () => {
+  it("conserva las respuestas de conflicto por confirmación desactualizada", async () => {
     vi.mocked(repositorio.reiniciar).mockRejectedValue(Object.assign(new Error("Los datos cambiaron"), { statusCode: 409 }));
     const respuesta = await request(app).post(`${raiz}/reiniciar`).set("x-rol", "admin").send(reinicio);
     expect(respuesta.status).toBe(409);

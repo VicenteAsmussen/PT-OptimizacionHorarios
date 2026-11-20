@@ -300,7 +300,7 @@ test('seguimiento muestra inicio y término sin identificadores ni detalles téc
   assert.doesNotMatch(primerPlano, /Recargar o salir de esta página/);
   assert.match(primerPlano, /Última ejecución/); vista.salir();
 });
-test('confirmación agrupa casilla y texto y limita el tamaño del checkbox frente a estilos globales', async () => {
+test('la confirmación agrupa casilla y texto y limita el tamaño de la casilla frente a estilos globales', async () => {
   const { vista } = await pagina();
   const etiqueta = vista.nodos().find(n => n.type === 'label' && nodos(n).some(hijo => hijo.type === 'input' && hijo.props.type === 'checkbox'));
   assert.equal(etiqueta.props.className, 'confirmacion-optimizacion');
@@ -390,7 +390,7 @@ test('guardia protege acceso directo para cada rol', async () => {
   }
 });
 
-test('layout notifica con acceso al resultado si se navega y solo redirige si sigue en modelo', async () => {
+test('la estructura de página notifica con acceso al resultado si se navega y solo redirige si sigue en modelo', async () => {
   for (const ruta of ['/app/optimizacion', '/app/asignaturas']) {
     const ubicacion = { pathname: '/app/optimizacion', search: '?planificacion=2' };
     const navegaciones = [], avisos = [];

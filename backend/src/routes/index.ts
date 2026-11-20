@@ -17,7 +17,7 @@ import { optimizacionRouter } from "./optimizacion.routes.js";
 
 const apiRouter = Router();
 
-// Base routes
+// Rutas base
 apiRouter.use("/health", healthRouter);
 apiRouter.use("/auth", authRouter);
 apiRouter.use("/asignaturas", asignaturasRouter);

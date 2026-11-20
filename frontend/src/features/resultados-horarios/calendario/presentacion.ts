@@ -1,11 +1,13 @@
 import type { SesionResultado } from '../types';
 
+// Abrevia asignaturas conservando números y niveles romanos en las tarjetas.
 export function nombreCompacto(nombre: string) {
   const palabras = nombre.normalize('NFD').replace(/[\u0300-\u036f]/g, '').match(/[\p{L}\p{N}]+/gu) ?? [];
   return palabras.map(palabra => /^(?:\d+|I{1,3}|IV|V|VI{1,3}|IX|X)$/.test(palabra) ? palabra : palabra[0])
     .join('').toLocaleUpperCase('es');
 }
 
+// Resume sección, componente y situación de sala de una sesión para su tarjeta.
 function partesCompactas(sesion: SesionResultado, sala: string) {
   const tipo = sesion.tipoHora.tipo.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   const tipos: Record<string, string> = { teorica: 'Teo.', teoria: 'Teo.', practica: 'Prác.', laboratorio: 'Lab.' };
@@ -14,10 +16,12 @@ function partesCompactas(sesion: SesionResultado, sala: string) {
   return [`Sec. ${sesion.seccion} · ${tipos[tipo] ?? sesion.tipoHora.tipo}`, estado];
 }
 
+// Reúne en una línea el contexto académico compacto de la sesión.
 export function resumenCompacto(sesion: SesionResultado, sala: string) {
   return partesCompactas(sesion, sala).join(' · ');
 }
 
+// Separa el contexto compacto de la sesión en líneas de presentación.
 export function lineasCompactas(sesion: SesionResultado, sala: string) {
   return partesCompactas(sesion, sala);
 }

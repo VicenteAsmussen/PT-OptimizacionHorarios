@@ -14,6 +14,7 @@ import TablaProfesores from "./TablaProfesores";
 import IconoProfesor from "./IconoProfesor";
 import estilos from "./Profesores.module.css";
 
+// Redirige fuera del catálogo a las cuentas sin rol de gestión docente.
 export function RequireGestionProfesores() {
   const { usuario } = useAuth();
   return puedeGestionarProfesores(usuario?.rol) ? <Outlet /> : <Navigate to="/app/dashboard" replace />;
@@ -26,6 +27,7 @@ interface Datos {
   alcance: AlcanceProfesores;
 }
 
+// Coordina el catálogo docente, sus filtros y los diálogos de gestión autorizados.
 export default function ProfesoresPage() {
   const { usuario } = useAuth();
   const rol = usuario?.rol;
@@ -38,9 +40,10 @@ export default function ProfesoresPage() {
   const solicitud = useRef(0);
   const titulo = useRef<HTMLHeadingElement>(null);
   const avisos = useRef(crearNotificacionesProfesores(notificaciones));
-  // El diálogo conserva esta versión: una carga nueva o desmontaje invalida su respuesta.
+  // Una nueva carga o el desmontaje invalida la versión que conserva el diálogo.
   const versionDialogo = solicitud.current;
 
+  // Renueva docentes y alcance sin habilitar una tabla anterior durante la recarga.
   const cargar = useCallback(async () => {
     const numero = ++solicitud.current;
     setCargando(true);
@@ -75,13 +78,14 @@ export default function ProfesoresPage() {
     };
   }, [cargar, usuario?.id]);
 
+  // Cierra el diálogo guardado y renueva el catálogo sin repetir la escritura.
   function completar() {
     if (versionDialogo !== solicitud.current) return;
     setSeleccion(null);
     setGuardadoSinActualizar(true);
     avisos.current.guardado(() => versionDialogo === solicitud.current);
     void cargar();
-    // El disparador puede desaparecer (eliminación/filtros); ofrecer un destino estable.
+    // Si el botón desaparece por eliminación o filtros, el foco necesita un destino estable.
     titulo.current?.focus();
   }
 

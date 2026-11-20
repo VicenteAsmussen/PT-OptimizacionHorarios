@@ -1,12 +1,14 @@
 import { Children, isValidElement, useEffect, useRef, type ReactNode } from 'react';
 import estilos from './SuperficiesResultados.module.css';
 
+// Aloja consultas y confirmaciones horarias con acciones fuera del cuerpo desplazable.
 export default function Dialogo({ titulo, ocupado, cerrar, children, tamano }: {
   titulo: string; ocupado: boolean; cerrar: () => void; children: ReactNode; tamano?: 'detalle';
 }) {
   const referencia = useRef<HTMLDialogElement>(null);
   // Las acciones directas conservan sus propiedades y su orden fuera del cuerpo desplazable.
   const elementos = Children.toArray(children);
+  // Separa los botones directos que deben permanecer visibles en el pie del diálogo.
   const esAccion = (elemento: ReactNode) => isValidElement(elemento) && elemento.type === 'button';
   useEffect(() => {
     const anterior = document.activeElement;

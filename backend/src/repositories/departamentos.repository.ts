@@ -7,10 +7,12 @@ import { asignaturas } from "../db/schema/asignaturas.schema.js";
 import { conCatalogosBloqueados, exigirCatalogoSinDependencias } from "./dependencias-academicas.js";
 
 export const departamentosRepository = {
+  // Detecta asignaturas que impiden retirar el departamento del catálogo.
   async hasAsignaturas(id: number): Promise<boolean> {
     const [asignatura] = await db.select({ codigo: asignaturas.codigo }).from(asignaturas).where(eq(asignaturas.departamentoId, id)).limit(1);
     return !!asignatura;
   },
+  // Consulta departamentos relacionados con la carrera y sus perfiles docentes.
   async findAll(alcance?: AlcanceCarrera) {
     return await db.query.departamentos.findMany({
       where: alcance ? inArray(departamentos.id, alcance.departamentosIds) : undefined,
@@ -25,6 +27,7 @@ export const departamentosRepository = {
     });
   },
 
+  // Recupera el departamento y sus relaciones para consulta y mantenimiento.
   async findById(id: number) {
     return await db.query.departamentos.findFirst({
       where: eq(departamentos.id, id),
@@ -39,6 +42,7 @@ export const departamentosRepository = {
     });
   },
 
+  // Detecta nombres departamentales existentes antes de crear o renombrar el registro.
   async findByNombre(nombre: string): Promise<Departamento | undefined> {
     const [result] = await db
       .select()
@@ -48,11 +52,13 @@ export const departamentosRepository = {
     return result;
   },
 
+  // Registra un departamento sin crear por sí mismo relaciones con carreras.
   async create(data: NuevoDepartamento): Promise<Departamento> {
     const [created] = await db.insert(departamentos).values(data).returning();
     return created;
   },
 
+  // Actualiza un departamento solo después de descartar dependencias académicas bajo bloqueo.
   async update(id: number, data: Partial<Omit<NuevoDepartamento, "id">>): Promise<Departamento | undefined> {
     return conCatalogosBloqueados(async tx => {
       await exigirCatalogoSinDependencias(tx, { tipo: "departamento", id });
@@ -65,6 +71,7 @@ export const departamentosRepository = {
     });
   },
 
+  // Retira el departamento cuando la comprobación transaccional permite su eliminación.
   async delete(id: number): Promise<boolean> {
     return conCatalogosBloqueados(async tx => {
       await exigirCatalogoSinDependencias(tx, { tipo: "departamento", id });

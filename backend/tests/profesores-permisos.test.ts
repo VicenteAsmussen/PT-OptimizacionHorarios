@@ -73,7 +73,7 @@ it("rechaza filtro inválido", async () => {
   expect(profesoresRepository.findAll).not.toHaveBeenCalled();
 });
 
-it("secretaria crea profesor part time en departamento externo dentro de alcance", async () => {
+it("secretaría crea un profesor de jornada parcial en un departamento externo dentro del alcance", async () => {
   const respuesta = await request(aplicacion).post("/profesores").send({ nombre: "Profesor externo", rut: "12345678-5", departamentoId: 5, tipo: "part time" });
   expect(respuesta.status).toBe(201);
   expect(profesoresRepository.create).toHaveBeenCalledWith({ nombre: "Profesor externo", rut: "12345678-5", departamentoId: 5, tipo: "part time" });
@@ -85,7 +85,7 @@ it("secretaria no puede crear profesor planta", async () => {
   expect(profesoresRepository.create).not.toHaveBeenCalled();
 });
 
-it("secretaria elimina profesor part time sin horarios y bloquea eliminación con horarios", async () => {
+it("secretaría elimina un profesor de jornada parcial sin horarios y bloquea su eliminación con horarios", async () => {
   expect((await request(aplicacion).delete("/profesores/7")).status).toBe(204);
   expect(profesoresRepository.deleteWithDependencias).toHaveBeenCalledWith(7, null);
 

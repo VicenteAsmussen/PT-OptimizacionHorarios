@@ -6,6 +6,7 @@ dotenv.config();
 
 const secretoPredeterminado = "supersecret_jwt_key_change_in_production";
 
+// Restringe el origen del cliente a una dirección HTTP sin componentes adicionales.
 function esOrigenHttp(valor: string): boolean {
   try {
     const url = new URL(valor);
@@ -15,6 +16,7 @@ function esOrigenHttp(valor: string): boolean {
   }
 }
 
+// Comprueba que la duración configurada produzca una expiración utilizable para las sesiones.
 function esDuracionValida(valor: string): boolean {
   try {
     // Usar el mismo intérprete que los tokens, sin cuentas ni secretos reales.

@@ -10,9 +10,9 @@ type Lectura = Pick<TransaccionPlanificacion, "query">;
 type Catalogo = { tipo: "sala" | "carrera" | "departamento" | "profesor"; id: number }
   | { tipo: "asignatura"; codigo: string };
 
-// Barrera institucional conservadora: comparte el orden carrera → planificación
-// con las escrituras operativas. No exige Preparación ni cambia períodos.
-// La consulta de dependencias y la mutación siempre ocurren dentro de esta barrera.
+// Usa el mismo orden de bloqueo carrera → planificación que las escrituras operativas.
+// No exige preparación ni cambia períodos. La consulta de dependencias y el cambio quedan bajo bloqueo.
+// Coordina el mantenimiento institucional con las operaciones de carrera y planificación.
 export function conCatalogosBloqueados<T>(escribir: (tx: TransaccionPlanificacion) => Promise<T>): Promise<T> {
   return db.transaction(async tx => {
     await tx.select({ id: carreras.id }).from(carreras).orderBy(carreras.id).for("update");
@@ -22,16 +22,19 @@ export function conCatalogosBloqueados<T>(escribir: (tx: TransaccionPlanificacio
   }, { isolationLevel: "read committed" });
 }
 
+// Detecta disponibilidad o asignaciones que vinculan el perfil docente al trabajo académico.
 export async function tieneDependenciasProfesor(tx: Lectura, id: number): Promise<boolean> {
   return !!await tx.query.disponibilidadProfesores.findFirst({ where: eq(disponibilidadProfesores.profesorId, id) })
     // Todo horario docente referencia una asignación por FK compuesta.
     || !!await tx.query.ofertaTipoHora.findFirst({ where: eq(ofertaTipoHora.profesorId, id) });
 }
 
+// Detecta ofertas que impiden modificar la definición de la asignatura.
 export async function tieneDependenciasAsignatura(tx: Lectura, codigo: string): Promise<boolean> {
   return !!await tx.query.ofertasAsignaturas.findFirst({ where: eq(ofertasAsignaturas.asignaturaCodigo, codigo) });
 }
 
+// Extiende la detección de uso a las asignaturas y los profesores del departamento.
 async function tieneDependenciasDepartamento(tx: Lectura, id: number): Promise<boolean> {
   const materias = await tx.query.asignaturas.findMany({ where: eq(asignaturas.departamentoId, id) });
   for (const materia of materias) if (await tieneDependenciasAsignatura(tx, materia.codigo)) return true;
@@ -40,6 +43,7 @@ async function tieneDependenciasDepartamento(tx: Lectura, id: number): Promise<b
   return false;
 }
 
+// Revisa el uso directo y transitivo de períodos, malla y departamentos de la carrera.
 async function tieneDependenciasCarrera(tx: Lectura, id: number): Promise<boolean> {
   const periodos = await tx.query.planificacionesSemestres.findMany({ where: eq(planificacionesSemestres.carreraId, id) });
   const ids = periodos.map(periodo => periodo.id);
@@ -55,6 +59,7 @@ async function tieneDependenciasCarrera(tx: Lectura, id: number): Promise<boolea
   return false;
 }
 
+// Bloquea departamento, asignaturas y docentes para estabilizar la comprobación de dependencias.
 async function fijarDepartamento(tx: TransaccionPlanificacion, id: number): Promise<void> {
   await tx.select({ id: departamentos.id }).from(departamentos).where(eq(departamentos.id, id)).for("update");
   await tx.select({ codigo: asignaturas.codigo }).from(asignaturas).where(eq(asignaturas.departamentoId, id))
@@ -63,6 +68,7 @@ async function fijarDepartamento(tx: TransaccionPlanificacion, id: number): Prom
     .orderBy(profesores.id).for("update");
 }
 
+// Rechaza el mantenimiento de catálogos utilizados después de fijar sus referencias relevantes.
 export async function exigirCatalogoSinDependencias(tx: TransaccionPlanificacion, catalogo: Catalogo): Promise<void> {
   // FOR UPDATE también excluye nuevas referencias FK mientras se comprueba el uso.
   let utilizado: boolean;
@@ -80,7 +86,7 @@ export async function exigirCatalogoSinDependencias(tx: TransaccionPlanificacion
       utilizado = await tieneDependenciasDepartamento(tx, catalogo.id);
       break;
     case "carrera":
-      // Fijar los extremos transitivos ante nuevas referencias de otras carreras.
+      // Bloquea también los registros vinculados indirectamente ante nuevas referencias de otras carreras.
       for (const relacion of (await tx.query.carreraDepartamento.findMany({
         where: eq(carreraDepartamento.carreraId, catalogo.id),
       })).sort((primera, segunda) => primera.departamentoId - segunda.departamentoId)) {

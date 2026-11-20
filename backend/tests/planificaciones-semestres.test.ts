@@ -12,7 +12,7 @@ const tabla = () => esquema.planificacionesSemestres;
 const dialecto = new PgDialect();
 const textoSql = (expresion: SQL) => dialecto.sqlToQuery(expresion).sql;
 
-describe("Corte estructural T2 (offline)", () => {
+describe("Corte estructural T2 (sin conexión externa)", () => {
   it("reemplaza las FK globales por contexto de planificacion", () => {
     for (const tabla of [esquema.ofertasAsignaturas, esquema.horariosAsignaturas, esquema.disponibilidadProfesores]) {
       const columnas = getTableColumns(tabla);
@@ -27,7 +27,7 @@ describe("Corte estructural T2 (offline)", () => {
   });
 });
 
-describe("Planificaciones por carrera (offline)", () => {
+describe("Planificaciones por carrera (sin conexión externa)", () => {
   it("define campos obligatorios, valores iniciales y solo una FK a carrera", () => {
     const config = getTableConfig(tabla());
     expect(config.name).toBe("planificaciones_semestres");
@@ -109,8 +109,8 @@ describe("Planificaciones por carrera (offline)", () => {
   });
 });
 
-// Catalog reads return existing seed records. Planning statements use real Drizzle SQL;
-// only PostgreSQL execution is replaced by a small conflict-aware in-memory fixture.
+// Los catálogos devuelven registros existentes de la carga inicial y las planificaciones usan SQL real de Drizzle.
+// Solo se sustituye la ejecución en PostgreSQL por datos en memoria que detectan conflictos.
 function crearBaseDatos(planificaciones: unknown[][] = [], fallo?: Error) {
   const sentencias: { sql: string; params: unknown[] }[] = [];
   const catalogos = [
@@ -146,8 +146,8 @@ function crearBaseDatos(planificaciones: unknown[][] = [], fallo?: Error) {
   return { baseDatos: baseDatos as unknown as BaseDatosSeed, sentencias, planificaciones };
 }
 
-describe("Seed de planificaciones (offline)", () => {
-  it("reconciles fixture-owned course fields and hours without deleting dependent data", async () => {
+describe("Carga inicial de planificaciones (sin conexión externa)", () => {
+  it("reconcilia campos y horas de asignaturas definidos por los datos de prueba sin borrar datos dependientes", async () => {
     const contexto = crearBaseDatos();
     const registro = vi.spyOn(console, "log").mockImplementation(() => {});
     try {

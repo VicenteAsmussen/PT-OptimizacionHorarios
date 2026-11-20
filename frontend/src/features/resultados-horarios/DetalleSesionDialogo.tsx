@@ -4,6 +4,7 @@ import { tramosSalas } from './calendario/disposicion';
 import type { ResultadoHorario, SesionResultado } from './types';
 import estilos from './ResultadosHorarios.module.css';
 
+// Presenta la identidad académica de una sesión y sus salas por tramo horario.
 export default function DetalleSesionDialogo({ resultado, sesion, cerrar }: {
   resultado: ResultadoHorario; sesion: SesionResultado; cerrar: () => void;
 }) {

@@ -22,16 +22,16 @@ export const datosCarreras = [
   { nombre: "Ingeniería de Ejecución en Computación e Informática" },
 ];
 
-// La relación indica prestación de servicios; esGestionado añade gestión operativa.
+// La relación indica prestación de servicios, esGestionado añade gestión operativa.
 export const departamentosGestionados = new Set([
   "Departamento de Sistemas de Información",
   "Departamento de Administración y Auditoría",
   "Departamento de Economía y Finanzas",
 ]);
 
-// OptimizacionHorarios_v3.xlsx: all curriculum courses except Electivos I–VI.
-// Department ownership is explicitly confirmed; 612239 was appended but belongs to semester 7.
-// Hours are 40-minute academic blocks, ordered theoretical/practical/laboratory.
+// OptimizacionHorarios_v3.xlsx: toda la malla, excepto Electivos I–VI.
+// Departamentos responsables confirmados, 612239 se añadió al final, pero pertenece al semestre 7.
+// Horas en bloques académicos de 40 minutos, en orden teoría/práctica/laboratorio.
 const carrera = "Ingeniería Civil en Informática";
 const codigosSinSala = new Set(["620449", "620456", "620477"]);
 export const datosAsignaturas = [

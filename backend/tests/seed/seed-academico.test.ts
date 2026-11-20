@@ -3,8 +3,8 @@ import { datosAsignaturas, datosDepartamentos, departamentosGestionados } from "
 import { datosProfesores, datosUsuarios } from "../../src/db/seeds/data/usuarios.js";
 import { normalizarRut } from "../../src/utils/rut.js";
 
-describe("workbook academic seed", () => {
-  it("includes all 49 approved courses through semester ten without electives", () => {
+describe("Carga académica inicial desde el libro de Excel", () => {
+  it("incluye las 49 asignaturas aprobadas hasta el décimo semestre sin electivos", () => {
     expect(datosAsignaturas.map(asignatura => asignatura.codigo)).toEqual([
       "220143", "620431", "620432", "340266", "220144", "210020", "620433", "620434",
       "220145", "220146", "230033", "620435", "610227", "340276", "220147", "230034",
@@ -21,7 +21,7 @@ describe("workbook academic seed", () => {
     expect(datosAsignaturas.every(asignatura => asignatura.carreras.length === 1 && asignatura.carreras[0] === "Ingeniería Civil en Informática")).toBe(true);
   });
 
-  it("keeps workbook hour counts and confirmed departments without guessing schedules", () => {
+  it("conserva las horas del libro y los departamentos confirmados sin inferir horarios", () => {
     const esperado = [
       ["Matemática", 4, 4, 0], ["Sistemas de Información", 5, 2, 2], ["Sistemas de Información", 2, 2, 2], ["Estudios Generales", 2, 2, 0],
       ["Matemática", 4, 2, 0], ["Química", 6, 0, 0], ["Sistemas de Información", 4, 2, 2], ["Sistemas de Información", 4, 2, 0],
@@ -50,7 +50,7 @@ describe("workbook academic seed", () => {
     expect([...departamentosGestionados].every(nombre => datosDepartamentos.some(departamento => departamento.nombre === nombre))).toBe(true);
   });
 
-  it("keeps the appended strategy course in semester seven and zero-hour placements in the curriculum", () => {
+  it("conserva la asignatura de estrategia añadida en séptimo semestre y las prácticas de cero horas en la malla", () => {
     expect(datosAsignaturas.find(asignatura => asignatura.codigo === "612239"))
       .toMatchObject({ semestreMalla: 7, departamento: "Departamento de Administración y Auditoría" });
     expect(datosAsignaturas.filter(asignatura => asignatura.horas.every(horas => horas === 0)).map(asignatura => asignatura.codigo))
@@ -74,7 +74,7 @@ describe("workbook academic seed", () => {
     expect(new Set(datosUsuarios.map(usuario => usuario.correo)).size).toBe(46);
   });
 
-  it("uses the confirmed departments and contracts for the additional workbook teachers", () => {
+  it("usa los departamentos y contratos confirmados de los docentes adicionales del libro", () => {
     expect(datosProfesores.slice(21).map(({ nombre, correo, departamento, tipo }) => [
       nombre, correo, departamento.replace("Departamento de ", ""), tipo,
     ])).toEqual([
@@ -106,7 +106,7 @@ describe("workbook academic seed", () => {
       .toEqual(["sparra@ubiobio.cl", "jmeza@ubiobio.cl", "osanmartin@ubiobio.cl", "vberatto@ubiobio.cl", "mfuenzalida@ubiobio.cl", "aandia@ubiobio.cl", "econtreras@ubiobio.cl", "fbanda@ubiobio.cl"]);
   });
 
-  it("includes DIEE as an external department eligible for the existing Excel import", () => {
+  it("incluye DIEE como departamento externo elegible para la importación Excel existente", () => {
     const departamento = "Departamento de Ingeniería Eléctrica y Electrónica";
     expect(datosDepartamentos.filter(dato => dato.nombre === departamento)).toHaveLength(1);
     expect(departamentosGestionados.has(departamento)).toBe(false);
@@ -114,7 +114,7 @@ describe("workbook academic seed", () => {
       .toMatchObject({ nombre: "Gabriel Rodolfo Lagos Aguayo", departamento, tipo: "planta" });
   });
 
-  it("preserves the original teachers' account identifiers and synthetic RUTs", () => {
+  it("conserva los identificadores de cuenta y RUT sintéticos de los docentes originales", () => {
     const correos = [
       "cvidal", "sparra", "crubio", "jmeza", "krojas", "osanmartin", "dsuarez", "enova",
       "pdamico", "bsandoval", "oparra", "bruf", "rahumada", "amaureira", "dparra", "jcampana",

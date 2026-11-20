@@ -30,6 +30,7 @@ let alBloquear: (() => void) | undefined;
 let alEscribir: ((tabla: string, operacion: string) => void) | undefined;
 let consultas: { tabla: string; parametros: unknown[]; eventosPrevios: string[] }[];
 function parametros(condicion?: SQL): unknown[] { return condicion ? dialecto.sqlToQuery(condicion).params : []; }
+// Interpreta solo los predicados necesarios para estos escenarios, no sustituye un motor SQL general.
 function buscar(tabla: string, condicion?: SQL) {
   const valores = parametros(condicion);
   const sql = condicion ? dialecto.sqlToQuery(condicion).sql : "";
@@ -45,6 +46,7 @@ function buscar(tabla: string, condicion?: SQL) {
     return [...lista.matchAll(/\$(\d+)/g)].some(([, indice]) => fila[campo] === valores[Number(indice) - 1]);
   }));
 }
+// Registra el orden de bloqueos y restaura copias ante errores, no demuestra aislamiento entre conexiones.
 function baseSimulada() {
   const base: Record<string, unknown> = {};
   base.select = () => ({ from: (tabla: never) => {
@@ -97,7 +99,7 @@ function baseSimulada() {
       if (operacion === "update") afectadas.forEach(fila => Object.assign(fila, datos));
       if (operacion === "delete") {
         tablas[nombre] = tablas[nombre].filter(fila => !afectadas.includes(fila));
-        // Model the existing availability FK cascade, not an application delete.
+        // Simula la cascada de la FK de disponibilidad, no un borrado adicional de la aplicación.
         if (nombre === "planificaciones_semestres") tablas.disponibilidad_profesores = tablas.disponibilidad_profesores.filter(fila => !afectadas.some(periodo => periodo.id === fila.planificacionSemestreId));
       }
       return filas;
@@ -147,7 +149,7 @@ it.each([
   [true, "preparacion", true], [false, "preparacion", false],
   [true, "propuesta", false], [false, "propuesta", false],
   [true, "publicado", false], [false, "publicado", false],
-] as const)("helper actual=%s estado=%s permite=%s", (actual, estadoPlanificacion, permitido) => {
+] as const)("función auxiliar actual=%s estado=%s permite=%s", (actual, estadoPlanificacion, permitido) => {
   const validar = () => exigirPlanificacionEditable({ actual, estadoPlanificacion });
   if (permitido) expect(validar).not.toThrow();
   else expect(validar).toThrow(/actual en preparación/);
@@ -216,11 +218,11 @@ describe("reservas por carrera en escrituras de horarios", () => {
     expect(tablas).toEqual(anteriores);
   });
 });
-describe.each(["create", "update", "Excel"])("room compatibility through %s", operacion => {
+describe.each(["create", "update", "Excel"])("compatibilidad de sala mediante %s", operacion => {
   it.each([
     [1, 2, true], [1, 3, false], [2, 2, true], [2, 3, false], [3, 2, false], [3, 3, true],
     [1, null, true], [2, null, true], [3, null, true],
-  ] as const)("hour %s / room %s allowed=%s", async (tipoHoraId, salaId, permitido) => {
+  ] as const)("tipo de hora %s / sala %s permitido=%s", async (tipoHoraId, salaId, permitido) => {
     tablas.oferta_tipo_hora = [{ ofertaId: 10, tipoHoraId, profesorId: 7 }];
     tablas.horarios_asignaturas[0].tipoHoraId = tipoHoraId;
     const anteriores = structuredClone(tablas);
@@ -238,14 +240,14 @@ describe.each(["create", "update", "Excel"])("room compatibility through %s", op
     }
   });
 });
-it("revalidates the retained classroom when updating only the hour type", async () => {
+it("revalida la sala conservada al actualizar solo el tipo de hora", async () => {
   tablas.horarios_asignaturas[0].salaId = 2;
   tablas.oferta_tipo_hora.push({ ofertaId: 10, tipoHoraId: 3, profesorId: 7 });
   const anteriores = structuredClone(tablas);
   await expect(horariosRepository.update(20, { tipoHoraId: 3 })).rejects.toMatchObject({ statusCode: 400 });
   expect(tablas).toEqual(anteriores);
 });
-it("rolls back the entire room import when a later session requires a laboratory", async () => {
+it("revierte toda la importación de salas si una sesión posterior requiere laboratorio", async () => {
   tablas.horarios_asignaturas.push({ ...tablas.horarios_asignaturas[0], id: 21, tipoHoraId: 3, bloqueId: 3 });
   const anteriores = structuredClone(tablas);
   await expect(horariosRepository.actualizarSalasEnTransaccion(1, [{ id: 20, salaId: 2 }, { id: 21, salaId: 2 }]))
@@ -328,7 +330,7 @@ it("permite seleccionar como actual una preparación histórica", async () => {
   await planificacionesSemestresRepository.update(1, 2, { actual: true });
   expect(eventos.at(-1)).toBe("commit");
 });
-it.each(["preparacion", "propuesta", "publicado"])("actual-only %s conserva datos y aísla carrera", async estadoPlanificacion => {
+it.each(["preparacion", "propuesta", "publicado"])("cambiar solo actual en %s conserva datos y aísla la carrera", async estadoPlanificacion => {
   Object.assign(tablas.planificaciones_semestres[0], { actual: false, estadoPlanificacion });
   tablas.planificaciones_semestres.push({ id: 3, carreraId: 2, codigo: "2027-1", actual: true, estadoPlanificacion: "publicado" });
   const anteriores = structuredClone(tablas);
@@ -342,7 +344,7 @@ it.each(["preparacion", "propuesta", "publicado"])("desmarcar actual %s no elige
   await planificacionesSemestresRepository.update(1, 2, { actual: false });
   expect(tablas).toEqual({ ...anteriores, planificaciones_semestres: [{ ...anteriores.planificaciones_semestres[0], actual: false }, anteriores.planificaciones_semestres[1]] });
 });
-it("actual-only revalida bajo bloqueo y revierte las desactivaciones si falla la última escritura", async () => {
+it("cambiar solo actual revalida bajo bloqueo y revierte las desactivaciones si falla la última escritura", async () => {
   const anteriores = structuredClone(tablas); let escrituras = 0;
   alBloquear = () => { tablas.planificaciones_semestres[0].estadoPlanificacion = "publicado"; };
   alEscribir = () => { if (++escrituras === 2) throw new Error("fallo al marcar actual"); };
@@ -405,7 +407,7 @@ it("crea el primer período sin afectar carreras que ya tienen uno actual", asyn
   expect(creada).toMatchObject({ carreraId: 3, codigo: "2026-2", actual: true, estadoPlanificacion: "preparacion" });
   expect(tablas).toEqual({ ...anteriores, planificaciones_semestres: [...anteriores.planificaciones_semestres, creada] });
 });
-describe("creation HTTP through the real service/repository and simulated storage", () => {
+describe("creación HTTP mediante servicio y repositorio reales con almacenamiento simulado", () => {
   const consultasGuarda = (carreraId: number, ids: number[]) => [
     { tabla: "planificaciones_semestres", parametros: [carreraId], eventosPrevios: ["inicio", `bloqueo:carreras:${carreraId}`] },
     { tabla: "ejecuciones_optimizacion", parametros: [...ids, "en_ejecucion"], eventosPrevios: ["inicio", `bloqueo:carreras:${carreraId}`] },
@@ -413,12 +415,12 @@ describe("creation HTTP through the real service/repository and simulated storag
   function simularUnicidadSinNombre() {
     alEscribir = (tabla, operacion) => {
       if (tabla === "planificaciones_semestres" && operacion === "insert" && tablas[tabla].some(fila => fila.carreraId === 2 && fila.codigo === "2026-2")) {
-        // Model an opaque driver constraint error, not evidence of the live driver.
+        // Simula un error de restricción opaco, no prueba el comportamiento del controlador real de PostgreSQL.
         throw Object.assign(new Error("duplicate key"), { code: "23505" });
       }
     };
   }
-  it.each(["preparacion", "propuesta", "publicado"])("duplicate %s returns exact 409 before any writes", async estadoPlanificacion => {
+  it.each(["preparacion", "propuesta", "publicado"])("un duplicado en %s devuelve el 409 exacto antes de cualquier escritura", async estadoPlanificacion => {
     Object.assign(tablas.planificaciones_semestres[0], { actual: false, estadoPlanificacion });
     tablas.planificaciones_semestres.push({ id: 3, carreraId: 2, codigo: "2027-1", actual: true, estadoPlanificacion: "preparacion" });
     const anteriores = structuredClone(tablas);
@@ -432,7 +434,7 @@ describe("creation HTTP through the real service/repository and simulated storag
     expect(eventos).toEqual(["inicio", "bloqueo:carreras:2", "rollback"]);
     expect(consultas).toEqual([...consultasGuarda(2, [1, 3]), { tabla: "planificaciones_semestres", parametros: [2, "2026-2"], eventosPrevios: ["inicio", "bloqueo:carreras:2"] }]);
   });
-  it("reads duplicates committed while waiting for the career lock, before demoting current", async () => {
+  it("consulta duplicados confirmados mientras esperaba el bloqueo de carrera antes de desmarcar el período actual", async () => {
     alBloquear = () => { tablas.planificaciones_semestres.push({ id: 3, carreraId: 2, codigo: "2027-1", actual: false, estadoPlanificacion: "publicado" }); };
     const respuesta = await request(app).post("/api/planificaciones-semestres").send({ carreraId: 2, codigo: "2027-1" });
     expect(respuesta.status).toBe(409);
@@ -440,7 +442,7 @@ describe("creation HTTP through the real service/repository and simulated storag
     expect(eventos).toEqual(["inicio", "bloqueo:carreras:2", "rollback"]);
     expect(consultas).toEqual([...consultasGuarda(2, [1, 3]), { tabla: "planificaciones_semestres", parametros: [2, "2027-1"], eventosPrevios: ["inicio", "bloqueo:carreras:2"] }]);
   });
-  it("same code in another career still creates and preserves all unrelated data", async () => {
+  it("crea aunque otra carrera tenga el mismo código y conserva todos los datos ajenos", async () => {
     const anteriores = structuredClone(tablas);
     const respuesta = await request(app).post("/api/planificaciones-semestres").send({ carreraId: 1, codigo: "2026-2" });
     expect(respuesta.status).toBe(201);
@@ -449,7 +451,7 @@ describe("creation HTTP through the real service/repository and simulated storag
     expect(consultas).toEqual([...consultasGuarda(1, [2]), { tabla: "planificaciones_semestres", parametros: [1, "2026-2"], eventosPrevios: ["inicio", "bloqueo:carreras:1"] }]);
     expect((await request(app).get("/api/planificaciones-semestres")).body.data).toEqual(tablas.planificaciones_semestres);
   });
-  it("unrelated insertion failure stays 500 and rolls back current flags/data", async () => {
+  it("un fallo de inserción ajeno conserva el 500 y revierte las marcas de período actual y los datos", async () => {
     const anteriores = structuredClone(tablas);
     const lectura = await request(app).get("/api/planificaciones-semestres");
     alEscribir = (_tabla, operacion) => { if (operacion === "insert") throw new Error("storage unavailable"); };

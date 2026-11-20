@@ -8,6 +8,7 @@ import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { setTimeout as pausa } from 'node:timers/promises';
 
+// Abre un perfil descartable y limita las peticiones del navegador al origen sintético del ensayo.
 export async function abrirNavegador(origen) {
   const ejecutable = process.env.NAVEGADOR_PRUEBAS || [
     'C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',
@@ -41,6 +42,7 @@ export async function abrirNavegador(origen) {
     }
     assert.fail(`No se cumplió: ${expresion}\n${await evaluar('document.body.innerText')}\n${JSON.stringify(errores)}`);
   }
+  // Espera el cierre del proceso antes de retirar su perfil y resuelve las órdenes CDP pendientes.
   async function cerrar() {
     if (socket?.readyState === WebSocket.OPEN) { try { await comando('Browser.close'); } catch { /* El navegador puede cerrar antes de responder. */ } }
     socket?.close();

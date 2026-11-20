@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from "express";
 import { salasService } from "../services/salas.service.js";
 
 export const salasController = {
+  // Presenta el catálogo físico de salas para las consultas autorizadas por la ruta.
   async getAll(_req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const data = await salasService.getAllSalas();
@@ -14,6 +15,7 @@ export const salasController = {
     }
   },
 
+  // Entrega la definición de una sala física registrada.
   async getById(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = Number(req.params.id);
@@ -27,6 +29,7 @@ export const salasController = {
     }
   },
 
+  // Confirma el alta de una sala del catálogo, no una reserva de capacidad para el modelo.
   async create(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const data = await salasService.createSala(req.body);
@@ -39,6 +42,7 @@ export const salasController = {
     }
   },
 
+  // Presenta la sala después del mantenimiento permitido por sus dependencias.
   async update(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = Number(req.params.id);
@@ -52,6 +56,7 @@ export const salasController = {
     }
   },
 
+  // Confirma sin cuerpo la eliminación de una sala sin uso académico que la impida.
   async delete(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = Number(req.params.id);

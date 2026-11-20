@@ -7,6 +7,7 @@ import { planificacionesSemestres } from "../db/schema/planificaciones-semestres
 import { leerBloquesReservados } from "./bloques-reservados.js";
 
 export const miHorarioRepository = {
+  // Localiza períodos con asignaciones del docente y los ordena para su consulta personal.
   async findPlanificaciones(profesorId: number) {
     const filas = await db.query.planificacionesSemestres.findMany({
       where: and(
@@ -24,9 +25,11 @@ export const miHorarioRepository = {
       estadoPlanificacion: fila.estadoPlanificacion, actual: fila.actual,
     }));
   },
+  // Reutiliza las reservas de carrera para contextualizar los bloques de la grilla propia.
   async findBloquesReservados(carreraId: number) {
     return leerBloquesReservados(db, carreraId);
   },
+  // Ordena la grilla horaria común usada para presentar las clases del profesor.
   async findBloques() {
     return db.query.bloquesHorarios.findMany({ orderBy: [asc(bloquesHorarios.numeroBloque), asc(bloquesHorarios.id)] });
   },

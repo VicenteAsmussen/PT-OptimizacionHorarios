@@ -101,7 +101,7 @@ test('el acceso por teclado permite saltar al contenido sin eliminar el enlace a
   }
 });
 
-test('los estilos conservan ancho, foco y hover y refuerzan selección, alineación y área táctil', async () => {
+test('los estilos conservan ancho, foco y estado bajo el puntero y refuerzan selección, alineación y área táctil', async () => {
   const css = await readFile(new URL('../../styles/global.css', import.meta.url), 'utf8');
   const variables = await readFile(new URL('../../styles/variables.css', import.meta.url), 'utf8');
   assert.match(css, /grid-template-columns:\s*15rem minmax\(0, 1fr\)/);

@@ -1,6 +1,8 @@
 import type { FilaSeguimiento } from './types';
 
+// Reserva el seguimiento de registros docentes para secretaría.
 export const puedeVerSeguimiento = (rol?: string | null) => rol === 'secretaria';
+// Diferencia la presencia de un envío sin afirmar que satisface su mínimo.
 export const estadoEnvio = (enviada: boolean) => enviada ? 'Enviada' : 'No enviada';
 
 interface EstadoSeguimiento {
@@ -14,6 +16,7 @@ type AccionSeguimiento = { tipo: 'seleccionar'; id: number | null } | { tipo: 'r
   | { tipo: 'fallo'; id: number; revision: number; mensaje: string };
 export const estadoInicial: EstadoSeguimiento = { planificacionId: null, revision: 0, filas: null, error: '' };
 
+// Actualiza el seguimiento solo con respuestas de la selección y revisión vigentes.
 export function reducirSeguimiento(estado: EstadoSeguimiento, accion: AccionSeguimiento): EstadoSeguimiento {
   if (accion.tipo === 'seleccionar' || accion.tipo === 'recargar') {
     return { planificacionId: accion.tipo === 'seleccionar' ? accion.id : estado.planificacionId,

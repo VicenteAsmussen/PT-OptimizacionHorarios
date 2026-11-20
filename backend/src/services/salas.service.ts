@@ -3,10 +3,12 @@ import { type CreateSalaDTO, type UpdateSalaDTO } from "../validations/salas.val
 import { NotFoundError, ConflictError } from "../utils/errors.js";
 
 export const salasService = {
+  // Presenta el catálogo de salas físicas, no su disponibilidad garantizada para el modelo.
   async getAllSalas() {
     return await salasRepository.findAll();
   },
 
+  // Resuelve una sala registrada o informa que el recurso físico no existe.
   async getSalaById(id: number) {
     const sala = await salasRepository.findById(id);
     if (!sala) {
@@ -15,6 +17,7 @@ export const salasService = {
     return sala;
   },
 
+  // Incorpora una sala al catálogo después de descartar nombres repetidos.
   async createSala(dto: CreateSalaDTO) {
     const existing = await salasRepository.findByNombre(dto.nombre);
     if (existing) {
@@ -24,6 +27,7 @@ export const salasService = {
     return await salasRepository.create(dto);
   },
 
+  // Valida el nombre y solicita el cambio sujeto al uso académico de la sala.
   async updateSala(id: number, dto: UpdateSalaDTO) {
     await this.getSalaById(id);
 
@@ -38,6 +42,7 @@ export const salasService = {
     return updated;
   },
 
+  // Solicita retirar una sala existente sin omitir el control de dependencias del repositorio.
   async deleteSala(id: number) {
     await this.getSalaById(id);
     await salasRepository.delete(id);

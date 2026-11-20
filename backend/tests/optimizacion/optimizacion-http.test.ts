@@ -13,6 +13,7 @@ const controles = vi.hoisted(() => ({ rol: "secretaria", repositorio: {} as Reco
   diagnosticar: undefined as OpcionesProcesoJulia["alDiagnostico"] }));
 vi.mock("../../src/repositories/optimizacion.repository.js", () => ({ optimizacionRepository: controles.repositorio }));
 vi.mock("../../src/utils/alcance-carrera.js", () => ({ resolverAlcanceCarrera: async () => ({ carreraId: 1 }) }));
+// La promesa pendiente separa la respuesta HTTP del fin del cálculo, sin lanzar un proceso real.
 vi.mock("../../src/optimizacion/proceso.js", () => ({ ejecutarJulia: vi.fn((entrada: EntradaOptimizacion, opciones?: OpcionesProcesoJulia) => {
   controles.entradas.push(entrada);
   controles.diagnosticar = opciones?.alDiagnostico;
@@ -110,7 +111,7 @@ describe("contrato HTTP y seguimiento del modelo", () => {
     expect(controles.repositorio.iniciar).not.toHaveBeenCalled();
   });
 
-  it.each([false, true])("conserva métricas sanitizadas al terminar, watchdog=%s, sin admitir candidatas", async watchdog => {
+  it.each([false, true])("conserva métricas sanitizadas al terminar, vigilancia=%s, sin admitir candidatas", async watchdog => {
     await request(app).post("/modelo/planificaciones/1/ejecuciones").send(parametros);
     const procesoJulia = { origenFin: watchdog ? "watchdog" : "salida", fase: "solver",
       tiemposMs: { total: 25, arranque: 5, llamadaSolver: 20 },

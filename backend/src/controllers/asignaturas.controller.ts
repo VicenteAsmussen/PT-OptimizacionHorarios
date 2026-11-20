@@ -3,6 +3,7 @@ import { resolverAlcanceCarrera } from "../utils/alcance-carrera.js";
 import { asignaturasService } from "../services/asignaturas.service.js";
 
 export const asignaturasController = {
+  // Responde con la malla visible para la carrera y el filtro departamental solicitados.
   async getAll(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const data = await asignaturasService.getAllAsignaturas(await resolverAlcanceCarrera(req.user), req.query.departamentoId === undefined ? undefined : Number(req.query.departamentoId));
@@ -15,6 +16,7 @@ export const asignaturasController = {
     }
   },
 
+  // Presenta la definición académica del código accesible para el usuario.
   async getByCodigo(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const codigo = String(req.params.codigo);
@@ -28,6 +30,7 @@ export const asignaturasController = {
     }
   },
 
+  // Confirma el alta de la asignatura y sus relaciones validadas por el servicio.
   async create(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const data = await asignaturasService.createAsignatura(req.body, await resolverAlcanceCarrera(req.user));
@@ -40,6 +43,7 @@ export const asignaturasController = {
     }
   },
 
+  // Devuelve la asignatura después del mantenimiento autorizado de su definición.
   async update(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const codigo = String(req.params.codigo);
@@ -53,6 +57,7 @@ export const asignaturasController = {
     }
   },
 
+  // Confirma sin cuerpo la eliminación de una asignatura permitida por los controles del catálogo.
   async delete(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const codigo = String(req.params.codigo);

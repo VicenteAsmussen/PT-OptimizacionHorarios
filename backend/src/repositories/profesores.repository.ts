@@ -14,6 +14,7 @@ import { usuariosRepository } from "./usuarios.repository.js";
 import { ForbiddenError } from "../utils/errors.js";
 import { conCatalogosBloqueados, exigirCatalogoSinDependencias, tieneDependenciasProfesor } from "./dependencias-academicas.js";
 
+// Localiza y ordena los períodos afectados por la disponibilidad y las asignaciones del docente.
 async function periodosProfesor(tx: TransaccionPlanificacion, id: number) {
   const disponibilidades = await tx.query.disponibilidadProfesores.findMany({ where: eq(disponibilidadProfesores.profesorId, id) });
   const ofertas = await tx.select({ planificacionSemestreId: ofertasAsignaturas.planificacionSemestreId }).from(ofertasAsignaturas)
@@ -22,6 +23,7 @@ async function periodosProfesor(tx: TransaccionPlanificacion, id: number) {
 }
 
 export const profesoresRepository = {
+  // Proyecta identidad y departamento para distinguir profesores en los selectores.
   async findSeleccion() {
     return await db.select({
       id: profesores.id,
@@ -32,6 +34,7 @@ export const profesoresRepository = {
       .innerJoin(departamentos, eq(profesores.departamentoId, departamentos.id));
   },
 
+  // Carga perfiles y relaciones académicas filtradas, sin campos internos de acceso de sus cuentas.
   async findAll(departamentoId?: number, alcance?: AlcanceCarrera) {
     const docentes = await db.query.profesores.findMany({
       where: and(departamentoId === undefined ? undefined : eq(profesores.departamentoId, departamentoId),
@@ -48,6 +51,7 @@ export const profesoresRepository = {
     })));
   },
 
+  // Reúne el perfil y sus dependencias, acotando las relaciones académicas al alcance recibido.
   async findById(id: number, alcance?: AlcanceCarrera) {
     const docente = await db.query.profesores.findFirst({
       where: eq(profesores.id, id),
@@ -61,18 +65,21 @@ export const profesoresRepository = {
     return docente ? { ...docente, tieneDependenciasAcademicas: await tieneDependenciasProfesor(db, id) } : undefined;
   },
 
+  // Localiza un perfil por su identidad normalizada para detectar duplicados.
   async findByRut(rut: string) {
     return await db.query.profesores.findFirst({
       where: eq(profesores.rut, rut),
     });
   },
 
+  // Resuelve el vínculo entre una cuenta de acceso y su perfil académico.
   async findByUsuarioId(usuarioId: number) {
     return await db.query.profesores.findFirst({
       where: eq(profesores.usuarioId, usuarioId),
     });
   },
 
+  // Comprueba que el departamento de adscripción exista antes de vincular el perfil.
   async checkDepartamentoExists(departamentoId: number): Promise<boolean> {
     const [dept] = await db
       .select({ id: departamentos.id })
@@ -82,6 +89,7 @@ export const profesoresRepository = {
     return !!dept;
   },
 
+  // Comprueba que exista la cuenta que se pretende vincular al profesor.
   async checkUsuarioExists(usuarioId: number): Promise<boolean> {
     const [user] = await db
       .select({ id: usuarios.id })
@@ -91,6 +99,7 @@ export const profesoresRepository = {
     return !!user;
   },
 
+  // Detecta si un correo de acceso ya pertenece a una cuenta registrada.
   async checkCorreoUsuarioExists(correo: string): Promise<boolean> {
     const [user] = await db
       .select({ id: usuarios.id })
@@ -100,6 +109,7 @@ export const profesoresRepository = {
     return !!user;
   },
 
+  // Detecta clases vinculadas al docente mediante la asignación de cada componente.
   async hasHorarios(id: number): Promise<boolean> {
     const [horario] = await db
       .select({ id: horariosAsignaturas.id })
@@ -110,11 +120,13 @@ export const profesoresRepository = {
     return !!horario;
   },
 
+  // Registra el perfil académico sin crear una cuenta de acceso adicional.
   async create(data: NuevoProfesor): Promise<Profesor> {
     const [created] = await db.insert(profesores).values(data).returning();
     return created;
   },
 
+  // Crea la cuenta y el perfil vinculado en una misma transacción.
   async createWithUsuario(data: NuevoProfesor, usuario: NuevoUsuario): Promise<Profesor> {
     return await db.transaction(async (tx) => {
       const [createdUser] = await tx.insert(usuarios).values(usuario).returning();
@@ -126,6 +138,7 @@ export const profesoresRepository = {
     });
   },
 
+  // Actualiza el perfil bajo los bloqueos compartidos del mantenimiento de catálogos.
   async update(id: number, data: Partial<Omit<NuevoProfesor, "id">>): Promise<Profesor | undefined> {
     return conCatalogosBloqueados(async tx => {
       const [updated] = await tx
@@ -137,6 +150,7 @@ export const profesoresRepository = {
     });
   },
 
+  // Guarda el perfil y propaga su nombre a la cuenta vinculada dentro de la misma transacción.
   async updateWithSyncedUsuarioName(id: number, data: Partial<Omit<NuevoProfesor, "id">>, usuarioId?: number | null, soloProfesor = false) {
     return conCatalogosBloqueados(async (tx) => {
       const [updated] = Object.keys(data).length > 0
@@ -151,6 +165,7 @@ export const profesoresRepository = {
     });
   },
 
+  // Registra el acceso y vincula su identidad al perfil docente en conjunto.
   async createUsuarioForProfesor(id: number, usuario: NuevoUsuario): Promise<Profesor | undefined> {
     return await db.transaction(async (tx) => {
       const [createdUser] = await tx.insert(usuarios).values(usuario).returning();
@@ -163,11 +178,14 @@ export const profesoresRepository = {
     });
   },
 
+  // Reutiliza la actualización de cuentas para conservar la invalidación de sesiones correspondiente.
   async updateUsuarioForProfesor(usuarioId: number, data: Partial<Omit<NuevoUsuario, "id" | "rol" | "versionSesion">>, soloProfesor = false) {
     return db.transaction(tx => usuariosRepository.updateEnTransaccion(tx, usuarioId, data, soloProfesor));
   },
 
+  // Desvincula y retira la cuenta sin borrar el perfil ni sus dependencias académicas.
   async deleteUsuarioForProfesor(id: number, usuarioId: number, soloProfesor = false, transaccion?: TransaccionPlanificacion): Promise<boolean> {
+    // Mantiene juntos la desvinculación del perfil y el rechazo de cuentas no gestionables.
     const escribir = async (tx: TransaccionPlanificacion) => {
       await tx.update(profesores).set({ usuarioId: null }).where(eq(profesores.id, id));
       const [deleted] = await tx.delete(usuarios).where(and(eq(usuarios.id, usuarioId), soloProfesor ? eq(usuarios.rol, "profesor") : undefined)).returning();
@@ -177,6 +195,7 @@ export const profesoresRepository = {
     return transaccion ? escribir(transaccion) : db.transaction(escribir);
   },
 
+  // Retira el perfil bajo el bloqueo de sus períodos y las restricciones referenciales existentes.
   async delete(id: number): Promise<boolean> {
     return conPlanificacionesBloqueadas(tx => periodosProfesor(tx, id), async tx => {
       const [deleted] = await tx.delete(profesores).where(eq(profesores.id, id)).returning();
@@ -184,6 +203,7 @@ export const profesoresRepository = {
     });
   },
 
+  // Elimina perfil, disponibilidad, asignaciones y acceso bajo los bloqueos de sus períodos.
   async deleteWithDependencias(id: number, usuarioId?: number | null, soloProfesor = false): Promise<boolean> {
     return conPlanificacionesBloqueadas(tx => periodosProfesor(tx, id), async tx => {
       await tx.delete(disponibilidadProfesores).where(eq(disponibilidadProfesores.profesorId, id));
@@ -196,6 +216,7 @@ export const profesoresRepository = {
     });
   },
 
+  // Permite retirar administrativamente solo un perfil sin dependencias y con cuenta revalidada.
   async deleteSinDependencias(id: number, usuarioId?: number | null): Promise<boolean> {
     return conCatalogosBloqueados(async tx => {
       await exigirCatalogoSinDependencias(tx, { tipo: "profesor", id });

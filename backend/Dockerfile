@@ -23,5 +23,5 @@ RUN julia --startup-file=no --project=/app/optimizacion/julia -e 'using Pkg; Pkg
 
 EXPOSE 3000
 
-# El proceso hijo solo recibe el snapshot validado por el backend.
+# El proceso hijo solo recibe la copia de datos validada por el backend.
 CMD ["./node_modules/.bin/tsx", "watch", "src/server.ts"]

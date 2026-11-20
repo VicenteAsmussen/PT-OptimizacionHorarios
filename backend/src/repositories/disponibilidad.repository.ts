@@ -10,6 +10,7 @@ import { conPlanificacionesEditables, type TransaccionPlanificacion } from "./pl
 import { NotFoundError } from "../utils/errors.js";
 
 const relacionesDisponibilidad = { profesor: { columns: columnasProfesorSinRut }, planificacionSemestre: true as const, bloque: true as const };
+// Sustituye la selección de un docente y período, eliminando bloques repetidos del lote recibido.
 export async function reemplazarDisponibilidad(tx: TransaccionPlanificacion, profesorId: number, planificacionSemestreId: number, bloquesIds: number[]) {
   const condicion = and(eq(disponibilidadProfesores.profesorId, profesorId), eq(disponibilidadProfesores.planificacionSemestreId, planificacionSemestreId));
   const unicos = [...new Set(bloquesIds)];
@@ -18,6 +19,7 @@ export async function reemplazarDisponibilidad(tx: TransaccionPlanificacion, pro
   return tx.query.disponibilidadProfesores.findMany({ where: condicion, with: relacionesDisponibilidad });
 }
 export const disponibilidadRepository = {
+  // Consulta disponibilidad por docente y período sin exceder las planificaciones de la carrera.
   async findAll(filtro?: { profesorId?: number; planificacionSemestreId?: number }, alcance?: AlcanceCarrera) {
     return db.query.disponibilidadProfesores.findMany({
       where: and(
@@ -27,34 +29,43 @@ export const disponibilidadRepository = {
       ), with: relacionesDisponibilidad,
     });
   },
+  // Carga la disponibilidad con profesor y período para comprobar su propiedad.
   async findById(id: number) {
     return db.query.disponibilidadProfesores.findFirst({ where: eq(disponibilidadProfesores.id, id), with: relacionesDisponibilidad });
   },
+  // Detecta si el bloque ya pertenece a la selección del docente en ese período.
   async findSpecific(profesorId: number, planificacionSemestreId: number, bloqueId: number) {
     return db.query.disponibilidadProfesores.findFirst({ where: and(eq(disponibilidadProfesores.profesorId, profesorId), eq(disponibilidadProfesores.planificacionSemestreId, planificacionSemestreId), eq(disponibilidadProfesores.bloqueId, bloqueId)) });
   },
+  // Comprueba que la selección corresponda a un perfil docente registrado.
   async checkProfesorExists(id: number) {
     return !!await db.query.profesores.findFirst({ where: eq(profesores.id, id), columns: { id: true } });
   },
+  // Detecta si el período ya tiene horarios que condicionen la edición de disponibilidad.
   async checkHorariosExistForPlanificacion(planificacionSemestreId: number) {
     return !!await db.query.horariosAsignaturas.findFirst({ where: eq(horariosAsignaturas.planificacionSemestreId, planificacionSemestreId), columns: { id: true } });
   },
+  // Comprueba que el bloque seleccionado esté definido en la grilla.
   async checkBloqueExists(id: number) {
     return !!await db.query.bloquesHorarios.findFirst({ where: eq(bloquesHorarios.id, id) });
   },
+  // Identifica los bloques registrados para contrastar una selección recibida.
   async findExistingBloquesIds(ids: number[]) {
     if (!ids.length) return [];
     return (await db.select({ id: bloquesHorarios.id }).from(bloquesHorarios).where(inArray(bloquesHorarios.id, ids))).map(fila => fila.id);
   },
+  // Inserta disponibilidad individual únicamente bajo la protección del período editable.
   async create(datos: NuevaDisponibilidadProfesor) {
     return conPlanificacionesEditables(async () => [datos.planificacionSemestreId], async tx => {
       const [creada] = await tx.insert(disponibilidadProfesores).values(datos).returning();
       return creada;
     });
   },
+  // Reutiliza el reemplazo de selección dentro del bloqueo de preparación del período.
   async syncDisponibilidad(profesorId: number, planificacionSemestreId: number, bloquesIds: number[]) {
     return conPlanificacionesEditables(async () => [planificacionSemestreId], tx => reemplazarDisponibilidad(tx, profesorId, planificacionSemestreId, bloquesIds));
   },
+  // Retira un bloque de disponibilidad después de resolver y bloquear su período propietario.
   async delete(id: number) {
     return conPlanificacionesEditables(async tx => {
       const registro = await tx.query.disponibilidadProfesores.findFirst({ where: eq(disponibilidadProfesores.id, id) });
@@ -62,6 +73,7 @@ export const disponibilidadRepository = {
       return [registro.planificacionSemestreId];
     }, async tx => !!(await tx.delete(disponibilidadProfesores).where(eq(disponibilidadProfesores.id, id)).returning()).length);
   },
+  // Vacía la selección del docente en un período cuya preparación permite escribir.
   async deleteByProfesorAndPlanificacion(profesorId: number, planificacionSemestreId: number) {
     return conPlanificacionesEditables(async () => [planificacionSemestreId], async tx =>
       (await tx.delete(disponibilidadProfesores).where(and(eq(disponibilidadProfesores.profesorId, profesorId), eq(disponibilidadProfesores.planificacionSemestreId, planificacionSemestreId))).returning()).length);

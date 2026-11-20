@@ -8,6 +8,7 @@ import estilos from "./Profesores.module.css";
 
 const iconos = { agregar, ver, editar, eliminar, acceso, retirarAcceso };
 
+// Distingue visualmente las acciones de identidad y acceso de cada docente.
 export default function IconoProfesor({ tipo }: { tipo: keyof typeof iconos }) {
   const mascara = `url("${iconos[tipo]}")`;
   return <span aria-hidden="true" className={estilos.icono}

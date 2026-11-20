@@ -11,6 +11,7 @@ interface Propiedades {
   cerrar: () => void;
 }
 
+// Expone asignatura, sección, horario y sala de la sesión docente consultada.
 export default function DetalleClaseDialogo({ clase, bloque, bloquesSesion = [bloque], cerrar }: Propiedades) {
   const referencia = useRef<HTMLDialogElement>(null);
   const detalle = describirClase(clase);

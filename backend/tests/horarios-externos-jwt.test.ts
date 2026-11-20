@@ -18,7 +18,7 @@ const aplicacion = express();
 aplicacion.use("/horarios", horariosRouter);
 aplicacion.use(errorHandler);
 beforeEach(() => { vi.clearAllMocks(); usuarios.clear(); });
-it.each(["admin", "profesor"] as const)("%s is rejected with real JWT before invalid context or multipart parsing", async rol => {
+it.each(["admin", "profesor"] as const)("rechaza %s con JWT real antes de validar el contexto o analizar multipart", async rol => {
   const usuario = { id: 1, nombre: "Cuenta sintética", correo: "user@example.test", rol };
   const token = generateToken(usuario, 0);
   usuarios.set(usuario.id, { ...usuario, versionSesion: 0 });
@@ -33,7 +33,7 @@ it.each(["admin", "profesor"] as const)("%s is rejected with real JWT before inv
   expect(horariosService.coberturaExcelExternos).not.toHaveBeenCalled();
   expect(horariosService.importarExcelExternos).not.toHaveBeenCalled();
 });
-it("external endpoints require authentication before processing context or uploads", async () => {
+it("las rutas de externos exigen autenticación antes de procesar el contexto o cargar archivos", async () => {
   expect((await request(aplicacion).get("/horarios/excel/externos/cobertura")).status).toBe(401);
   expect((await request(aplicacion).post("/horarios/excel/externos/importar").send("invalid upload")).status).toBe(401);
   expect(horariosService.coberturaExcelExternos).not.toHaveBeenCalled();

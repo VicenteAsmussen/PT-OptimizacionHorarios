@@ -11,6 +11,7 @@ function oferta(id = 1, codigo = "A", seccion = 1, nivel = 1): OfertaOptimizacio
     esCritica: false, requiereSala: true,
     componentes: [{ tipoHoraId: 1, tipo: "T", horas: 2, profesorId: id }] };
 }
+// La grilla completa y la disponibilidad amplia aíslan la regla que cada escenario modifica.
 function datos(ofertas = [oferta()]): DatosOptimizacion {
   const bloques = dias.flatMap((dia, d) => Array.from({ length: 16 }, (_, b) =>
     ({ id: d * 16 + b + 1, dia, numeroBloque: b + 1 })));
@@ -19,6 +20,7 @@ function datos(ofertas = [oferta()]): DatosOptimizacion {
     recursos: [{ id: "AA-Sala-90", edificio: "AA", tipo: "Sala", capacidad: 90,
       cantidad: 20, fuente: "Declaración sintética" }] };
 }
+// Construye una candidata controlada, no una solución calculada por Julia ni una prueba de optimalidad.
 function salida(entrada: EntradaOptimizacion, comienzos = [1]): SalidaOptimizacion {
   const asignaciones = entrada.ofertas.flatMap((o, i) => o.componentes.flatMap(c =>
     Array.from({ length: c.horas }, (_, h) => ({ ofertaId: o.id, tipoHoraId: c.tipoHoraId,
@@ -102,6 +104,7 @@ describe("contrato matemático puro", () => {
   });
 
   it("exige ceil(50%) por pareja completa sin selección global", () => {
+    // El producto impar de secciones distingue el redondeo hacia arriba de una mitad truncada.
     const entrada = construirEntradaOptimizacion(datos([oferta(), oferta(2, "A", 2), oferta(3, "B"), oferta(4, "B", 2)]));
     const buena = salida(entrada, [1, 3, 1, 3]);
     expect(validarSalidaOptimizacion(entrada, buena)).toMatchObject({ valida: true, completa: true });
@@ -115,6 +118,7 @@ describe("contrato matemático puro", () => {
   });
 
   it("cobra una combinación flexible, no sus bloques, y admite límite completo", () => {
+    // Repetir el choque en varios bloques evita confundir el costo por pareja con un costo horario.
     const critica = oferta(); critica.esCritica = true; critica.componentes[0]!.horas = 4;
     const superior = oferta(2, "B", 1, 3); superior.componentes[0]!.horas = 4;
     const entrada = construirEntradaOptimizacion(datos([critica, superior]));
@@ -227,6 +231,7 @@ describe("contrato matemático puro", () => {
   });
 
   it("aplica máximo continuo sobre T/P juntos y admite cambiar categoría entre componentes", () => {
+    // Separar docentes y categorías deja la continuidad de la sección como causa del rechazo.
     const o = oferta(); o.componentes[0]!.horas = 4;
     o.componentes.push({ tipoHoraId: 2, tipo: "P", horas: 2, profesorId: 2 });
     const base = datos([o]); base.recursos.push({ ...base.recursos[0]!, id: "AB", edificio: "AB" });

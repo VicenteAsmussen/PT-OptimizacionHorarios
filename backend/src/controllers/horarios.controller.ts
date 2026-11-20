@@ -4,6 +4,7 @@ import { horariosService } from "../services/horarios.service.js";
 import { excelExternosQueryValidation, excelSalasQueryValidation, type HorarioQueryDTO, type MiHorarioQueryDTO, type ExcelSalasQueryDTO } from "../validations/horarios.validation.js";
 
 export const horariosController = {
+  // Valida el contexto solicitado y presenta la cobertura de horarios externos.
   async coberturaExcelExternos(req: Request, res: Response, next: NextFunction): Promise<void> {
     const consulta = excelExternosQueryValidation.safeParse(req.query);
     if (!consulta.success) {
@@ -16,6 +17,7 @@ export const horariosController = {
       res.status(200).json({ status: "success", data });
     } catch (error) { next(error); }
   },
+  // Recibe el Excel externo y distingue errores del lote de una sincronización confirmada.
   async importarExcelExternos(req: Request, res: Response, next: NextFunction): Promise<void> {
     const consulta = excelExternosQueryValidation.safeParse(req.query);
     if (!consulta.success) {
@@ -33,6 +35,7 @@ export const horariosController = {
     } catch (error) { next(error); }
   },
 
+  // Valida el archivo de salas e indica la fila y columna de cada rechazo.
   async importarExcelSalas(req: Request, res: Response, next: NextFunction): Promise<void> {
     const consulta = excelSalasQueryValidation.safeParse(req.query);
     if (!consulta.success) {
@@ -50,6 +53,7 @@ export const horariosController = {
     } catch (error) { next(error); }
   },
 
+  // Descarga el resumen de sesiones para asignar sus salas externamente.
   async exportarExcelSalas(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { planificacionSemestreId } = req.query as unknown as ExcelSalasQueryDTO;
@@ -62,6 +66,7 @@ export const horariosController = {
     }
   },
 
+  // Presenta la grilla filtrada dentro del alcance de carrera resuelto desde la identidad.
   async getAll(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const data = await horariosService.getAllHorarios(req.query as unknown as HorarioQueryDTO, await resolverAlcanceCarrera(req.user));
@@ -74,6 +79,7 @@ export const horariosController = {
     }
   },
 
+  // Entrega períodos y bloques que contextualizan la grilla personal del profesor.
   async getContextoMiHorario(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const data = await horariosService.getContextoMiHorario(req.user!.id);
@@ -83,6 +89,7 @@ export const horariosController = {
     }
   },
 
+  // Devuelve clases propias usando la identidad autenticada, no un profesor elegido por el cliente.
   async getMiHorario(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const data = await horariosService.getMiHorario(
@@ -98,6 +105,7 @@ export const horariosController = {
     }
   },
 
+  // Presenta una fila de horario después de comprobar su alcance académico.
   async getById(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = Number(req.params.id);
@@ -111,6 +119,7 @@ export const horariosController = {
     }
   },
 
+  // Deriva el alta individual a las validaciones de horario sin conceder permisos de ruta.
   async create(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const data = await horariosService.createHorario(req.body, await resolverAlcanceCarrera(req.user));
@@ -123,6 +132,7 @@ export const horariosController = {
     }
   },
 
+  // Devuelve la fila tras el cambio individual que autoricen la ruta y el servicio.
   async update(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = Number(req.params.id);
@@ -136,6 +146,7 @@ export const horariosController = {
     }
   },
 
+  // Confirma sin cuerpo la eliminación individual aceptada por los controles del horario.
   async delete(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = Number(req.params.id);
@@ -146,6 +157,7 @@ export const horariosController = {
     }
   },
 
+  // Comunica cuántas filas se retiraron de la oferta tras comprobar su período.
   async deleteByOferta(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const ofertaId = Number(req.params.ofertaId);

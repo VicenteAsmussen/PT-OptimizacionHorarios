@@ -6,7 +6,7 @@ import ts from 'typescript';
 import * as datos from './datos.ts';
 import * as periodos from '../../lib/periodos.ts';
 
-// Ejecuta componentes, efectos y handlers reales sin red ni navegador.
+// Ejecuta componentes, efectos y manejadores reales sin red ni navegador.
 async function montar(ruta, api, propiedades) {
   const celdas = [];
   const efectos = [];
@@ -108,7 +108,7 @@ test('validaciones de asignatura solo se anuncian junto al formulario y no escri
     cambiar(montaje, tipo, indice, valor);
     await enviar(montaje);
     assert.deepEqual(alertas(montaje.dibujar()), [mensaje]);
-    assert.deepEqual(montaje.avisos, [], 'la validación no crea toast');
+  assert.deepEqual(montaje.avisos, [], 'la validación no crea notificaciones emergentes');
     assert.deepEqual(llamadas, [], 'sin escritura ni actualización del padre');
     cambiar(montaje, tipo, indice, tipo === 'select' ? '1' : indice === 0 ? 'Nombre corregido' : '14');
     assert.deepEqual(alertas(montaje.dibujar()), [], 'corregir el formulario retira el aviso obsoleto');
@@ -116,7 +116,7 @@ test('validaciones de asignatura solo se anuncian junto al formulario y no escri
   }
 });
 
-test('fallos remotos de asignatura solo usan Sonner y el reintento conserva el payload y el bloqueo de doble envío', async () => {
+test('los fallos remotos de asignatura solo usan Sonner y el reintento conserva los datos de envío y el bloqueo de doble envío', async () => {
   for (const fallo of [new Error('No se pudo actualizar la asignatura.'), null]) {
     const llamadas = [];
     let rechazar;
@@ -132,7 +132,7 @@ test('fallos remotos de asignatura solo usan Sonner y el reintento conserva el p
     assert.equal(llamadas.length, 1);
     rechazar(fallo); await esperar();
     const mensaje = fallo?.message ?? 'No se pudo guardar. Inténtalo nuevamente.';
-    assert.deepEqual(alertas(montaje.dibujar()), [], 'el fallo genérico no se duplica inline');
+  assert.deepEqual(alertas(montaje.dibujar()), [], 'el fallo genérico no se duplica junto al contenido');
     assert.deepEqual([...montaje.activos.values()], [['error', mensaje]]);
     assert.equal(completadas, 0);
     formulario(montaje).props.onSubmit({ preventDefault() {} });
@@ -182,7 +182,7 @@ test('cancelar o cambiar de acción retira el error remoto sin esperar a cerrar 
   montaje.desmontar();
 });
 
-test('abrir y cancelar otra acción conserva el éxito confirmado y el payload de creación', async () => {
+test('abrir y cancelar otra acción conserva el éxito confirmado y los datos de creación', async () => {
   const llamadas = [];
   const montaje = await montar('./PanelSecciones.tsx', {
     ofertas: async () => [], profesores: async () => [],
@@ -198,7 +198,7 @@ test('abrir y cancelar otra acción conserva el éxito confirmado y el payload d
   montaje.desmontar();
 });
 
-test('el callback real del selector retira la validación y envía únicamente la asignación corregida', async () => {
+test('la función de retorno real del selector retira la validación y envía únicamente la asignación corregida', async () => {
   const llamadas = [];
   const asignaturaConHoras = { ...asignatura, tiposHora: [{ tipoHoraId: 1, horas: 2, tipoHora: { tipo: 'Teoría' } }] };
   const montaje = await montar('./PanelSecciones.tsx', {
@@ -237,7 +237,7 @@ test('cambiar de contexto retira el fallo anterior y no lo hereda el nuevo panel
   actual.desmontar();
 });
 
-test('prepararOferta conserva sus validaciones locales sin toast ni escritura y no arrastra avisos al cambiar de acción', async () => {
+test('prepararOferta conserva sus validaciones locales sin notificación emergente ni escritura y no arrastra avisos al cambiar de acción', async () => {
   for (const [tipo, indice, valor, mensaje] of [
     ...['', '0', '6', '1.5', '1'].map(valor => ['select', 0, valor, 'Selecciona una sección disponible entre 1 y 5.']),
     ...['', '-1', '0.5', '9007199254740992'].map(valor => ['input', 0, valor, 'Los cupos deben ser un entero no negativo.']),

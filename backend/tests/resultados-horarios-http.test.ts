@@ -8,6 +8,7 @@ const datos = vi.hoisted(() => ({ contexto: {} as any, fallo: false, escrituras:
 vi.mock("../src/repositories/resultados-horarios.repository.js", () => ({ resultadosHorariosRepository: {
   leer: vi.fn(async () => structuredClone(datos.contexto)),
   conBloqueo: vi.fn(async (_id: number, operar: any) => {
+    // Incorporar la copia solo al finalizar simula atomicidad del servicio, no bloqueos SQL reales.
     const copia = structuredClone(datos.contexto);
     const persistencia = {
       mover: async (cambios: { id: number; bloqueId: number }[]) => {
@@ -90,7 +91,7 @@ async function importarArchivoSalas(archivo: Buffer, revision?: string) {
   return request(aplicacion).post(`${ruta}/salas/importar`).set("Authorization", "secretaria")
     .field("revision", revision ?? lectura.body.data.revision).attach("archivo", archivo, "salas.xlsx");
 }
-describe("Proposal results public HTTP contract", () => {
+describe("Contrato HTTP público de resultados de propuesta", () => {
   it("expone reservas de la carrera sin ocultar clases heredadas ni depender del filtro de semestre", async () => {
     datos.contexto.bloquesReservadosIds = [1];
     const antes = structuredClone(datos.contexto);
@@ -159,12 +160,12 @@ describe("Proposal results public HTTP contract", () => {
     expect((await movimiento()).status).toBe(200);
     expect(datos.contexto.entradas.map((entrada: any) => entrada.bloqueId)).toEqual([5, 6]);
   });
-  it("S11 rejects an even institutional number with an odd ID in preview and save", async () => {
+  it("S11 rechaza un número institucional par con ID impar al previsualizar y guardar", async () => {
     datos.contexto.bloques = bloques.map(bloque => ({ ...bloque, id: bloque.id === 6 ? 61 : bloque.id }));
     datos.contexto.disponibilidades.push({ profesorId: 7, bloqueId: 61, planificacionSemestreId: 9 });
     await comprobarRechazo([100, 101], 61, "inicioPar", "La clase debe comenzar en un bloque institucional impar.");
   });
-  it("S11 accepts an odd institutional number with an even ID", async () => {
+  it("S11 acepta un número institucional impar con ID par", async () => {
     datos.contexto.bloques = bloques.map(bloque => ({ ...bloque, id: bloque.id === 5 ? 50 : bloque.id }));
     datos.contexto.disponibilidades.push({ profesorId: 7, bloqueId: 50, planificacionSemestreId: 9 });
     const antes = await consultar();
@@ -178,7 +179,7 @@ describe("Proposal results public HTTP contract", () => {
   it.each([
     { numeros: [1, 2, 3, 4, 5], ids: [100, 101, 102] },
     { numeros: [1, 2, 3, 4, 5, 6, 7], ids: [102, 103, 104] },
-  ])("S11 rejects newly even-start residual segments: %j", async ({ numeros, ids }) => {
+  ])("S11 rechaza segmentos residuales que pasan a comenzar en par: %j", async ({ numeros, ids }) => {
     agregarMartes(); datos.contexto.entradas = entradas(oferta(), numeros);
     await comprobarRechazo(ids, 1001, "restantePar", "Los segmentos restantes deben comenzar en un bloque institucional impar.");
   });
@@ -186,7 +187,7 @@ describe("Proposal results public HTTP contract", () => {
     { numeros: [1, 2, 3, 4, 5], ids: [100, 101], restantes: [3, 4, 5] },
     { numeros: [1, 2, 3, 4], ids: [100, 101], restantes: [3, 4] },
     { numeros: [2, 3, 4], ids: [100, 101, 102], restantes: [] },
-  ])("S11 preserves safe splits and whole legacy-even correction: %j", async ({ numeros, ids, restantes }) => {
+  ])("S11 conserva divisiones seguras y la corrección completa de sesiones heredadas con inicio par: %j", async ({ numeros, ids, restantes }) => {
     agregarMartes(); datos.contexto.entradas = entradas(oferta(), numeros);
     const antes = await consultar();
     const previa = await movimiento(ids, 1001, "validar-movimiento");
@@ -199,16 +200,16 @@ describe("Proposal results public HTTP contract", () => {
     ]);
     expect(datos.escrituras).toBe(1);
   });
-  it("S11 rejects an odd destination that merges into an even-start legacy session", async () => {
+  it("S11 rechaza un destino impar que se fusiona con una sesión heredada de inicio par", async () => {
     agregarMartes();
     const anteriores = entradas(oferta(), [2, 3]).map((entrada, indice) => ({ ...entrada, id: 200 + indice,
       bloqueId: 1002 + indice, bloque: datos.contexto.bloques.find((bloque: any) => bloque.id === 1002 + indice) }));
-    // Move to 5 after a legacy 2–4 segment, across the institutional pair break.
+    // Mueve al bloque 5 tras un tramo heredado 2–4, cruzando el límite del par institucional.
     anteriores.push({ ...anteriores[1]!, id: 202, bloqueId: 1004, bloque: datos.contexto.bloques.find((bloque: any) => bloque.id === 1004) });
     datos.contexto.entradas.push(...anteriores);
     await comprobarRechazo([100, 101], 1005, "sesionPar", "La sesión resultante del destino debe comenzar en un bloque institucional impar.");
   });
-  it("S11 does not block movement, reading or publication for unrelated legacy-even sessions", async () => {
+  it("S11 no bloquea movimiento, lectura ni publicación por sesiones heredadas ajenas con inicio par", async () => {
     const externa = oferta(2, 2, 6); datos.contexto.entradas.push(...entradas(externa, [2, 3], 8, null));
     datos.contexto.ofertas.push(externa); datos.contexto.asignaturasMalla.push(externa.asignatura);
     expect((await consultar()).body.data.sesiones).toHaveLength(2);
@@ -216,7 +217,7 @@ describe("Proposal results public HTTP contract", () => {
     expect((await movimiento()).status).toBe(200);
     expect((await consultar()).body.data.sesiones.find((sesion: any) => sesion.ofertaId === 2).bloquesIds).toEqual([2, 3]);
   });
-  it("S11 leaves an unrelated even-start session of the same offer/type/professor untouched", async () => {
+  it("S11 no altera una sesión ajena de inicio par con la misma oferta, tipo y profesor", async () => {
     agregarMartes();
     datos.contexto.entradas.push(...entradas(oferta(), [6, 7]).map((entrada, indice) => ({ ...entrada, id: 200 + indice })));
     const previa = await movimiento([100, 101], 1001, "validar-movimiento");
@@ -226,7 +227,7 @@ describe("Proposal results public HTTP contract", () => {
     expect(guardado.body.data.sesiones.map((sesion: any) => sesion.bloquesIds)).toEqual([[1001, 1002], [6, 7]]);
     expect(datos.escrituras).toBe(1);
   });
-  it("S11 preserves conflict rejection when an odd target overlaps a two-block legacy-even group", async () => {
+  it("S11 conserva el rechazo de conflictos si un destino impar se superpone a un grupo heredado de dos bloques con inicio par", async () => {
     agregarMartes();
     datos.contexto.entradas.push(...entradas(oferta(), [2, 3]).map((entrada, indice) => ({ ...entrada, id: 200 + indice,
       bloqueId: 1002 + indice, bloque: datos.contexto.bloques.find((bloque: any) => bloque.id === 1002 + indice) })));
@@ -239,21 +240,21 @@ describe("Proposal results public HTTP contract", () => {
     expect(guardado.body.message).toBe("El profesor tiene otra clase en este bloque. Los componentes de una misma sección no pueden ser simultáneos. La sala está ocupada en este bloque.");
     expect((await consultar()).body).toEqual(antes.body); expect(datos.escrituras).toBe(0);
   });
-  it("reads grouped sessions with a revision, availability and room status", async () => {
+  it("consulta sesiones agrupadas con revisión, disponibilidad y estado de sala", async () => {
     const respuesta = await consultar();
     expect(respuesta.status).toBe(200);
     expect(respuesta.body.data.revision).toMatch(/^[a-f0-9]{64}$/);
     expect(respuesta.body.data.sesiones[0]).toMatchObject({ idsHorarios: [100, 101], editable: true, estadoSala: "asignada" });
     expect(respuesta.body.data.disponibilidades).toHaveLength(8);
   });
-  it("filters presentation by level but keeps full-plan conflicts", async () => {
+  it("filtra la presentación por nivel y conserva los conflictos de toda la planificación", async () => {
     const otra = oferta(2, 2); datos.contexto.entradas.push(...entradas(otra, [5, 6], 7, null));
     expect((await consultar("?semestreMalla=1")).body.data.sesiones).toHaveLength(1);
     const antes = structuredClone(datos.contexto);
     expect((await movimiento()).status).toBe(409);
     expect(datos.contexto).toEqual(antes);
   });
-  it("moves a whole group atomically and preserves its IDs, room and load", async () => {
+  it("mueve un grupo completo atómicamente y conserva sus IDs, sala y carga", async () => {
     const respuesta = await movimiento();
     expect(respuesta.status).toBe(200);
     expect(datos.contexto.entradas.map((fila: any) => [fila.id, fila.bloqueId, fila.salaId])).toEqual([[100, 5, 4], [101, 6, 4]]);
@@ -293,13 +294,13 @@ describe("Proposal results public HTTP contract", () => {
     expect((await movimiento([100, 101], 1005)).status).toBe(409);
     expect(datos.contexto).toEqual(antes); expect(datos.escrituras).toBe(0);
   });
-  it("validates a destination without saving", async () => {
+  it("valida un destino sin guardar", async () => {
     const antes = structuredClone(datos.contexto);
     const respuesta = await movimiento([100, 101], 5, "validar-movimiento");
     expect(respuesta.status).toBe(200); expect(respuesta.body.data.valido).toBe(true);
     expect(datos.contexto).toEqual(antes);
   });
-  it("returns an invalid preview and rejects saving if any block is unavailable", async () => {
+  it("devuelve una vista previa inválida y rechaza guardar si algún bloque no está disponible", async () => {
     datos.contexto.disponibilidades = datos.contexto.disponibilidades.filter((fila: any) => fila.bloqueId !== 6);
     const antes = structuredClone(datos.contexto);
     const previa = await movimiento([100, 101], 5, "validar-movimiento");
@@ -307,24 +308,24 @@ describe("Proposal results public HTTP contract", () => {
     expect(previa.body.data.problemas).toEqual(expect.arrayContaining([expect.objectContaining({ codigo: "disponibilidad" })]));
     expect((await movimiento()).status).toBe(409); expect(datos.contexto).toEqual(antes);
   });
-  it("does not infer unrestricted availability from an empty declaration", async () => {
+  it("no infiere disponibilidad sin restricciones a partir de una declaración vacía", async () => {
     datos.contexto.disponibilidades = [];
     expect((await movimiento()).status).toBe(409);
   });
-  it("moves three blocks whole and rejects a two-block move leaving a singleton", async () => {
+  it("mueve tres bloques completos y rechaza mover dos si queda un bloque aislado", async () => {
     datos.contexto.entradas = entradas(oferta(), [1, 2, 3]);
     const antes = structuredClone(datos.contexto);
     expect((await movimiento([100, 101], 5)).status).toBe(409); expect(datos.contexto).toEqual(antes);
     expect((await movimiento([100, 101, 102], 5)).status).toBe(200);
     expect(datos.contexto.entradas.map((fila: any) => fila.bloqueId)).toEqual([5, 6, 7]);
   });
-  it("allows splitting four blocks into two groups and rejects middle-hole singletons", async () => {
+  it("permite dividir cuatro bloques en dos grupos y rechaza dejar bloques aislados por un hueco central", async () => {
     datos.contexto.entradas = entradas(oferta(), [1, 2, 3, 4]);
     expect((await movimiento([101, 102], 7)).status).toBe(409);
     expect((await movimiento([100, 101], 7)).status).toBe(200);
     expect(datos.contexto.entradas).toHaveLength(4);
   });
-  it("rejects a different section at the same level and fixed external classes", async () => {
+  it("rechaza otra sección del mismo nivel y clases externas fijas", async () => {
     const externa = oferta(2, 1, 6); externa.seccion = 9;
     // La compatibilidad se define por las ofertas del período, no por filas huérfanas.
     datos.contexto.ofertas.push(externa);
@@ -334,7 +335,7 @@ describe("Proposal results public HTTP contract", () => {
     expect(lectura.body.data.sesiones.find((sesion: any) => sesion.ofertaId === 2).editable).toBe(false);
     expect((await movimiento([200, 201], 7)).status).toBe(409);
   });
-  it("rejects stale revisions and duplicate IDs without mutation", async () => {
+  it("rechaza revisiones desactualizadas e IDs duplicados sin mutaciones", async () => {
     const lectura = await consultar();
     datos.contexto.disponibilidades.pop();
     const antes = structuredClone(datos.contexto);
@@ -343,18 +344,18 @@ describe("Proposal results public HTTP contract", () => {
     expect(respuesta.status).toBe(409); expect(datos.contexto).toEqual(antes);
     expect((await movimiento([100, 100], 5)).status).toBe(400);
   });
-  it("rolls back a persistence failure", async () => {
+  it("revierte un fallo de persistencia", async () => {
     datos.fallo = true; const antes = structuredClone(datos.contexto);
     const aviso = vi.spyOn(console, "error").mockImplementation(() => undefined);
     try { expect((await movimiento()).status).toBe(500); expect(datos.contexto).toEqual(antes); }
     finally { aviso.mockRestore(); }
   });
-  it.each([{ ids: [] }, { ids: [100] }, { ids: [100, 100] }, { ids: [100, -1] }])("rejects malformed selections without mutation: %j", async ({ ids }) => {
+  it.each([{ ids: [] }, { ids: [100] }, { ids: [100, 100] }, { ids: [100, -1] }])("rechaza selecciones malformadas sin mutaciones: %j", async ({ ids }) => {
     const antes = structuredClone(datos.contexto);
     expect((await movimiento(ids, 5)).status).toBe(400);
     expect(datos.contexto).toEqual(antes);
   });
-  it("reports missing load, room, availability and same-level collisions before publication", async () => {
+  it("informa carga, sala y disponibilidad faltantes y choques del mismo nivel antes de publicar", async () => {
     datos.contexto.entradas.pop(); datos.contexto.entradas[0].salaId = null; datos.contexto.disponibilidades = [];
     const otra = oferta(2); datos.contexto.ofertas.push(otra); datos.contexto.entradas.push(...entradas(otra, [1, 2], 8, null));
     const lectura = await consultar();
@@ -364,14 +365,14 @@ describe("Proposal results public HTTP contract", () => {
     expect((await request(aplicacion).post(`${ruta}/publicar`).set("Authorization", "secretaria").send({ revision: lectura.body.data.revision })).status).toBe(409);
     expect(datos.contexto.planificacion.estadoPlanificacion).toBe("propuesta");
   });
-  it("publishes valid results and then rejects every write", async () => {
+  it("publica resultados válidos y luego rechaza toda escritura", async () => {
     const lectura = await consultar();
     expect((await request(aplicacion).post(`${ruta}/publicar`).set("Authorization", "secretaria").send({ revision: lectura.body.data.revision })).status).toBe(200);
     expect(datos.contexto.planificacion.estadoPlanificacion).toBe("publicado");
     expect((await consultar()).status).toBe(200); expect((await movimiento()).status).toBe(409);
     expect((await request(aplicacion).post(`${ruta}/publicar`).set("Authorization", "secretaria").send({ revision: lectura.body.data.revision })).status).toBe(409);
   });
-  it("requires scoped authentication, proposal writes and strict input", async () => {
+  it("exige autenticación con alcance, escrituras en propuesta y entrada estricta", async () => {
     expect((await request(aplicacion).get(ruta)).status).toBe(401);
     expect((await request(aplicacion).get(ruta).set("Authorization", "profesor")).status).toBe(403);
     expect((await consultar("?carreraId=99")).status).toBe(400);
@@ -380,6 +381,7 @@ describe("Proposal results public HTTP contract", () => {
     expect((await movimiento()).status).toBe(409);
   });
   it.each(["SIN SALA", "sin sala"])("acepta la decisión explícita %s y permite completar la sala después", async valor => {
+    // La respuesta explícita conserva la sesión pendiente, no equivale a tener una sala apta para publicar.
     datos.contexto.entradas.forEach((entrada: any) => { entrada.salaId = null; });
     const respuesta = await importarSalas(valor);
     expect(respuesta.status).toBe(200); expect(respuesta.body.data.pendientes).toBe(1);
@@ -467,6 +469,7 @@ describe("Proposal results public HTTP contract", () => {
     expect((await consultar()).body).toEqual(lectura.body);
   });
   it("subir dos veces la misma respuesta solo asigna las salas en la primera importación", async () => {
+    // La segunda carga debe ser inocua aunque el cliente vuelva a enviar el mismo archivo.
     datos.contexto.entradas.forEach((entrada: any) => { entrada.salaId = null; });
     const archivo = await respuestaSalas("102AA");
     const primera = await importarArchivoSalas(archivo);
@@ -537,7 +540,7 @@ describe("Proposal results public HTTP contract", () => {
     expect(respuesta.status).toBe(400); expect(respuesta.body.errores).toEqual([expect.objectContaining({ fila: 3, columna: "Horario 1", mensaje: expect.stringContaining("repetida") })]);
     expect(datos.contexto).toEqual(antes); expect(datos.escrituras).toBe(0);
   });
-  it("exports only pending eligible sessions without splitting a partially assigned session", async () => {
+  it("exporta solo sesiones pendientes elegibles sin dividir una sesión parcialmente asignada", async () => {
     datos.contexto.entradas[1].salaId = null;
     const respuesta = await request(aplicacion).get(`${ruta}/salas/exportar?soloPendientes=true`).set("Authorization", "secretaria")
       .buffer(true).parse((respuestaBinaria, terminar) => {
@@ -551,13 +554,13 @@ describe("Proposal results public HTTP contract", () => {
     expect(libro.worksheets[0]!.getRow(2).getCell(8).value).toBe("08:10-09:30");
     expect(libro.worksheets[0]!.getRow(2).getCell(9).text).toBe("");
   });
-  it("rejects a pending-only proposal export when all rooms are assigned", async () => {
+  it("rechaza exportar solo pendientes de propuesta cuando todas las salas están asignadas", async () => {
     const respuesta = await request(aplicacion).get(`${ruta}/salas/exportar?soloPendientes=true`).set("Authorization", "secretaria");
     expect(respuesta.status).toBe(400);
     expect(respuesta.body.message).toBe("No hay sesiones pendientes de sala para exportar.");
     expect((await request(aplicacion).get(`${ruta}/salas/exportar`).set("Authorization", "secretaria")).status).toBe(200);
   });
-  it("excludes exempt subjects, laboratories and external classes from room requests", async () => {
+  it("excluye asignaturas exentas, laboratorios y clases externas de las solicitudes de sala", async () => {
     datos.contexto.ofertas[0].asignatura.requiereSala = false;
     datos.contexto.entradas.forEach((entrada: any) => { entrada.oferta.asignatura.requiereSala = false; entrada.salaId = null; });
     expect((await consultar()).body.data.pendientesSala).toBe(0);
@@ -571,7 +574,7 @@ describe("Proposal results public HTTP contract", () => {
     expect((await consultar()).body.data.pendientesSala).toBe(0);
     expect((await request(aplicacion).get(`${ruta}/salas/exportar`).set("Authorization", "secretaria")).status).toBe(400);
   });
-  it("rejects stale and published room imports without mutation", async () => {
+  it("rechaza importaciones de salas desactualizadas o publicadas sin mutaciones", async () => {
     const lectura = await consultar(); datos.contexto.entradas[0].salaId = null;
     const antes = structuredClone(datos.contexto);
     expect((await importarSalas("SIN SALA", lectura.body.data.revision)).status).toBe(409); expect(datos.contexto).toEqual(antes);

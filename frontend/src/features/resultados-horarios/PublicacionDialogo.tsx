@@ -6,6 +6,7 @@ import type { Problema, ResultadoHorario, ValidacionPublicacion } from './types'
 import Dialogo from './Dialogo';
 import estilos from './SuperficiesResultados.module.css';
 
+// Identifica las sesiones sin sala y conserva los problemas que no pudo asociar.
 function desglosarSalas(resultado: ResultadoHorario, problemas: Problema[]) {
   const idsSinSala = new Set(problemas.filter(p => p.codigo === 'sala').flatMap(p => p.idsHorarios ?? []));
   const sesionesSinSala = resultado.sesiones.filter(s => s.idsHorarios.some(id => idsSinSala.has(id)));
@@ -15,6 +16,7 @@ function desglosarSalas(resultado: ResultadoHorario, problemas: Problema[]) {
   return { sesionesSinSala, problemasRestantes };
 }
 
+// Detalla las coincidencias con reservas sin descartar diagnósticos no identificados.
 function desglosarReservas(resultado: ResultadoHorario, problemas: Problema[]) {
   const reservas = problemas.filter(p => p.codigo === 'bloqueReservado');
   const sesionesReservadas = resultado.sesiones.filter(sesion => reservas.some(p =>
@@ -30,6 +32,7 @@ function desglosarReservas(resultado: ResultadoHorario, problemas: Problema[]) {
     || !p.idsHorarios?.length || p.idsHorarios.some(id => !identificados.has(id))) };
 }
 
+// Revisa la validación de toda la planificación antes de confirmar su publicación.
 export default function PublicacionDialogo({ resultado, ocupado, cerrar, confirmar }: {
   resultado: ResultadoHorario; ocupado: boolean; cerrar: () => void; confirmar: (revision: string) => void;
 }) {

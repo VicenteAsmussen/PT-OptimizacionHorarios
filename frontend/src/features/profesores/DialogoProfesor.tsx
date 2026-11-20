@@ -12,7 +12,8 @@ interface Props {
   alCerrar: () => void;
 }
 
-// Un único envío en vuelo; errores del servidor no desmontan los campos.
+// Solo admite un envío a la vez, sin desmontar los campos ante errores del servidor.
+// Presenta la confirmación del guardado docente.
 export default function DialogoProfesor({ titulo, confirmar = "Guardar", destructivo,
   children, guardar, alCompletar, alCerrar }: Props) {
   const dialogo = useRef<HTMLDialogElement>(null);
@@ -30,6 +31,7 @@ export default function DialogoProfesor({ titulo, confirmar = "Guardar", destruc
     };
   }, []);
 
+  // Serializa el guardado del diálogo y notifica al catálogo solo tras completarlo.
   async function enviar(evento: FormEvent) {
     evento.preventDefault();
     if (!guardar || bloqueo.current) return;

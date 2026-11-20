@@ -9,20 +9,24 @@ import CalendarioSemanal from './CalendarioSemanal';
 import EncabezadoMiHorario from './EncabezadoMiHorario';
 import estilos from './MiHorario.module.css';
 
+// Reserva la consulta del horario personal a las cuentas de profesor.
 export function RequireMiHorario() {
   const { usuario } = useAuth();
   return puedeConsultarMiHorario(usuario?.rol) ? <Outlet /> : <Navigate to="/app/dashboard" replace />;
 }
 
+// Aísla la consulta del horario propio cuando cambia la cuenta.
 export default function MiHorarioPage() {
   const { usuario } = useAuth();
   return <ConsultaMiHorario key={usuario?.id} />;
 }
 
+// Conserva el rechazo conocido o explica el fallo de carga del horario personal.
 function mensajeError(fallo: unknown) {
   return fallo instanceof ApiError ? fallo.message : 'No se pudo cargar tu horario. Inténtalo nuevamente.';
 }
 
+// Consulta clases solo en Propuesta o Publicado y gestiona sus reintentos de lectura.
 function ConsultaMiHorario() {
   const [contexto, setContexto] = useState<ContextoHorario | null>(null);
   const [errorContexto, setErrorContexto] = useState('');

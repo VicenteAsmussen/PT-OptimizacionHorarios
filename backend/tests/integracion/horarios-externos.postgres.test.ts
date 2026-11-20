@@ -9,10 +9,10 @@ import { exigirBasePruebas } from "../soporte/base-pruebas.js";
 
 const habilitado = process.env.BASE_PRUEBAS_REINICIABLE !== undefined
   || process.env.npm_lifecycle_event === "test:excel-externos:integracion";
-// Validate raw environment before importing application configuration or opening connections.
+// Valida el entorno original antes de importar la configuración o abrir conexiones.
 if (habilitado) exigirBasePruebas(process.env);
 
-describe.skipIf(!habilitado)("External Excel import on isolated PostgreSQL", () => {
+describe.skipIf(!habilitado)("Importación de Excel externo en PostgreSQL aislado", () => {
   let cliente: ReturnType<typeof postgres>;
   let cerrarAplicacion: () => Promise<void>;
   let servicio: typeof import("../../src/services/horarios.service.js").horariosService;
@@ -40,7 +40,7 @@ describe.skipIf(!habilitado)("External Excel import on isolated PostgreSQL", () 
   });
 
   beforeEach(async () => {
-    // Only the explicitly authorized test database is reset, never horarios_db.
+    // Solo se reinicia la base de pruebas autorizada explícitamente, nunca horarios_db.
     await cliente`truncate carreras, departamentos, usuarios, bloques_horarios, tipos_hora restart identity cascade`;
     await cliente.begin(async sql => {
       await sql`insert into carreras (id, nombre) values (1, 'Career A'), (2, 'Career B')`;
@@ -92,11 +92,11 @@ describe.skipIf(!habilitado)("External Excel import on isolated PostgreSQL", () 
       datos[tablename] = (await cliente`select to_jsonb(fila) as dato from ${cliente(tablename)} fila`)
         .map(fila => JSON.stringify(fila.dato)).sort();
     }
-    // PostgreSQL sequences are intentionally excluded: nextval is not rolled back.
+    // Se excluyen las secuencias de PostgreSQL porque nextval no se revierte con la transacción.
     return createHash("sha256").update(JSON.stringify(datos)).digest("hex");
   }
 
-  it("replaces sections, preserves other scopes and offer IDs, and accepts opposite-parity offers", async () => {
+  it("reemplaza secciones, conserva otros alcances e IDs de ofertas y acepta ofertas de paridad opuesta", async () => {
     const ofertasAjenas = (await ofertas()).filter(oferta => oferta.id >= 103);
     const horariosAjenos = (await horarios()).filter(horario => horario.oferta_id >= 103);
     const catalogoAnterior = await cliente`select * from asignaturas order by codigo`;
@@ -122,7 +122,7 @@ describe.skipIf(!habilitado)("External Excel import on isolated PostgreSQL", () 
       .toEqual([expect.objectContaining({ oferta_id: 100, bloque_id: 1, sala_id: null }), expect.objectContaining({ bloque_id: 2, sala_id: null }), expect.objectContaining({ oferta_id: 102, bloque_id: 3, sala_id: null })]);
   });
 
-  it("reimports without duplicate sections or schedule blocks", async () => {
+  it("reimporta sin duplicar secciones ni bloques de horario", async () => {
     await importar(); const anteriores = await ofertas();
     const asociaciones = (filas: postgres.RowList<postgres.Row[]>) => filas.map(({ id: _, ...fila }) => JSON.stringify(fila)).sort();
     const horariosAnteriores = asociaciones(await horarios());
@@ -131,7 +131,7 @@ describe.skipIf(!habilitado)("External Excel import on isolated PostgreSQL", () 
     expect(asociaciones(await horarios())).toEqual(horariosAnteriores);
   });
 
-  it("keeps the Excel format and assigns the row teacher once per distinct session type", async () => {
+  it("conserva el formato Excel y asigna al profesor de la fila una vez por cada tipo de sesión", async () => {
     const filas = filasValidas();
     filas[0]!.push("", "p", "Jueves", "08:10-08:50", "", "p", "Viernes", "08:10-08:50");
     expect(await importar(filas)).toMatchObject({ errores: [], horariosCreados: 5 });
@@ -142,7 +142,7 @@ describe.skipIf(!habilitado)("External Excel import on isolated PostgreSQL", () 
     expect(await cliente`select * from oferta_tipo_hora where oferta_id=100`).toEqual([{ oferta_id: 100, tipo_hora_id: 1, profesor_id: 2 }]);
   });
 
-  it("saves incomplete offers, replaces typed assignments and preserves omitted assignments", async () => {
+  it("guarda ofertas incompletas, reemplaza asignaciones por tipo y conserva las asignaciones omitidas", async () => {
     await cliente`insert into asignatura_tipo_hora (asignatura_codigo,tipo_hora_id,horas) values ('EXT300',1,4),('EXT300',2,2),('EXT300',3,2)`;
     const creada = await servicioOfertas.createOferta({ asignaturaCodigo: "EXT300", planificacionSemestreId: 1, seccion: 3, cupos: 20, asignaciones: [] });
     expect(creada.asignaciones).toEqual([]);
@@ -153,7 +153,7 @@ describe.skipIf(!habilitado)("External Excel import on isolated PostgreSQL", () 
     expect((await servicioOfertas.updateOferta(creada.id, { asignaciones: [] })).asignaciones).toEqual([]);
   });
 
-  it("resolves teacher per scheduled type, filters without cross-type leakage and rejects reassignment conflicts atomically", async () => {
+  it("resuelve el profesor por tipo programado, filtra sin mezclar tipos y rechaza conflictos de reasignación atómicamente", async () => {
     await cliente`delete from horarios_asignaturas where planificacion_semestre_id=1`;
     await cliente`insert into asignatura_tipo_hora (asignatura_codigo,tipo_hora_id,horas) values ('EXT300',1,4),('EXT300',2,2),('EXT300',3,2)`;
     const asignaciones = [1,2,3].map(tipoHoraId => ({ tipoHoraId, profesorId: tipoHoraId === 2 ? 2 : 1 }));
@@ -174,14 +174,14 @@ describe.skipIf(!habilitado)("External Excel import on isolated PostgreSQL", () 
     expect(await huella()).toBe(anterior);
   });
 
-  it("reports the subject and invalid value without changing any persisted row", async () => {
+  it("informa la asignatura y el valor inválido sin cambiar filas persistidas", async () => {
     const anteriores = await huella(); const filas = filasValidas(); filas[1]![3] = -1;
     const resultado = await importar(filas);
     expect(resultado.errores).toEqual([expect.objectContaining({ fila: 3, columna: "Cupos", codigoAsignatura: "EXT300", nombreAsignatura: "Statistics", valor: "-1" })]);
     expect(await huella()).toBe(anteriores);
   });
 
-  it("enforces the assignment FK and unique type without changing persisted rows on rejection", async () => {
+  it("exige la FK de asignación y el tipo único sin cambiar filas persistidas al rechazar", async () => {
     const anterior = await huella();
     await expect(cliente`insert into horarios_asignaturas (oferta_id,tipo_hora_id,bloque_id,planificacion_semestre_id) values (100,3,4,1)`)
       .rejects.toMatchObject({ code: "23503", constraint_name: "fk_horarios_asignacion_docente" });
@@ -199,7 +199,7 @@ describe.skipIf(!habilitado)("External Excel import on isolated PostgreSQL", () 
     await cliente`update profesores set usuario_id=3 where id=2`;
   }
 
-  it("keeps the shared offer and saved schedule when deleting its unscheduled teacher in preparation", async () => {
+  it("conserva la oferta compartida y el horario guardado al borrar su profesor sin horarios en preparación", async () => {
     await cliente`insert into oferta_tipo_hora (oferta_id,tipo_hora_id,profesor_id) values (100,2,2)`;
     const horariosAnteriores = await horarios();
     const { profesoresService } = await import("../../src/services/profesores.service.js");
@@ -210,16 +210,16 @@ describe.skipIf(!habilitado)("External Excel import on isolated PostgreSQL", () 
     expect(await horarios()).toEqual(horariosAnteriores);
   });
 
-  it.each([false, true])("offers only assigned preparation metadata and protects saved blocks for managed=%s teachers", async gestionado => {
+  it.each([false, true])("ofrece solo metadatos de preparación asignada y protege bloques guardados para docentes gestionados=%s", async gestionado => {
     await vincularDocentes();
     await cliente`update carrera_departamento set es_gestionado=${gestionado} where carrera_id=1 and departamento_id=1`;
-    // This unscheduled assignment is selectable too; metadata does not require saved classes.
+    // Esta asignación sin horario también es seleccionable, los metadatos no exigen clases guardadas.
     await cliente`insert into oferta_tipo_hora (oferta_id,tipo_hora_id,profesor_id) values (100,2,2)`;
     const anterior = await huella();
     const contexto = await servicio.getContextoMiHorario(2);
     expect(contexto.planificaciones.map(p => p.id)).toEqual([1, 3, 2]);
     expect(contexto.planificaciones.every(p => p.estadoPlanificacion === "preparacion")).toBe(true);
-    expect(contexto.planificaciones.some(p => p.id === 3)).toBe(true); // Assigned in another career.
+    expect(contexto.planificaciones.some(p => p.id === 3)).toBe(true); // Asignada en otra carrera.
     expect((await servicio.getContextoMiHorario(3)).planificaciones.map(p => p.id)).toEqual([1]);
     for (const usuarioId of [2, 3]) {
       await expect(servicio.getMiHorario(usuarioId, { planificacionSemestreId: 1 })).rejects.toMatchObject({ statusCode: 403 });
@@ -229,7 +229,7 @@ describe.skipIf(!habilitado)("External Excel import on isolated PostgreSQL", () 
     expect(await huella()).toBe(anterior);
   });
 
-  it.each(["propuesta", "publicado"])("isolates my schedule by teacher and hour type in %s", async estado => {
+  it.each(["propuesta", "publicado"])("aísla el horario propio por profesor y tipo de hora en %s", async estado => {
     await vincularDocentes();
     await cliente`insert into oferta_tipo_hora (oferta_id,tipo_hora_id,profesor_id) values (100,2,2)`;
     await cliente`update planificaciones_semestres set estado_planificacion=${estado} where id=1`;
@@ -247,7 +247,7 @@ describe.skipIf(!habilitado)("External Excel import on isolated PostgreSQL", () 
     await expect(servicio.getMiHorario(3, { planificacionSemestreId: 3 })).rejects.toMatchObject({ statusCode: 403 });
   });
 
-  it("backfills existing scheduled types before removing the legacy teacher column", async () => {
+  it("completa los tipos con horarios existentes antes de retirar la columna antigua de profesor", async () => {
     const anterior = await huella();
     const { readFileSync } = await import("node:fs");
     const migracion = readFileSync(new URL("../../src/db/migrations/0015_asignacion_docente_por_tipo_hora.sql", import.meta.url), "utf8");
@@ -267,20 +267,20 @@ describe.skipIf(!habilitado)("External Excel import on isolated PostgreSQL", () 
     expect(await huella()).toBe(anterior);
   });
 
-  it("does not erase existing data when no relevant course is present", async () => {
+  it("no borra datos existentes cuando no hay asignaturas pertinentes", async () => {
     const anteriores = await huella();
     expect((await importar([["EXT900", "Ignored", "invalid"]])).errores).toContainEqual(expect.objectContaining({ columna: "archivo" }));
     expect(await huella()).toBe(anteriores);
   });
 
-  it("rejects a published planning without changing persisted rows", async () => {
+  it("rechaza una planificación publicada sin cambiar filas persistidas", async () => {
     await cliente`update planificaciones_semestres set estado_planificacion='publicado' where id=1`;
     const anteriores = await huella();
     await expect(importar()).rejects.toThrow(/preparación/);
     expect(await huella()).toBe(anteriores);
   });
 
-  it("rolls back real deletes, updates and inserts after a late PostgreSQL failure", async () => {
+  it("revierte borrados, actualizaciones e inserciones reales tras un fallo tardío de PostgreSQL", async () => {
     await cliente.unsafe(`create function fallar_excel_integracion() returns trigger language plpgsql as $$
       begin
         if new.bloque_id = 2 and exists (select 1 from ofertas_asignaturas where id=100 and cupos=45)
@@ -301,7 +301,7 @@ describe.skipIf(!habilitado)("External Excel import on isolated PostgreSQL", () 
       await cliente.unsafe("drop function fallar_excel_integracion()");
     }
   });
-  it.each([['2099-2', 'EXT200'], ['2099-1', 'EXT300']])('rejects missing mandatory courses in %s with identical persisted data', async (periodo, codigo) => {
+  it.each([['2099-2', 'EXT200'], ['2099-1', 'EXT300']])('rechaza asignaturas obligatorias ausentes en %s y conserva idénticos los datos persistidos', async (periodo, codigo) => {
     await cliente`update planificaciones_semestres set codigo='2098-1' where id=2`;
     await cliente`update planificaciones_semestres set codigo=${periodo} where id=1`;
     const anterior = await huella();
@@ -309,7 +309,7 @@ describe.skipIf(!habilitado)("External Excel import on isolated PostgreSQL", () 
     expect(resultado.errores).toContainEqual(expect.objectContaining({ columna: 'Cobertura', codigoAsignatura: codigo }));
     expect(await huella()).toBe(anterior);
   });
-  it('reads persisted scoped coverage and accepts missing optional courses', async () => {
+  it('consulta la cobertura persistida del alcance y acepta asignaturas opcionales ausentes', async () => {
     const antes = await servicio.coberturaExcelExternos(1, 1, usuario);
     expect(antes.cobertura.map(asignatura => asignatura.codigo).sort()).toEqual(['EXT100', 'EXT200', 'EXT300']);
     expect(antes.cobertura.find(asignatura => asignatura.codigo === 'EXT300')).toMatchObject({ estado: 'faltante_opcional' });

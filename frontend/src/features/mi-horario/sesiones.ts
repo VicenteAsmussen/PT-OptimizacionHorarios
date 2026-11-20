@@ -6,16 +6,20 @@ export interface SesionConsulta {
   bloques: Bloque[];
 }
 
+// Expresa la hora del bloque en minutos para comprobar pausas entre clases.
 const minutos = (hora: string) => Number(hora.slice(0, 2)) * 60 + Number(hora.slice(3, 5));
+// Presenta el intervalo completo de los bloques agrupados en una sesión.
 export const horarioSesion = (bloques: Bloque[]) =>
   `${bloques[0].horaInicio.slice(0, 5)}–${bloques[bloques.length - 1].horaTermino.slice(0, 5)}`;
 
+// Comprueba la identidad de oferta, componente, sala y período antes de agrupar clases.
 function mismaClase(primera: ClaseHorario, siguiente: ClaseHorario) {
   return primera.ofertaId !== undefined && primera.tipoHoraId !== undefined && primera.salaId !== undefined
     && primera.ofertaId === siguiente.ofertaId && primera.tipoHoraId === siguiente.tipoHoraId
     && primera.salaId === siguiente.salaId && primera.planificacionSemestreId === siguiente.planificacionSemestreId;
 }
 
+// Agrupa clases y reservas contiguas sin fusionar sesiones a través de una reserva.
 export function crearCalendarioSesiones(bloques: Bloque[], horarios: ClaseHorario[], planificacionId: number, reservados: number[] = []) {
   const calendario = crearCalendario(bloques, horarios, planificacionId);
   const filas = calendario.filas.map(fila => ({ ...fila, celdas: fila.celdas.map(celda => ({

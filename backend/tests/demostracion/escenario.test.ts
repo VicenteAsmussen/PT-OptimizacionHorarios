@@ -16,7 +16,7 @@ import type { EntradaOptimizacion, SalidaOptimizacion } from "../../src/optimiza
 
 const control = vi.hoisted(() => ({ cliente: undefined as ReturnType<typeof postgres> | undefined,
   entrada: undefined as EntradaOptimizacion | undefined, resolver: undefined as ((salida: SalidaOptimizacion) => void) | undefined }));
-// Solo cambia la conexión del test. Los repositorios y permisos no se sustituyen.
+// Solo cambia la conexión de la prueba, no se sustituyen repositorios ni permisos.
 vi.mock("../../src/config/db.js", async () => {
   const { drizzle } = await import("drizzle-orm/postgres-js");
   const esquema = await import("../../src/db/schema/index.js");
@@ -64,7 +64,7 @@ describe("Demostración ficticia con SQL real y resultados sintéticos, sin Juli
     if (servidor?.listening) await new Promise<void>((resolver, rechazar) => servidor.close(error => error ? rechazar(error) : resolver()));
     await control.cliente?.end({ timeout: 5 });
   });
-  it("aplica las migraciones desde vacío sin seed ni servicios existentes", async () => {
+  it("aplica las migraciones desde vacío sin carga inicial ni servicios existentes", async () => {
     const respuesta = await request(servidor).get("/api/health");
     expect(respuesta.status).toBe(200);
     expect(await control.cliente!`select * from usuarios`).toHaveLength(0);
@@ -94,7 +94,7 @@ describe("Demostración ficticia con SQL real y resultados sintéticos, sin Juli
     const { hashPassword } = await import("../../src/utils/password.js");
     const clave = "Demostracion-ficticia-2099!";
     const hash = await hashPassword(clave);
-    // Catálogos mínimos explícitos. No son una copia de la seed ni de una base existente.
+    // Catálogos mínimos explícitos, no son copia de la carga inicial ni de una base existente.
     await cliente`insert into usuarios(id,nombre,correo,clave,rol) values
       (1,'Administrador ficticio','admin@example.test',${hash},'admin'),
       (2,'Secretaría ficticia','secretaria@example.test',${hash},'secretaria'),
@@ -123,7 +123,7 @@ describe("Demostración ficticia con SQL real y resultados sintéticos, sin Juli
     const agentes = Object.fromEntries(["admin", "secretaria", "ajena", "docente", "docente2"].map(rol => [rol, request.agent(servidor)]));
     for (const [rol, agente] of Object.entries(agentes)) {
       const login = await agente.post("/api/auth/login").send({ correo: `${rol}@example.test`, clave });
-      expect(login.status, `login ${rol}`).toBe(200);
+      expect(login.status, `inicio de sesión ${rol}`).toBe(200);
       expect(login.headers["set-cookie"]).toBeTruthy();
     }
     const { admin, secretaria, ajena, docente, docente2 } = agentes;

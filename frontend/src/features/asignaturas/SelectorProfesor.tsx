@@ -3,6 +3,7 @@ import { buscarProfesores } from './datos';
 import type { ProfesorSeccion } from './types';
 import estilos from './Asignaturas.module.css';
 
+// Permite buscar y elegir un docente para el componente horario de una sección.
 export default function SelectorProfesor({ profesores, profesorId, alSeleccionar, contexto = 'tipo de hora' }: {
   profesores: ProfesorSeccion[]; profesorId: number | null; alSeleccionar: (id: number | null) => void;
   contexto?: string;
@@ -17,6 +18,7 @@ export default function SelectorProfesor({ profesores, profesorId, alSeleccionar
   const mostrar = abierto && profesorId === null && busqueda.trim().length > 0;
   const mostrarResultados = mostrar && resultados.length > 0;
   const indiceActivo = resultados.length ? Math.min(activo, resultados.length - 1) : -1;
+  // Confirma el docente elegido y termina la búsqueda del componente.
   function seleccionar(id: number) {
     alSeleccionar(id);
     setEdicion(null);

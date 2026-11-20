@@ -63,7 +63,7 @@ it("cierra la conexión cuando falla la migración y no registra el error con cr
   expect(dobles.cerrar.mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(process.exit).mock.invocationCallOrder[0]!);
 });
 
-it("no registra errores del driver ni intenta cerrar una conexión que no se creó", async () => {
+it("no registra errores del controlador de base de datos ni intenta cerrar una conexión que no se creó", async () => {
   dobles.conectar.mockImplementation(() => { throw new Error(dobles.url); });
   await ejecutarConDobles(1);
   comprobarFallo();

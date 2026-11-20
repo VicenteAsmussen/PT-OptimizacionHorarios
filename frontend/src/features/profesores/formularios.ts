@@ -2,12 +2,14 @@ import type { CambiosAccesoProfesor } from "./types";
 // @ts-expect-error La extensión permite ejecutar las pruebas nativas de Node; Vite resuelve este módulo sin emitir TypeScript.
 import { validarClaveAcceso, validarCorreoAcceso } from "./limites.ts";
 
+// Prepara las credenciales iniciales respetando los límites del formulario docente.
 export function prepararNuevoAcceso(correo: string, clave: string): { correo: string; clave: string } {
   validarCorreoAcceso(correo);
   validarClaveAcceso(clave);
   return { correo: correo.trim(), clave };
 }
 
+// Envía solo los cambios de acceso y conserva la contraseña cuando queda vacía.
 export function prepararCambiosAcceso(
   correo: string, clave: string, correoAnterior: string,
 ): CambiosAccesoProfesor | null {

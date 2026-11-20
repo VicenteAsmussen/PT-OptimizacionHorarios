@@ -1,11 +1,16 @@
 import type { Bloque, Planificacion, Seleccion } from './types.ts';
 
+// Habilita la declaración personal de bloques únicamente para docentes.
 export const puedeRegistrarDisponibilidad = (rol: string | null | undefined) => rol === 'profesor';
+// Acota la declaración docente a las planificaciones marcadas como actuales.
 export const planificacionesActuales = (planificaciones: Planificacion[]) => planificaciones.filter(p => p.actual);
 
 const dias = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'];
+// Unifica las etiquetas de día utilizadas por las grillas horarias.
 export const claveDia = (dia: string) => dia.trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+// Ordena los bloques por día semanal y número dentro de la jornada.
 export function ordenarBloques(bloques: Bloque[]) {
+  // Coloca los días no reconocidos después de la semana conocida.
   const ordenDia = (dia: string) => {
     const indice = dias.indexOf(claveDia(dia));
     return indice < 0 ? dias.length : indice;
@@ -32,11 +37,13 @@ type Accion = { tipo: 'consultar'; id: number | null }
 export const estadoInicial: EstadoDisponibilidad = {
   id: null, seleccion: null, bloquesIds: [], modo: 'cargando', error: '',
 };
+// Habilita el envío de un borrador editable con mínimo cubierto y sin reservas.
 export const puedeEnviar = (estado: EstadoDisponibilidad) => estado.modo === 'edicion'
   && estado.seleccion?.editable === true && estado.seleccion.minimoBloques > 0
   && estado.bloquesIds.length >= estado.seleccion.minimoBloques
   && !estado.bloquesIds.some(id => estado.seleccion?.bloquesReservadosIds?.includes(id));
 
+// Aplica transiciones del borrador y descarta respuestas de otro período.
 export function reducirDisponibilidad(estado: EstadoDisponibilidad, accion: Accion): EstadoDisponibilidad {
   if (accion.tipo === 'permiso') {
     if (accion.id !== estado.id || !estado.seleccion) return estado;

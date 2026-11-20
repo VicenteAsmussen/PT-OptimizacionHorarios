@@ -2,19 +2,26 @@ import { claveDia, ordenarBloques } from '../disponibilidad/estado';
 import type { Bloque, Movimiento, ResultadoHorario, SesionResultado, ValidacionMovimiento, ValidacionPublicacion } from './types';
 
 export { puedeGestionarResultados } from './permisos';
+// Habilita cambios de resultado únicamente en la propuesta del período actual.
 export const puedeEditarResultado = (resultado: ResultadoHorario) => resultado.planificacion.actual
   && resultado.planificacion.estadoPlanificacion === 'propuesta';
+// Acota el calendario al nivel de malla elegido sin alterar el resultado completo.
 export const sesionesVisibles = (resultado: ResultadoHorario, nivel: string) => resultado.sesiones
   .filter(sesion => !nivel || sesion.asignatura.semestreMalla === Number(nivel));
 export const etiquetasSala = { asignada: 'Sala asignada', pendiente: 'Sala pendiente', noRequiere: 'No requiere sala',
   laboratorio: 'Laboratorio', externa: 'Horario externo' };
+// Reconoce sesiones fijas o con sala para excluirlas de los movimientos pendientes.
 export const esSesionLista = (sesion: SesionResultado) => sesion.estadoSala === 'externa' || sesion.estadoSala === 'laboratorio'
   || sesion.estadoSala === 'asignada' || sesion.salas.some(sala => sala !== null);
+// Habilita mover sesiones editables sin sala de al menos dos bloques.
 export const puedeMoverSesion = (resultado: ResultadoHorario, sesion: SesionResultado) => puedeEditarResultado(resultado)
   && sesion.editable && !esSesionLista(sesion) && sesion.idsHorarios.length >= 2;
+// Identifica académicamente una sesión en controles y anuncios accesibles.
 export const etiquetaSesion = (sesion: SesionResultado) => `${sesion.asignatura.nombre}, sección ${sesion.seccion}, ${sesion.tipoHora.tipo}`;
+// Presenta la franja de un bloque para alinear y describir el calendario.
 export const rangoBloque = (bloque: Bloque) => `${bloque.horaInicio.slice(0, 5)}–${bloque.horaTermino.slice(0, 5)}`;
 
+// Ofrece grupos completos o parciales sin dejar fragmentos menores de dos bloques.
 export function gruposMovibles(sesion: SesionResultado, bloques: Bloque[]) {
   if (!sesion.editable || sesion.idsHorarios.length < 2) return [];
   const cantidad = sesion.idsHorarios.length;
@@ -30,6 +37,7 @@ export function gruposMovibles(sesion: SesionResultado, bloques: Bloque[]) {
   }
   return grupos;
 }
+// Sitúa el destino en el bloque impar inicial de la pareja institucional elegida.
 export function inicioParejaDestino(bloques: Bloque[], bloqueId: number) {
   const elegido = bloques.find(bloque => bloque.id === bloqueId);
   if (!elegido) return undefined;
@@ -37,21 +45,25 @@ export function inicioParejaDestino(bloques: Bloque[], bloqueId: number) {
   return bloques.find(bloque => claveDia(bloque.dia) === claveDia(elegido.dia) && bloque.numeroBloque === numeroInicio);
 }
 
+// Construye un destino contiguo del mismo día con pausas de cero o diez minutos.
 export function bloquesDestino(bloques: Bloque[], inicioId: number, cantidad: number) {
   const inicio = bloques.find(b => b.id === inicioId);
   if (!inicio || cantidad < 2) return [];
   const grupo = ordenarBloques(bloques).filter(b => claveDia(b.dia) === claveDia(inicio.dia)
     && b.numeroBloque >= inicio.numeroBloque && b.numeroBloque < inicio.numeroBloque + cantidad);
+  // Expresa las horas en minutos para comprobar la continuidad del grupo destino.
   const minutos = (hora: string) => Number(hora.slice(0, 2)) * 60 + Number(hora.slice(3, 5));
   return grupo.length === cantidad && grupo.every((b, i) => !i || (b.numeroBloque === grupo[i - 1].numeroBloque + 1
     && [0, 10].includes(minutos(b.horaInicio) - minutos(grupo[i - 1].horaTermino)))) ? grupo : [];
 }
+// Comprueba cobertura docente y ausencia de reservas para todos los bloques destino.
 export function destinoDisponible(resultado: ResultadoHorario, sesion: SesionResultado, inicioId: number, cantidad: number) {
   const grupo = bloquesDestino(resultado.bloques, inicioId, cantidad);
   return grupo.length === cantidad && grupo.every(b => !resultado.bloquesReservadosIds?.includes(b.id)
     && resultado.disponibilidades.some(d => d.profesorId === sesion.profesorId
     && d.planificacionSemestreId === resultado.planificacion.id && d.bloqueId === b.id));
 }
+// Explica si el grupo destino respeta inicio impar, reservas, ocupación y disponibilidad.
 export function estadoDestino(resultado: ResultadoHorario, sesion: SesionResultado, inicioId: number, cantidad: number) {
   const inicio = resultado.bloques.find(b => b.id === inicioId);
   if (inicio && inicio.numeroBloque % 2 === 0) return 'inicioPar';
@@ -62,6 +74,7 @@ export function estadoDestino(resultado: ResultadoHorario, sesion: SesionResulta
   if (estados.includes('ocupado')) return 'ocupado';
   return estados.every(estado => estado === 'disponible') ? 'disponible' : 'sinDisponibilidad';
 }
+// Clasifica un bloque según reservas, cruces de nivel o docente y disponibilidad propia.
 export function estadoCasilla(resultado: ResultadoHorario, sesion: SesionResultado, bloqueId: number) {
   if (resultado.bloquesReservadosIds?.includes(bloqueId)) return 'reservado';
   if (resultado.sesiones.some(otra => otra.bloquesIds.includes(bloqueId)
@@ -69,13 +82,16 @@ export function estadoCasilla(resultado: ResultadoHorario, sesion: SesionResulta
   return resultado.disponibilidades.some(d => d.profesorId === sesion.profesorId
     && d.planificacionSemestreId === resultado.planificacion.id && d.bloqueId === bloqueId) ? 'disponible' : 'sinDisponibilidad';
 }
+// Vincula la validación remota con el período, revisión, grupo y destino exactos.
 export const claveMovimiento = (id: number, datos: Movimiento) => JSON.stringify([id, datos.revision, datos.idsHorarios, datos.bloqueInicioId]);
+// Exige una validación vigente del movimiento que coincide con la selección actual.
 export function puedeConfirmarMovimiento(resultado: ResultadoHorario, sesion: SesionResultado, datos: Movimiento, validacion: ValidacionMovimiento | null) {
   return puedeMoverSesion(resultado, sesion) && datos.revision === resultado.revision
     && gruposMovibles(sesion, resultado.bloques).some(grupo => JSON.stringify(grupo) === JSON.stringify(datos.idsHorarios))
     && estadoDestino(resultado, sesion, datos.bloqueInicioId, datos.idsHorarios.length) === 'disponible'
     && validacion?.clave === claveMovimiento(resultado.planificacion.id, datos) && validacion.valido && validacion.problemas.length === 0;
 }
+// Habilita publicar solo una propuesta actual cuya revisión fue validada sin problemas.
 export const puedePublicar = (resultado: ResultadoHorario, validacion: ValidacionPublicacion | null) => puedeEditarResultado(resultado)
   && validacion?.valido === true && validacion.problemas.length === 0 && validacion.revision === resultado.revision;
 
@@ -83,6 +99,7 @@ interface EstadoResultados { id: number | null; secuencia: number; resultado: Re
 type Accion = { tipo: 'seleccionar'; id: number | null } | { tipo: 'cargado'; secuencia: number; resultado: ResultadoHorario }
   | { tipo: 'fallo'; secuencia: number; mensaje: string };
 export const estadoInicial: EstadoResultados = { id: null, secuencia: 0, resultado: null, error: '' };
+// Aplica respuestas del horario solo a la selección y secuencia vigentes.
 export function reducirResultados(estado: EstadoResultados, accion: Accion): EstadoResultados {
   if (accion.tipo === 'seleccionar') return { ...estadoInicial, id: accion.id, secuencia: estado.secuencia + 1 };
   if (accion.secuencia !== estado.secuencia) return estado;

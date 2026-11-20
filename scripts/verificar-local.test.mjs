@@ -14,7 +14,7 @@ test("separa transporte de funcionalidades y no admite selectores arbitrarios", 
   assert.throws(() => seleccionarComprobacion(undefined), /Comprobación desconocida/);
 });
 
-test("el backend local usa una lista positiva sin integración, seed ni ofertas con base real", () => {
+test("el backend local usa una lista positiva sin integración, carga inicial de datos ni ofertas con base real", () => {
   const archivos = comprobaciones.backend.archivos;
   assert.ok(archivos.length > 0);
   assert.equal(new Set(archivos).size, archivos.length);
@@ -23,6 +23,7 @@ test("el backend local usa una lista positiva sin integración, seed ni ofertas 
 });
 
 test("el entorno hijo no hereda secretos, opciones Node ni habilitación de integración", () => {
+  // Los valores señuelo permiten detectar herencia accidental sin consultar configuración real.
   const entorno = crearEntorno("temporal-externo", {
     PATH: "herramientas", SystemRoot: "sistema", DATABASE_URL: "no-copiar", JWT_SECRET: "no-copiar",
     NODE_OPTIONS: "no-copiar", RUN_ISOLATED_DATABASE_TESTS: "true", CAPTURAS_INTERFAZ: "no-copiar",
@@ -46,6 +47,7 @@ test("preserva los comandos habituales sin convertirlos en una certificación co
 });
 
 test("la interfaz pública lista sin ejecutar y rechaza entradas ajenas con salida no cero", () => {
+  // Solo se invocan el listado y rechazos del CLI, nunca los grupos que ejecutan herramientas.
   const script = fileURLToPath(new URL("./verificar-local.mjs", import.meta.url));
   const listado = spawnSync(process.execPath, [script, "--listar"], { encoding: "utf8" });
   assert.equal(listado.status, 0);

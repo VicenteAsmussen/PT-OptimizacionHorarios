@@ -13,6 +13,7 @@ import { ForbiddenError } from "../utils/errors.js";
 type TransaccionUsuario = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
 export const usuariosRepository = {
+  // Actualiza la cuenta e invalida sesiones al cambiar correo, clave o rol dentro de la transacción recibida.
   async updateEnTransaccion(tx: TransaccionUsuario, id: number, data: Partial<Omit<NuevoUsuario, "id" | "versionSesion">>, soloProfesor = false) {
     const datos = Object.fromEntries(Object.entries(data).filter(([, valor]) => valor !== undefined));
     if (Object.keys(datos).length === 0) return undefined;
@@ -24,6 +25,7 @@ export const usuariosRepository = {
     if (soloProfesor && !actualizado) throw new ForbiddenError("La cuenta vinculada no es una cuenta de profesor gestionable");
     return actualizado;
   },
+  // Carga las cuentas y sus perfiles para la administración, dejando al servicio filtrar campos internos.
   async findAll() {
     return await db.query.usuarios.findMany({
       with: {
@@ -37,6 +39,7 @@ export const usuariosRepository = {
     });
   },
 
+  // Recupera la cuenta vigente y sus perfiles para autenticación y mantenimiento.
   async findById(id: number) {
     return await db.query.usuarios.findFirst({
       where: eq(usuarios.id, id),
@@ -51,6 +54,7 @@ export const usuariosRepository = {
     });
   },
 
+  // Localiza la cuenta de acceso por correo para autenticación y detección de duplicados.
   async findByCorreo(correo: string) {
     return await db.query.usuarios.findFirst({
       where: eq(usuarios.correo, correo),
@@ -65,6 +69,7 @@ export const usuariosRepository = {
     });
   },
 
+  // Comprueba la carrera que se asignará al perfil de secretaría.
   async checkCarreraExists(carreraId: number): Promise<boolean> {
     const [carrera] = await db
       .select({ id: carreras.id })
@@ -74,6 +79,7 @@ export const usuariosRepository = {
     return !!carrera;
   },
 
+  // Inserta la cuenta y, cuando corresponde, su perfil de secretaría en conjunto.
   async create(data: NuevoUsuario, carreraId?: number): Promise<Usuario> {
     return await db.transaction(async (tx) => {
       const [created] = await tx.insert(usuarios).values(data).returning();
@@ -89,6 +95,7 @@ export const usuariosRepository = {
     });
   },
 
+  // Mantiene la cuenta y su perfil de secretaría en una transacción con revocación de sesiones pertinente.
   async update(
     id: number,
     data: Partial<Omit<NuevoUsuario, "id" | "versionSesion">>,
@@ -99,7 +106,7 @@ export const usuariosRepository = {
         await usuariosRepository.updateEnTransaccion(tx, id, data);
       }
 
-      // If user rol is updated or carreraId provided
+      // Ajusta el perfil de secretaría cuando cambia el rol o se indica una carrera.
       if (data.rol && data.rol !== "secretaria") {
         await tx.delete(secretarias).where(eq(secretarias.usuarioId, id));
       } else if (carreraId !== undefined) {
@@ -136,6 +143,7 @@ export const usuariosRepository = {
     });
   },
 
+  // Elimina la cuenta de acceso con las acciones referenciales definidas por el esquema.
   async delete(id: number): Promise<boolean> {
     const [deleted] = await db
       .delete(usuarios)
