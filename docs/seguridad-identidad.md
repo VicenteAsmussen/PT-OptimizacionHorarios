@@ -32,11 +32,15 @@ Administración conserva el mantenimiento institucional y el acceso de profesore
 
 `PORT` debe contener únicamente dígitos decimales y representar un entero entre 1 y 65535. El valor omitido conserva `3000`, un valor vacío, negativo o con sufijo se rechaza.
 
-`JWT_SECRET` no puede estar vacío ni contener solo espacios. En producción debe estar definido y no puede ser el secreto predeterminado de desarrollo, tampoco rodeado de espacios. La validación no demuestra que un secreto elegido tenga entropía suficiente, use un valor aleatorio y manténgalo fuera del repositorio.
+`JWT_SECRET` no puede estar vacío ni contener solo espacios. En producción debe estar definido, ser distinto del secreto predeterminado de desarrollo y contener al menos 32 bytes UTF-8 sin contar espacios exteriores. Se usa el valor original para firmar, no se recorta ni normaliza. Esta longitud mínima para HS256 no demuestra entropía suficiente, use un secreto aleatorio y manténgalo fuera del repositorio.
 
-`JWT_EXPIRES_IN` conserva el formato de duración de `jsonwebtoken`, con valor predeterminado `8h`. Configure `JWT_EXPIRES_IN=8h` también en los entornos que antes indicaban `7d`, un valor explícito prevalece sobre el predeterminado. La duración de la cookie se obtiene del vencimiento del JWT, no de una segunda duración fija. Una configuración mayor amplía también el tiempo de reutilización después de logout.
+`JWT_EXPIRES_IN` conserva el formato de duración de `jsonwebtoken`, con valor predeterminado `8h`. Se rechazan al arrancar duraciones inválidas o que no produzcan al menos un segundo completo. Use unidades explícitas, una cadena numérica sin unidad representa milisegundos. Configure `JWT_EXPIRES_IN=8h` también en los entornos que antes indicaban `7d`, un valor explícito válido prevalece sobre el predeterminado. La duración de la cookie se obtiene del vencimiento del JWT, no de una segunda duración fija. Una configuración mayor amplía también el tiempo de reutilización después de logout.
+
+`CLIENT_URL` debe representar exactamente un origen HTTP o HTTPS, sin barra final, credenciales, ruta, consulta ni fragmento. En producción es obligatorio definirlo, fuera de producción se conserva `http://localhost:5173` cuando se omite. Aceptar un origen HTTP no habilita autenticación productiva sobre HTTP, la cookie sigue siendo `Secure`. `DATABASE_URL` rechaza valores vacíos o compuestos solo por espacios, esta validación no comprueba conexión ni permisos de PostgreSQL.
 
 El migrador registra inicio, éxito o fallo sin imprimir la URL de conexión ni el error original, que podría incluir credenciales. No interprete un mensaje de inicio como una migración exitosa.
+
+El manejador HTTP de errores inesperados registra `Error interno no controlado` con una categoría controlada por el prototipo del error, el método HTTP reconocido y la plantilla de ruta registrada en Express. No copia el nombre ni serializa el error original, su causa, pila, parámetros, URL solicitada, cabeceras o cuerpo. Así conserva contexto mínimo para distinguir fallos sin volcar datos de consultas o planillas. Mantiene la respuesta 500 genérica y los contratos anteriores de errores de dominio y JSON 400/413. Esto no certifica todos los registros de la aplicación. Consulte las [condiciones de configuración de la demostración](configuracion-demostracion.md) antes de publicar.
 
 ## Migración y límites de verificación
 

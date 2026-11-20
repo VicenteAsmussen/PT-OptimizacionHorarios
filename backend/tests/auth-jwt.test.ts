@@ -3,6 +3,7 @@ import express from "express";
 import cookieParser from "cookie-parser";
 import request from "supertest";
 import jwt from "jsonwebtoken";
+import { once } from "node:events";
 
 const estado = vi.hoisted(() => ({ usuario: undefined as any, buscar: vi.fn(), comparar: vi.fn() }));
 const secreto = "clave-sintetica-autenticacion-pruebas";
@@ -106,6 +107,43 @@ describe("JWT y cookies sin sesiones persistidas", () => {
     const segundos = Number(/Max-Age=(\d+)/.exec(acceso.respuesta.headers["set-cookie"][0])![1]);
     expect(segundos).toBeGreaterThanOrEqual(7198);
     expect(segundos).toBeLessThanOrEqual(7200);
+  });
+
+  it("conserva Secure, HttpOnly y SameSite=None en producción, también al borrar la cookie", async () => {
+    env.NODE_ENV = "production";
+    // Las opciones se fijan al cargar el controlador, como en un arranque real.
+    vi.resetModules();
+    const { authRouter: rutasProduccion } = await import("../src/routes/auth.routes.js");
+    const aplicacionProduccion = express();
+    aplicacionProduccion.use(express.json(), cookieParser());
+    aplicacionProduccion.use("/auth", rutasProduccion);
+    aplicacionProduccion.use(errorHandler);
+    const servidor = aplicacionProduccion.listen(0, "127.0.0.1");
+    try {
+      await once(servidor, "listening");
+      const entrada = await request(servidor).post("/auth/login").send(credenciales);
+      expect(entrada.status).toBe(200);
+      expect(entrada.body).toEqual({ status: "success", data: { user: publico } });
+      const cookie = entrada.headers["set-cookie"][0].split(";")[0];
+      const token = decodeURIComponent(cookie.slice("auth_token=".length));
+      const claims = jwt.decode(token) as jwt.JwtPayload;
+      expect(claims.exp! - claims.iat!).toBe(8 * 3600);
+      const salida = await request(servidor).post("/auth/logout").set("Cookie", cookie);
+      expect(salida.status).toBe(200);
+      expect(salida.body).toEqual(cierre);
+      for (const cabecera of [entrada.headers["set-cookie"][0], salida.headers["set-cookie"][0]]) {
+        expect(cabecera).toContain("HttpOnly");
+        expect(cabecera).toContain("Secure");
+        expect(cabecera).toContain("SameSite=None");
+        expect(cabecera).toContain("Path=/");
+      }
+      expect(salida.headers["set-cookie"][0]).toContain("Expires=Thu, 01 Jan 1970");
+      const consulta = await request(servidor).get("/auth/me").auth(token, { type: "bearer" });
+      expect(consulta.status).toBe(200);
+      expect(consulta.body).toEqual({ status: "success", data: publico });
+    } finally {
+      await new Promise<void>((resolver, rechazar) => servidor.close(error => error ? rechazar(error) : resolver()));
+    }
   });
 
   it.each(["rol", "correo", "clave", "baja"])("rechaza tokens tras %s y no los revive al restaurar los datos", async cambio => {

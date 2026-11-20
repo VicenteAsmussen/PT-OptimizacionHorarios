@@ -45,7 +45,16 @@ export function errorHandler(
     return;
   }
 
-  console.error("Unhandled Error:", err);
+  // Clasificar por prototipo, nunca copiar name, message, stack, cause o parámetros.
+  const categoria = err instanceof TypeError ? "tipo"
+    : err instanceof RangeError ? "rango"
+    : err instanceof ReferenceError ? "referencia"
+    : err instanceof SyntaxError ? "sintaxis" : "otro";
+  const metodo = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"].includes(_req.method)
+    ? _req.method : "otro";
+  // Plantilla registrada por Express, no la URL con parámetros o consulta.
+  const ruta = typeof _req.route?.path === "string" ? _req.route.path : "sin ruta";
+  console.error("Error interno no controlado", { categoria, metodo, ruta });
 
   res.status(500).json({
     status: "error",
