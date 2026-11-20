@@ -157,17 +157,42 @@ describe("errores JSON mediante HTTP real, sin recursos externos", () => {
     ["alias textual contradictorio", { type: "entity.too.large", status: 413, statusCode: "413" }],
   ])("mantiene el 500 genérico para %s", async (_caso, propiedades) => {
     fallo = Object.assign(new Error(marcaPrivada), {
-      body: marcaPrivada, errors: [{ detalle: marcaPrivada }], ...propiedades,
+      body: marcaPrivada, errors: [{ detalle: marcaPrivada }],
+      query: "insert into usuarios (clave) values ($1)", params: [marcaPrivada],
+      cause: { password: marcaPrivada, cookie: marcaPrivada, token: marcaPrivada,
+        conexion: marcaPrivada, planilla: [[marcaPrivada]] }, ...propiedades,
     });
     const respuesta = await request(servidor).post("/fallo").send({ dato: "válido" });
 
     expect(respuesta.status).toBe(500);
     expect(respuesta.body).toEqual(respuestaInterna);
     expect(respuesta.text).not.toContain(marcaPrivada);
-    expect(registrarError).toHaveBeenCalledExactlyOnceWith("Unhandled Error:", fallo);
+    expect(registrarError).toHaveBeenCalledExactlyOnceWith("Error interno no controlado", {
+      categoria: "otro", metodo: "POST", ruta: "/fallo",
+    });
+    expect(JSON.stringify(registrarError.mock.calls)).not.toContain(marcaPrivada);
     expect(ejecutarRuta).not.toHaveBeenCalled();
     const estado = await request(servidor).get("/estado");
     expect(estado.status).toBe(200);
     expect(estado.body).toEqual({ entradas: [], contador: 0 });
+  });
+
+  it.each([
+    [TypeError, "tipo"], [RangeError, "rango"], [ReferenceError, "referencia"],
+    [SyntaxError, "sintaxis"], [Error, "otro"],
+  ] as const)("distingue %s sin registrar nombres, mensajes ni datos de la solicitud", async (ClaseError, categoria) => {
+    fallo = Object.assign(new ClaseError(marcaPrivada), {
+      name: marcaPrivada, stack: marcaPrivada, params: [marcaPrivada], cause: { clave: marcaPrivada },
+    });
+    const respuesta = await request(servidor).post(`/fallo?token=${marcaPrivada}`)
+      .set("Cookie", `auth_token=${marcaPrivada}`).set("Authorization", `Bearer ${marcaPrivada}`)
+      .send({ planilla: [[marcaPrivada]] });
+    expect(respuesta.status).toBe(500);
+    expect(respuesta.body).toEqual(respuestaInterna);
+    expect(registrarError).toHaveBeenCalledExactlyOnceWith("Error interno no controlado", {
+      categoria, metodo: "POST", ruta: "/fallo",
+    });
+    expect(JSON.stringify(registrarError.mock.calls)).not.toContain(marcaPrivada);
+    expect((await request(servidor).get("/estado")).body).toEqual({ entradas: [], contador: 0 });
   });
 });
