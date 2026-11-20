@@ -1,6 +1,6 @@
 import ExcelJS from "exceljs";
 import { type AlcanceCarrera } from "../utils/alcance-carrera.js";
-import { analizarHorario, normalizarDia, normalizarCodigoSala, normalizarTextoCelda, agruparBloquesEnSesiones, encabezadosExcelSalas, formatearHorario, maximoSesionesExcelSalas, type BloqueExcelSala } from "../utils/excel/excel-salas.js";
+import { analizarHorario, normalizarDia, normalizarCodigoSala, normalizarTextoCelda, agruparBloquesEnSesiones, encabezadosExcelSalas, formatearHorario, maximoSesionesExcelSalas, diasExcelSalas, type BloqueExcelSala, type SesionExcelSala } from "../utils/excel/excel-salas.js";
 import { horariosRepository } from "../repositories/horarios.repository.js";
 import { miHorarioRepository } from "../repositories/mi-horario.repository.js";
 import { planificacionesSemestresService } from "./planificaciones-semestres.service.js";
@@ -213,16 +213,19 @@ export const horariosService = {
     const entradas = propuesta?.entradas ?? (carreraId === undefined
       ? await horariosRepository.findParaExportarSalas(planificacionSemestreId)
       : await horariosRepository.findParaExportarSalas(planificacionSemestreId, carreraId));
-    const grupos = new Map<string, { entrada: typeof entradas[number]; bloques: BloqueExcelSala[] }>();
+    type GrupoTipo = { entrada: typeof entradas[number]; bloques: BloqueExcelSala[] };
+    const grupos = new Map<string, { entrada: typeof entradas[number]; tipos: Map<string, GrupoTipo> }>();
     for (const entrada of entradas) {
       const tipo = normalizarTipoHora(entrada.tipoHora.tipo);
       if (tipo === "laboratorio" || tipo === "laboratory" || entrada.oferta.asignatura.requiereSala === false) continue;
       const clave = JSON.stringify([
-        entrada.oferta.asignatura.codigo, entrada.oferta.seccion, entrada.asignacion.profesorId, tipo,
+        entrada.oferta.asignatura.codigo, entrada.oferta.seccion, entrada.asignacion.profesorId,
       ]);
-      const grupo = grupos.get(clave);
-      if (grupo) grupo.bloques.push(entrada.bloque);
-      else grupos.set(clave, { entrada, bloques: [entrada.bloque] });
+      const grupo = grupos.get(clave) ?? { entrada, tipos: new Map<string, GrupoTipo>() };
+      const componente = grupo.tipos.get(tipo);
+      if (componente) componente.bloques.push(entrada.bloque);
+      else grupo.tipos.set(tipo, { entrada, bloques: [entrada.bloque] });
+      grupos.set(clave, grupo);
     }
 
     if (grupos.size === 0) {
@@ -239,13 +242,22 @@ export const horariosService = {
       const { oferta, tipoHora, asignacion } = grupo.entrada;
       const asignatura = oferta.asignatura;
       const referencia = `${asignatura.codigo}, sección ${oferta.seccion}, profesor ${asignacion.profesor.nombre}, tipo ${tipoHora.tipo}`;
-      const resultado = agruparBloquesEnSesiones(grupo.bloques);
-      if (!resultado.exito) throw new BadRequestError(`${referencia}: ${resultado.error} Revise los bloques del horario antes de exportar.`);
-      const sesiones = propuesta?.soloPendientes ? resultado.valor.filter(sesion => entradas.some(entrada => {
-        const dia = normalizarDia(entrada.bloque.dia);
-        return entrada.ofertaId === oferta.id && entrada.tipoHoraId === tipoHora.id && entrada.salaId === null
-          && dia.exito && dia.valor === sesion.dia && sesion.numerosBloque.includes(entrada.bloque.numeroBloque);
-      })) : resultado.valor;
+      const sesiones: (SesionExcelSala & { tipoHora: string })[] = [];
+      // Agrupar continuidad por tipo antes de reunir sesiones: teoría y práctica nunca se fusionan.
+      for (const componente of grupo.tipos.values()) {
+        const resultado = agruparBloquesEnSesiones(componente.bloques);
+        if (!resultado.exito) throw new BadRequestError(`${referencia}: ${resultado.error} Revise los bloques del horario antes de exportar.`);
+        for (const sesion of resultado.valor) {
+          if (propuesta?.soloPendientes && !entradas.some(entrada => {
+            const dia = normalizarDia(entrada.bloque.dia);
+            return entrada.ofertaId === componente.entrada.oferta.id && entrada.tipoHoraId === componente.entrada.tipoHora.id && entrada.salaId === null
+              && dia.exito && dia.valor === sesion.dia && sesion.numerosBloque.includes(entrada.bloque.numeroBloque);
+          })) continue;
+          sesiones.push({ ...sesion, tipoHora: componente.entrada.tipoHora.tipo });
+        }
+      }
+      sesiones.sort((primera, segunda) => diasExcelSalas.indexOf(primera.dia) - diasExcelSalas.indexOf(segunda.dia)
+        || primera.horaInicio.localeCompare(segunda.horaInicio) || primera.tipoHora.localeCompare(segunda.tipoHora));
       if (!sesiones.length) continue;
       if (sesiones.length > maximoSesionesExcelSalas) {
         throw new BadRequestError(`${referencia}: tiene ${sesiones.length} sesiones; el máximo es ${maximoSesionesExcelSalas}. Revise la distribución de bloques antes de exportar.`);
@@ -256,7 +268,7 @@ export const horariosService = {
       for (let numeroSesion = 0; numeroSesion < maximoSesionesExcelSalas; numeroSesion++) {
         const sesion = sesiones[numeroSesion];
         // Nunca exportar la sala asignada: este archivo se completa externamente.
-        celdas.push(sesion ? tipoHora.tipo : "", sesion?.dia ?? "", sesion ? formatearHorario(sesion) : "", "");
+        celdas.push(sesion?.tipoHora ?? "", sesion?.dia ?? "", sesion ? formatearHorario(sesion) : "", "");
       }
       hoja.addRow(celdas);
     }

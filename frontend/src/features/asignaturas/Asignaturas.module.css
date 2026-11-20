@@ -35,6 +35,9 @@
   background: var(--color-gris-fondo); color: var(--color-gris-texto);
   font-size: var(--tamano-secundario); font-weight: var(--peso-etiqueta); white-space: nowrap;
 }
+.sinSecciones {
+  background: var(--color-alerta-fondo); color: var(--color-alerta-texto); border-color: var(--color-eliminar-borde);
+}
 .contextoSecciones {
   display: grid; grid-template-columns: minmax(0, 1fr) minmax(16rem, 1fr); align-items: center; gap: 1rem;
   margin-bottom: 1.5rem; padding-block: 1rem; border-block: 1px solid var(--color-borde);

@@ -43,13 +43,36 @@ La aplicación inserta todos los bloques gestionados y cambia a Propuesta en la 
 
 Los estados terminales distinguen `aplicada`, `infactible`, `carga_incompleta`, `limite_tiempo`, `error`, `interrumpida` y `datos_desactualizados`. El estado del solver se conserva en la salida, por eso una ejecución `aplicada` puede tener un solver detenido por límite de tiempo sin optimalidad demostrada. En los demás casos la planificación permanece en Preparación y no se persisten bloques parciales.
 
+### Diagnóstico técnico acotado
+
+El campo opcional `diagnostico.procesoJulia` conserva el origen del término, la fase, tiempos monotónicos en milisegundos y hasta 60 muestras numéricas de progreso. Se registra tanto con una salida válida como ante un corte del proceso. No requiere migraciones ni cambia la respuesta JSON del solver, las entradas, los recursos o los criterios para incorporar horarios.
+
+- **Tiempos:** arranque total y, si se reciben sus hitos, inicio del script Julia, carga de módulos y lectura de entrada, construcción, llamada al solver y extracción. La llamada incluye su posible compilación inicial, no equivale al tiempo interno de HiGHS.
+- **Subfases:** dentro de `llamadaSolver`, `tiemposMs.transferencia` mide la sincronización explícita del cache de JuMP con el optimizador mediante `attach_optimizer`. `tiemposMs.resolucion` mide la llamada posterior a `optimize!`, incluida su compilación, preparación y recuperación interna del wrapper. No es tiempo nativo puro. `extraccion` sigue midiendo la lectura de la solución, serialización y cierre del proceso. Los hitos adicionales no cambian opciones ni reinician el watchdog, cuyo valor predeterminado es de 1830 segundos.
+- **Corte durante el solver:** `subfaseSolver` identifica el último hito recibido, `transferencia` o `resolucion`. El tiempo de la subfase interrumpida es parcial, hasta el corte. Los registros anteriores o sin estos hitos omiten los campos nuevos, no se reconstruyen tiempos históricos. Los hitos fuera de orden o repetidos se ignoran.
+- **Progreso:** el callback público de HiGHS.jl 1.10.0 observa tiempo interno, nodos, objetivo candidato, cota dual y brecha relativa. Espacia las muestras al menos `max(5 segundos, límite configurado / 60)`, actualmente 30 segundos para 1800, y conserva el máximo de 60 muestras. Sin límite configurado usa cinco segundos. No emite texto libre ni datos de docentes. Un candidato interno no acredita un horario completo ni validado. Los valores no finitos se representan como `null`.
+- **Límites:** el progreso no renueva los watchdogs. El solver tiene un límite predeterminado y máximo de 1800 segundos, se mantienen los márgenes y el límite total de 64 KiB del canal de control. Si el callback no puede instalarse se registra `progresoNoDisponible`, sin alterar el cálculo.
+- **Interpretación:** `origenFin: "watchdog"` con resultado nulo significa interrupción del proceso, no una respuesta `TIME_LIMIT` de HiGHS ni una prueba de infactibilidad. La ausencia de muestras tampoco demuestra ausencia de soluciones, el solver puede no invocar el callback durante parte de su trabajo.
+
+El campo opcional `procesoJulia.registroHiGHS` agrega un registro nativo filtrado:
+
+- `configurado` confirma la instalación del registro, no que se hayan emitido mensajes. `limiteSolverSegundos` se consulta directamente al optimizador nativo después de transferir el modelo, no se copia de los parámetros esperados. Es informativo y no cambia el límite de vigilancia.
+- `hitos` conserva una sola aparición de hasta siete códigos: `inicio`, `preprocesamiento`, `fin_preprocesamiento`, `preprocesamiento_desactivado`, `busqueda`, `informe` y `limite_tiempo`. `tiempoDesdeSolverMs` usa el reloj monotónico del backend desde el hito SOLVER. Los códigos dependen de mensajes reconocidos, su ausencia no demuestra que una etapa no se ejecutó. `busqueda` identifica el inicio de la etapa MIP, no acredita soluciones ni nodos explorados.
+- El callback de logging comparte receptor con el progreso y siempre retorna cero. Los mensajes se clasifican en memoria, sin conservar su texto, nombres ni valores. No se escribe un archivo de log. El transporte conserva los límites de 64 KiB de control, 8 MiB de JSON y 60 muestras de progreso, ningún hito renueva los plazos.
+
+En HiGHS 1.7.2, `log_to_console=false` también impide estos callbacks cuando no hay un stream de log. Por eso el registro se instala primero y luego activa `log_to_console` y `output_flag`, el callback sustituye la escritura a consola. Solo cambian opciones de observación, no las del algoritmo. Si falla la activación se restauran silencio, progreso y opciones previas. Si no se puede restablecer un canal seguro, se aborta antes de `optimize!`. El registro está desactivado por defecto en el helper y se habilita explícitamente desde `ejecutar.jl`. Registrar mensajes puede añadir sobrecarga, no acelera la resolución.
+
+El diagnóstico no publica logs crudos, rutas, credenciales ni contenidos de entrada. No agrega una barra de porcentaje ni modifica la interfaz operativa. `pruebas-diagnostico.jl` simula eventos y adjunta un callback a un modelo vacío, sin resolverlo, las pruebas de transporte y persistencia usan procesos y repositorios simulados.
+
+`pruebas-etapas.jl` compara dos modelos sintéticos de cuatro variables binarias, uno con la llamada habitual y otro con transferencia y registro explícitos. Comprueba el mismo óptimo, solución, opciones del algoritmo e hitos, con un límite de solver de tres segundos por modelo. Solo esta prueba desactiva presolve para observar también el progreso MIP, el modelo académico conserva sus opciones. Se ejecuta con `julia --startup-file=no --project=backend/optimizacion/julia backend/optimizacion/julia/pruebas-etapas.jl`, no usa datos académicos ni inicia una planificación real.
+
 Para regenerar una propuesta, secretaría dispone del [descarte controlado desde Resultados](gestion-resultado-horarios.md). Administración conserva además el mantenimiento explícito: reiniciar los horarios gestionados y devolver la planificación a Preparación son operaciones administrativas separadas. Ese reinicio elimina primero los bloques gestionados y luego los registros de ejecución de esa planificación, en una misma transacción. Conserva ofertas, docentes, horarios externos y otras planificaciones. También permite eliminar un intento fallido aunque no haya generado bloques. El reinicio exclusivamente externo no borra la ejecución del modelo y no se permite reiniciar mientras haya un cálculo activo. Ninguna transición administrativa a Propuesta o Publicado puede eludir los validadores de carga y publicación.
 
 ## Integración interna
 
 1. Construir `DatosOptimizacion` desde las ofertas gestionadas y externos del período. El servicio que llama al módulo controla carrera, período, estado y concurrencia.
 2. Obtener sugerencias con `prepararCategoriasSalas(salas)`. Confirmar cantidades por ejecución y declarar los laboratorios con capacidad, cantidad total y fuente. Las sugerencias no son disponibilidad garantizada.
-3. Llamar a `construirEntradaOptimizacion(datos, { limiteSolverSegundos: 300 })` y conservar la entrada efectiva, su revisión y versión.
+3. Llamar a `construirEntradaOptimizacion(datos)` para usar el límite predeterminado de 1800 segundos y conservar la entrada efectiva, su revisión y versión. Se admite un límite explícito positivo de hasta 1800 segundos.
 4. Ejecutar `await ejecutarJulia(entrada)`. Después, comprobar `validarSalidaOptimizacion(entrada, salida)`, tanto `valida` como `completa` deben ser verdaderas para considerar una incorporación.
 5. Antes de incorporar, el servicio debe volver a comprobar revisión, identidad y condiciones administrativas dentro de su transacción. Este módulo no persiste ni publica resultados.
 
@@ -148,7 +171,7 @@ El backend usa `spawn("julia", ["--startup-file=no", "--project=<ruta fija>", "<
 
 | Reloj o canal | Regla |
 |---|---|
-| Solver | `limiteSolverSegundos`, valor predeterminado y máximo 300, configurado en HiGHS |
+| Solver | `limiteSolverSegundos`, valor predeterminado y máximo 1800, configurado en HiGHS |
 | Arranque/construcción | Watchdog separado, predeterminado 120 000 ms |
 | Solver, watchdog externo | Límite del solver + margen predeterminado 30 000 ms |
 | Extracción | Watchdog separado, predeterminado 60 000 ms |
@@ -156,6 +179,30 @@ El backend usa `spawn("julia", ["--startup-file=no", "--project=<ruta fija>", "<
 | `stderr` | Control de fase por líneas, máximo 64 KiB, sin reenviar trazas al cliente |
 
 `OpcionesProcesoJulia` permite al servidor ajustar `arranqueMs`, `extraccionMs`, `margenSolverMs`, `maxEntradaBytes` y `maxSalidaBytes`. No son opciones de producto para el cliente. Julia mantiene además un máximo de 8 MiB en ambos JSON. Los mensajes repetidos no reinician relojes. Los watchdogs, errores de streams, exceso de salida y apagado fuerzan cierre del hijo, sin reintentos. Los fallos de transporte rechazan la promesa con un error seguro, distinto de una salida válida sin solución.
+
+### Dónde ajustar el tiempo
+
+El límite predeterminado y máximo es **1800 segundos, treinta minutos**. Es un presupuesto máximo, no una espera mínima: HiGHS puede terminar antes cuando alcanza un criterio de término, por ejemplo, la optimalidad. Encontrar la primera solución factible no obliga a detener la búsqueda. No se cambia ese comportamiento ni se reescriben intentos anteriores.
+
+Secretaría puede dejar el cálculo ejecutándose en el backend, cerrar o recargar el navegador no lo cancela. Debe evitarse reiniciar el servidor mientras haya una ejecución activa.
+
+Para cambiar el presupuesto, actualizar las guardas y las pruebas en conjunto:
+
+| Ubicación | Responsabilidad |
+|---|---|
+| `backend/src/optimizacion/contrato.ts`, `LIMITE_SOLVER_SEGUNDOS` | Fuente compartida TypeScript del máximo y valor predeterminado de `esquemaParametros` |
+| `backend/src/services/optimizacion.service.ts` | Consume la constante al adaptar la entrada y presentar la preparación |
+| `backend/src/repositories/optimizacion.repository.ts` | Consume la constante al registrar los parámetros del nuevo intento, no reescribe intentos anteriores |
+| `backend/src/optimizacion/proceso.ts` | Valida el máximo antes de `spawn`, calcula el watchdog del solver con el parámetro efectivo más 30 000 ms |
+| `backend/optimizacion/julia/ejecutar.jl` | Guarda independiente `0 < limiteSolverSegundos <= 1800`, debe mantenerse coordinada con TypeScript |
+| `backend/optimizacion/julia/modelo.jl` | Recibe `entrada.parametros.limiteSolverSegundos` y lo aplica mediante `set_time_limit_sec`, sin cambiar la formulación |
+| `backend/optimizacion/julia/diagnostico.jl` | Lee `JuMP.time_limit_sec(modelo)` para calibrar la cadencia, actualmente 30 segundos y hasta 60 muestras, sin ampliar `stderr` ni decidir sobre el solver |
+
+El runner conserva 120 segundos para arranque/construcción, 1800 + 30 para la llamada al solver y 60 para extracción. La suma de ventanas del proceso es **hasta 33 minutos 30 segundos**, no un plazo HTTP ni de transacciones DB. Ningún evento de progreso extiende estas ventanas. La revisión de entrada incluye el parámetro efectivo, la versión del modelo no cambia por este ajuste.
+
+En desarrollo local con Docker, comprobar la recarga efectiva del backend y que la preparación informa el nuevo límite. No basta con actualizar los archivos del montaje. Cualquier reinicio debe hacerse sin un cálculo activo.
+
+Los valores `300`, `600` y `900` que permanecen en fixtures y pruebas comprueban compatibilidad con límites explícitos anteriores, no representan el valor predeterminado operativo. Con esos límites la cadencia sigue siendo de cinco, diez y quince segundos, respectivamente. Los intentos ya registrados conservan sus parámetros y no se reescriben. Las pruebas de `backend/tests/optimizacion/` y `pruebas-diagnostico.jl` cubren las guardas, relojes, metadata y cadencia sin ejecutar una optimización real. Para observar una futura ejecución de 1800 segundos se debe preparar una ventana de monitorización que cubra las ventanas del proceso, por ejemplo, 35 minutos desde el inicio, no reutilizar el monitor de 20 minutos del ensayo de 900.
 
 ## Verificación y límites de la evidencia
 
@@ -175,4 +222,21 @@ julia --startup-file=no --project=optimizacion/julia optimizacion/julia/pruebas.
 
 Las pruebas PostgreSQL de `tests/integracion/optimizacion.postgres.test.ts` son opt-in. Antes de escribir verifican explícitamente la base `horarios_test`, el usuario restringido y un bloqueo exclusivo de pruebas. Cubren idempotencia, exclusión de ediciones, vigencia, interrupciones, aplicación atómica y preservación de externos/publicados. No deben habilitarse contra desarrollo.
 
-La prueba sintética del núcleo no sustituye la validación operativa de recursos ni demuestra los tiempos reales de una planificación. Quedan por medir el arranque/extracción en el despliegue definitivo y el comportamiento con entradas operativas autorizadas. No se ejecutó el optimizador contra datos de desarrollo.
+### Ensayo local del flujo completo
+
+En el ensayo local controlado del 20 de noviembre de 2026 se ejecutó Julia desde la aplicación, sin cambiar la formulación. El caso declaró 31 salas y 6 laboratorios de capacidad 60, estos valores son supuestos del ensayo, no una garantía de disponibilidad física.
+
+| Comprobación | Resultado observado |
+|---|---|
+| Resolución con presupuesto de 900 segundos | Óptimo, objetivo 0, solución completa y sin errores de validación |
+| Incorporación | 167 bloques internos, preservando los 148 bloques externos |
+| Duración del proceso | Aproximadamente 13 minutos 18 segundos, con transferencia de 1,70 segundos y extracción de 2,91 segundos |
+| Hitos internos | Aproximadamente 11 minutos 19 segundos entre preprocesamiento e inicio MIP, luego 88 segundos hasta el informe, no son medidas de tiempo nativo puro |
+| Respuesta Excel con una sala inexistente | Rechazada desde el frontend |
+| Respuesta Excel válida | 65 sesiones y 149 bloques con sala, sin pendientes de sala requeridos |
+| Publicación | Estado `publicado` confirmado en la planificación |
+| Preservación | Disponibilidades, horarios externos, otras entradas y migraciones conservaron sus huellas durante la generación y las comprobaciones |
+
+Los intentos previos con menor presupuesto no devolvieron una solución completa, algunos terminaron por vigilancia externa y otro devolvió un límite de tiempo nativo. No son pruebas de infactibilidad. El presupuesto actual de 1800 segundos se verificó mediante pruebas de contrato, ventanas y cadencia, no mediante otro cálculo completo de treinta minutos. El intento exitoso conserva sus parámetros originales de 900 segundos.
+
+Esta evidencia no sustituye las pruebas de permisos, concurrencia, consulta docente o despliegue. Quedan por medir el arranque y la extracción en el entorno definitivo y el comportamiento con otras entradas operativas autorizadas. No hay reintentos automáticos ni se publica un resultado incompleto.

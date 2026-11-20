@@ -113,7 +113,7 @@ test('el botón Ver muestra solo el icono y conserva su nombre accesible', async
   assert.match(regla, /gap:\s*0\.5rem/);
 });
 
-test('semestre se muestra como texto y cero secciones es un estado neutro, no un error', async () => {
+test('semestre conserva su texto y Sin secciones destaca en rojo sin cambiar otras insignias', async () => {
   for (const cantidad of [0, 2]) {
     const html = await renderizarFragmento(/<table className=\{estilos.tabla\}>[^]*?<\/table>/, {
       estilos: { insignia: 'insignia-prueba', sinSecciones: 'sin-secciones-prueba' },
@@ -134,7 +134,11 @@ test('semestre se muestra como texto y cero secciones es un estado neutro, no un
     profesores.match(/\.insignia, \.tipoProfesor\s*\{([^}]+)\}/)?.[1].replace(/\s+/g, ' ').trim());
   assert.doesNotMatch(css, /\.tabla td:nth-child\(4\) \.insignia/);
   const sinSecciones = css.match(/\.sinSecciones\s*\{([^}]+)\}/g)?.at(-1) ?? '';
-  assert.doesNotMatch(sinSecciones, /--color-alerta|--color-eliminar/);
+  assert.match(sinSecciones, /background:\s*var\(--color-alerta-fondo\)/);
+  assert.match(sinSecciones, /color:\s*var\(--color-alerta-texto\)/);
+  assert.match(sinSecciones, /border-color:\s*var\(--color-eliminar-borde\)/);
+  const insignia = css.match(/(?:^|\n)\.insignia\s*\{([^}]+)\}/)?.[1] ?? '';
+  assert.doesNotMatch(insignia, /--color-alerta|--color-eliminar/);
 });
 
 test('los filtros del catálogo tienen tres columnas y separan el contexto del período', async () => {

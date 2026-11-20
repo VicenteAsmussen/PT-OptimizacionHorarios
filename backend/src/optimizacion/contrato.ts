@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 export const VERSION_MODELO = "notebook-v2-1";
+export const LIMITE_SOLVER_SEGUNDOS = 1800;
 export const DIAS_MODELO = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"] as const;
 const id = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
 const entero = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
@@ -17,7 +18,7 @@ const recurso = z.object({ id: texto, edificio: texto, tipo: z.enum(["Sala", "La
 export const esquemaDatos = z.object({ ofertas: z.array(oferta), bloques: z.array(bloque),
   disponibilidades: z.array(z.object({ profesorId: id, bloqueId: id })),
   externos: z.array(externo), recursos: z.array(recurso), reservas: z.array(id) });
-export const esquemaParametros = z.object({ limiteSolverSegundos: z.number().positive().max(300).default(300) }).strict();
+export const esquemaParametros = z.object({ limiteSolverSegundos: z.number().positive().max(LIMITE_SOLVER_SEGUNDOS).default(LIMITE_SOLVER_SEGUNDOS) }).strict();
 const faltante = z.object({ ofertaId: id, tipoHoraId: id, horas: entero }).strict();
 export const esquemaSalida = z.object({
   version: z.literal(1), revision: z.string().regex(/^[a-f0-9]{64}$/),

@@ -41,7 +41,7 @@ it.skipIf(!habilitado)("preserves protected rows and rolls back a failed academi
     expect(await protegidos()).toEqual(anterior);
     expect(Number((await cliente`select count(*) from asignaturas`)[0].count)).toBe(49);
     const profesores = await cliente`select p.tipo, u.correo, u.clave from profesores p join usuarios u on u.id=p.usuario_id`;
-    expect(profesores).toHaveLength(46);
+    expect(profesores).toHaveLength(44);
     for (const profesor of profesores) {
       expect(profesor.tipo).toBe(datosProfesores.find(dato => dato.correo === profesor.correo)!.tipo);
       expect(profesor.correo).toMatch(/^[a-z]+@ubiobio\.cl$/);

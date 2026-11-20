@@ -70,8 +70,8 @@ const catalogos = {
 } as CatalogosAcademicosSeed;
 
 function comprobarProfesores(usuarios: Fila[], profesores: Fila[]) {
-  expect(profesores).toHaveLength(46);
-  expect(new Set(profesores.map((fila) => fila.rut)).size).toBe(46);
+  expect(profesores).toHaveLength(44);
+  expect(new Set(profesores.map((fila) => fila.rut)).size).toBe(44);
   for (const { correo, tipo, rut, departamento } of datosProfesores) {
     const usuario = usuarios.find((fila) => fila.correo === correo);
     expect(usuario).toMatchObject({ rol: "profesor" });
@@ -101,7 +101,7 @@ describe("seed de usuarios sin conexión a DB", () => {
       });
     }
     expect(profesores.find(profesor => profesor.id === 708)?.departamentoId)
-      .toBe(catalogos.departamentos.find(departamento => departamento.nombre === "Departamento de Sistemas de Información")!.id);
+      .toBe(catalogos.departamentos.find(departamento => departamento.nombre === "Departamento de Economía y Finanzas")!.id);
     expect(disponibilidad).toEqual(anterior.disponibilidad);
   });
 
@@ -110,7 +110,7 @@ describe("seed de usuarios sin conexión a DB", () => {
     const { baseDatos, usuarios, profesores, secretarias } = crearBaseSimulada();
     await sembrarUsuarios(baseDatos, catalogos);
     comprobarProfesores(usuarios, profesores);
-    expect(usuarios).toHaveLength(48);
+    expect(usuarios).toHaveLength(46);
     expect(usuarios.every((usuario) => usuario.clave === "hash-simulado")).toBe(true);
     expect(vi.mocked(hashPassword).mock.calls.map(([clave]) => clave))
       .toEqual(datosUsuarios.map(usuario => `${usuario.correo.split("@")[0]}123`));

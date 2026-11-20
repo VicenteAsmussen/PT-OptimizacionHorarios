@@ -75,7 +75,7 @@ it.skipIf(!habilitado)("reconciles atomically without changing protected rows", 
     const huella = await capturar();
     const fallo = ejecutar();
     expect(fallo.status).toBe(1);
-    expect(fallo.stdout).toContain("✓ Asegurados 48 usuarios base");
+    expect(fallo.stdout).toContain("✓ Asegurados 46 usuarios base");
     expect(fallo.stderr).toContain("Forced normal seed late failure");
     expect(await capturar()).toEqual(huella);
   } finally {

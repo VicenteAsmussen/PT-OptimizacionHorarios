@@ -5,15 +5,18 @@ import { randomUUID } from "node:crypto";
 import { optimizacionRouter } from "../../src/routes/optimizacion.routes.js";
 import { errorHandler } from "../../src/middlewares/error.middleware.js";
 import type { CapturaOptimizacion } from "../../src/repositories/optimizacion.repository.js";
-import type { EntradaOptimizacion, SalidaOptimizacion } from "../../src/optimizacion/index.js";
+import type { EntradaOptimizacion, SalidaOptimizacion, DiagnosticoProcesoJulia, OpcionesProcesoJulia } from "../../src/optimizacion/index.js";
 
 const controles = vi.hoisted(() => ({ rol: "secretaria", repositorio: {} as Record<string, ReturnType<typeof vi.fn>>,
-  entradas: [] as EntradaOptimizacion[], resolver: undefined as undefined | ((salida: SalidaOptimizacion) => void) }));
+  entradas: [] as EntradaOptimizacion[], resolver: undefined as undefined | ((salida: SalidaOptimizacion) => void),
+  rechazar: undefined as undefined | ((error: Error) => void),
+  diagnosticar: undefined as OpcionesProcesoJulia["alDiagnostico"] }));
 vi.mock("../../src/repositories/optimizacion.repository.js", () => ({ optimizacionRepository: controles.repositorio }));
 vi.mock("../../src/utils/alcance-carrera.js", () => ({ resolverAlcanceCarrera: async () => ({ carreraId: 1 }) }));
-vi.mock("../../src/optimizacion/proceso.js", () => ({ ejecutarJulia: vi.fn((entrada: EntradaOptimizacion) => {
+vi.mock("../../src/optimizacion/proceso.js", () => ({ ejecutarJulia: vi.fn((entrada: EntradaOptimizacion, opciones?: OpcionesProcesoJulia) => {
   controles.entradas.push(entrada);
-  return new Promise<SalidaOptimizacion>(resolver => { controles.resolver = resolver; });
+  controles.diagnosticar = opciones?.alDiagnostico;
+  return new Promise<SalidaOptimizacion>((resolver, rechazar) => { controles.resolver = resolver; controles.rechazar = rechazar; });
 }), cerrarProcesosJulia: vi.fn() }));
 vi.mock("../../src/middlewares/auth.middleware.js", () => ({ authenticate(req: Request, _res: Response, next: NextFunction) {
   req.user = { id: 1, rol: controles.rol } as Request["user"]; next();
@@ -27,6 +30,7 @@ let ejecucion: Record<string, unknown> | undefined;
 const parametros = { claveIdempotencia: "solicitud-http-1", recursos: [{ id: "AA-Sala-90", edificio: "AA", tipo: "Sala", capacidad: 90, cantidad: 1, fuente: "Inventario sintético" }] };
 beforeEach(() => {
   controles.rol = "secretaria"; controles.entradas.length = 0; controles.resolver = undefined; ejecucion = undefined;
+  controles.rechazar = undefined; controles.diagnosticar = undefined;
   captura = { planificacion: { id: 1, carreraId: 1, codigo: "2099-2", actual: true, estadoPlanificacion: "preparacion" },
     revision: "revision-db", horariosGestionados: 0, gestionados: [1], relaciones: [], disponibilidades: [{ profesorId: 1, bloqueId: 1 }, { profesorId: 1, bloqueId: 2 }],
     horarios: [], bloques, catalogoSalas: [{ id: 1, nombre: "A101AA", capacidad: 90, tipo: "Sala" }], reservas: [],
@@ -41,8 +45,9 @@ beforeEach(() => {
       iniciadaEn: new Date(), resultado: null, diagnostico: null };
     return { ejecucion, nueva: true };
   });
-  controles.repositorio.aplicar = vi.fn(async (_id, _propietario, salida, validar) => {
-    validar(captura, ejecucion!.entrada); ejecucion!.estado = "aplicada"; ejecucion!.resultado = salida; return true;
+  controles.repositorio.aplicar = vi.fn(async (_id, _propietario, salida, validar, diagnostico) => {
+    validar(captura, ejecucion!.entrada); ejecucion!.estado = "aplicada"; ejecucion!.resultado = salida;
+    ejecucion!.diagnostico = diagnostico; return true;
   });
   controles.repositorio.terminar = vi.fn(async (_id, _propietario, estado, resultado, diagnostico) => { Object.assign(ejecucion!, { estado, resultado, diagnostico }); });
   controles.repositorio.consultar = vi.fn(async () => ejecucion);
@@ -61,11 +66,14 @@ describe("contrato HTTP y seguimiento del modelo", () => {
     expect(respuesta.status).toBe(200);
     expect(respuesta.body.data.categoriasSalas[0].cantidadSugerida).toBe(1);
     expect(respuesta.body.data.laboratorios.categoriasSugeridas).toEqual([]);
+    expect(respuesta.body.data.limiteSolverSegundos).toBe(1800);
     expect(controles.entradas).toEqual([]);
   });
   it("responde 202 y permite recuperar por ID y última aunque termine la solicitud", async () => {
     const iniciada = await request(app).post("/modelo/planificaciones/1/ejecuciones").send(parametros);
     expect(iniciada.status).toBe(202);
+    expect(controles.entradas[0]!.parametros.limiteSolverSegundos).toBe(1800);
+    expect(controles.entradas[0]!.versionModelo).toBe("notebook-v2-1");
     const id = iniciada.body.data.id;
     expect((await request(app).get(`/modelo/ejecuciones/${id}`)).body.data.estado).toBe("en_ejecucion");
     const repetida = await request(app).post("/modelo/planificaciones/1/ejecuciones").send(parametros);
@@ -100,5 +108,22 @@ describe("contrato HTTP y seguimiento del modelo", () => {
     controles.rol = "profesor";
     expect((await request(app).get("/modelo/planificaciones/1/preparacion")).status).toBe(403);
     expect(controles.repositorio.iniciar).not.toHaveBeenCalled();
+  });
+
+  it.each([false, true])("conserva métricas sanitizadas al terminar, watchdog=%s, sin admitir candidatas", async watchdog => {
+    await request(app).post("/modelo/planificaciones/1/ejecuciones").send(parametros);
+    const procesoJulia = { origenFin: watchdog ? "watchdog" : "salida", fase: "solver",
+      tiemposMs: { total: 25, arranque: 5, llamadaSolver: 20 },
+      muestrasProgreso: [{ tiempoSolverSegundos: 0.01, nodos: 1, objetivoCandidato: 2000, cotaDual: 0, brechaRelativa: 1 }] } as DiagnosticoProcesoJulia;
+    controles.diagnosticar?.(procesoJulia);
+    if (watchdog) controles.rechazar!(new Error("Julia excedió el tiempo de solver."));
+    else controles.resolver!(salida());
+    await vi.waitFor(() => expect(watchdog ? controles.repositorio.terminar : controles.repositorio.aplicar).toHaveBeenCalledOnce());
+    expect(ejecucion!.diagnostico).toMatchObject({ procesoJulia });
+    expect(ejecucion!.estado).toBe(watchdog ? "limite_tiempo" : "aplicada");
+    if (watchdog) {
+      expect(ejecucion!.resultado).toBeNull();
+      expect(controles.repositorio.aplicar).not.toHaveBeenCalled();
+    }
   });
 });

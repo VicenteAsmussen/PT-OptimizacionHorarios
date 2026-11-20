@@ -44,6 +44,31 @@ beforeEach(() => {
   vi.mocked(horariosRepository.findParaImportarSalas).mockResolvedValue({ entradas: [entrada()], salas: [{ id: 4, nombre: "101-AA", tipo: "Sala" }] } as never);
 });
 describe("Importación Excel todo-o-nada", () => {
+  it("reimporta una fila exportada con teoría y práctica del mismo docente sin mezclar bloques", async () => {
+    const teorica = entrada(), practica = entrada(2);
+    practica.ofertaId = teorica.ofertaId;
+    practica.tipoHoraId = 2; practica.tipoHora.tipo = "Práctica";
+    practica.bloqueId = 11;
+    practica.bloque = { dia: "Lunes", numeroBloque: 2, horaInicio: "08:50", horaTermino: "09:30" };
+    const entradas = [practica, teorica], antes = structuredClone(entradas);
+    vi.mocked(horariosRepository.findParaExportarSalas).mockResolvedValue(entradas as never);
+    vi.mocked(horariosRepository.findParaImportarSalas).mockResolvedValue({ entradas,
+      salas: [{ id: 4, nombre: "101-AA", tipo: "Sala" }] } as never);
+    const exportada = await servicioHorarios.exportarExcelSalas(9, { id: 1, rol: "secretaria" });
+    const libro = new ExcelJS.Workbook(); await libro.xlsx.load(exportada.buffer);
+    const hoja = libro.worksheets[0]!;
+    expect(hoja.rowCount).toBe(2);
+    expect(hoja.getRow(2).getCell(6).value).toBe("Teórica");
+    expect(hoja.getRow(2).getCell(10).value).toBe("Práctica");
+    hoja.getRow(2).getCell(9).value = "101-AA";
+    hoja.getRow(2).getCell(13).value = "101-AA";
+    const respuesta = await horariosService.importarExcelSalas(9, Buffer.from(await libro.xlsx.writeBuffer()));
+    expect(respuesta).toEqual({ actualizadas: 2, pendientes: 0, errores: [] });
+    expect(horariosRepository.actualizarSalasEnTransaccion).toHaveBeenCalledExactlyOnceWith(9,
+      [{ id: teorica.id, salaId: 4 }, { id: practica.id, salaId: 4 }], 3);
+    expect(entradas).toEqual(antes);
+  });
+
   it.each(["vacío", "solo laboratorios"])("preserva el rechazo previo al exportar un horario %s", async escenario => {
     const laboratorio = entrada(); laboratorio.tipoHora.tipo = "Laboratorio";
     const entradas = escenario === "vacío" ? [] : [laboratorio];

@@ -112,13 +112,60 @@ describe("Exportación Excel de asignación de salas", () => {
     expect(hoja.getRow(2).getCell(11).value).toBe("Martes");
   });
 
-  it("separa profesores, secciones y tipos de hora", async () => {
+  it("separa profesores y secciones, pero reúne tipos del mismo docente", async () => {
     const otraSeccion = entrada(); otraSeccion.oferta.seccion = 3;
     const otroProfesor = entrada(); otroProfesor.asignacion.profesorId = 8;
     vi.mocked(horariosRepository.findParaExportarSalas).mockResolvedValue([
       entrada(), otraSeccion, otroProfesor, entrada("Martes", 1, "08:10", "08:50", "Práctica"),
     ]);
-    expect((await leerLibro()).worksheets[0]!.rowCount).toBe(5);
+    const hoja = (await leerLibro()).worksheets[0]!;
+    expect(hoja.rowCount).toBe(4);
+    expect(hoja.getRow(2).getCell(6).value).toBe("Teórica");
+    expect(hoja.getRow(2).getCell(10).value).toBe("Práctica");
+  });
+
+  it("no fusiona teoría y práctica contiguas y mantiene un orden estable de sesiones", async () => {
+    const entradas = [entrada("Lunes", 2, "08:50", "09:30", "Práctica"), entrada()];
+    const antes = structuredClone(entradas);
+    vi.mocked(horariosRepository.findParaExportarSalas).mockResolvedValue(entradas);
+    const hoja = (await leerLibro()).worksheets[0]!;
+    expect(hoja.rowCount).toBe(2);
+    expect(hoja.getRow(2).values.slice(6, 14)).toEqual([
+      "Teórica", "Lunes", "08:10-08:50", "", "Práctica", "Lunes", "08:50-09:30", "",
+    ]);
+    vi.mocked(horariosRepository.findParaExportarSalas).mockResolvedValue([...entradas].reverse());
+    expect((await leerLibro()).worksheets[0]!.getRow(2).values).toEqual(hoja.getRow(2).values);
+    expect(entradas).toEqual(antes);
+  });
+
+  it("aplica el máximo de cinco a la fila completa con tipos mezclados, sin truncar", async () => {
+    vi.mocked(horariosRepository.findParaExportarSalas).mockResolvedValue([
+      ...["Lunes", "Martes", "Miércoles"].map(dia => entrada(dia)),
+      ...["Lunes", "Martes", "Miércoles"].map(dia => entrada(dia, 3, "09:40", "10:20", "Práctica")),
+    ]);
+    await expect(horariosService.exportarExcelSalas(9)).rejects.toThrow(/6 sesiones.*máximo.*5/);
+  });
+
+  it("solo pendientes conserva la sesión completa del tipo correcto dentro de la fila mixta", async () => {
+    const teorica: EntradaExportacion = Object.assign(entrada(), { ofertaId: 1, tipoHoraId: 1, salaId: null });
+    teorica.oferta.id = 1; teorica.tipoHora.id = 1;
+    const segundoBloque = structuredClone(teorica);
+    segundoBloque.salaId = 4;
+    segundoBloque.bloque = { dia: "Lunes", numeroBloque: 2, horaInicio: "08:50", horaTermino: "09:30" };
+    const practica = Object.assign(entrada("Martes", 1, "08:10", "08:50", "Práctica"),
+      { ofertaId: 1, tipoHoraId: 2, salaId: 4 });
+    practica.oferta.id = 1; practica.tipoHora.id = 2;
+    const entradas = [practica, segundoBloque, teorica], antes = structuredClone(entradas);
+    const planificacion = { id: 9, carreraId: 3, codigo: "2026-1" } as never;
+    const resultado = await servicioHorarios.exportarExcelSalas(9, { id: 1, rol: "secretaria" },
+      { carreraId: 3, planificacion, entradas, soloPendientes: true });
+    const libro = new ExcelJS.Workbook(); await libro.xlsx.load(resultado.buffer);
+    const hoja = libro.worksheets[0]!;
+    expect(hoja.rowCount).toBe(2);
+    expect(hoja.getRow(2).values.slice(6, 10)).toEqual(["Teórica", "Lunes", "08:10-09:30", ""]);
+    expect(hoja.getRow(2).getCell(10).value ?? "").toBe("");
+    expect(entradas).toEqual(antes);
+    expect(horariosRepository.findParaExportarSalas).not.toHaveBeenCalled();
   });
 
   it("rechaza más de cinco sesiones sin truncar, con mensaje accionable", async () => {
