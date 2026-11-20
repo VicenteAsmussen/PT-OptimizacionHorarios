@@ -635,9 +635,9 @@ test('API uses only self-service endpoints and the frozen request contract, pres
     await disponibilidadApi.consultar(7);
     assert.deepEqual(await disponibilidadApi.enviar(7, [20, 10]), seleccion);
     assert.deepEqual(llamadas.map(c => c.url), [
-      'http://localhost:3000/api/disponibilidad-profesores/mi-disponibilidad',
-      'http://localhost:3000/api/disponibilidad-profesores/mi-disponibilidad?planificacionSemestreId=7',
-      'http://localhost:3000/api/disponibilidad-profesores/mi-disponibilidad',
+      '/api/disponibilidad-profesores/mi-disponibilidad',
+      '/api/disponibilidad-profesores/mi-disponibilidad?planificacionSemestreId=7',
+      '/api/disponibilidad-profesores/mi-disponibilidad',
     ]);
     assert.deepEqual(JSON.parse(llamadas[2].opciones.body), { planificacionSemestreId: 7, bloquesIds: [20, 10] });
     assert.ok(llamadas.every(c => c.opciones.credentials === 'include'));

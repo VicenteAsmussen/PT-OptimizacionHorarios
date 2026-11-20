@@ -128,8 +128,8 @@ test('API transporta contrato real, cookies, errores 400/403/409 y no agrega apl
     await api.preparar(2); assert.equal(await api.ultima(2), null); await api.consultar('e1');
     const solicitud = { claveIdempotencia: 'solicitud-prueba', recursos: [recurso] };
     await api.iniciar(2, solicitud);
-    assert.deepEqual(llamadas.map(([u]) => u.replace('http://localhost:3000/api/', '')), [
-      'optimizacion/planificaciones/2/preparacion', 'optimizacion/planificaciones/2/ultima-ejecucion', 'optimizacion/ejecuciones/e1', 'optimizacion/planificaciones/2/ejecuciones',
+    assert.deepEqual(llamadas.map(([u]) => u), [
+      '/api/optimizacion/planificaciones/2/preparacion', '/api/optimizacion/planificaciones/2/ultima-ejecucion', '/api/optimizacion/ejecuciones/e1', '/api/optimizacion/planificaciones/2/ejecuciones',
     ]);
     assert.deepEqual(JSON.parse(llamadas.at(-1)[1].body), solicitud);
     for (const status of [400, 403, 409, 500]) {

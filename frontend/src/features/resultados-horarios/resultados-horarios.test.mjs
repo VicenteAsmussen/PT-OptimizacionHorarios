@@ -794,7 +794,7 @@ test('public API uses only proposal-result endpoints and preserves revision-boun
     await api.consultar(2); await api.validarMovimiento(2, movimiento); await api.mover(2, movimiento);
     await api.importar(2, resultado.revision, new File(['xlsx'], 'respuesta.xlsx'));
     await api.validarPublicacion(2); await api.publicar(2, resultado.revision);
-    assert.deepEqual(solicitudes.map(s => new URL(s.url).pathname), [
+    assert.deepEqual(solicitudes.map(s => s.url), [
       '/api/resultados-horarios/2', '/api/resultados-horarios/2/validar-movimiento', '/api/resultados-horarios/2/movimientos',
       '/api/resultados-horarios/2/salas/importar', '/api/resultados-horarios/2/validacion-publicacion', '/api/resultados-horarios/2/publicar',
     ]);

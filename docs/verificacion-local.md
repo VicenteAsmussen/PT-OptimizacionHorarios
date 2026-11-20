@@ -2,6 +2,8 @@
 
 Estas comprobaciones establecen una línea base local, no certifican el servidor universitario ni el funcionamiento integrado de todos los flujos. No ejecutan migraciones, seed, preparación de demostración ni Julia real. Requieren las dependencias ya instaladas, no descargan herramientas.
 
+La fase siguiente tiene un [ensayo HTTP/SQL separado con PostgreSQL efímero y resultados sintéticos](escenario-demostracion.md). Requiere autorización explícita para crear y retirar su propio cluster. No cambia las listas ni los efectos de los comandos de esta guía. Las cinco expectativas frontend antiguas descritas en la línea base inferior se corrigieron en esa fase, se conserva aquí la evidencia histórica de fase 1.
+
 ## Comandos desde la raíz
 
 | Comando | Alcance | Efectos previstos |
@@ -31,6 +33,7 @@ La fuente del inventario ejecutable es `scripts/verificar-local.mjs`. Las incorp
 | Pendiente o excluido | Motivo |
 | --- | --- |
 | `frontend/src/app/pulido-interfaz.test.mjs` y `frontend/src/components/notificaciones/navegador.test.mjs` | Lanzan navegador y perfil temporal, el primero admite capturas. No forman parte del comando seguro de funcionalidades |
+| `frontend/src/features/resultados-horarios/salas.navegador.test.mjs` | Regresión de duplicación de salas, requiere Edge/Chromium instalado, perfil externo y API sintética. Ejecución explícita según docs/escenario-demostracion.md, fuera de la selección local sin navegador |
 | `backend/tests/integracion/**` | Requieren base y operaciones persistidas, algunas suites migran y truncan |
 | `backend/tests/seed/**` | Fuera del alcance, no se ejecuta seed ni su CLI, tampoco se certifica anonimización |
 | 42 de los 46 archivos de tests backend raíz | Fuera de la lista positiva, pendientes de revisión transitiva individual. En particular, `health.test.ts` y `horarios-externos-http.test.ts` alcanzan `app.ts` y la configuración real |

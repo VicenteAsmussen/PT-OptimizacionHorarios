@@ -318,7 +318,7 @@ export function ContenidoResultados({ id, nombreCarrera, ocupado, cambiarOcupado
                 invalido: !disponible || visible?.valido === false || Boolean(errorMovimiento), elegir: elegirDestino } : undefined} />}
         </section>
         {detalle && <DetalleSesionDialogo resultado={resultado} sesion={detalle} cerrar={() => setDetalle(null)} />}
-        {puedeOperar && <GestionSalas key={resultado.revision} resultado={resultado} ocupado={ocupado || Boolean(sesionMovimiento)} seleccionar={seleccionarSesion} exportar={exportar} verPendientes={verPendientes}
+        {puedeOperar && <GestionSalas key={`salas-${resultado.revision}`} resultado={resultado} ocupado={ocupado || Boolean(sesionMovimiento)} seleccionar={seleccionarSesion} exportar={exportar} verPendientes={verPendientes}
           importar={archivo => { void ejecutar(async () => {
             const importacion = await resultadosHorariosApi.importar(id, resultado.revision, archivo);
             const cambios = importacion.actualizadas === 0 ? 'No hubo cambios.' : importacion.actualizadas === 1
@@ -347,7 +347,7 @@ export function ContenidoResultados({ id, nombreCarrera, ocupado, cambiarOcupado
             void ejecutar(async () => ({ ...await resultadosHorariosApi.descartar(id, revisionDescarte), mensaje: 'Propuesta descartada. La planificación está en Preparación.' }));
           }}>Confirmar descarte</button>
         </Dialogo>}
-        {puedeOperar && publicando && <PublicacionDialogo key={resultado.revision} resultado={resultado} ocupado={ocupado} cerrar={() => setPublicando(false)}
+        {puedeOperar && publicando && <PublicacionDialogo key={`publicacion-${resultado.revision}`} resultado={resultado} ocupado={ocupado} cerrar={() => setPublicando(false)}
           confirmar={revision => { void ejecutar(async () => ({ resultado: await resultadosHorariosApi.publicar(id, revision), mensaje: 'Horario publicado. Ya no se puede editar.',
           })); }} />}
       </>}
