@@ -7,8 +7,6 @@ import * as esquema from "../src/db/schema/index.js";
 import { sembrarAcademico } from "../src/db/seeds/academico.js";
 import { datosCarreras, datosDepartamentos, datosSemestres, datosTiposHora } from "../src/db/seeds/data/academico.js";
 import type { BaseDatosSeed } from "../src/db/seeds/contexto.js";
-import { sembrarPlanificacionHorarios } from "../src/db/seeds/horarios.js";
-import { datosBloques, datosSalas, datosPlanificacionHorarios } from "../src/db/seeds/data/horarios.js";
 
 const tabla = () => esquema.planificacionesSemestres;
 const dialecto = new PgDialect();
@@ -222,104 +220,5 @@ describe("Seed de planificaciones (offline)", () => {
       await expect(sembrarAcademico(contexto.baseDatos)).rejects.toThrow();
     } finally { registro.mockRestore(); }
     expect(contexto.sentencias.some(({ sql }) => sql.startsWith('insert into "planificaciones_semestres"'))).toBe(true);
-  });
-});
-
-// SQL real con ejecución en memoria: no driver PostgreSQL ni configuración ambiental.
-function crearSeedHorarios() {
-  type Fila = Record<string, unknown>;
-  const tablas: Record<string, Fila[]> = {
-    carreras: datosCarreras.map((fila, indice) => ({ id: indice + 1, ...fila })),
-    planificaciones_semestres: datosCarreras.flatMap((_, indice) => datosSemestres.map((periodo, numero) => ({ id: indice * 2 + numero + 1, carreraId: indice + 1, ...periodo, estadoPlanificacion: "preparacion" }))),
-    profesores: [{ id: 7 }],
-    carrera_asignatura: datosCarreras.map((_, indice) => ({ carreraId: indice + 1, asignaturaCodigo: "INF100" })),
-    bloques_horarios: datosBloques.map((fila, indice) => ({ id: indice + 1, ...fila })),
-    tipos_hora: datosTiposHora.map((fila, indice) => ({ id: indice + 1, ...fila })),
-    salas: datosSalas.map((fila, indice) => ({ id: indice + 1, ...fila })),
-    ofertas_asignaturas: [], oferta_tipo_hora: [], horarios_asignaturas: [], disponibilidad_profesores: [],
-  };
-  const mapa = Object.fromEntries(Object.values(esquema).filter(valor => {
-    try { return !!getTableName(valor as never); } catch { return false; }
-  }).map(valor => [getTableName(valor as never), getTableColumns(valor as never)]));
-  const sentencias: string[] = [];
-  const base = drizzle(async (sql, params) => {
-    sentencias.push(sql);
-    const nombre = sql.match(/(?:from|into|update) "([^"]+)"/)?.[1];
-    if (!nombre || !tablas[nombre]) throw new Error(`SQL inesperado del seed: ${sql}`);
-    const columnas = mapa[nombre];
-    const campo = (columna: string) => Object.entries(columnas).find(([, definicion]) => definicion.name === columna)?.[0] ?? columna;
-    if (sql.startsWith("select")) {
-      const condiciones = [...sql.matchAll(/"\w+"\."([^"]+)" = \$(\d+)/g)];
-      const filas = tablas[nombre].filter(fila => condiciones.every(([, columna, parametro]) => fila[campo(columna)] === params[Number(parametro) - 1]));
-      const seleccion = sql.slice(7, sql.indexOf(" from ")).split(", ").map(columna => campo(columna.replaceAll('"', '')));
-      return { rows: filas.map(fila => seleccion.map(columna => fila[columna])) };
-    }
-    if (sql.startsWith("insert")) {
-      const insercion = sql.match(/\(([^)]+)\) values \(([^)]+)\)/)!;
-      const columnasInsertadas = insercion[1].split(", ").map(columna => campo(columna.replaceAll('"', '')));
-      const valores = insercion[2].split(", ");
-      const fila: Fila = { id: tablas[nombre].length + 1 };
-      columnasInsertadas.forEach((columna, indice) => {
-        const parametro = valores[indice].match(/^\$(\d+)$/);
-        if (parametro) fila[columna] = params[Number(parametro[1]) - 1];
-      });
-      if (nombre !== "oferta_tipo_hora" || !tablas[nombre].some(a => a.ofertaId === fila.ofertaId && a.tipoHoraId === fila.tipoHoraId)) tablas[nombre].push(fila);
-      return { rows: [] };
-    }
-    if (sql.startsWith("update")) {
-      const fila = tablas[nombre].find(fila => fila.id === params[1]);
-      if (!fila) throw new Error("Planificación inexistente");
-      fila.estadoPlanificacion = params[0];
-      return { rows: [] };
-    }
-    throw new Error(`Mutación no permitida en seed: ${sql}`);
-  }, { schema: esquema });
-  base.transaction = (async operacion => operacion(base as never)) as typeof base.transaction;
-  return { baseDatos: base as unknown as BaseDatosSeed, tablas, sentencias };
-}
-
-describe("Seed de ofertas/horarios/disponibilidad por carrera (offline)", () => {
-  it("mantiene Civil actual en preparacion, el historico publicado y Ejecucion en propuesta", async () => {
-    const contexto = crearSeedHorarios();
-    for (let repeticion = 0; repeticion < 2; repeticion++) {
-      await sembrarPlanificacionHorarios(contexto.baseDatos);
-      const estados = datosPlanificacionHorarios.map(fixture => {
-        const carrera = contexto.tablas.carreras.find(fila => fila.nombre === fixture.carrera)!;
-        return contexto.tablas.planificaciones_semestres.find(fila => fila.carreraId === carrera.id && fila.codigo === fixture.periodo)?.estadoPlanificacion;
-      });
-      expect(estados).toEqual(["publicado", "preparacion", "propuesta"]);
-    }
-  });
-  it("mapea fixtures explícitos y repetir no duplica ni reabre estados", async () => {
-    const contexto = crearSeedHorarios();
-    await sembrarPlanificacionHorarios(contexto.baseDatos);
-    expect(contexto.tablas.ofertas_asignaturas).toHaveLength(datosPlanificacionHorarios.length);
-    expect(contexto.tablas.horarios_asignaturas).toHaveLength(datosPlanificacionHorarios.length);
-    expect(contexto.tablas.disponibilidad_profesores).toHaveLength(datosPlanificacionHorarios.length);
-    for (const fixture of datosPlanificacionHorarios) {
-      const carrera = contexto.tablas.carreras.find(fila => fila.nombre === fixture.carrera)!;
-      const planificacion = contexto.tablas.planificaciones_semestres.find(fila => fila.carreraId === carrera.id && fila.codigo === fixture.periodo)!;
-      expect(planificacion.estadoPlanificacion).toBe(fixture.estadoPlanificacion);
-      const oferta = contexto.tablas.ofertas_asignaturas.find(fila => fila.planificacionSemestreId === planificacion.id)!;
-      expect(oferta.asignaturaCodigo).toBe(fixture.asignaturaCodigo);
-      expect(contexto.tablas.horarios_asignaturas.find(fila => fila.ofertaId === oferta.id)?.planificacionSemestreId).toBe(planificacion.id);
-      expect(contexto.tablas.disponibilidad_profesores.find(fila => fila.planificacionSemestreId === planificacion.id)?.profesorId)
-        .toBe(contexto.tablas.oferta_tipo_hora.find(fila => fila.ofertaId === oferta.id)?.profesorId);
-    }
-    expect(contexto.tablas.planificaciones_semestres.find(fila => fila.carreraId === 2 && fila.codigo === "2026-1")?.estadoPlanificacion).toBe("preparacion");
-    const antes = structuredClone(contexto.tablas);
-    const cantidad = contexto.sentencias.length;
-    await sembrarPlanificacionHorarios(contexto.baseDatos);
-    expect(contexto.tablas).toEqual(antes);
-    expect(contexto.sentencias.slice(cantidad).some(sql => /^(insert|update|delete)/.test(sql))).toBe(false);
-  });
-  it.each(["propuesta", "publicado"])("no modifica una planificación %s preexistente", async estado => {
-    const contexto = crearSeedHorarios();
-    contexto.tablas.planificaciones_semestres.forEach(fila => { fila.estadoPlanificacion = estado; });
-    const antes = structuredClone(contexto.tablas);
-    await sembrarPlanificacionHorarios(contexto.baseDatos);
-    await sembrarPlanificacionHorarios(contexto.baseDatos);
-    expect(contexto.tablas).toEqual(antes);
-    expect(contexto.sentencias.some(sql => /^(insert|update|delete)/.test(sql))).toBe(false);
   });
 });

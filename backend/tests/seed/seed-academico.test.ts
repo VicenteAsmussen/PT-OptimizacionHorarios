@@ -57,10 +57,10 @@ describe("workbook academic seed", () => {
       .toEqual(["620449", "620456", "620477"]);
   });
 
-  it("creates 46 confirmed teachers with unique synthetic identities and the requested initial password", () => {
-    expect(datosProfesores).toHaveLength(46);
-    expect(new Set(datosProfesores.map(profesor => profesor.rut)).size).toBe(46);
-    expect(new Set(datosProfesores.map(profesor => profesor.correo)).size).toBe(46);
+  it("incluye los 44 docentes de la fuente con identidades sintéticas únicas", () => {
+    expect(datosProfesores).toHaveLength(44);
+    expect(new Set(datosProfesores.map(profesor => profesor.rut)).size).toBe(44);
+    expect(new Set(datosProfesores.map(profesor => profesor.correo)).size).toBe(44);
     for (const profesor of datosProfesores) {
       expect(["planta", "part time"]).toContain(profesor.tipo);
       expect(normalizarRut(profesor.rut)).toBe(profesor.rut);
@@ -71,7 +71,7 @@ describe("workbook academic seed", () => {
     expect(datosUsuarios.filter(usuario => usuario.rol !== "profesor").map(usuario => usuario.correo)).toEqual(["admin@ubiobio.cl", "maraguayo@ubiobio.cl"]);
     expect(datosUsuarios.find(usuario => usuario.rol === "secretaria"))
       .toMatchObject({ nombre: "Marcia Aguayo", correo: "maraguayo@ubiobio.cl" });
-    expect(new Set(datosUsuarios.map(usuario => usuario.correo)).size).toBe(48);
+    expect(new Set(datosUsuarios.map(usuario => usuario.correo)).size).toBe(46);
   });
 
   it("uses the confirmed departments and contracts for the additional workbook teachers", () => {
@@ -96,12 +96,10 @@ describe("workbook academic seed", () => {
       ["Mauricio Andre Leiva del Campo", "mleiva@ubiobio.cl", "Economía y Finanzas", "planta"],
       ["Erick Contreras", "econtreras@ubiobio.cl", "Administración y Auditoría", "part time"],
       ["Freddy Banda", "fbanda@ubiobio.cl", "Economía y Finanzas", "part time"],
-      ["Cristian Pinto", "cpinto@ubiobio.cl", "Sistemas de Información", "planta"],
+      ["Cristian Pinto", "cpinto@ubiobio.cl", "Economía y Finanzas", "planta"],
       ["Luis Emilio Cabrera Crot", "lcabrera@ubiobio.cl", "Sistemas de Información", "planta"],
       ["Gabriel Rodolfo Lagos Aguayo", "glagos@ubiobio.cl", "Ingeniería Eléctrica y Electrónica", "planta"],
       ["Morin Antonia Órdenes Escobar", "mordenes@ubiobio.cl", "Física", "planta"],
-      ["Jaime Alfredo Hernández Moraga", "jhernandez@ubiobio.cl", "Estudios Generales", "planta"],
-      ["Lilian Viviana Velásquez Zapata", "lvelasquez@ubiobio.cl", "Estudios Generales", "planta"],
       ["Oscar Alejandro Cornejo Zúñiga", "ocornejo@ubiobio.cl", "Ingeniería Industrial", "planta"],
     ]);
     expect(datosProfesores.filter(profesor => profesor.tipo === "part time").map(profesor => profesor.correo))
@@ -132,12 +130,13 @@ describe("workbook academic seed", () => {
       .toEqual(correos.map((correo, indice) => [`${correo}@ubiobio.cl`, ruts[indice], [1, 3, 5].includes(indice) ? "part time" : "planta"]));
   });
 
-  it("excludes the retired teacher and reserves his RUT without renumbering the remaining identities", () => {
+  it("reserva las identidades retiradas sin renumerar a los docentes restantes", () => {
     expect(datosProfesores.some(profesor => profesor.correo === "jruiz@ubiobio.cl")).toBe(false);
     expect(datosUsuarios.some(usuario => usuario.correo === "jruiz@ubiobio.cl")).toBe(false);
     expect(datosProfesores.map(profesor => Number(profesor.rut.split("-")[0]))).toEqual([
       ...Array.from({ length: 21 }, (_, indice) => 90000000 + indice),
-      ...Array.from({ length: 25 }, (_, indice) => 90000022 + indice),
+      ...Array.from({ length: 22 }, (_, indice) => 90000022 + indice),
+      90000046,
     ]);
   });
 });

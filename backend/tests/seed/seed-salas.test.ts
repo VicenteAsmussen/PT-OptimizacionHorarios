@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { datosSalas, datosPlanificacionHorarios } from "../../src/db/seeds/data/horarios.js";
+import { datosSalas } from "../../src/db/seeds/data/horarios.js";
 import { normalizarCodigoSala } from "../../src/utils/excel/excel-salas.js";
 
 // Independent transcription of columns B/H, Salas_Institucionales (2022-11-16).
@@ -22,11 +22,5 @@ describe("ICINF institutional classroom seed", () => {
     expect(Object.fromEntries(datosSalas.map(sala => [sala.nombre, sala.capacidad]))).toEqual(capacidadesEsperadas);
     expect(datosSalas.every(sala => sala.tipo === "Sala" && Number.isInteger(sala.capacidad) && sala.capacidad > 0)).toBe(true);
     expect(new Set(datosSalas.map(sala => normalizarCodigoSala(sala.nombre))).size).toBe(56);
-  });
-
-  it("keeps planning fixtures linked to seeded classrooms", () => {
-    for (const horario of datosPlanificacionHorarios) {
-      expect(datosSalas.find(sala => sala.nombre === horario.sala)).toMatchObject({ tipo: "Sala" });
-    }
   });
 });

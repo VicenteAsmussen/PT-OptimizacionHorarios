@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { construirEntradaOptimizacion, ejecutarJulia, validarSalidaOptimizacion, prepararCategoriasSalas,
-  VERSION_MODELO, type EntradaOptimizacion, type DatosOptimizacion } from "../optimizacion/index.js";
+  VERSION_MODELO, LIMITE_SOLVER_SEGUNDOS, type EntradaOptimizacion, type DatosOptimizacion, type DiagnosticoProcesoJulia } from "../optimizacion/index.js";
 import { optimizacionRepository, type CapturaOptimizacion } from "../repositories/optimizacion.repository.js";
 import type { AlcanceCarrera } from "../utils/alcance-carrera.js";
 import type { InicioOptimizacionDTO } from "../validations/optimizacion.validation.js";
@@ -54,7 +54,7 @@ export function adaptarCapturaOptimizacion(captura: CapturaOptimizacion, recurso
   });
   try {
     return construirEntradaOptimizacion({ ofertas, bloques: captura.bloques as DatosOptimizacion["bloques"],
-      disponibilidades: captura.disponibilidades, externos, recursos, reservas: captura.reservas }, { limiteSolverSegundos: 300 });
+      disponibilidades: captura.disponibilidades, externos, recursos, reservas: captura.reservas }, { limiteSolverSegundos: LIMITE_SOLVER_SEGUNDOS });
   } catch (error) {
     throw new BadRequestError(error instanceof Error ? error.message : "No se pudo preparar una entrada válida.");
   }
@@ -68,6 +68,7 @@ function presentar(ejecucion: EjecucionOptimizacion) {
 
 async function calcular(ejecucion: EjecucionOptimizacion, cancelar: AbortController) {
   const entrada = ejecucion.entrada as EntradaOptimizacion;
+  let procesoJulia: DiagnosticoProcesoJulia | undefined;
   let vigente = true;
   let renovando = false;
   const seguimiento = setInterval(() => {
@@ -79,7 +80,8 @@ async function calcular(ejecucion: EjecucionOptimizacion, cancelar: AbortControl
   }, 15000);
   seguimiento.unref();
   try {
-    const salida = await ejecutarJulia(entrada, { signal: cancelar.signal });
+    const salida = await ejecutarJulia(entrada, { signal: cancelar.signal,
+      alDiagnostico: diagnostico => { procesoJulia = diagnostico; } });
     if (!vigente || cerrando) throw new Error("interrumpida");
     const validacion = validarSalidaOptimizacion(entrada, salida);
     const diagnostico = { ...validacion, faltantes: validacion.faltantes.map(faltante => {
@@ -87,7 +89,8 @@ async function calcular(ejecucion: EjecucionOptimizacion, cancelar: AbortControl
       return { ...faltante, asignaturaCodigo: oferta.asignaturaCodigo, seccion: oferta.seccion,
         componente: oferta.componentes.find(componente => componente.tipoHoraId === faltante.tipoHoraId)?.tipo };
     }), certificadoPrioridad: entrada.certificadoPrioridad,
-      mensaje: "La disponibilidad se ordena como ayuda operativa, no atribuye causas ni garantiza que ampliarla resuelva la falta de solución." };
+      mensaje: "La disponibilidad se ordena como ayuda operativa, no atribuye causas ni garantiza que ampliarla resuelva la falta de solución.",
+      ...(procesoJulia ? { procesoJulia } : {}) };
     if (validacion.valida && validacion.completa && ["optimo", "factible", "limite_tiempo"].includes(salida.estado)) {
       await optimizacionRepository.aplicar(ejecucion.id, propietario, salida, (captura, persistida) => {
         // Reconstruir y validar otra vez las mismas entradas, dentro de la transacción final.
@@ -107,7 +110,8 @@ async function calcular(ejecucion: EjecucionOptimizacion, cancelar: AbortControl
     const estado = !vigente || cerrando || cancelar.signal.aborted ? "interrumpida" : mensaje.includes("tiempo de solver") ? "limite_tiempo" : "error";
     await optimizacionRepository.terminar(ejecucion.id, propietario, estado, null, { codigo: estado,
       mensaje: estado === "error" ? "No se obtuvo una salida válida del proceso Julia. No se incorporaron horarios. Compruebe el runtime y el diagnóstico del servidor." : "El cálculo terminó sin una solución completa validada. No se incorporaron horarios.",
-      fase: mensaje.includes("arranque") ? "arranque" : mensaje.includes("extracción") ? "extraccion" : mensaje.includes("solver") ? "solver" : "proceso" });
+      fase: mensaje.includes("arranque") ? "arranque" : mensaje.includes("extracción") ? "extraccion" : mensaje.includes("solver") ? "solver" : "proceso",
+      ...(procesoJulia ? { procesoJulia } : {}) });
   } finally { clearInterval(seguimiento); procesos.delete(ejecucion.id); }
 }
 
@@ -126,7 +130,7 @@ export const optimizacionService = {
     return { planificacion: captura.planificacion, puedeEjecutar: bloqueos.length === 0, bloqueos, ejecucionActivaId: activa,
       revisionEntrada: captura.revision, categoriasSalas: categorias.categorias, diagnosticosCatalogo: categorias.diagnosticos,
       laboratorios: { requiereDeclaracion: requiereLaboratorios, categoriasSugeridas: [], mensaje: "Declare capacidad, cantidad total departamental y fuente por ejecución. No se asumen seis laboratorios de capacidad 60." },
-      limiteSolverSegundos: 300, disponibilidadDocente: entrada ? validarSalidaOptimizacion(entrada, null).disponibilidadDocente : [],
+      limiteSolverSegundos: LIMITE_SOLVER_SEGUNDOS, disponibilidadDocente: entrada ? validarSalidaOptimizacion(entrada, null).disponibilidadDocente : [],
       certificadoPrioridad: entrada?.certificadoPrioridad ?? null,
       advertencia: "Las cantidades de salas sugeridas no constituyen disponibilidad garantizada. Deben confirmarse para esta ejecución." };
   },

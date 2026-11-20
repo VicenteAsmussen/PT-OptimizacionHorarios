@@ -35,14 +35,6 @@ export const datosBloques = dias.flatMap((dia) =>
   }))
 );
 
-// El dueño de INF100 compartida es explícito en cada fixture, nunca inferido por código.
-// profesorOrdinal elige un docente del catálogo ordenado por id; no crea ni elimina personas.
-export const datosPlanificacionHorarios = [
-  { carrera: "Ingeniería Civil en Informática", periodo: "2026-1", asignaturaCodigo: "INF100", profesorOrdinal: 0, seccion: 1, cupos: 30, dia: "Lunes", numeroBloque: 1, tipoHora: "Teórica", sala: "A101AA", estadoPlanificacion: "publicado" },
-  { carrera: "Ingeniería Civil en Informática", periodo: "2026-2", asignaturaCodigo: "INF100", profesorOrdinal: 0, seccion: 1, cupos: 30, dia: "Lunes", numeroBloque: 1, tipoHora: "Teórica", sala: "A101AA", estadoPlanificacion: "preparacion" },
-  { carrera: "Ingeniería de Ejecución en Computación e Informática", periodo: "2026-2", asignaturaCodigo: "INF100", profesorOrdinal: 0, seccion: 1, cupos: 25, dia: "Martes", numeroBloque: 1, tipoHora: "Teórica", sala: "A102AA", estadoPlanificacion: "propuesta" },
-] as const;
-
 // Institutional classrooms approved for ICINF; laboratories will be added separately.
 // Source: Resumen Salas Institucionales UBB al 16.11.2022.xls,
 // Salas_Institucionales, columns B/H, rows 7–68 (blank separator rows excluded).

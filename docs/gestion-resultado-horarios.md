@@ -46,9 +46,9 @@ Las sesiones se forman con las reglas institucionales de continuidad existentes,
 - Cada segmento que queda en el origen tiene al menos dos bloques y comienza en un número institucional impar, o no queda ningún segmento.
 - La sesión resultante en el destino, tras unir registros adyacentes de la misma oferta, tipo de hora y profesor, también comienza en un número institucional impar.
 - Todos los bloques de destino están dentro de la disponibilidad declarada del profesor.
-- No hay conflictos de profesor, sala ni nivel de la malla en ninguna parte de la planificación.
+- No hay conflictos de profesor ni sala en ninguna parte de la planificación, y se conserva la compatibilidad académica mínima entre secciones completas.
 
-Por eso, una sesión de dos o tres bloques se mueve completa, mientras que una de cuatro puede dividirse en dos más dos. Se conservan la carga docente total, los identificadores de los registros, la oferta, el tipo de hora y la sala asignada. Si la operación falla, se revierten sus cambios. Las clases externas importadas permanecen fijas, pero se incluyen al detectar conflictos. Un mismo nivel de la malla no puede tener clases simultáneas, aunque correspondan a secciones diferentes. Los conflictos de recursos se revisan dentro de la planificación, esta API no incorpora coordinación de recursos entre carreras.
+Por eso, una sesión de dos o tres bloques se mueve completa, mientras que una de cuatro puede dividirse en dos más dos. Se conservan la carga docente total, los identificadores de los registros, la oferta, el tipo de hora y la sala asignada. Si la operación falla, se revierten sus cambios. Las clases externas importadas permanecen fijas, pero se incluyen al detectar conflictos. Para cada pareja de asignaturas del mismo nivel se exige que al menos el 50 % de las combinaciones de secciones completas no tenga topes, redondeando hacia arriba. Pueden existir otras combinaciones simultáneas, no se exige que todas sean compatibles ni se resuelve una selección global de secciones. Los conflictos de recursos se revisan dentro de la planificación, esta API no incorpora coordinación de recursos entre carreras.
 
 En una sesión de los bloques 1–5 se rechaza mover 1–3, porque 4–5 comenzaría en un número par. Mover 1–2 sí puede dejar 3–5. En una sesión 1–7 se rechaza mover 3–5, porque el segmento restante 6–7 comienza en par. Una sesión antigua que comienza en par puede moverse completa a un inicio impar. Estas comprobaciones solo se aplican al movimiento y a los grupos afectados, los inicios de sesiones antiguas o externas fijas no relacionadas no lo bloquean. La consulta, el intercambio Excel, las escrituras de preparación y la publicación conservan sus reglas existentes. La vista previa y el guardado con bloqueo reutilizan `prepararMovimiento`, la vista previa no autoriza guardar después sin volver a validar.
 
@@ -60,6 +60,8 @@ Se reutilizan el formato de planilla de salas y la agrupación de sesiones exist
 - Práctica Profesional I/II (`620449`, `620456`) y Proyecto de Título (`620477`) quedan explícitamente exentos en la migración y en la carga inicial de datos. Anteproyecto (`620472`) no está exento.
 - Las sesiones de laboratorio se excluyen por separado, los demás tipos de hora de la misma asignatura pueden seguir requiriendo sala.
 - No se incluyen sesiones de departamentos externos.
+
+Cada fila reúne una asignatura, sección y docente. Puede contener sesiones teóricas y prácticas del mismo docente, distinguidas por la columna `Tipo Hora` de cada sesión. Cambiar de docente o sección produce otra fila. La continuidad se calcula por tipo de hora antes de reunir las sesiones, por lo que una teoría y una práctica contiguas conservan sus horarios y tipos separados. Las sesiones de cada fila se ordenan por día y hora.
 
 Los estados de sala de una sesión son `asignada`, `pendiente`, `noRequiere`, `laboratorio` o `externa`. Las sesiones excluidas nunca cuentan como pendientes de sala. No se guarda un estado duplicado, este se determina según si la sesión requiere sala y las asignaciones reales.
 
@@ -91,7 +93,7 @@ Los endpoints antiguos de Excel para preparación siguen disponibles. Conservan 
 La publicación valida toda la planificación, sin aplicar el filtro de visualización:
 
 1. Los bloques requeridos por oferta y tipo de hora coinciden con la carga de la malla, y las asignaturas obligatorias del período tienen una oferta.
-2. No hay clases simultáneas que compartan profesor, sala o nivel de la malla.
+2. No hay clases simultáneas que compartan profesor o sala. Cada pareja de asignaturas del mismo nivel cumple el mínimo de combinaciones de secciones completas sin topes descrito anteriormente.
 3. Todas las clases gestionadas por la carrera están dentro de la disponibilidad declarada del profesor. Si no hay declaración, se considera que no hay disponibilidad, no que sea ilimitada. No se inventa una declaración de disponibilidad para las clases externas importadas y fijas.
 4. Todas las sesiones que requieren sala tienen una asignada. Las asignaturas exentas, los laboratorios y las sesiones externas no bloquean la publicación por falta de sala.
 5. Ninguna clase ocupa un bloque reservado de la carrera, tanto de departamentos gestionados como externos. Cada infracción se identifica mediante `bloqueReservado`, `idsHorarios` y `bloqueId`.

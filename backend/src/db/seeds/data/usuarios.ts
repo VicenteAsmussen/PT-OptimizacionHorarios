@@ -7,7 +7,7 @@ function crearRut(indice: number) {
 }
 
 // Named professors from Requerimientos + Profesores; affiliations confirmed by the user.
-// Keep stable RUT indices independent of array position; retired index 21 stays reserved.
+// Los índices de RUT no dependen del orden, los retirados 21, 44 y 45 no se reutilizan.
 const profesoresBase: [indiceRut: number, nombre: string, correo: string, departamento: string, tipo?: string][] = [
   [0, "Christian Lautaro Vidal Castro", "cvidal", "Sistemas de Información"],
   [1, "Sting Adams Natanael Parra Silva", "sparra", "Sistemas de Información", "part time"],
@@ -48,12 +48,10 @@ const profesoresBase: [indiceRut: number, nombre: string, correo: string, depart
   [37, "Mauricio Andre Leiva del Campo", "mleiva", "Economía y Finanzas"],
   [38, "Erick Contreras", "econtreras", "Administración y Auditoría", "part time"],
   [39, "Freddy Banda", "fbanda", "Economía y Finanzas", "part time"],
-  [40, "Cristian Pinto", "cpinto", "Sistemas de Información"],
+  [40, "Cristian Pinto", "cpinto", "Economía y Finanzas"],
   [41, "Luis Emilio Cabrera Crot", "lcabrera", "Sistemas de Información"],
   [42, "Gabriel Rodolfo Lagos Aguayo", "glagos", "Ingeniería Eléctrica y Electrónica"],
   [43, "Morin Antonia Órdenes Escobar", "mordenes", "Física"],
-  [44, "Jaime Alfredo Hernández Moraga", "jhernandez", "Estudios Generales"],
-  [45, "Lilian Viviana Velásquez Zapata", "lvelasquez", "Estudios Generales"],
   [46, "Oscar Alejandro Cornejo Zúñiga", "ocornejo", "Ingeniería Industrial"],
 ];
 

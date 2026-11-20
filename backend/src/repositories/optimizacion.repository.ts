@@ -15,6 +15,7 @@ import type { InicioOptimizacionDTO } from "../validations/optimizacion.validati
 import { inicioOptimizacion } from "../validations/optimizacion.validation.js";
 import { cargarContextoResultado } from "./resultados-horarios.repository.js";
 import { validarPropuestaResultado } from "../utils/resultados-horarios.js";
+import { LIMITE_SOLVER_SEGUNDOS } from "../optimizacion/contrato.js";
 
 function canonico(valor: unknown): unknown {
   if (Array.isArray(valor)) return valor.map(canonico).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
@@ -95,7 +96,7 @@ export const optimizacionRepository = {
       await tx.delete(ejecucionesOptimizacion).where(eq(ejecucionesOptimizacion.planificacionSemestreId, id));
       const [ejecucion] = await tx.insert(ejecucionesOptimizacion).values({ id: randomUUID(), planificacionSemestreId: id,
         claveIdempotencia: parametros.claveIdempotencia, revisionSolicitud, revisionEntrada: captura.revision, versionModelo,
-        propietario, estado: "en_ejecucion", entrada, parametros: { recursos: parametros.recursos, limiteSolverSegundos: 300 },
+        propietario, estado: "en_ejecucion", entrada, parametros: { recursos: parametros.recursos, limiteSolverSegundos: LIMITE_SOLVER_SEGUNDOS },
         vigenteHasta: sql`now() + interval '120 seconds'` }).returning();
       return { ejecucion: ejecucion!, nueva: true };
     }, { isolationLevel: "read committed" });

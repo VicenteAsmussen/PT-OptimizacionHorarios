@@ -43,10 +43,27 @@ describe("contrato matemático puro", () => {
     const invertidos = { ...base, ofertas: [...base.ofertas].reverse(), bloques: [...base.bloques].reverse(),
       disponibilidades: [...base.disponibilidades].reverse() };
     expect(construirEntradaOptimizacion(invertidos)).toEqual(entrada);
-    expect(entrada.parametros.limiteSolverSegundos).toBe(300);
+    expect(entrada.parametros.limiteSolverSegundos).toBe(1800);
     expect(entrada.revision).toMatch(/^[a-f0-9]{64}$/);
     expect(construirEntradaOptimizacion({ ...base, reservas: [1] }).revision).not.toBe(entrada.revision);
     expect(validarSalidaOptimizacion(entrada, salida(entrada, [3, 1]))).toMatchObject({ valida: true, completa: true, errores: [] });
+  });
+
+  it("admite hasta 1800 segundos, conserva límites explícitos y revisa el parámetro efectivo", () => {
+    const base = datos(), antes = structuredClone(base);
+    const predeterminada = construirEntradaOptimizacion(base);
+    expect(predeterminada).toEqual(construirEntradaOptimizacion(base, { limiteSolverSegundos: 1800 }));
+    expect(predeterminada.versionModelo).toBe("notebook-v2-1");
+    for (const limiteSolverSegundos of [300, 45.5, 600, 900]) {
+      const explicita = construirEntradaOptimizacion(base, { limiteSolverSegundos });
+      expect(explicita.parametros).toEqual({ limiteSolverSegundos });
+      expect(explicita.revision).not.toBe(predeterminada.revision);
+      expect(explicita.versionModelo).toBe(predeterminada.versionModelo);
+    }
+    for (const limiteSolverSegundos of [0, -1, 1801, Infinity, NaN]) {
+      expect(() => construirEntradaOptimizacion(base, { limiteSolverSegundos })).toThrow("Entrada de optimización inválida.");
+    }
+    expect(base).toEqual(antes);
   });
 
   it("excluye carga cero y exige docente único T/P/L e inconsistencia visible", () => {
@@ -206,7 +223,7 @@ describe("contrato matemático puro", () => {
     const entrada = construirEntradaOptimizacion(datos());
     const resultado = salida(entrada);
     expect(validarSalidaOptimizacion(entrada, { ...resultado, asignaciones: resultado.asignaciones.map(a => ({ ...a, salaId: 1 })) }).valida).toBe(false);
-    expect(() => construirEntradaOptimizacion(datos(), { limiteSolverSegundos: 301 })).toThrow();
+    expect(() => construirEntradaOptimizacion(datos(), { limiteSolverSegundos: 1801 })).toThrow();
   });
 
   it("aplica máximo continuo sobre T/P juntos y admite cambiar categoría entre componentes", () => {

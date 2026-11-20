@@ -1,6 +1,8 @@
+println(stderr, "OPTIMIZACION:CARGA"); flush(stderr)
 using JSON3
 include("modelo.jl")
 include("salida.jl")
+include("diagnostico.jl")
 
 # Transporte acotado, sin archivos de entrada/salida ni acceso a base de datos.
 try
@@ -8,11 +10,11 @@ try
     length(contenido) <= 8 * 1024 * 1024 || error("Entrada demasiado grande")
     entrada = JSON3.read(String(contenido))
     entrada.version == 1 && entrada.versionModelo == "notebook-v2-1" || error("Versión inválida")
-    0 < entrada.parametros.limiteSolverSegundos <= 300 || error("Límite inválido")
+    0 < entrada.parametros.limiteSolverSegundos <= 1800 || error("Límite inválido")
+    println(stderr, "OPTIMIZACION:CONSTRUCCION"); flush(stderr)
     nucleo = construir_modelo(entrada)
-    println(stderr, "OPTIMIZACION:SOLVER"); flush(stderr)
-    optimize!(nucleo.modelo)
-    println(stderr, "OPTIMIZACION:EXTRACCION"); flush(stderr)
+    configurar_diagnostico(nucleo.modelo)
+    optimizar_con_diagnostico!(nucleo.modelo; registroInterno=true)
     contenido_salida = JSON3.write(extraer_salida(entrada, nucleo))
     sizeof(contenido_salida) <= 8 * 1024 * 1024 || error("Salida demasiado grande")
     print(stdout, contenido_salida); flush(stdout)

@@ -1,7 +1,9 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { esquemaSalida, type EntradaOptimizacion, type SalidaOptimizacion } from "./contrato.js";
+import { esquemaSalida, LIMITE_SOLVER_SEGUNDOS, type EntradaOptimizacion, type SalidaOptimizacion } from "./contrato.js";
 import { validarSalidaOptimizacion } from "./salida.js";
+import { leerProgresoSolver, leerRegistroHiGHS, type DiagnosticoProcesoJulia, type ProgresoSolverJulia, type RegistroHiGHS } from "./diagnostico.js";
+export type { DiagnosticoProcesoJulia } from "./diagnostico.js";
 
 export interface OpcionesProcesoJulia {
   signal?: AbortSignal;
@@ -10,18 +12,19 @@ export interface OpcionesProcesoJulia {
   margenSolverMs?: number;
   maxEntradaBytes?: number;
   maxSalidaBytes?: number;
+  alDiagnostico?: (diagnostico: DiagnosticoProcesoJulia) => void;
 }
 const activos = new Map<ChildProcessWithoutNullStreams, () => void>();
 /** Invocar desde el cierre ordenado del servidor. No se agregan listeners globales al importar. */
 export function cerrarProcesosJulia(): void { for (const cancelar of [...activos.values()]) cancelar(); }
 
 export async function ejecutarJulia(entrada: EntradaOptimizacion, opciones: OpcionesProcesoJulia = {}): Promise<SalidaOptimizacion> {
-  const { signal, ...configuracion } = opciones;
+  const { signal, alDiagnostico, ...configuracion } = opciones;
   if (signal?.aborted) throw new Error("Julia interrumpido antes del arranque.");
   const limites = { arranqueMs: 120_000, extraccionMs: 60_000, margenSolverMs: 30_000,
     maxEntradaBytes: 8 * 1024 * 1024, maxSalidaBytes: 8 * 1024 * 1024, ...configuracion };
   if (Object.values(limites).some(v => !Number.isSafeInteger(v) || v <= 0) ||
-    !Number.isFinite(entrada.parametros.limiteSolverSegundos) || entrada.parametros.limiteSolverSegundos <= 0 || entrada.parametros.limiteSolverSegundos > 300) {
+    !Number.isFinite(entrada.parametros.limiteSolverSegundos) || entrada.parametros.limiteSolverSegundos <= 0 || entrada.parametros.limiteSolverSegundos > LIMITE_SOLVER_SEGUNDOS) {
     throw new Error("Entrada o límites del proceso Julia inválidos.");
   }
   const contenido = JSON.stringify(entrada);
@@ -29,30 +32,57 @@ export async function ejecutarJulia(entrada: EntradaOptimizacion, opciones: Opci
   const proyecto = fileURLToPath(new URL("../../optimizacion/julia/", import.meta.url));
   const script = fileURLToPath(new URL("../../optimizacion/julia/ejecutar.jl", import.meta.url));
   return new Promise((resolver, rechazar) => {
+    const inicio = performance.now();
+    let inicioJulia: number | undefined, construccion: number | undefined;
+    let inicioSolver: number | undefined, inicioExtraccion: number | undefined;
+    let inicioTransferencia: number | undefined, inicioResolucion: number | undefined;
+    let progresoNoDisponible = false;
+    const muestrasProgreso: ProgresoSolverJulia[] = [];
+    let registroHiGHS: RegistroHiGHS | undefined;
+    const notificar = (origenFin: DiagnosticoProcesoJulia["origenFin"]) => {
+      const fin = performance.now();
+      const diferencia = (a: number, b: number) => Math.max(0, Math.round((b - a) * 1000) / 1000);
+      const diagnostico: DiagnosticoProcesoJulia = { origenFin, fase: fase === "extracción" ? "extraccion" : fase,
+        ...(fase !== "solver" || inicioTransferencia === undefined ? {} : {
+          subfaseSolver: inicioResolucion === undefined ? "transferencia" as const : "resolucion" as const }),
+        tiemposMs: { total: diferencia(inicio, fin), arranque: diferencia(inicio, inicioSolver ?? fin),
+          ...(inicioJulia === undefined ? {} : { inicioJulia: diferencia(inicio, inicioJulia),
+            carga: diferencia(inicioJulia, construccion ?? inicioSolver ?? fin) }),
+          ...(construccion === undefined ? {} : { construccion: diferencia(construccion, inicioSolver ?? fin) }),
+          ...(inicioSolver === undefined ? {} : { llamadaSolver: diferencia(inicioSolver, inicioExtraccion ?? fin) }),
+          ...(inicioTransferencia === undefined ? {} : { transferencia: diferencia(inicioTransferencia, inicioResolucion ?? inicioExtraccion ?? fin) }),
+          ...(inicioResolucion === undefined ? {} : { resolucion: diferencia(inicioResolucion, inicioExtraccion ?? fin) }),
+          ...(inicioExtraccion === undefined ? {} : { extraccion: diferencia(inicioExtraccion, fin) }) },
+        muestrasProgreso: muestrasProgreso.map(muestra => ({ ...muestra })), progresoNoDisponible,
+        ...(registroHiGHS === undefined ? {} : { registroHiGHS: { ...registroHiGHS, hitos: registroHiGHS.hitos.map(hito => ({ ...hito })) } }) };
+      // Un observador no tiene autoridad para cambiar el resultado ni detener Julia.
+      try { alDiagnostico?.(diagnostico); } catch { /* El cálculo conserva su desenlace. */ }
+    };
+    let fase: "arranque" | "solver" | "extracción" = "arranque";
     let hijo: ChildProcessWithoutNullStreams;
     try {
       hijo = spawn("julia", ["--startup-file=no", `--project=${proyecto}`, script],
         { shell: false, windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
-    } catch { rechazar(new Error("Julia no pudo iniciarse.")); return; }
+    } catch { notificar("error"); rechazar(new Error("Julia no pudo iniciarse.")); return; }
     let terminado = false;
-    let fase: "arranque" | "solver" | "extracción" = "arranque";
     let temporizador: ReturnType<typeof setTimeout>;
     let bytesSalida = 0, bytesError = 0, pendienteError = "";
     const fragmentos: Buffer[] = [];
-    const cancelar = () => fallar("Julia interrumpido por pérdida de vigencia del proceso.");
+    const cancelar = () => fallar("Julia interrumpido por pérdida de vigencia del proceso.", "interrupcion");
     const limpiar = () => { clearTimeout(temporizador); activos.delete(hijo); signal?.removeEventListener("abort", cancelar); };
-    const fallar = (mensaje: string) => {
+    const fallar = (mensaje: string, origen: DiagnosticoProcesoJulia["origenFin"] = "error") => {
       if (terminado) return;
       terminado = true; limpiar();
       // Mantener los listeners de error hasta el cierre evita errores de stream no atendidos.
       hijo.stdin.destroy(); hijo.stdout.destroy(); hijo.stderr.destroy(); hijo.kill("SIGKILL");
+      notificar(origen);
       rechazar(new Error(mensaje));
     };
     const vigilar = (milisegundos: number) => {
       clearTimeout(temporizador);
-      temporizador = setTimeout(() => fallar(`Julia excedió el tiempo de ${fase}.`), milisegundos);
+      temporizador = setTimeout(() => fallar(`Julia excedió el tiempo de ${fase}.`, "watchdog"), milisegundos);
     };
-    activos.set(hijo, () => fallar("Julia interrumpido por apagado del servidor."));
+    activos.set(hijo, () => fallar("Julia interrumpido por apagado del servidor.", "interrupcion"));
     signal?.addEventListener("abort", cancelar, { once: true });
     vigilar(limites.arranqueMs);
     hijo.on("error", () => fallar("Julia no pudo ejecutarse."));
@@ -74,10 +104,38 @@ export async function ejecutarJulia(entrada: EntradaOptimizacion, opciones: Opci
       while ((salto = pendienteError.indexOf("\n")) !== -1) {
         const linea = pendienteError.slice(0, salto).replace(/\r$/, "");
         pendienteError = pendienteError.slice(salto + 1);
-        if (linea === "OPTIMIZACION:SOLVER" && fase === "arranque") {
+        if (linea === "OPTIMIZACION:CARGA" && fase === "arranque" && inicioJulia === undefined && construccion === undefined) {
+          inicioJulia = performance.now();
+        } else if (linea === "OPTIMIZACION:CONSTRUCCION" && fase === "arranque" && construccion === undefined) {
+          construccion = performance.now();
+        } else if (linea === "OPTIMIZACION:PROGRESO_NO_DISPONIBLE" && fase === "arranque") {
+          progresoNoDisponible = true;
+        } else if (linea === "OPTIMIZACION:SOLVER" && fase === "arranque") {
+          inicioSolver = performance.now();
           fase = "solver"; vigilar(entrada.parametros.limiteSolverSegundos * 1000 + limites.margenSolverMs);
+        } else if (linea === "OPTIMIZACION:TRANSFERENCIA" && fase === "solver" && inicioTransferencia === undefined && inicioResolucion === undefined) {
+          inicioTransferencia = performance.now();
+        } else if (linea === "OPTIMIZACION:RESOLUCION" && fase === "solver" && inicioTransferencia !== undefined && inicioResolucion === undefined) {
+          inicioResolucion = performance.now();
         } else if (linea === "OPTIMIZACION:EXTRACCION" && fase === "solver") {
+          inicioExtraccion = performance.now();
           fase = "extracción"; vigilar(limites.extraccionMs);
+        } else if (fase === "solver") {
+          const evento = leerRegistroHiGHS(linea);
+          if (evento?.tipo === "configuracion" && registroHiGHS === undefined && inicioTransferencia !== undefined && inicioResolucion === undefined) {
+            registroHiGHS = { configurado: true, limiteSolverSegundos: evento.limiteSolverSegundos, hitos: [] };
+          } else if (evento?.tipo === "no_disponible" && registroHiGHS === undefined && inicioTransferencia !== undefined && inicioResolucion === undefined) {
+            registroHiGHS = { configurado: false, hitos: [] };
+          } else if (evento?.tipo === "hito" && registroHiGHS?.configurado && registroHiGHS.hitos.length < 7 &&
+            !registroHiGHS.hitos.some(hito => hito.hito === evento.hito)) {
+            registroHiGHS.hitos.push({ hito: evento.hito,
+              tiempoDesdeSolverMs: Math.max(0, Math.round((performance.now() - inicioSolver!) * 1000) / 1000) });
+          } else if (muestrasProgreso.length < 60) {
+            const muestra = leerProgresoSolver(linea);
+            if (muestra && muestra.tiempoSolverSegundos >= (muestrasProgreso.at(-1)?.tiempoSolverSegundos ?? 0)) {
+              muestrasProgreso.push(muestra);
+            }
+          }
         }
       }
     });
@@ -91,7 +149,7 @@ export async function ejecutarJulia(entrada: EntradaOptimizacion, opciones: Opci
       if (!lectura.success || !validarSalidaOptimizacion(entrada, lectura.data).valida) {
         fallar("Salida Julia incumple el contrato de optimización."); return;
       }
-      terminado = true; limpiar(); resolver(lectura.data);
+      terminado = true; limpiar(); notificar("salida"); resolver(lectura.data);
     });
     hijo.stdin.end(contenido);
   });
