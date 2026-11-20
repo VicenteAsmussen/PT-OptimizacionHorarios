@@ -7,42 +7,53 @@ export const categoriaLaboratoriosModelo = {
   id: 'laboratorios-modelo', edificio: 'Laboratorios del modelo',
   fuente: `Supuesto del modelo: capacidad fija de ${capacidadLaboratoriosModelo} estudiantes, cantidad declarada para esta ejecución, no inventario físico.`,
 };
+// Prepara la categoría supuesta de laboratorios sin presentarla como inventario físico.
 export function crearLaboratoriosModelo(cantidad = String(cantidadInicialLaboratoriosModelo)): BorradorRecurso {
   return { ...categoriaLaboratoriosModelo, capacidad: String(capacidadLaboratoriosModelo), cantidad };
 }
+// Habilita el modelo solo con un período actual inequívoco de una carrera autorizada.
 export function planificacionesModelo(planificaciones: PlanificacionSemestre[], rol?: string): PlanificacionSemestre[] {
   if (rol !== 'secretaria') return [];
-  // La identidad pública no expone carreraId, el catálogo ya viene autorizado por el backend.
+  // La identidad pública no expone carreraId, el servidor ya limita el catálogo a las carreras autorizadas.
   if (new Set(planificaciones.map(p => p.carreraId)).size !== 1) return [];
   const actuales = planificaciones.filter(p => p.actual);
   return actuales.length === 1 ? actuales : [];
 }
+// Presenta la fecha del intento con formato local o indica que no está disponible.
 export function fechaEjecucion(valor: string) {
   const fecha = new Date(valor);
   return Number.isNaN(fecha.getTime()) ? 'Fecha no disponible' : fecha.toLocaleString('es-CL');
 }
 
+// Reserva la solicitud de optimización para el rol secretaría.
 export const puedeOptimizar = (rol?: string | null) => rol === 'secretaria';
 export const etiquetasEstado = {
   en_ejecucion: 'En ejecución', aplicada: 'Incorporada como Propuesta', infactible: 'Sin solución factible',
   carga_incompleta: 'Carga incompleta', limite_tiempo: 'Límite de tiempo sin incorporación', error: 'Error',
   interrumpida: 'Ejecución interrumpida', datos_desactualizados: 'Datos desactualizados',
 };
+// Prioriza en el diagnóstico los docentes con menos bloques disponibles.
 export const ordenarDisponibilidad = (filas: Disponibilidad[]) => [...filas].sort((a, b) => a.bloquesDisponibles - b.bloquesDisponibles || a.profesorId - b.profesorId);
+// Conserva la planificación al enlazar al seguimiento del modelo.
 export const rutaModelo = (id: number) => `/app/optimizacion?planificacion=${id}`;
+// Conserva la planificación al enlazar a la gestión del horario generado.
 export const rutaResultados = (id: number) => `/app/resultados-horarios?planificacion=${id}`;
+// Decide si el fin del cálculo permite redirigir sin interrumpir otra tarea abierta.
 export function destinoAlTerminar(ejecucion: Ejecucion, ruta: string, consulta: string) {
   return ejecucion.estado === 'aplicada' && ruta === '/app/optimizacion'
     && new URLSearchParams(consulta).get('planificacion') === String(ejecucion.planificacionSemestreId) ? 'redirigir' : 'notificar';
 }
+// Convierte las categorías sugeridas en cantidades editables para un nuevo intento.
 export const sugerirRecursos = (categorias: CategoriaSala[]): BorradorRecurso[] => categorias.map(c => ({
   id: c.id, edificio: c.edificio, capacidad: String(c.capacidad), cantidad: String(c.cantidadSugerida), fuente: c.fuente,
 }));
+// Rechaza cantidades de recursos fuera del rango entero permitido por el formulario.
 function entero(valor: string, minimo: number, nombre: string) {
   const numero = Number(valor);
   if (!/^\d+$/.test(valor) || !Number.isSafeInteger(numero) || numero < minimo || numero > 10000) throw new Error(`${nombre}: ingresa un entero entre ${minimo} y 10000.`);
   return numero;
 }
+// Valida las categorías y cantidades declaradas antes de solicitar la ejecución.
 export function prepararRecursos(categorias: CategoriaSala[], salas: BorradorRecurso[], laboratorios: BorradorRecurso[], requiereLaboratorios: boolean): Recurso[] {
   if (requiereLaboratorios && !laboratorios.length) throw new Error('Declara el total departamental de laboratorios por capacidad.');
   const recursos: Recurso[] = salas.map(sala => {

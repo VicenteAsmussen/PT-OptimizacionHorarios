@@ -17,6 +17,7 @@ export interface ClaimsAutenticacion extends TokenPayload {
   iat: number;
 }
 
+// Firma la identidad y la versión de sesión con la expiración configurada para el acceso.
 export function generateToken(payload: TokenPayload, versionSesion: number): string {
   const { id, nombre, correo, rol } = payload;
   return jwt.sign({ id, nombre, correo, rol, versionSesion }, env.JWT_SECRET, {
@@ -25,6 +26,7 @@ export function generateToken(payload: TokenPayload, versionSesion: number): str
   });
 }
 
+// Exige firma, expiración y campos de identidad válidos antes de contrastar la sesión con la cuenta.
 export function verifyToken(token: string): ClaimsAutenticacion {
   try {
     const claims = jwt.verify(token, env.JWT_SECRET, { algorithms: ["HS256"] });

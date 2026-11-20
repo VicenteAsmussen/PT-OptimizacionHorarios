@@ -18,7 +18,9 @@ resultadosHorariosRouter.get("/:id/validacion-publicacion", validateRequest({ pa
 resultadosHorariosRouter.post("/:id/publicar", validateRequest({ params: resultadoParametros, body: resultadoRevision }), controlador.publicar);
 resultadosHorariosRouter.get("/:id/salas/exportar", validateRequest({ params: resultadoParametros, query: resultadoExportacion }), controlador.exportarSalas);
 const subirSalas = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 1 } }).single("archivo");
+// Acota la carga en memoria del Excel que se contrastará con la revisión de la propuesta.
 resultadosHorariosRouter.post("/:id/salas/importar", (req, res, siguiente) => {
+  // Rechaza errores de carga antes de permitir la validación y persistencia del lote.
   subirSalas(req, res, error => {
     if (error) { res.status(400).json({ status: "error", message: "Adjunte un único archivo en el campo archivo (máximo 10 MB)." }); return; }
     siguiente();

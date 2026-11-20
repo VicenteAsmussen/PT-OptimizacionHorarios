@@ -6,7 +6,7 @@ import { ofertaTipoHora } from "./oferta-tipo-hora.schema.js";
 
 export const tiposHora = pgTable("tipos_hora", {
   id: serial("id").primaryKey(),
-  tipo: varchar("tipo", { length: 50 }).notNull(), // e.g. "Cátedra", "Práctica", "Laboratorio"
+  tipo: varchar("tipo", { length: 50 }).notNull(), // Por ejemplo, "Cátedra", "Práctica", "Laboratorio".
 });
 
 export const tiposHoraRelations = relations(tiposHora, ({ many }) => ({

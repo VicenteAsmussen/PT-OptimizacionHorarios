@@ -10,21 +10,21 @@ import { asignaturasRepository } from "../src/repositories/asignaturas.repositor
 import { asignaturasService } from "../src/services/asignaturas.service.js";
 
 const entrada = { codigo: "CURSO", nombre: "Course", departamentoId: 1, semestreMalla: 1 };
-describe("Subject room requirement", () => {
-  it("defaults to required and preserves existing critical-subject defaults", () => {
+describe("Requisito de sala de las asignaturas", () => {
+  it("exige sala por defecto y conserva los valores iniciales de asignaturas críticas", () => {
     expect(createAsignaturaValidation.parse(entrada)).toMatchObject({ requiereSala: true, esCritica: false, tiposHora: [], carrerasIds: [] });
   });
-  it("accepts an explicit exemption on create/update without string coercion", () => {
+  it("acepta una exención explícita al crear o actualizar sin convertir cadenas", () => {
     expect(createAsignaturaValidation.parse({ ...entrada, requiereSala: false }).requiereSala).toBe(false);
     expect(updateAsignaturaValidation.parse({ requiereSala: false })).toEqual({ requiereSala: false });
     expect(updateAsignaturaValidation.safeParse({ requiereSala: "false" }).success).toBe(false);
   });
-  it("persists the create flag through the existing subject service", async () => {
+  it("persiste la marca de creación mediante el servicio existente de asignaturas", async () => {
     vi.mocked(asignaturasRepository.findByCodigo).mockResolvedValueOnce(undefined).mockResolvedValueOnce({ ...entrada, requiereSala: false } as never);
     await asignaturasService.createAsignatura(createAsignaturaValidation.parse({ ...entrada, requiereSala: false }));
     expect(asignaturasRepository.create).toHaveBeenCalledWith(expect.objectContaining({ requiereSala: false }), [], []);
   });
-  it("explicitly exempts professional practices and degree project, not preliminary project", () => {
+  it("exime explícitamente las prácticas profesionales y el proyecto de título, no el anteproyecto", () => {
     for (const codigo of ["620449", "620456", "620477"]) expect(datosAsignaturas.find(asignatura => asignatura.codigo === codigo)).toMatchObject({ requiereSala: false });
     expect(datosAsignaturas.find(asignatura => asignatura.codigo === "620472")).toMatchObject({ requiereSala: true });
   });

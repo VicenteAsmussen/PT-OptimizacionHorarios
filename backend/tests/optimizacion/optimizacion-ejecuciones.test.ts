@@ -17,6 +17,7 @@ const bloques = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"].flatMap((
 const datos = { ofertas: [], bloques, disponibilidades: [], externos: [], recursos: [], reservas: [] };
 const solicitud = { claveIdempotencia: "solicitud-tiempo", recursos: [] };
 
+// Registra intentos de escritura e idempotencia, sin reproducir bloqueos ni reversiones de PostgreSQL.
 function simularRepositorio(previa?: Record<string, unknown>) {
   const planificacion = { id: 1, carreraId: 1, actual: true, estadoPlanificacion: "preparacion" };
   const consulta = { from: vi.fn().mockReturnThis(), where: vi.fn().mockReturnThis(),
@@ -56,7 +57,7 @@ describe("admisión de ejecuciones", () => {
 });
 
 describe("parámetros persistidos con repositorio simulado", () => {
-  it("registra 1800 segundos en la entrada y metadata del nuevo intento", async () => {
+  it("registra 1800 segundos en la entrada y los metadatos del nuevo intento", async () => {
     const simulacion = simularRepositorio();
     const entrada = construirEntradaOptimizacion(datos);
     const respuesta = await optimizacionRepository.iniciar(1, solicitud, "propietario-sintetico",

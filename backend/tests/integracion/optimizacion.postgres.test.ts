@@ -52,6 +52,7 @@ describe.skipIf(!habilitado)("Ejecuciones en PostgreSQL aislado", () => {
     return { horarios: await cliente`select * from horarios_asignaturas order by id`, periodos: await cliente`select * from planificaciones_semestres order by id` };
   }
   it("serializa doble petición y conserva una sola ejecución por clave", async () => {
+    // Las peticiones concurrentes contrastan la unicidad persistida, no solo la respuesta reutilizada.
     const respuestas = await Promise.all([iniciar(), iniciar()]);
     expect(respuestas[0].ejecucion.id).toBe(respuestas[1].ejecucion.id);
     expect(respuestas.filter(respuesta => respuesta.nueva)).toHaveLength(1);

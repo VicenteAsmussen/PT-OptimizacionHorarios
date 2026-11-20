@@ -21,7 +21,7 @@ describe("contrato departamento-asignaturas sin base de datos", () => {
     expect(updateAsignaturaValidation.safeParse({ departamentoId: null }).success).toBe(false);
     expect(createAsignaturaValidation.safeParse({ ...datos, departamentoId: 1 }).success).toBe(true);
   });
-  it("expone relaciones inversas y asignaciones explícitas del seed", () => {
+  it("expone relaciones inversas y asignaciones explícitas de la carga inicial", () => {
     const { tables } = extractTablesRelationalConfig(esquema, createTableRelationsHelpers);
     expect(tables.asignaturas.relations.departamento.referencedTableName).toBe("departamentos");
     expect(tables.departamentos.relations.asignaturas.referencedTableName).toBe("asignaturas");
@@ -41,7 +41,7 @@ describe("contrato departamento-asignaturas sin base de datos", () => {
     await asignaturasRepository.findAll({ carreraId: 1, asignaturasCodigos: ["LOCAL"], departamentosIds: [], profesoresIds: [], ofertasIds: [] }, 5);
     const consulta = vi.mocked(db.query.asignaturas.findMany).mock.calls.at(-1)![0]!;
     expect(consulta.with).toMatchObject({ departamento: true });
-    // Ambos predicados deben existir; el filtro no concede acceso a otra carrera.
+    // Ambos predicados son obligatorios, el filtro no concede acceso a otra carrera.
     const { PgDialect } = await import("drizzle-orm/pg-core");
     const sql = new PgDialect().sqlToQuery(consulta.where as never);
     expect(sql.sql).toContain('"asignaturas"."codigo" in');

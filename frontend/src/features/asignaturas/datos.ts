@@ -1,6 +1,8 @@
 import type { Asignatura, Departamento, Oferta, ProfesorSeccion } from './types.ts';
 
+// Permite buscar identidades académicas sin distinguir mayúsculas ni acentos.
 const normalizar = (texto: string) => texto.trim().toLocaleLowerCase('es').normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+// Acota el catálogo por texto, departamento y semestre de malla.
 export function filtrarAsignaturas(asignaturas: readonly Asignatura[], busqueda = '', departamento = '', malla = '',
   departamentos: readonly Pick<Departamento, 'id' | 'esGestionado'>[] = []) {
   const consulta = normalizar(busqueda);
@@ -12,9 +14,11 @@ export function filtrarAsignaturas(asignaturas: readonly Asignatura[], busqueda 
     .sort((a, b) => a.semestreMalla - b.semestreMalla
       || a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
 }
+// Retira las restricciones de búsqueda conservando otros campos del contexto.
 export function limpiarFiltros<T extends { busqueda: string; departamento: string; malla: string }>(filtros: T): T {
   return { ...filtros, busqueda: '', departamento: '', malla: '' };
 }
+// Cuenta las secciones de cada asignatura únicamente para el período indicado.
 export function contarSecciones(ofertas: readonly Oferta[], planificacionSemestreId: number | null) {
   const conteos = new Map<string, number>();
   for (const oferta of ofertas) {
@@ -24,6 +28,7 @@ export function contarSecciones(ofertas: readonly Oferta[], planificacionSemestr
   }
   return conteos;
 }
+// Filtra los docentes elegibles por nombre o RUT para asignarlos a una sección.
 export function buscarProfesores(profesores: readonly ProfesorSeccion[], busqueda: string) {
   const consulta = normalizar(busqueda);
   const rut = /^[\d.k-]+$/i.test(consulta) ? consulta.replace(/[.-]/g, '') : '';
@@ -31,14 +36,17 @@ export function buscarProfesores(profesores: readonly ProfesorSeccion[], busqued
     || Boolean(rut && p.rut?.replace(/[.\-\s]/g, '').toLowerCase().includes(rut)))
     .sort((a, b) => a.nombre.localeCompare(b.nombre, 'es', { sensitivity: 'base' }));
 }
+// Aísla y ordena las secciones de la asignatura y el período seleccionados.
 export function ofertasDePlanificacion(ofertas: readonly Oferta[], codigo: string, planificacionSemestreId: number | null) {
   return ofertas.filter(o => o.asignaturaCodigo === codigo && o.planificacionSemestreId === planificacionSemestreId)
     .sort((a, b) => a.seccion - b.seccion);
 }
+// Ofrece números de sección disponibles sin excluir la sección en edición.
 export function seccionesLibres(ofertas: readonly Oferta[], editandoId?: number) {
   const ocupadas = new Set(ofertas.filter(o => o.id !== editandoId).map(o => o.seccion));
   return [1, 2, 3, 4, 5].filter(numero => !ocupadas.has(numero));
 }
+// Valida número, cupos y docentes antes de enviar los datos de una sección.
 export function prepararOferta(entrada: { seccion: string; cupos: string; asignaciones: { tipoHoraId: number; profesorId: number | null }[] },
   profesores: readonly ProfesorSeccion[], libres: readonly number[]) {
   const asignaciones = entrada.asignaciones.filter((a): a is { tipoHoraId: number; profesorId: number } => a.profesorId !== null);
@@ -54,9 +62,12 @@ export function prepararOferta(entrada: { seccion: string; cupos: string; asigna
   if (!entrada.cupos.trim() || !Number.isSafeInteger(cupos) || cupos < 0) throw new Error('Los cupos deben ser un entero no negativo.');
   return { seccion, cupos, asignaciones };
 }
+// Identifica componentes con horas que todavía no tienen profesor asignado.
 export function tiposPendientes(asignatura: Asignatura, oferta: Oferta) {
   return (asignatura.tiposHora ?? []).filter(t => t.horas > 0 && !oferta.asignaciones.some(a => a.tipoHoraId === t.tipoHoraId));
 }
+// Habilita la consulta del catálogo para los roles de gestión académica.
 export const puedeGestionarAsignaturas = (rol?: string) => rol === 'admin' || rol === 'secretaria';
+// Reserva la edición del catálogo al administrador sin dependencias declaradas.
 export const puedeEditarAsignaturas = (rol?: string, asignatura?: Pick<Asignatura, 'tieneDependenciasAcademicas'>) =>
   rol === 'admin' && asignatura?.tieneDependenciasAcademicas !== true;

@@ -3,10 +3,10 @@ import postgres from "postgres";
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 
-// Explicit opt-in; never use the application database for this mutation probe.
+// Exige autorización explícita, nunca usar la base de la aplicación para esta prueba de escritura.
 const habilitado = process.env.SEED_NORMAL_PROBE_DISPOSABLE === "yes";
 
-it.skipIf(!habilitado)("reconciles atomically without changing protected rows", async () => {
+it.skipIf(!habilitado)("reconcilia atómicamente sin cambiar filas protegidas", async () => {
   const conexion = process.env.SEED_NORMAL_PROBE_URL;
   const nombreEsperado = process.env.SEED_NORMAL_PROBE_DATABASE;
   if (!conexion || !nombreEsperado || !/^verificacion_seed_[a-zA-Z0-9_]+$/.test(nombreEsperado)) {

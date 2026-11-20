@@ -8,9 +8,12 @@ interface Servicio {
 interface Almacen { getItem: (clave: string) => string | null; setItem: (clave: string, valor: string) => void; removeItem: (clave: string) => void }
 export interface EstadoSeguimiento { ejecucion: Ejecucion | null; error: string; incierta: boolean; enviando: boolean; consultado: boolean }
 type Instantanea = Record<number, EstadoSeguimiento>;
+// Inicializa el seguimiento de un período sin presumir un intento remoto conocido.
 const vacio = (): EstadoSeguimiento => ({ ejecucion: null, error: '', incierta: false, enviando: false, consultado: false });
+// Conserva el diagnóstico recibido o explica que el estado del intento no pudo consultarse.
 const mensaje = (error: unknown) => error instanceof Error ? error.message : 'No se pudo consultar la ejecución.';
 
+// Coordina intentos por cuenta y período conservando solicitudes de inicio inciertas.
 export function crearSeguimiento(servicio: Servicio, almacen: Almacen, cuenta: string) {
   let filas: Instantanea = {};
   let cerrado = false;
@@ -20,15 +23,19 @@ export function crearSeguimiento(servicio: Servicio, almacen: Almacen, cuenta: s
   const consultas = new Map<number, Promise<void>>();
   const versiones = new Map<number, number>();
   const solicitudes = new Map<number, Solicitud>();
+  // Separa los intentos recuperables por cuenta y planificación académica.
   const clave = (id: number) => `optimizacion:${cuenta}:${id}`;
+  // Recupera la solicitud y los avisos del período sin depender de almacenamiento válido.
   function leerGuardado(id: number): { solicitud?: Solicitud; activa?: string; informada?: string } {
     try { return JSON.parse(almacen.getItem(clave(id)) ?? '{}'); } catch { return {}; }
   }
+  // Actualiza la instantánea del intento y comunica sus cambios a las pantallas.
   function publicar(id: number, cambios: Partial<EstadoSeguimiento>) {
     if (cerrado) return;
     filas = { ...filas, [id]: { ...(filas[id] ?? vacio()), ...cambios } };
     oyentes.forEach(oir => oir());
   }
+  // Incorpora un estado remoto sin confundir un intento histórico con un inicio incierto.
   function recibir(id: number, ejecucion: Ejecucion | null, inicioConfirmado = false) {
     if (cerrado) return;
     if (ejecucion && ejecucion.planificacionSemestreId !== id) throw new Error('La ejecución no corresponde a la planificación consultada.');
@@ -50,6 +57,7 @@ export function crearSeguimiento(servicio: Servicio, almacen: Almacen, cuenta: s
     publicar(id, { ejecucion, error: '', consultado: true, incierta });
     if (informar && ejecucion) terminales.forEach(oir => oir(ejecucion));
   }
+  // Consulta el intento vigente compartiendo lecturas y descartando versiones superadas.
   function actualizar(id: number): Promise<void> {
     if (cerrado || pendientes.has(id)) return Promise.resolve();
     if (consultas.has(id)) return consultas.get(id)!;
@@ -70,6 +78,7 @@ export function crearSeguimiento(servicio: Servicio, almacen: Almacen, cuenta: s
     }).finally(() => { consultas.delete(id); });
     consultas.set(id, tarea); return tarea;
   }
+  // Conserva clave y recursos antes del POST para recuperar un inicio no confirmado.
   function iniciar(id: number, recursos: Recurso[]): Promise<Ejecucion> {
     if (cerrado) return Promise.reject(new Error('La sesión de seguimiento terminó.'));
     if (pendientes.has(id)) return pendientes.get(id)!;
@@ -94,10 +103,14 @@ export function crearSeguimiento(servicio: Servicio, almacen: Almacen, cuenta: s
     pendientes.set(id, tarea); return tarea;
   }
   return {
+    // Expone la instantánea que consumen las pantallas de seguimiento.
     estado: () => filas,
+    // Registra cambios de los intentos y permite cancelar la suscripción.
     suscribir: (oir: () => void) => { oyentes.add(oir); return () => { oyentes.delete(oir); }; },
+    // Registra avisos de finalización que no se repiten para el mismo intento guardado.
     alTerminar: (oir: (ejecucion: Ejecucion) => void) => { terminales.add(oir); return () => { terminales.delete(oir); }; },
     actualizar, iniciar,
+    // Detiene las publicaciones locales sin cancelar el cálculo remoto.
     cerrar: () => { cerrado = true; oyentes.clear(); terminales.clear(); },
   };
 }

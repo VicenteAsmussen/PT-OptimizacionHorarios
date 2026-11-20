@@ -27,7 +27,7 @@ const modules = {
 } as const;
 const dir = new URL("../src/db/schema/", import.meta.url);
 
-// Captured from the pre-refactor runtime graph; SQL snapshot checks do not cover relations.
+// Capturado del grafo de ejecución previo a la reorganización, las capturas SQL no cubren relaciones.
 const graph = {
   asignaturaTipoHora: { asignatura: "One:asignaturas", tipoHora: "One:tipos_hora" },
   asignaturas: { departamento: "One:departamentos", carreraAsignaturas: "Many:carrera_asignatura", ofertas: "Many:ofertas_asignaturas", tiposHora: "Many:asignatura_tipo_hora" },
@@ -50,13 +50,13 @@ const graph = {
   usuarios: { profesor: "One:profesores", secretaria: "One:secretarias" },
 };
 
-describe("Flat schema organization (offline)", () => {
-  it("uses only the intended entity-named files and application barrel", () => {
+describe("Organización plana del esquema (sin conexión externa)", () => {
+  it("usa solo los archivos previstos por entidad y el módulo de reexportación de la aplicación", () => {
     const files = readdirSync(dir).sort();
     expect(files).toEqual([...Object.keys(modules).map((name) => `${name}.schema.ts`), "index.ts"].sort());
   });
 
-  it.each(Object.entries(modules))("colocates one table, relations and original types in %s", (name, table) => {
+  it.each(Object.entries(modules))("agrupa una tabla, sus relaciones y sus tipos originales en %s", (name, table) => {
       const source = readFileSync(new URL(`${name}.schema.ts`, dir), "utf8");
       expect(source.match(/\bpgTable\s*\(/g)).toHaveLength(1);
       const tableOffset = source.indexOf(`export const ${table} = pgTable(`);
@@ -69,7 +69,7 @@ describe("Flat schema organization (offline)", () => {
       if (table === "usuarios") expect(source.indexOf("export const rolUsuarioEnum")).toBeLessThan(tableOffset);
   });
 
-  it.each(Object.entries(modules))("loads %s as a fresh standalone entry point", async (name, table) => {
+  it.each(Object.entries(modules))("carga %s como punto de entrada independiente sin caché previa", async (name, table) => {
     vi.resetModules();
     const entry = await import(`../src/db/schema/${name}.schema.ts`);
     expect(Object.keys(entry).sort()).toEqual([table, `${table}Relations`, ...(table === "usuarios" ? ["rolUsuarioEnum"] : []), ...(table === "profesores" ? ["columnasProfesorSinRut"] : [])].sort());
@@ -79,7 +79,7 @@ describe("Flat schema organization (offline)", () => {
     expect(entry[`${table}Relations`].config(createTableRelationsHelpers(entry[table]))).toBeDefined();
   });
 
-  it("preserves the intended runtime exports and the relation graph", async () => {
+  it("conserva las exportaciones previstas en ejecución y el grafo de relaciones", async () => {
     const schema = await import("../src/db/schema/index.js");
     expect(Object.keys(schema).sort()).toEqual([
       ...Object.values(modules).flatMap((table) => [table, `${table}Relations`]), "rolUsuarioEnum", "columnasProfesorSinRut",
@@ -91,7 +91,7 @@ describe("Flat schema organization (offline)", () => {
     ]))).toEqual(graph);
   });
 
-  it("exports an exact professor projection without exposing rut", async () => {
+  it("exporta una proyección exacta del profesor sin exponer rut", async () => {
     const { columnasProfesorSinRut } = await import("../src/db/schema/index.js");
     expect(columnasProfesorSinRut).toEqual({
       id: true, usuarioId: true, departamentoId: true, nombre: true, tipo: true,
@@ -99,7 +99,7 @@ describe("Flat schema organization (offline)", () => {
     expect(columnasProfesorSinRut).not.toHaveProperty("rut");
   });
 
-  it("produces zero SQL migration statements against the latest snapshot", async () => {
+  it("no produce sentencias SQL de migración respecto de la última captura del esquema", async () => {
     const schema = await import("../src/db/schema/index.js");
     const journal = JSON.parse(readFileSync(new URL("../src/db/migrations/meta/_journal.json", import.meta.url), "utf8"));
     const latest = journal.entries.at(-1);

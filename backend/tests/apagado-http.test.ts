@@ -12,7 +12,7 @@ vi.mock("node:http", async (importar) => {
   return { ...original, createServer: (...argumentos: Parameters<typeof original.createServer>) => {
     const servidor = original.createServer(...argumentos);
     const escuchar = servidor.listen.bind(servidor);
-    // El servidor de producción usa un puerto efímero y solo loopback en este arnés.
+    // En estas pruebas, el servidor de producción usa un puerto efímero y solo acepta conexiones locales.
     servidor.listen = ((puerto: number, listo: () => void) => escuchar(puerto, "127.0.0.1", listo)) as typeof servidor.listen;
     dobles.servidor = servidor;
     return servidor;
@@ -103,7 +103,7 @@ function solicitar(servidor: Server) {
       respuesta.on("error", reject);
     }).on("error", reject);
   });
-  // Una aserción RED puede fallar antes del await, el teardown cierra ese socket.
+  // Si una aserción falla antes de await, la limpieza cierra ese socket.
   void peticion.catch(() => {});
   peticiones.push(peticion);
   return peticion;
@@ -235,7 +235,7 @@ describe("límites y fallos del cierre con dobles", () => {
     return { ...crearApagado(opciones), opciones, completar: (error?: Error) => completar(error) };
   }
 
-  it("espera el callback, cierra conexiones ociosas después de close y limpia el temporizador unref", async () => {
+  it("espera la función de retorno, cierra conexiones ociosas después de close y limpia el temporizador unref", async () => {
     vi.useFakeTimers();
     const arnes = await preparar();
     const temporizar = vi.spyOn(globalThis, "setTimeout");
@@ -326,7 +326,7 @@ describe("límites y fallos del cierre con dobles", () => {
     expect(JSON.stringify(arnes.opciones.informar.mock.calls)).not.toMatch(/postgres|privado|sintetico|destino/);
   });
 
-  it.each(["ERR_SERVER_NOT_RUNNING", "EIO"])("atiende el error de callback %s sin ocultar el fallo primario ni el de SQL", async codigo => {
+  it.each(["ERR_SERVER_NOT_RUNNING", "EIO"])("atiende el error de la función de retorno %s sin ocultar el fallo primario ni el de SQL", async codigo => {
     const arnes = await preparar();
     arnes.opciones.cerrarSql.mockRejectedValue(new Error("privado"));
     const pendiente = arnes.cerrar();

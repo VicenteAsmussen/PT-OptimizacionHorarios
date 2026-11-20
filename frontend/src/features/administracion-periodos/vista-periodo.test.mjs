@@ -50,17 +50,17 @@ function nodos(elemento) {
   if (!elemento || typeof elemento !== 'object') return [];
   return [elemento, ...React.Children.toArray(elemento.props?.children).flatMap(nodos)];
 }
-test('state and reset cards render short guidance and four explicit actions, with no scope selector', async () => {
+test('las tarjetas de estado y reinicio muestran orientación breve y cuatro acciones explícitas sin selector de alcance', async () => {
   const Vista = await cargarVista();
   const html = renderToStaticMarkup(React.createElement(Vista, propiedades));
   assert.equal((html.match(/<section/g) ?? []).length, 4);
-  assert.equal((html.match(/<select/g) ?? []).length, 1, 'only the state select remains');
+  assert.equal((html.match(/<select/g) ?? []).length, 1, 'solo permanece el selector de estado');
   for (const texto of ['Reiniciar ofertas gestionadas', 'Reiniciar ofertas externas', 'Reiniciar horarios gestionados', 'Reiniciar horarios externos']) assert.ok(html.includes(texto));
   assert.doesNotMatch(html, /Alcance del reinicio|Todas las ofertas/);
   assert.match(html, /<option value="preparacion" disabled=""/);
   assert.match(html, /elimina.*horarios/i);
 });
-test('each reset button selects exactly its own target and scope before confirmation', async () => {
+test('cada botón de reinicio selecciona exactamente su destino y alcance antes de confirmar', async () => {
   const Vista = await cargarVista();
   const seleccionadas = [];
   const { accionesReinicio } = await import('./modelo.ts');
@@ -72,7 +72,7 @@ test('each reset button selects exactly its own target and scope before confirma
   }
   assert.deepEqual(seleccionadas, [['horarios', 'gestionadas'], ['horarios', 'externas'], ['ofertas', 'gestionadas'], ['ofertas', 'externas']]);
 });
-test('external deletion confirmation binds the selected action and exact period code', async () => {
+test('la confirmación de borrado externo vincula la acción seleccionada y el código exacto del período', async () => {
   const Vista = await cargarVista();
   const { accionesReinicio } = await import('./modelo.ts');
   const accion = accionesReinicio.find(accion => accion.objetivo === 'ofertas' && accion.alcance === 'externas');
@@ -94,9 +94,9 @@ test('external deletion confirmation binds the selected action and exact period 
   assert.match(html, /2 ofertas.*2 asignaciones.*0 bloques/);
 });
 
-// Boundary probes derived independently during verification.
+// Casos límite definidos de forma independiente durante la verificación.
 for (const estado of ['propuesta', 'publicado']) for (const horarios of [0, 1]) for (const destino of ['preparacion', 'propuesta', 'publicado']) {
-  test(`state ${estado} -> ${destino}, schedules=${horarios}: selection never writes`, async () => {
+  test(`estado ${estado} -> ${destino}, horarios=${horarios}: la selección nunca escribe`, async () => {
     const Vista = await cargarVista(); let mutaciones = 0; let seleccion = '';
     const datos = structuredClone(resumenes);
     datos.todas.planificacion.estadoPlanificacion = estado;
@@ -109,7 +109,7 @@ for (const estado of ['propuesta', 'publicado']) for (const horarios of [0, 1]) 
     assert.equal(mutaciones, estado !== destino && (destino === 'preparacion' ? horarios === 0 : horarios > 0) ? 1 : 0);
   });
 }
-test('busy confirmation cannot submit any action even with an exact code', async () => {
+test('la confirmación ocupada no envía ninguna acción aunque el código sea exacto', async () => {
   const Vista = await cargarVista(); const { accionesReinicio } = await import('./modelo.ts'); let mutaciones = 0;
   for (const accion of accionesReinicio) {
     const elementos = nodos(Vista({ ...propiedades, accion, confirmacion: '2099-2', bloqueado: true, alReiniciar: () => mutaciones++ }));
@@ -118,7 +118,7 @@ test('busy confirmation cannot submit any action even with an exact code', async
     assert.equal(elementos.find(elemento => elemento.type === 'button' && elemento.props.children === 'Confirmar reinicio').props.disabled, true);
   }
 });
-test('preparation remains available with external schedules when managed schedules are zero', async () => {
+test('preparación sigue disponible con horarios externos cuando no hay horarios gestionados', async () => {
   const Vista = await cargarVista();
   const datos = structuredClone(resumenes);
   datos.gestionadas.horarios = 0; datos.externas.horarios = 4; datos.todas.horarios = 4;
@@ -130,7 +130,7 @@ test('preparation remains available with external schedules when managed schedul
   nodos(elemento).find(elemento => elemento.type === 'form').props.onSubmit({ preventDefault() {} });
   assert.equal(cambios, 1);
 });
-test('external-only schedules cannot publish or be bypassed to reset external offers', async () => {
+test('los horarios exclusivamente externos no permiten publicar ni eludir el bloqueo para reiniciar ofertas externas', async () => {
   const Vista = await cargarVista(); const { accionesReinicio } = await import('./modelo.ts');
   const datos = structuredClone(resumenes); datos.gestionadas.horarios = 0;
   datos.todas.planificacion.estadoPlanificacion = 'propuesta';
@@ -146,7 +146,7 @@ test('external-only schedules cannot publish or be bypassed to reset external of
   for (const formulario of elementos.filter(elemento => elemento.type === 'form')) formulario.props.onSubmit({ preventDefault() {} });
   assert.equal(cambios, 0); assert.equal(reinicios, 0);
 });
-test('no managed schedules blocks programmatic proposal submission', async () => {
+test('la ausencia de horarios gestionados bloquea el envío programático de propuesta', async () => {
   const Vista = await cargarVista();
   const datos = structuredClone(resumenes);
   datos.todas.planificacion.estadoPlanificacion = 'preparacion'; datos.gestionadas.horarios = 0;
@@ -157,7 +157,7 @@ test('no managed schedules blocks programmatic proposal submission', async () =>
   elementos.find(elemento => elemento.type === 'form').props.onSubmit({ preventDefault() {} });
   assert.equal(cambios, 0);
 });
-test('final flow disables both advanced states with external-only schedules and admits admin publishing with managed schedules', async () => {
+test('el flujo final deshabilita ambos estados avanzados con horarios exclusivamente externos y permite publicar a administración con horarios gestionados', async () => {
   const Vista = await cargarVista();
   const datos = structuredClone(resumenes); datos.todas.planificacion.estadoPlanificacion = 'preparacion';
   datos.gestionadas.horarios = 0; datos.externas.horarios = 4; datos.todas.horarios = 4;
@@ -189,13 +189,13 @@ test('el contexto distingue el período, la carrera, el estado y la marca actual
   const etiquetas = elementos.filter(elemento => elemento.type === 'button' && String(elemento.props.children).startsWith('Reiniciar ')).map(elemento => elemento.props.children);
   assert.deepEqual(etiquetas, ['Reiniciar horarios gestionados', 'Reiniciar ofertas gestionadas', 'Reiniciar horarios externos', 'Reiniciar ofertas externas']);
 });
-test('page renders its short description immediately below the title', async () => {
+test('la página muestra su descripción breve inmediatamente debajo del título', async () => {
   const Pagina = await cargarVista('./AdministracionPeriodosPage.tsx');
   const html = renderToStaticMarkup(React.createElement(Pagina));
   assert.match(html, /<h1[^>]*>Administración de períodos<\/h1><p[^>]*>Selecciona una carrera y un período para cambiar su estado o reiniciar datos\.<\/p>/);
   assert.doesNotMatch(html, /Alcance del reinicio/);
 });
-test('current action works in every state without submitting state form; busy/current guards remain explicit', async () => {
+test('marcar como actual funciona en cada estado sin enviar el formulario de estado, con guardias explícitas de ocupado y actual', async () => {
   const Vista = await cargarVista(); let llamadas = 0;
   for (const estado of ['preparacion', 'propuesta', 'publicado']) for (const actual of [true, false]) for (const bloqueado of [true, false]) {
     const datos = structuredClone(resumenes); Object.assign(datos.todas.planificacion, { estadoPlanificacion: estado, actual });
@@ -207,7 +207,7 @@ test('current action works in every state without submitting state form; busy/cu
     const anteriores = llamadas; boton.props.onClick(); assert.equal(llamadas - anteriores, actual || bloqueado ? 0 : 1);
   }
 });
-test('delete keeps irreversible warning and exact confirmation without the long eligibility paragraph', async () => {
+test('el borrado conserva la advertencia irreversible y la confirmación exacta sin el párrafo extenso de elegibilidad', async () => {
   const Vista = await cargarVista(); let llamadas = 0;
   for (const estado of ['preparacion', 'propuesta', 'publicado']) for (const ofertas of [0, 1]) for (const bloqueado of [false, true]) for (const codigo of ['2099-2', ' 2099-2']) {
     const datos = structuredClone(resumenes); datos.todas.planificacion.estadoPlanificacion = estado; datos.todas.ofertas = ofertas;

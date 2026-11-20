@@ -8,7 +8,9 @@ interface RequestValidationSchema {
   params?: ZodTypeAny;
 }
 
+// Valida y transforma las entradas HTTP antes de entregarlas al controlador.
 export function validateRequest(schemas: RequestValidationSchema) {
+  // Sustituye las entradas por sus valores validados y deriva rechazos de formato al manejador de errores.
   return async (req: Request, _res: Response, next: NextFunction): Promise<void> => {
     try {
       if (schemas.body) {

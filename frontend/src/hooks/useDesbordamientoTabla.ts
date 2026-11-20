@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 
+// Detecta si la tabla necesita una indicación de desplazamiento horizontal.
 export function useDesbordamientoTabla() {
   const [contenedor, referencia] = useState<HTMLDivElement | null>(null);
   const [desborda, setDesborda] = useState(false);
@@ -9,6 +10,7 @@ export function useDesbordamientoTabla() {
       setDesborda(false);
       return;
     }
+    // Reevalúa si las columnas exceden el espacio disponible para consultarlas.
     const medir = () => setDesborda(contenedor.scrollWidth > contenedor.clientWidth);
     medir();
     const observador = new ResizeObserver(medir);

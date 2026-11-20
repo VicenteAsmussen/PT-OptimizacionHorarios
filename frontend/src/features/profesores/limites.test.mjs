@@ -48,7 +48,7 @@ test("nuevo acceso compartido por creación inicial y separada valida sin altera
   assert.equal(formularios.prepararCambiosAcceso("", "", "antes@example.cl"), null);
 });
 
-test("formularios conectan límites nativos, ayuda accesible y helpers antes de API", async () => {
+test("los formularios conectan límites nativos, ayuda accesible y funciones auxiliares antes de la API", async () => {
   for (const archivo of ["FormularioProfesor.tsx", "AccionesProfesor.tsx"]) {
     const fuente = await readFile(new URL(`./${archivo}`, import.meta.url), "utf8");
     const correo = fuente.match(/<input[^>]*type="email"[\s\S]*?\/>/)?.[0];

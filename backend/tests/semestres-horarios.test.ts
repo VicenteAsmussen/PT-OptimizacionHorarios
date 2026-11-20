@@ -38,8 +38,8 @@ function simularGuardia(lecturas: unknown[][][], ids = [7]) {
 }
 const ofertaRow = [2, "INF100", 7, 1, 30];
 
-describe("Publicación única por planificación (offline)", () => {
-  it("no exporta entidad legacy ni agregado ni publicación por entrada", () => {
+describe("Publicación única por planificación (sin conexión externa)", () => {
+  it("no exporta entidad antigua ni agregado ni publicación por entrada", () => {
     for (const nombre of ["semestres", "semestresHorarios", "horarios"]) expect(schema).not.toHaveProperty(nombre);
     const entradas = getTableConfig(schema.horariosAsignaturas);
     expect(entradas.columns.map(c => c.name)).not.toContain("horario_publicado");
@@ -84,7 +84,7 @@ describe("Publicación única por planificación (offline)", () => {
     await expect(horariosRepository.update(404, { salaId: null })).rejects.toMatchObject({ statusCode: 404 });
     expect(statements).toHaveLength(1);
   });
-  it("lee estado a través de planificación, sin proyección legacy", async () => {
+  it("lee estado a través de planificación, sin proyección antigua", async () => {
     await horariosRepository.findAll({ planificacionSemestreId: 7 });
     await horariosRepository.findById(12);
     for (const { sql } of statements) {
@@ -113,7 +113,7 @@ describe("Publicación única por planificación (offline)", () => {
     expect(statements).toHaveLength(1);
     expect(statements[0].params).toEqual([404]);
   });
-  it("checks career/code after its lock and rejects before demotion/insertion", async () => {
+  it("comprueba carrera y código tras bloquear y rechaza antes de desmarcar o insertar", async () => {
     responses.push([[1]], [[7]]);
     await expect(planificacionesSemestresRepository.create({ carreraId: 1, codigo: "2027-1" })).rejects.toMatchObject({ statusCode: 409, message: "Período existente" });
     expect(transaction).toHaveBeenCalledOnce();
@@ -133,7 +133,7 @@ describe("Publicación única por planificación (offline)", () => {
     expect(statements.at(-1)!.sql).toContain('delete from "horarios_asignaturas"');
     expect(statements.some(({ sql }) => sql.startsWith('update "planificaciones_semestres"'))).toBe(false);
   });
-  it("limita el reset de desarrollo de 0013 y elimina solo las tablas obsoletas", () => {
+  it("limita el reinicio de desarrollo de 0013 y elimina solo las tablas obsoletas", () => {
     const dir = new URL("../src/db/migrations/", import.meta.url);
     const journal = JSON.parse(readFileSync(new URL("meta/_journal.json", dir), "utf8"));
     const migration = journal.entries.find((entrada: { idx: number }) => entrada.idx === 13);
@@ -180,7 +180,7 @@ describe("Publicación única por planificación (offline)", () => {
     expect(actual.tables).not.toHaveProperty("public.semestres_horarios");
     expect(actual.tables["public.planificaciones_semestres"]).toEqual(anterior.tables["public.planificaciones_semestres"]);
   });
-  it("preserva migración histórica 0006 y su snapshot", () => {
+  it("preserva la migración histórica 0006 y su captura del esquema", () => {
     const dir = new URL("../src/db/migrations/", import.meta.url);
     const journal = JSON.parse(readFileSync(new URL("meta/_journal.json", dir), "utf8"));
     const migration = journal.entries.find((entry: { idx: number }) => entry.idx === 6);

@@ -9,6 +9,7 @@ interface Propiedades {
   seleccionar: (id: number) => void;
 }
 
+// Sitúa la consulta docente en una carrera, un período y su estado académico.
 export default function EncabezadoMiHorario({ planificaciones, planificacionId, seleccionar }: Propiedades) {
   const planificacion = planificaciones.find(p => p.id === planificacionId);
   return <header className={estilos.encabezado}>

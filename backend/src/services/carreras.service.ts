@@ -3,12 +3,14 @@ import { carrerasRepository } from "../repositories/carreras.repository.js";
 import { type CreateCarreraDTO, type UpdateCarreraDTO } from "../validations/carreras.validation.js";
 import { NotFoundError, ConflictError, BadRequestError } from "../utils/errors.js";
 
+// Rechaza vínculos de departamento repetidos antes de construir la relación de carrera.
 function validarIdsUnicos(ids: number[], mensaje: string) {
   if (new Set(ids).size !== ids.length) {
     throw new BadRequestError(mensaje);
   }
 }
 
+// Comprueba que todos los departamentos propuestos estén registrados.
 async function validarDepartamentosExistentes(ids: number[]) {
   const idsUnicos = [...new Set(ids)];
   const existingIds = await carrerasRepository.findExistingDepartamentosIds(idsUnicos);
@@ -20,6 +22,7 @@ async function validarDepartamentosExistentes(ids: number[]) {
   }
 }
 
+// Distingue gestión propia y externa sin admitir departamentos gestionados fuera de la relación.
 function construirRelacionesDepartamento(departamentosIds: number[], departamentosGestionadosIds: number[]) {
   const gestionados = new Set(departamentosGestionadosIds);
   const noRelacionados = departamentosGestionadosIds.filter((id) => !departamentosIds.includes(id));
@@ -35,10 +38,12 @@ function construirRelacionesDepartamento(departamentosIds: number[], departament
 }
 
 export const carrerasService = {
+  // Presenta las carreras visibles con sus departamentos y mallas relacionadas.
   async getAllCarreras(alcance?: AlcanceCarrera) {
     return await carrerasRepository.findAll(alcance);
   },
 
+  // Resuelve una carrera accesible u oculta destinos fuera del alcance autorizado.
   async getCarreraById(id: number, alcance?: AlcanceCarrera) {
     const carrera = await carrerasRepository.findById(id);
     if (!carrera || (alcance && alcance.carreraId !== id)) {
@@ -47,6 +52,7 @@ export const carrerasService = {
     return carrera;
   },
 
+  // Registra una carrera sin nombre duplicado y con departamentos relacionados válidos.
   async createCarrera(dto: CreateCarreraDTO) {
     const existing = await carrerasRepository.findByNombre(dto.nombre);
     if (existing) {
@@ -66,6 +72,7 @@ export const carrerasService = {
     return await this.getCarreraById(created.id);
   },
 
+  // Reconstruye las relaciones solicitadas sin perder la distinción de departamentos gestionados.
   async updateCarrera(id: number, dto: UpdateCarreraDTO) {
     const carreraActual = await this.getCarreraById(id);
 
@@ -95,6 +102,7 @@ export const carrerasService = {
     return await this.getCarreraById(id);
   },
 
+  // Delega el retiro de una carrera existente sujeto a sus dependencias académicas.
   async deleteCarrera(id: number) {
     await this.getCarreraById(id);
     await carrerasRepository.delete(id);

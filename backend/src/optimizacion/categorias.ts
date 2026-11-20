@@ -25,6 +25,7 @@ export interface CategoriaSalaPreparada {
   salaIds: number[];
   fuente: string;
 }
+// Agrupa salas acreditadas y propone cantidades, sin afirmar disponibilidad física para la ejecución.
 export function prepararCategoriasSalas(salas: readonly SalaParaCategorias[]): {
   categorias: CategoriaSalaPreparada[]; diagnosticos: { salaId: number; mensaje: string }[];
 } {

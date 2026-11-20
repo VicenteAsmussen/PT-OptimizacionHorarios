@@ -1,17 +1,22 @@
+# Estas pruebas ejecutan el optimizador con entradas sintéticas, no son comprobaciones sin resolución.
 using Test, JuMP, HiGHS
 include("modelo.jl")
 include("salida.jl")
 
 const dias_prueba = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"]
 const bloques_prueba = [(id=(d-1)*16+b, dia=dia, numeroBloque=b) for (d,dia) in enumerate(dias_prueba) for b in 1:16]
+# Crea una categoría ficticia para aislar la capacidad y la cantidad de recursos.
 recurso_prueba(; tipo="Sala", cantidad=3) = (id="recurso", edificio="Aislado", tipo, capacidad=60, cantidad, fuente="Entrada sintética")
+# Representa una sección de un componente para controlar su carga y profesor en cada caso.
 oferta_prueba(id; codigo="A", seccion=1, horas=2, tipo="T") = (id, asignaturaCodigo=codigo, seccion, cupos=30, semestreMalla=1, esCritica=false, requiereSala=true,
     componentes=[(tipoHoraId=1, tipo, horas, profesorId=id)])
+# Reúne entradas ficticias para variar una restricción sin depender de la base académica.
 function entrada_prueba(ofertas; disponibles=[(profesorId=o.id,bloqueId=b) for o in ofertas for b in [1,2]],
     recursos=[recurso_prueba()], parejas=[], externos=[], reservas=[])
     return (version=1, versionModelo="notebook-v2-1", revision=repeat("a",64), parametros=(limiteSolverSegundos=300,),
         ofertas, bloques=bloques_prueba, disponibilidades=disponibles, recursos, parejas, externos, reservas)
 end
+# Resuelve el caso sintético y devuelve el mismo formato de salida que usa la integración.
 function resolver_prueba(entrada)
     nucleo = construir_modelo(entrada)
     @test time_limit_sec(nucleo.modelo) == 300
@@ -38,6 +43,7 @@ end
 end
 
 @testset "Pares completos sin selección global" begin
+    # Dos patrones permiten proteger parejas sin que exista una elección conjunta de tres asignaturas sin topes.
     ofertas = [oferta_prueba(id,codigo=string(Char(65+(id-1)÷2)),seccion=isodd(id) ? 1 : 2) for id in 1:6]
     disponibles = [(profesorId=o.id,bloqueId=b) for o in ofertas for b in (isodd(o.id) ? [1,2] : [17,18])]
     parejas = [(id="AB",asignaturaA="A",asignaturaB="B",status=1,seccionesA=[1,2],seccionesB=[3,4]),
@@ -54,6 +60,7 @@ end
 end
 
 @testset "Críticas y continuidad con pesos originales" begin
+    # El primer caso distingue penalizar un conflicto de prohibirlo mediante una restricción obligatoria.
     ofertas = [oferta_prueba(1,codigo="A"),oferta_prueba(2,codigo="B")]
     pareja = (id="critica",asignaturaA="A",asignaturaB="B",status=0.5,seccionesA=[1],seccionesB=[2])
     salida = resolver_prueba(entrada_prueba(ofertas; parejas=[pareja]))

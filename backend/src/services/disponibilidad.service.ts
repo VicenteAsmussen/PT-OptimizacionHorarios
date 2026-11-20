@@ -6,11 +6,13 @@ import type { CreateDisponibilidadDTO, SyncDisponibilidadDTO, DisponibilidadQuer
 import { NotFoundError, ConflictError, BadRequestError, ForbiddenError } from "../utils/errors.js";
 import { miDisponibilidadService } from "./mi-disponibilidad.service.js";
 
+// Impide que una identidad docente opere sobre la disponibilidad de otro perfil.
 async function exigirProfesorPropio(profesorId: number, usuario?: UsuarioPlanificacion) {
   if (usuario?.rol !== "profesor") return;
   const profesor = await planificacionesSemestresRepository.findProfesorByUsuarioId(usuario.id);
   if (!profesor || profesor.id !== profesorId) throw new ForbiddenError("Solo puede gestionar su propia disponibilidad");
 }
+// Exige acceso a un período actual en preparación antes de solicitar cambios de disponibilidad.
 async function exigirEditable(planificacionSemestreId: number, alcance?: AlcanceCarrera, usuario?: UsuarioPlanificacion) {
   const planificacion = await planificacionesSemestresService.getById(planificacionSemestreId, alcance, usuario);
   if (!planificacion.actual || planificacion.estadoPlanificacion !== "preparacion") {
@@ -19,6 +21,7 @@ async function exigirEditable(planificacionSemestreId: number, alcance?: Alcance
   // El repositorio vuelve a validar el estado bajo el bloqueo de carrera.
 }
 export const disponibilidadService = {
+  // Consulta disponibilidad acotada a la carrera o a las asignaciones propias del profesor.
   async getDisponibilidad(consulta?: DisponibilidadQueryDTO, alcance?: AlcanceCarrera, usuario?: UsuarioPlanificacion) {
     let filtro = consulta;
     if (usuario?.rol === "profesor") {
@@ -33,6 +36,7 @@ export const disponibilidadService = {
     if (consulta?.planificacionSemestreId) await planificacionesSemestresService.getById(consulta.planificacionSemestreId, alcance, usuario);
     return disponibilidadRepository.findAll(filtro, alcance);
   },
+  // Comprueba propiedad docente o acceso de carrera antes de presentar una selección individual.
   async getById(id: number, alcance?: AlcanceCarrera, usuario?: UsuarioPlanificacion) {
     const registro = await disponibilidadRepository.findById(id);
     if (!registro) throw new NotFoundError(`Registro de disponibilidad con ID ${id} no encontrado`);
@@ -41,6 +45,7 @@ export const disponibilidadService = {
     else await planificacionesSemestresService.getById(registro.planificacionSemestreId, alcance, usuario);
     return registro;
   },
+  // Añade un bloque validado y conserva las reglas de envío completo cuando actúa un profesor.
   async createSingle(datos: CreateDisponibilidadDTO, alcance?: AlcanceCarrera, usuario?: UsuarioPlanificacion) {
     if (usuario?.rol === "profesor") {
       const resultado = await miDisponibilidadService.modificar(usuario, datos.planificacionSemestreId, { agregar: datos.bloqueId }, datos.profesorId);
@@ -55,6 +60,7 @@ export const disponibilidadService = {
     const creada = await disponibilidadRepository.create(datos);
     return this.getById(creada.id, alcance, usuario);
   },
+  // Reemplaza la grilla con bloques existentes y deriva el autoservicio a sus mínimos de carga.
   async syncGrid(datos: SyncDisponibilidadDTO, alcance?: AlcanceCarrera, usuario?: UsuarioPlanificacion) {
     if (usuario?.rol === "profesor") return (await miDisponibilidadService.modificar(usuario, datos.planificacionSemestreId, { bloquesIds: datos.bloquesIds }, datos.profesorId)).filas;
     exigirEnAlcance(alcance?.profesoresIds, datos.profesorId);
@@ -66,6 +72,7 @@ export const disponibilidadService = {
     if (bloquesIds.some(id => !existentes.includes(id))) throw new BadRequestError("Hay bloques horarios inexistentes");
     return disponibilidadRepository.syncDisponibilidad(datos.profesorId, datos.planificacionSemestreId, bloquesIds);
   },
+  // Retira un bloque sin eludir propiedad, estado del período ni mínimo del autoservicio docente.
   async deleteSingle(id: number, alcance?: AlcanceCarrera, usuario?: UsuarioPlanificacion) {
     const registro = await this.getById(id, alcance, usuario);
     if (usuario?.rol === "profesor") {
@@ -76,6 +83,7 @@ export const disponibilidadService = {
     await exigirEditable(registro.planificacionSemestreId, alcance, usuario);
     await disponibilidadRepository.delete(id);
   },
+  // Solicita vaciar la selección, sometiendo al profesor a los rechazos del envío vacío propio.
   async clearGrid(profesorId: number, planificacionSemestreId: number, alcance?: AlcanceCarrera, usuario?: UsuarioPlanificacion) {
     if (usuario?.rol === "profesor") return miDisponibilidadService.modificar(usuario, planificacionSemestreId, { bloquesIds: [] }, profesorId);
     exigirEnAlcance(alcance?.profesoresIds, profesorId);

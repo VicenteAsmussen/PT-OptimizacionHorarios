@@ -128,7 +128,7 @@ test('una importación confirmada emite un solo éxito por Sonner y conserva los
   assert.match(pagina.html(), /Carga guardada/);
 });
 
-test('rechazo por fila conserva el detalle sin toast y sin modificar la carga consultada', async () => {
+test('el rechazo por fila conserva el detalle sin notificación emergente ni modificar la carga consultada', async () => {
   const error = { fila: 4, columna: 'Horario 1', valor: 'Martes B5', codigoAsignatura: 'MAT101', nombreAsignatura: 'Matemática', mensaje: 'El bloque está reservado.' };
   const pagina = await preparar({ importar: async () => { throw new ApiError('Archivo rechazado', 400, { errores: [error], data: resultado }); } });
   await pagina.seleccionar(); await pagina.enviar();

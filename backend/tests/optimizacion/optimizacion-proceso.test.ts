@@ -11,6 +11,7 @@ function entrada() {
     Array.from({ length: 16 }, (_, b) => ({ id: d * 16 + b + 1, dia, numeroBloque: b + 1 }))),
     disponibilidades: [], externos: [], recursos: [], reservas: [] });
 }
+// Sustituye spawn con canales en memoria para ensayar fallos y plazos sin iniciar Julia.
 function proceso() {
   const hijo = Object.assign(new EventEmitter(), { stdout: new PassThrough(), stderr: new PassThrough(),
     stdin: new Writable({ write(_datos, _codificacion, callback) { callback(); } }), kill: vi.fn(() => true) });
@@ -21,7 +22,7 @@ const opciones = { arranqueMs: 100, extraccionMs: 200, margenSolverMs: 50, maxEn
 afterEach(() => { cerrarProcesosJulia(); vi.useRealTimers(); vi.restoreAllMocks(); vi.clearAllMocks(); });
 
 describe("proceso Julia aislado", () => {
-  it("usa spawn sin shell, proyecto fijo y JSON por stdin/stdout", async () => {
+  it("usa spawn sin intérprete de comandos, proyecto fijo y JSON por stdin/stdout", async () => {
     const hijo = proceso(); const datos = entrada();
     const escribir = vi.spyOn(hijo.stdin, "end");
     const promesa = ejecutarJulia(datos, opciones);
@@ -38,7 +39,7 @@ describe("proceso Julia aislado", () => {
     expect(escribir).toHaveBeenCalledWith(JSON.stringify(datos));
   });
 
-  it.each([300, 45.5, 600, 900, 1800])("conserva JSON y watchdog dinámico con límite explícito %s", async limiteSolverSegundos => {
+  it.each([300, 45.5, 600, 900, 1800])("conserva JSON y temporizador de vigilancia dinámico con límite explícito %s", async limiteSolverSegundos => {
     vi.useFakeTimers();
     const hijo = proceso(), datos = entrada();
     datos.parametros.limiteSolverSegundos = limiteSolverSegundos;
@@ -116,7 +117,7 @@ describe("proceso Julia aislado", () => {
     await vi.advanceTimersByTimeAsync(201); await rechazo;
   });
 
-  it("no deja mensajes repetidos extender el watchdog y atiende apagado", async () => {
+  it("no deja que mensajes repetidos extiendan el temporizador de vigilancia y atiende el apagado", async () => {
     vi.useFakeTimers();
     let hijo = proceso(); let promesa = ejecutarJulia(entrada(), opciones);
     let rechazo = expect(promesa).rejects.toThrow("solver");
@@ -164,7 +165,8 @@ describe("proceso Julia aislado", () => {
     expect(JSON.stringify(diagnostico.mock.calls)).not.toContain("privado");
   });
 
-  it("conserva diagnóstico acotado al vencer el watchdog y ningún evento lo prolonga", async () => {
+  it("conserva diagnóstico acotado al vencer el temporizador de vigilancia y ningún evento lo prolonga", async () => {
+    // El exceso de muestras y los hitos repetidos fuerzan saturación sin renovar el presupuesto temporal.
     vi.useFakeTimers();
     const hijo = proceso(), diagnostico = vi.fn();
     const promesa = ejecutarJulia(entrada(), { ...opciones, alDiagnostico: diagnostico });
@@ -247,6 +249,7 @@ describe("proceso Julia aislado", () => {
   });
 
   it("conserva solo hitos HiGHS permitidos, con configuración única y salida JSON intacta", async () => {
+    // Los fragmentos y mensajes ajenos comprueban el filtrado, no la emisión del optimizador nativo.
     let ahora = 0;
     vi.spyOn(performance, "now").mockImplementation(() => ahora);
     const hijo = proceso(), datos = entrada(), diagnostico = vi.fn();
@@ -296,7 +299,7 @@ describe("proceso Julia aislado", () => {
     expect(diagnostico.mock.calls[0]![0]).not.toHaveProperty("registroHiGHS");
   });
 
-  it.each([false, true])("el registro HiGHS no renueva el watchdog ni reemplaza progreso, disponible: %s", async disponible => {
+  it.each([false, true])("el registro HiGHS no renueva el temporizador de vigilancia ni reemplaza progreso, disponible: %s", async disponible => {
     vi.useFakeTimers();
     const hijo = proceso(), datos = entrada(), diagnostico = vi.fn();
     datos.parametros.limiteSolverSegundos = 1;

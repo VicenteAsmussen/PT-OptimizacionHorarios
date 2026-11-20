@@ -6,7 +6,7 @@ export const salas = pgTable("salas", {
   id: serial("id").primaryKey(),
   nombre: text("nombre").notNull(),
   capacidad: integer("capacidad").notNull(),
-  tipo: text("tipo").notNull(), // e.g. "Sala de Clases", "Laboratorio de Computación"
+  tipo: text("tipo").notNull(), // Por ejemplo, "Sala de Clases", "Laboratorio de Computación".
 });
 
 export const salasRelations = relations(salas, ({ many }) => ({

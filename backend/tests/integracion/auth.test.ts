@@ -18,7 +18,7 @@ describe.skipIf(!ejecutarIntegracion)("Autenticación y Sesión (/api/auth)", ()
     expect(response.body.status).toBe("error");
   });
 
-  it("Debe iniciar sesión exitosamente y setear la cookie auth_token (200)", async () => {
+  it("Debe iniciar sesión exitosamente y establecer la cookie auth_token (200)", async () => {
     const response = await request(app)
       .post("/api/auth/login")
       .send({
@@ -43,7 +43,7 @@ describe.skipIf(!ejecutarIntegracion)("Autenticación y Sesión (/api/auth)", ()
   });
 
   it("Debe retornar el usuario actual en GET /api/auth/me con cookie válida", async () => {
-    // 1. Login
+    // Inicia sesión.
     const loginRes = await request(app)
       .post("/api/auth/login")
       .send({
@@ -53,7 +53,7 @@ describe.skipIf(!ejecutarIntegracion)("Autenticación y Sesión (/api/auth)", ()
 
     const cookie = loginRes.headers["set-cookie"];
 
-    // 2. /me
+    // Consulta la cuenta autenticada en /me.
     const meRes = await request(app)
       .get("/api/auth/me")
       .set("Cookie", cookie);

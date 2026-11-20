@@ -25,12 +25,12 @@ async function cargarComponente(archivo, rol) {
   const codigo = ts.transpileModule(fuente, { compilerOptions: { jsx: ts.JsxEmit.React, module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 } }).outputText;
   return (await import(`data:text/javascript;base64,${Buffer.from(codigo).toString('base64')}`)).default;
 }
-test('only secretary role receives external schedule management permission', async () => {
+test('solo el rol de secretaría recibe permiso para gestionar horarios externos', async () => {
   const { puedeGestionarHorariosExternos } = await import('./permisos.ts');
   assert.equal(puedeGestionarHorariosExternos('secretaria'), true);
   for (const rol of ['admin', 'profesor', 'SECRETARIA', undefined, null]) assert.equal(puedeGestionarHorariosExternos(rol), false);
 });
-test('direct navigation renders content for secretary and redirects other roles', async () => {
+test('la navegación directa muestra contenido a secretaría y redirige a otros roles', async () => {
   for (const rol of ['secretaria', 'admin', 'profesor', undefined]) {
     const Guard = await cargarComponente('./RequireHorariosExternos.tsx', rol);
     const html = renderToStaticMarkup(React.createElement(Guard));
@@ -38,7 +38,7 @@ test('direct navigation renders content for secretary and redirects other roles'
     else { assert.match(html, /data-redirect="\/app\/dashboard"/); assert.doesNotMatch(html, /data-outlet/); }
   }
 });
-test('rendered navigation hides external Excel from administrator without hiding maintenance', async () => {
+test('la navegación oculta el Excel externo a administración sin ocultar el mantenimiento', async () => {
   const original = globalThis.window;
   try {
     globalThis.window = { matchMedia: () => ({ matches: false }) };
@@ -51,7 +51,7 @@ test('rendered navigation hides external Excel from administrator without hiding
     }
   } finally { globalThis.window = original; }
 });
-test('configured external route uses its dedicated guard without broadening other pages', async () => {
+test('la ruta externa configurada usa su guardia específica sin ampliar el acceso a otras páginas', async () => {
   const ts = await import('typescript');
   const resolver = createRequire(import.meta.url);
   let fuente = await readFile(new URL('../../app/router.tsx', import.meta.url), 'utf8');

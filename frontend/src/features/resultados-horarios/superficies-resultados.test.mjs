@@ -215,7 +215,7 @@ test('Escape, cierre ocupado y restauración del foco conservan el contrato del 
   } finally { pagina?.cerrar(); globalThis.document = documento; globalThis.HTMLElement = elementoHtml; }
 });
 
-test('las superficies limitan el viewport y mantienen el scroll separado del pie', async () => {
+test('las superficies se limitan al área visible y mantienen el desplazamiento separado del pie', async () => {
   // La presentación pasiva se comprueba estructuralmente, no sustituye una revisión en navegador.
   const css = await readFile(new URL('./SuperficiesResultados.module.css', import.meta.url), 'utf8');
   const dialogo = css.match(/\.dialogo\s*\{([^}]+)\}/)?.[1];

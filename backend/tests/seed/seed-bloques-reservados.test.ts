@@ -44,7 +44,7 @@ function prepararBase() {
   return { base: base as unknown as BaseDatosSeed, carreras, bloques, reservas };
 }
 
-describe("Seed de bloques reservados de ICINF", () => {
+describe("Carga inicial de bloques reservados de ICINF", () => {
   it("resuelve martes B5/B6 por identidad y repite sin duplicar ni quitar reservas ajenas", async () => {
     expect(horariosSeed).toHaveProperty("sembrarBloquesReservados");
     const { base, reservas } = prepararBase();

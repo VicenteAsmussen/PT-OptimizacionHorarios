@@ -55,7 +55,7 @@
   --boton-borde: var(--color-gris-borde);
 }
 
-/* Hover changes only the background, never the text or border. */
+/* Al pasar el puntero solo cambia el fondo, nunca el texto ni el borde. */
 @media (hover: hover) {
   .boton:not(:disabled):hover {
     background: var(--boton-hover);

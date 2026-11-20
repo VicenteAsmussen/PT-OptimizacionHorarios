@@ -4,12 +4,14 @@ import { comparePassword } from "../utils/password.js";
 import { generateToken, verifyToken, type TokenPayload } from "../utils/jwt.js";
 import { UnauthorizedError, NotFoundError } from "../utils/errors.js";
 
+// Excluye la clave y la versión de sesión del perfil que se devuelve al cliente.
 function sanitizeUser<T extends { clave?: string; versionSesion?: number }>(user: T): Omit<T, "clave" | "versionSesion"> {
   const { clave, versionSesion, ...rest } = user;
   return rest;
 }
 
 export const authService = {
+  // Emite una sesión solo si las credenciales y la cuenta siguen vigentes tras verificarlas.
   async login(dto: LoginDTO) {
     const user = await usuariosRepository.findByCorreo(dto.correo);
     if (!user) {
@@ -44,6 +46,7 @@ export const authService = {
     };
   },
 
+  // Contrasta el token con la versión de sesión y devuelve la identidad actual de la cuenta.
   async autenticar(token: string): Promise<TokenPayload> {
     const claims = verifyToken(token);
     const usuario = await usuariosRepository.findById(claims.id);
@@ -54,6 +57,7 @@ export const authService = {
     return { id, nombre, correo, rol };
   },
 
+  // Resuelve el perfil público de la cuenta o informa que ya no existe.
   async getMe(userId: number) {
     const user = await usuariosRepository.findById(userId);
     if (!user) {

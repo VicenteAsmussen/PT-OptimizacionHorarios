@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 
-test('las tablas conservan filas, scroll por teclado e identificación fija en anchos estrechos', async () => {
+test('las tablas conservan filas, desplazamiento por teclado e identificación fija en anchos estrechos', async () => {
   for (const [estilo, componente] of [
     ['../profesores/Profesores.module.css', '../profesores/TablaProfesores.tsx'],
     ['./Asignaturas.module.css', './AsignaturasPage.tsx'],

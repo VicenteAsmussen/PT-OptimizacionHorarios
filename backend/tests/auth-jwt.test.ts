@@ -50,6 +50,7 @@ async function iniciar() {
   const token = decodeURIComponent(cookie.slice("auth_token=".length));
   return { respuesta, cookie, token, claims: jwt.decode(token) as jwt.JwtPayload };
 }
+// Comprueba el rechazo público y que la lectura inválida no altere la cuenta simulada.
 async function exigirRechazo(token: string) {
   const antes = JSON.stringify(estado.usuario);
   const respuesta = await request(aplicacion).get("/privado").auth(token, { type: "bearer" });
@@ -59,7 +60,7 @@ async function exigirRechazo(token: string) {
 }
 
 describe("JWT y cookies sin sesiones persistidas", () => {
-  it("login emite JWT de ocho horas sin sid y conserva cookie HttpOnly y usuario público", async () => {
+  it("iniciar sesión emite JWT de ocho horas sin sid y conserva cookie HttpOnly y usuario público", async () => {
     const acceso = await iniciar();
     expect(acceso.respuesta.body).toEqual({ status: "success", data: { user: publico } });
     expect(acceso.claims.versionSesion).toBe(0);
@@ -81,7 +82,7 @@ describe("JWT y cookies sin sesiones persistidas", () => {
     expect(privado.body).toEqual({ usuario: publico });
   });
 
-  it.each(["cookie", "bearer"])("logout %s borra cookie pero no revoca una copia del token ni otros accesos", async transporte => {
+  it.each(["cookie", "bearer"])("cerrar sesión mediante %s borra cookie pero no revoca una copia del token ni otros accesos", async transporte => {
     const primera = await iniciar(), segunda = await iniciar();
     const antes = JSON.stringify(estado.usuario);
     estado.buscar.mockClear();
@@ -175,7 +176,7 @@ describe("JWT y cookies sin sesiones persistidas", () => {
     {}, { sid: "a".repeat(64) }, { versionSesion: -1 }, { versionSesion: "0" },
     { versionSesion: 0.5 }, { versionSesion: 0, id: "1" },
     { versionSesion: 0, rol: "otro" }, { versionSesion: 0, exp: 1 },
-  ])("rechaza tokens antiguos o claims inválidos %j sin consultar usuarios", async cambios => {
+  ])("rechaza tokens antiguos o declaraciones JWT inválidas %j sin consultar usuarios", async cambios => {
     const token = jwt.sign({ ...publico, ...cambios }, secreto);
     await exigirRechazo(token);
     expect(estado.buscar).not.toHaveBeenCalled();
@@ -189,14 +190,15 @@ describe("JWT y cookies sin sesiones persistidas", () => {
     reloj.mockRestore();
   });
 
-  it("login incorrecto conserva el contrato 401 y no emite cookie", async () => {
+  it("iniciar sesión con datos incorrectos conserva el contrato 401 y no emite cookie", async () => {
     const respuesta = await request(aplicacion).post("/auth/login").send({ ...credenciales, clave: "incorrecta" });
     expect(respuesta.status).toBe(401);
     expect(respuesta.body).toEqual({ status: "error", statusCode: 401, message: "Credenciales inválidas" });
     expect(respuesta.headers["set-cookie"]).toBeUndefined();
   });
 
-  it("rechaza login si cambió la versión durante la comparación de contraseña", async () => {
+  it("rechaza iniciar sesión si cambió la versión durante la comparación de contraseña", async () => {
+    // El cambio dentro del doble reproduce una invalidación entre la primera lectura y la emisión.
     estado.comparar.mockImplementationOnce(async () => { estado.usuario.versionSesion += 2; return true; });
     const respuesta = await request(aplicacion).post("/auth/login").send(credenciales);
     expect(respuesta.status).toBe(401);
@@ -216,7 +218,7 @@ describe("JWT y cookies sin sesiones persistidas", () => {
     expect(respuesta.headers["set-cookie"]).toBeUndefined();
   });
 
-  it.each([undefined, "invalido"])("logout %s es idempotente y no depende de la base", async token => {
+  it.each([undefined, "invalido"])("cerrar sesión con %s es idempotente y no depende de la base", async token => {
     estado.buscar.mockRejectedValue(new Error("Base no disponible"));
     const peticion = request(aplicacion).post("/auth/logout");
     if (token) peticion.auth(token, { type: "bearer" });

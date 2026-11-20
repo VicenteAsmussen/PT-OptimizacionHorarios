@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { datosSalas } from "../../src/db/seeds/data/horarios.js";
 import { normalizarCodigoSala } from "../../src/utils/excel/excel-salas.js";
 
-// Independent transcription of columns B/H, Salas_Institucionales (2022-11-16).
+// Transcripción independiente de las columnas B/H de Salas_Institucionales (2022-11-16).
 const capacidadesEsperadas = {
   A101AA: 90, A102AA: 90, A103AA: 90, A104AA: 90,
   A101AB: 90, A102AB: 90, A201AB: 90, A202AB: 90, A301AB: 90, A302AB: 90,
@@ -16,8 +16,8 @@ const capacidadesEsperadas = {
   S210EG: 60, S211EG: 60, S212EG: 60, S213EG: 60,
 };
 
-describe("ICINF institutional classroom seed", () => {
-  it("contains only the 56 approved classrooms and their source capacities", () => {
+describe("Carga inicial de salas institucionales de ICINF", () => {
+  it("contiene solo las 56 salas aprobadas y sus capacidades de origen", () => {
     expect(datosSalas).toHaveLength(56);
     expect(Object.fromEntries(datosSalas.map(sala => [sala.nombre, sala.capacidad]))).toEqual(capacidadesEsperadas);
     expect(datosSalas.every(sala => sala.tipo === "Sala" && Number.isInteger(sala.capacidad) && sala.capacidad > 0)).toBe(true);

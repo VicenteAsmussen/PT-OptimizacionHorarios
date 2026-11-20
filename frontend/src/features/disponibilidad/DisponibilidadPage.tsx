@@ -14,16 +14,19 @@ import iconoEditar from '../../assets/iconos/editar_Asignatura.svg';
 import iconoMarcarTodo from '../../assets/iconos/marcar-todo.svg';
 import { parejaUtilizable } from './parejas';
 
+// Reserva la declaración de disponibilidad propia para el rol profesor.
 export function RequireDisponibilidad() {
   const { usuario } = useAuth();
   return puedeRegistrarDisponibilidad(usuario?.rol) ? <Outlet /> : <Navigate to="/app/dashboard" replace />;
 }
 
+// Conserva el rechazo de la API o explica un fallo de comunicación de disponibilidad.
 function mensajeError(fallo: unknown) {
   if (fallo instanceof ApiError) return fallo.message;
   return 'No se pudo cargar o enviar la disponibilidad. Inténtalo nuevamente.';
 }
 
+// Coordina el borrador de disponibilidad, sus reservas y los permisos vigentes.
 export default function DisponibilidadPage() {
   const { usuario } = useAuth();
   const [planificaciones, setPlanificaciones] = useState<Planificacion[] | null>(null);
@@ -86,6 +89,7 @@ export default function DisponibilidadPage() {
     const controlador = new AbortController();
     let temporizador: ReturnType<typeof setTimeout>;
     setErrorSeguimiento('');
+    // Revisa restricciones de edición sin reemplazar el borrador docente.
     async function consultarPermiso() {
       try {
         if (!enviando.current) {
@@ -105,6 +109,7 @@ export default function DisponibilidadPage() {
     return () => { activo = false; clearTimeout(temporizador); controlador.abort(); };
   }, [planificacionId, recarga]);
 
+  // Guarda el borrador habilitado y revisa restricciones tras un rechazo sin reenviarlo.
   async function enviar() {
     if (enviando.current || errorSeguimiento || !puedeEnviar(estado) || estado.id === null) return;
     const id = estado.id;

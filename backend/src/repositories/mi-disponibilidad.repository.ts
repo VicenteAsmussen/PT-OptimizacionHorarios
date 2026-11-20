@@ -11,6 +11,7 @@ import { reemplazarDisponibilidad } from "./disponibilidad.repository.js";
 import { ForbiddenError } from "../utils/errors.js";
 import { leerBloquesReservados } from "./bloques-reservados.js";
 
+// Reúne carga, reservas y selección propia para calcular los períodos y bloques editables.
 async function contexto(profesorId: number, conexion: TransaccionPlanificacion | typeof db = db, incluirAnteriores = false) {
   const [planificaciones, ofertas, bloques, filas] = await Promise.all([
     conexion.query.planificacionesSemestres.findMany({ where: incluirAnteriores ? undefined : eq(planificacionesSemestres.actual, true), with: { carrera: true }, orderBy: [asc(planificacionesSemestres.id)] }),
@@ -39,6 +40,7 @@ async function contexto(profesorId: number, conexion: TransaccionPlanificacion |
       estadoPlanificacion: planificacion.estadoPlanificacion, actual: planificacion.actual,
     })),
     bloques,
+    // Deriva el mínimo de bloques de los componentes asignados y la editabilidad del período propio.
     seleccion(planificacionSemestreId: number) {
       const planificacion = planificaciones.find(fila => fila.id === planificacionSemestreId && (incluirAnteriores || fila.actual));
       const asignadas = propias.filter(oferta => oferta.planificacionSemestreId === planificacionSemestreId);
@@ -59,6 +61,7 @@ async function contexto(profesorId: number, conexion: TransaccionPlanificacion |
 export type SeleccionDisponibilidad = ReturnType<Awaited<ReturnType<typeof contexto>>["seleccion"]>;
 export const miDisponibilidadRepository = {
   contexto,
+  // Recalcula la selección bajo bloqueo y persiste el lote que acepte la validación del autoservicio.
   async modificar(profesorId: number, planificacionSemestreId: number,
     preparar: (seleccion: SeleccionDisponibilidad, bloques: Awaited<ReturnType<typeof contexto>>["bloques"]) => number[]) {
     return conPlanificacionesEditables(async tx => {

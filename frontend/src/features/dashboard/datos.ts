@@ -5,6 +5,7 @@ import { disponibilidadApi } from '../disponibilidad/disponibilidad.api';
 import { seguimientoApi } from '../seguimiento-disponibilidad/seguimiento.api';
 import type { PlanificacionPanel, ResumenPanel } from './modelo';
 
+// Adapta los períodos consultables por perfil sin inferir una carrera ambigua.
 export async function cargarPlanificaciones(rol: string): Promise<{ planificaciones: PlanificacionPanel[]; inicial: number | null }> {
   if (rol === 'profesor') {
     const { planificaciones } = await miHorarioApi.contexto();
@@ -20,6 +21,7 @@ export async function cargarPlanificaciones(rol: string): Promise<{ planificacio
   };
 }
 
+// Resume el registro de disponibilidad sin equipararlo a factibilidad del horario.
 export async function cargarResumen(rol: string, planificacion: PlanificacionPanel): Promise<ResumenPanel | null> {
   if (!planificacion.actual) return null;
   if (rol === 'secretaria' && planificacion.estadoPlanificacion === 'preparacion') {

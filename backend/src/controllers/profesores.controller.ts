@@ -3,9 +3,10 @@ import { resolverAlcanceCarrera } from "../utils/alcance-carrera.js";
 import { profesoresService } from "../services/profesores.service.js";
 
 export const profesoresController = {
+  // Entrega la selección docente transversal tras validar el perfil de secretaría cuando corresponde.
   async getSeleccion(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      // Validar el perfil de secretaria sin restringir la selección por departamento.
+      // Valida el perfil de secretaría sin restringir la selección por departamento.
       await resolverAlcanceCarrera(req.user);
       const data = await profesoresService.getSeleccionProfesores();
       res.status(200).json({ status: "success", data });
@@ -14,6 +15,7 @@ export const profesoresController = {
     }
   },
 
+  // Presenta perfiles docentes con filtros departamentales sujetos al alcance de carrera.
   async getAll(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const data = await profesoresService.getAllProfesores(req.query.departamentoId === undefined ? undefined : Number(req.query.departamentoId), await resolverAlcanceCarrera(req.user));
@@ -26,6 +28,7 @@ export const profesoresController = {
     }
   },
 
+  // Responde con el perfil académico accesible del profesor solicitado.
   async getById(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = Number(req.params.id);
@@ -39,6 +42,7 @@ export const profesoresController = {
     }
   },
 
+  // Confirma el alta del perfil y su acceso opcional según las facultades del actor.
   async create(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const data = await profesoresService.createProfesor(req.body, await resolverAlcanceCarrera(req.user), req.user);
@@ -51,6 +55,7 @@ export const profesoresController = {
     }
   },
 
+  // Devuelve el perfil después de validar sus cambios y la cuenta vinculada.
   async update(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = Number(req.params.id);
@@ -64,6 +69,7 @@ export const profesoresController = {
     }
   },
 
+  // Confirma la habilitación de acceso del profesor sin crear otro perfil académico.
   async createUsuario(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = Number(req.params.id);
@@ -77,6 +83,7 @@ export const profesoresController = {
     }
   },
 
+  // Presenta el perfil tras actualizar las credenciales que el actor puede gestionar.
   async updateUsuario(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = Number(req.params.id);
@@ -90,6 +97,7 @@ export const profesoresController = {
     }
   },
 
+  // Confirma el retiro del acceso sin solicitar la eliminación de sus datos académicos.
   async deleteUsuario(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = Number(req.params.id);
@@ -100,6 +108,7 @@ export const profesoresController = {
     }
   },
 
+  // Confirma el retiro del perfil que permiten el rol, el alcance y sus dependencias.
   async delete(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = Number(req.params.id);

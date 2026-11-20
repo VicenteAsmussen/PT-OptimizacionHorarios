@@ -7,7 +7,7 @@ import { errorHandler } from "./middlewares/error.middleware.js";
 
 const app: Application = express();
 
-// Middlewares
+// Preparación de las solicitudes
 app.use(
   cors({
     origin: env.CLIENT_URL,
@@ -17,10 +17,10 @@ app.use(
 app.use(express.json());
 app.use(cookieParser());
 
-// Main API Routes
+// Rutas principales de la API
 app.use("/api", apiRouter);
 
-// Centralized error handling
+// Manejo centralizado de errores
 app.use(errorHandler);
 
 export { app };

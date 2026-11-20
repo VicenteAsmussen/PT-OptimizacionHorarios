@@ -12,7 +12,7 @@ import { datosDepartamentos } from "../../src/db/seeds/data/academico.js";
 vi.mock("../../src/utils/password.js", () => ({ hashPassword: vi.fn(async () => "hash-simulado") }));
 
 type Fila = Record<string, unknown>;
-// Simula únicamente las operaciones del seed, sin importar el cliente ni configuración DB.
+// Simula solo las operaciones de carga inicial, sin importar el cliente ni la configuración de la base.
 function crearBaseSimulada(conExistentes = false) {
   const usuarios: Fila[] = conExistentes ? [
     { id: 11, nombre: "Admin", correo: "admin@ubiobio.cl", rol: "admin", clave: "admin-conservada" },
@@ -49,7 +49,7 @@ function crearBaseSimulada(conExistentes = false) {
         filas.push(fila);
         return [fila];
       };
-      // Inserciones de perfiles se esperan directamente; usuarios usan returning.
+      // Espera directamente las inserciones de perfiles, las de usuarios usan returning.
       return {
         returning: async () => insertar(),
         onConflictDoUpdate: async ({ set }: { set: Fila }) => {
@@ -82,8 +82,8 @@ function comprobarProfesores(usuarios: Fila[], profesores: Fila[]) {
   }
 }
 
-describe("seed de usuarios sin conexión a DB", () => {
-  it("updates the eight requested contracts and Cristian's department without changing identities or availability", async () => {
+describe("carga inicial de usuarios sin conexión a base de datos", () => {
+  it("actualiza los ocho contratos solicitados y el departamento de Cristian sin cambiar identidades ni disponibilidad", async () => {
     const { baseDatos, usuarios, profesores } = crearBaseSimulada();
     const correos = ["sparra", "jmeza", "osanmartin", "vberatto", "mfuenzalida", "aandia", "econtreras", "fbanda", "cpinto"];
     for (const [indice, correo] of correos.entries()) {
@@ -124,7 +124,7 @@ describe("seed de usuarios sin conexión a DB", () => {
 
   it("reclasifica el perfil legado sin sustituir sus IDs ni enlaces y conserva admin/secretaria", async () => {
     const { baseDatos, usuarios, profesores, secretarias } = crearBaseSimulada(true);
-    // Relaciones ajenas al seed apuntan a estos IDs; no deben necesitar reasignación.
+    // Relaciones ajenas a la carga inicial apuntan a estos IDs y no deben necesitar reasignación.
     const enlaceHorario = { profesorId: 71 };
     await sembrarUsuarios(baseDatos, catalogos);
     comprobarProfesores(usuarios, profesores);

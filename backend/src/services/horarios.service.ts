@@ -20,6 +20,7 @@ import { esSalaCompatible, mensajeSalaIncompatible } from "../utils/compatibilid
 
 type UsuarioExcelSalas = { id: number; rol: string };
 
+// Resuelve el perfil docente y los períodos en los que tiene asignaciones para su consulta propia.
 async function contextoHorarioPropio(usuarioId: number) {
   const profesor = await horariosRepository.findProfesorByUsuarioId(usuarioId);
   if (!profesor) throw new ForbiddenError("El usuario autenticado no tiene un perfil de profesor asociado");
@@ -28,6 +29,7 @@ async function contextoHorarioPropio(usuarioId: number) {
   return { profesor, planificaciones };
 }
 
+// Determina la carrera que limita el intercambio Excel según el perfil de secretaría.
 async function resolverCarreraExcel(usuario: UsuarioExcelSalas): Promise<number | undefined> {
   if (usuario.rol === "admin") return undefined;
   if (usuario.rol !== "secretaria") throw new ForbiddenError("El usuario no tiene acceso al Excel de salas");
@@ -36,11 +38,13 @@ async function resolverCarreraExcel(usuario: UsuarioExcelSalas): Promise<number 
   return perfil.carreraId;
 }
 
+// Reserva la carga de horarios externos al rol operativo de secretaría.
 function exigirSecretariaExternos(usuario: UsuarioExcelSalas) {
   if (usuario.rol !== "secretaria") throw new ForbiddenError("La gestión de horarios externos es exclusiva de secretaría");
 }
 
 export const horariosService = {
+  // Resume las asignaturas externas cubiertas para el período y departamento autorizados.
   async coberturaExcelExternos(planificacionSemestreId: number, departamentoId: number, usuario: UsuarioExcelSalas) {
     exigirSecretariaExternos(usuario);
     const carreraId = await resolverCarreraExcel(usuario);
@@ -52,6 +56,7 @@ export const horariosService = {
     return { codigoPeriodo: planificacion.codigo,
       cobertura: calcularCoberturaExterna(contexto.asignaturas, planificacion.codigo, contexto.ofertas.filter(oferta => conHorario.has(oferta.id))) };
   },
+  // Autoriza la carrera antes de validar y sincronizar el archivo de horarios externos.
   async importarExcelExternos(planificacionSemestreId: number, departamentoId: number, archivo: Buffer, usuario: UsuarioExcelSalas) {
     exigirSecretariaExternos(usuario);
     const carreraId = await resolverCarreraExcel(usuario);
@@ -59,17 +64,20 @@ export const horariosService = {
     if (!planificacion || (carreraId !== undefined && planificacion.carreraId !== carreraId)) throw new ForbiddenError("La planificación no pertenece a su carrera");
     return importarHorariosExternos(planificacionSemestreId, departamentoId, archivo, carreraId);
   },
+  // Valida el lote completo de salas e incorpora únicamente las asignaciones permitidas por el contexto.
   async importarExcelSalas(planificacionSemestreId: number, archivo: Buffer, usuario: UsuarioExcelSalas, propuesta?: {
     carreraId?: number; planificacion: PlanificacionSemestre;
     contexto: Awaited<ReturnType<typeof horariosRepository.findParaImportarSalas>>;
     guardar: (cambios: { id: number; salaId: number | null }[]) => Promise<void>;
   }) {
-    // Proposal callers supply an authorized, locked snapshot, never HTTP-provided context.
+    // La operación de propuesta aporta un contexto autorizado y bloqueado, nunca recibido por HTTP.
     const carreraId = propuesta ? propuesta.carreraId : await resolverCarreraExcel(usuario);
     const planificacion = propuesta?.planificacion ?? await horariosRepository.findPlanificacionById(planificacionSemestreId);
     if (!planificacion || (carreraId !== undefined && planificacion.carreraId !== carreraId)) throw new ForbiddenError("La planificación no pertenece a su carrera");
     const errores: { fila: number; columna: string; mensaje: string }[] = [];
+    // Ubica los rechazos del lote en la fila y columna que debe corregirse.
     const error = (fila: number, columna: string, mensaje: string) => errores.push({ fila, columna, mensaje });
+    // Devuelve los errores sin atribuir asignaciones a un archivo rechazado.
     const rechazado = () => ({ actualizadas: 0, pendientes: 0, errores });
     const libro = new ExcelJS.Workbook();
     try { await libro.xlsx.load(Uint8Array.from(archivo).buffer); }
@@ -115,6 +123,7 @@ export const horariosService = {
     let actualizadas = 0; let pendientes = 0; let omitidas = 0;
     hoja.eachRow((fila, numeroFila) => {
       if (numeroFila === 1) return;
+      // Unifica el contenido visible de la fila para identificar su sesión exportada.
       const texto = (columna: number) => normalizarTextoCelda(fila.getCell(columna).value);
       if (!Array.from({ length: encabezadosExcelSalas.length }, (_, indice) => texto(indice + 1)).some(Boolean)) return;
       const codigo = texto(1); const seccion = texto(3);
@@ -137,6 +146,7 @@ export const horariosService = {
         if (!horario.exito) error(numeroFila, `Horario ${numero}`, horario.error);
         const salasCoincidentes = salas.filter((sala) => normalizarCodigoSala(sala.nombre) === normalizarCodigoSala(salaTexto));
         const sinSala = propuesta !== undefined && salaTexto.toUpperCase() === "SIN SALA";
+        // Distingue una sala identificable de la declaración explícita de una sesión pendiente.
         const validarSala = () => {
           if (propuesta && !salaTexto) error(numeroFila, `Sala ${numero}`, "Celda vacía. Indique una sala válida o escriba «SIN SALA».");
           if (salaTexto && !sinSala && salasCoincidentes.length !== 1) error(numeroFila, `Sala ${numero}`, `La sala «${salaTexto}» no existe o su nombre es ambiguo.${propuesta ? "" : " Revise el listado de salas."}`);
@@ -202,6 +212,7 @@ export const horariosService = {
     return { actualizadas, pendientes, errores, ...(propuesta ? { omitidas } : {}) };
   },
 
+  // Agrupa sesiones exportables y deja las salas vacías para su asignación externa.
   async exportarExcelSalas(planificacionSemestreId: number, usuario: UsuarioExcelSalas, propuesta?: {
     carreraId?: number; planificacion: PlanificacionSemestre;
     entradas: Awaited<ReturnType<typeof horariosRepository.findParaExportarSalas>>; soloPendientes: boolean;
@@ -279,17 +290,20 @@ export const horariosService = {
     };
   },
 
+  // Consulta horarios filtrados sin exceder el alcance de la carrera del solicitante.
   async getAllHorarios(filtro?: HorarioQueryDTO, alcance?: AlcanceCarrera) {
     if (filtro?.planificacionSemestreId) await planificacionesSemestresService.getById(filtro.planificacionSemestreId, alcance);
     return horariosRepository.findAll(filtro, alcance);
   },
 
+  // Resuelve una fila de horario accesible u oculta su ausencia y la de destinos ajenos.
   async getHorarioById(id: number, alcance?: AlcanceCarrera) {
     const horario = await horariosRepository.findById(id);
     if (!horario || (alcance && horario.planificacionSemestre.carreraId !== alcance.carreraId)) throw new NotFoundError(`Horario con ID ${id} no encontrado`);
     return horario;
   },
 
+  // Contrasta oferta, período, asignación y ocupaciones antes de una escritura individual.
   async validarEntrada(datos: CreateHorarioDTO, alcance?: AlcanceCarrera, id?: number) {
     const oferta = await horariosRepository.findOfertaWithDetails(datos.ofertaId);
     if (!oferta) throw new BadRequestError("La oferta no existe");
@@ -313,12 +327,14 @@ export const horariosService = {
     return { ...datos, planificacionSemestreId };
   },
 
+  // Persiste una fila validada y devuelve su representación con relaciones académicas.
   async createHorario(datos: CreateHorarioDTO, alcance?: AlcanceCarrera) {
     const entrada = await this.validarEntrada(datos, alcance);
     const creada = await horariosRepository.create(entrada);
     return this.getHorarioById(creada.id, alcance);
   },
 
+  // Combina los cambios con el horario existente y revalida su destino antes de guardarlo.
   async updateHorario(id: number, datos: UpdateHorarioDTO, alcance?: AlcanceCarrera) {
     const existente = await this.getHorarioById(id, alcance);
     const entrada = await this.validarEntrada({
@@ -332,11 +348,13 @@ export const horariosService = {
     return this.getHorarioById(id, alcance);
   },
 
+  // Elimina una fila accesible conservando la comprobación de su período de origen.
   async deleteHorario(id: number, alcance?: AlcanceCarrera) {
     const existente = await this.getHorarioById(id, alcance);
     await horariosRepository.delete(id, existente.planificacionSemestreId);
   },
 
+  // Retira los horarios de una oferta después de comprobar la carrera de su período.
   async deleteHorariosByOferta(ofertaId: number, alcance?: AlcanceCarrera) {
     const oferta = await horariosRepository.findOfertaWithDetails(ofertaId);
     if (!oferta) throw new NotFoundError("Oferta no encontrada");
@@ -344,6 +362,7 @@ export const horariosService = {
     return horariosRepository.deleteByOferta(ofertaId, oferta.planificacionSemestreId);
   },
 
+  // Expone solo las clases propias en períodos con propuesta o publicación.
   async getMiHorario(usuarioId: number, consulta?: MiHorarioQueryDTO) {
     const { profesor, planificaciones } = await contextoHorarioPropio(usuarioId);
     const permitidas = new Set(planificaciones
@@ -357,6 +376,7 @@ export const horariosService = {
       .filter(fila => permitidas.has(fila.planificacionSemestreId));
   },
 
+  // Prepara períodos, reservas y bloques para presentar la grilla personal del profesor.
   async getContextoMiHorario(usuarioId: number) {
     const { planificaciones } = await contextoHorarioPropio(usuarioId);
     const reservasPorCarrera = new Map(await Promise.all([...new Set(planificaciones.map(fila => fila.carreraId))]

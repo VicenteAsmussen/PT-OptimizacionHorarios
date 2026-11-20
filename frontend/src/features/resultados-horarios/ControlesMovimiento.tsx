@@ -2,6 +2,7 @@ import { bloquesDestino, estadoDestino, gruposMovibles } from './modelo';
 import type { Movimiento, ResultadoHorario, SesionResultado, ValidacionMovimiento } from './types';
 import estilos from './ResultadosHorarios.module.css';
 
+// Expone origen, destino y validación del grupo antes de confirmar el movimiento.
 export default function ControlesMovimiento({ resultado, sesion, grupo, datos, validacion, error, aprobado, ocupado,
   cambiarGrupo, cancelar, confirmar }: {
   resultado: ResultadoHorario; sesion: SesionResultado; grupo: number; datos: Movimiento;
@@ -11,6 +12,7 @@ export default function ControlesMovimiento({ resultado, sesion, grupo, datos, v
   const estado = estadoDestino(resultado, sesion, datos.bloqueInicioId, datos.idsHorarios.length);
   const disponible = estado === 'disponible';
   const grupos = gruposMovibles(sesion, resultado.bloques);
+  // Describe el tramo de origen de los bloques horarios seleccionados para mover.
   function describirOrigen(ids: number[]) {
     const indices = ids.map(id => sesion.idsHorarios.indexOf(id));
     const inicio = resultado.bloques.find(b => b.id === sesion.bloquesIds[indices[0]]);

@@ -4,6 +4,7 @@ import { planificacionesSemestresService } from "./planificaciones-semestres.ser
 import type { CreateOfertaDTO, UpdateOfertaDTO, OfertaQueryDTO } from "../validations/ofertas.validation.js";
 import { NotFoundError, ConflictError, BadRequestError } from "../utils/errors.js";
 
+// Exige componentes únicos definidos en la asignatura y docentes de su departamento responsable.
 async function validarAsignaciones(codigo: string, asignaciones: CreateOfertaDTO["asignaciones"]) {
   if (!asignaciones.length) return;
   const tipos = await ofertasRepository.findTiposAsignatura(codigo);
@@ -22,15 +23,18 @@ async function validarAsignaciones(codigo: string, asignaciones: CreateOfertaDTO
 }
 
 export const ofertasService = {
+  // Consulta secciones ofertadas dentro del alcance y del período accesible solicitado.
   async getAllOfertas(filtro?: OfertaQueryDTO, alcance?: AlcanceCarrera) {
     if (filtro?.planificacionSemestreId) await planificacionesSemestresService.getById(filtro.planificacionSemestreId, alcance);
     return ofertasRepository.findAll(filtro, alcance);
   },
+  // Resuelve una sección y oculta ofertas de períodos pertenecientes a otras carreras.
   async getOfertaById(id: number, alcance?: AlcanceCarrera) {
     const oferta = await ofertasRepository.findById(id);
     if (!oferta || (alcance && oferta.planificacionSemestre.carreraId !== alcance.carreraId)) throw new NotFoundError(`Oferta de asignatura con ID ${id} no encontrada`);
     return oferta;
   },
+  // Valida pertenencia de malla, sección única y docentes antes de registrar la oferta.
   async createOferta(datos: CreateOfertaDTO, alcance?: AlcanceCarrera) {
     await planificacionesSemestresService.exigirAsignatura(datos.planificacionSemestreId, datos.asignaturaCodigo, alcance);
     await validarAsignaciones(datos.asignaturaCodigo, datos.asignaciones ?? []);
@@ -38,6 +42,7 @@ export const ofertasService = {
     const creada = await ofertasRepository.create(datos);
     return this.getOfertaById(creada.id, alcance);
   },
+  // Revalida sección y asignaciones e impide trasladar una oferta que ya tiene clases.
   async updateOferta(id: number, datos: UpdateOfertaDTO, alcance?: AlcanceCarrera) {
     const existente = await this.getOfertaById(id, alcance);
     const codigo = datos.asignaturaCodigo ?? existente.asignaturaCodigo;
@@ -51,6 +56,7 @@ export const ofertasService = {
     await ofertasRepository.update(id, datos, existente.planificacionSemestreId);
     return this.getOfertaById(id, alcance);
   },
+  // Solicita retirar una sección accesible conservando su vínculo de período esperado.
   async deleteOferta(id: number, alcance?: AlcanceCarrera) {
     const existente = await this.getOfertaById(id, alcance);
     await ofertasRepository.delete(id, existente.planificacionSemestreId);

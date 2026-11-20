@@ -1,6 +1,7 @@
 import { claveDia } from './estado';
 import type { Bloque } from './types';
 
+// Identifica la pareja impar-par del mismo día sin aceptar bloques duplicados.
 export function obtenerPareja(bloques: Bloque[], id: number) {
   const bloque = bloques.find(actual => actual.id === id);
   if (!bloque) return [];
@@ -11,6 +12,7 @@ export function obtenerPareja(bloques: Bloque[], id: number) {
     ? pareja.sort((a, b) => a.numeroBloque - b.numeroBloque) : [];
 }
 
+// Excluye de la selección docente las parejas incompletas o con alguna reserva.
 export function parejaUtilizable(bloques: Bloque[], id: number, reservados: number[]) {
   const pareja = obtenerPareja(bloques, id);
   return pareja.length === 2 && pareja.every(bloque => !reservados.includes(bloque.id));

@@ -78,14 +78,14 @@ it("admin conserva lectura, creación, edición y eliminación generales sin rev
   expect(usuariosRepository.delete).toHaveBeenCalledWith(20);
 });
 
-it("secretaría conserva edición y retirada del acceso part time gestionado", async () => {
+it("secretaría conserva edición y retirada del acceso gestionado de docentes de jornada parcial", async () => {
   expect((await request(aplicacion).put("/profesores/7/usuario").send({ correo: "nuevo@example.test" })).status).toBe(200);
   expect(profesoresRepository.updateUsuarioForProfesor).toHaveBeenCalledWith(20, { nombre: "Profesor", correo: "nuevo@example.test", clave: undefined }, true);
   expect((await request(aplicacion).delete("/profesores/7/usuario")).status).toBe(204);
   expect(profesoresRepository.deleteUsuarioForProfesor).toHaveBeenCalledWith(7, 20, true);
 });
 
-it("secretaría conserva creación de acceso part time con rol fijo profesor", async () => {
+it("secretaría conserva creación de acceso para jornada parcial con rol fijo profesor", async () => {
   profesor.usuarioId = null;
   delete profesor.usuario;
   expect((await request(aplicacion).post("/profesores/7/usuario").send({ correo: "nuevo@example.test", clave: "Clave123!" })).status).toBe(201);

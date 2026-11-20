@@ -1,6 +1,7 @@
 import type { DatosProfesor } from "./types";
 
 /** Acepta cuerpos no nulos de 1–8 dígitos, con puntos convencionales y guion opcional. */
+// Comprueba el dígito verificador y produce la identidad RUT compacta del docente.
 export function normalizarRut(valor: unknown): string | null {
   if (typeof valor !== "string") return null;
   const entrada = valor.trim();
@@ -22,7 +23,8 @@ export function normalizarRut(valor: unknown): string | null {
   return compacto.at(-1) === digito ? `${cuerpo}-${digito}` : null;
 }
 
-/** Presentación defensiva: no inventa un RUT si falta o llega un valor inesperado. */
+/** No inventa un RUT si falta o llega un valor inesperado. */
+// Presenta el RUT docente con separadores cuando puede validarlo.
 export function formatearRut(valor: string | null | undefined): string {
   const entrada = valor?.trim() ?? "";
   if (!entrada) return "Sin RUT";
@@ -32,7 +34,8 @@ export function formatearRut(valor: string | null | undefined): string {
   return `${cuerpo.replace(/\B(?=(\d{3})+(?!\d))/g, ".")}-${digito}`;
 }
 
-// Proyección explícita compartida por creación y edición; no reenvía otros campos.
+// Creación y edición comparten esta selección explícita, no se reenvían otros campos.
+// Valida nombre y RUT y prepara únicamente los campos de identidad docente.
 export function prepararDatosProfesor(datos: DatosProfesor): DatosProfesor {
   if (!datos.nombre.trim()) throw new Error("Ingresa el nombre del profesor.");
   if (datos.nombre.trim().length > 100) throw new Error("El nombre no puede exceder los 100 caracteres.");

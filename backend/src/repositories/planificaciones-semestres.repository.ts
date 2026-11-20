@@ -11,8 +11,9 @@ import { ofertasAsignaturas } from "../db/schema/ofertas-asignaturas.schema.js";
 import type { TransaccionPlanificacion } from "./planificacion-escritura.js";
 import { exigirCarreraSinEjecucion } from "./optimizacion-bloqueos.js";
 
-// Reuse the metadata lock protocol for explicit deletion. Ordinary entry writes
-// still use conPlanificacionesEditables and its current/preparation guards.
+// Reutiliza el bloqueo de metadatos para eliminar explícitamente un período.
+// Las escrituras ordinarias conservan conPlanificacionesEditables y sus controles de período actual y preparación.
+// Serializa el mantenimiento del período con su carrera y rechaza cálculos activos de esa carrera.
 async function conPeriodoBloqueado<T>(id: number, carreraId: number,
   ejecutar: (tx: TransaccionPlanificacion, planificacion: typeof planificacionesSemestres.$inferSelect) => Promise<T>) {
   return db.transaction(async tx => {
@@ -26,6 +27,7 @@ async function conPeriodoBloqueado<T>(id: number, carreraId: number,
 }
 
 export const planificacionesSemestresRepository = {
+  // Lista períodos de la carrera o de los departamentos relacionados con el profesor.
   async findAll(carreraId?: number, profesorUsuarioId?: number) {
     const carrerasProfesor = profesorUsuarioId === undefined ? undefined : db.select({ id: carreraDepartamento.carreraId })
       .from(carreraDepartamento).innerJoin(profesores, eq(profesores.departamentoId, carreraDepartamento.departamentoId))
@@ -36,29 +38,34 @@ export const planificacionesSemestresRepository = {
       with: { carrera: true },
     });
   },
+  // Carga el período con la carrera que determina su propiedad académica.
   async findById(id: number) {
     return db.query.planificacionesSemestres.findFirst({ where: eq(planificacionesSemestres.id, id), with: { carrera: true } });
   },
+  // Resuelve el perfil y departamento docente asociados a una cuenta autenticada.
   async findProfesorByUsuarioId(usuarioId: number) {
     return db.query.profesores.findFirst({ where: eq(profesores.usuarioId, usuarioId), columns: { id: true, departamentoId: true } });
   },
+  // Comprueba si el departamento docente está relacionado con la carrera del período.
   async profesorAutorizado(carreraId: number, departamentoId: number) {
     const [relacion] = await db.select({ id: carreraDepartamento.carreraId }).from(carreraDepartamento)
       .where(and(eq(carreraDepartamento.carreraId, carreraId), eq(carreraDepartamento.departamentoId, departamentoId))).limit(1);
     return !!relacion;
   },
+  // Verifica que el código forme parte de la malla de la carrera propietaria.
   async asignaturaPertenece(carreraId: number, codigo: string) {
     const [relacion] = await db.select({ id: carreraAsignatura.carreraId }).from(carreraAsignatura)
       .where(and(eq(carreraAsignatura.carreraId, carreraId), eq(carreraAsignatura.asignaturaCodigo, codigo))).limit(1);
     return !!relacion;
   },
+  // Abre el período en preparación y sustituye el actual de su carrera de forma serializada.
   async create(datos: NuevaPlanificacionSemestre) {
     return db.transaction(async tx => {
       // Serializar la selección de periodo actual sobre su carrera, no globalmente.
       const [carrera] = await tx.select({ id: carreras.id }).from(carreras).where(eq(carreras.id, datos.carreraId)).for("update");
       if (!carrera) throw new NotFoundError("Carrera no encontrada");
       await exigirCarreraSinEjecucion(tx, datos.carreraId);
-      // Check after the career lock and before writes, independent of driver error metadata.
+      // Comprueba después del bloqueo y antes de escribir, sin depender de los metadatos de error del controlador.
       const [existente] = await tx.select({ id: planificacionesSemestres.id }).from(planificacionesSemestres)
         .where(and(eq(planificacionesSemestres.carreraId, datos.carreraId), eq(planificacionesSemestres.codigo, datos.codigo))).limit(1);
       if (existente) throw new ConflictError("Período existente");
@@ -67,6 +74,7 @@ export const planificacionesSemestresRepository = {
       return creada;
     });
   },
+  // Mantiene código y selección del período actual bajo los controles de estado y bloqueo de carrera.
   async update(id: number, carreraId: number, datos: Partial<Pick<NuevaPlanificacionSemestre, "codigo" | "actual">>) {
     return conPeriodoBloqueado(id, carreraId, async (tx, planificacion) => {
       if (planificacion.estadoPlanificacion !== "preparacion" && (datos.codigo !== undefined || datos.actual === undefined)) {
@@ -77,6 +85,7 @@ export const planificacionesSemestresRepository = {
       return actualizada;
     });
   },
+  // Elimina un período confirmado en preparación y sin ofertas, sin escoger otro actual automáticamente.
   async delete(id: number, carreraId: number, confirmacion: string) {
     return conPeriodoBloqueado(id, carreraId, async (tx, planificacion) => {
       if (confirmacion !== planificacion.codigo) throw new ConflictError("El código cambió o la confirmación no coincide. Consulta y confirma nuevamente el período");
@@ -84,8 +93,8 @@ export const planificacionesSemestresRepository = {
       const [oferta] = await tx.select({ id: ofertasAsignaturas.id }).from(ofertasAsignaturas)
         .where(eq(ofertasAsignaturas.planificacionSemestreId, id)).limit(1);
       if (oferta) throw new ConflictError("Solo se puede eliminar un período sin ofertas de ningún departamento");
-      // Availability cascades via its existing FK. No offer/schedule cleanup and
-      // no replacement current period: the schedule FK requires an offer here.
+      // La disponibilidad se elimina por su FK existente, no se limpian ofertas ni horarios.
+      // No se elige otro período actual, y la FK de horarios exige una oferta en este contexto.
       const [eliminada] = await tx.delete(planificacionesSemestres)
         .where(and(eq(planificacionesSemestres.id, id), eq(planificacionesSemestres.carreraId, carreraId))).returning();
       return eliminada;

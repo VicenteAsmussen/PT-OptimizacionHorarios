@@ -3,6 +3,7 @@ import * as esquema from "../schema/index.js";
 import type { BaseDatosSeed } from "./contexto.js";
 import { datosBloques, datosBloquesReservados, datosSalas, dias, modulos } from "./data/horarios.js";
 
+// Completa la grilla institucional y actualiza las horas de sus bloques existentes.
 async function asegurarBloques(baseDatos: BaseDatosSeed) {
   for (const bloque of datosBloques) {
     await baseDatos
@@ -18,6 +19,7 @@ async function asegurarBloques(baseDatos: BaseDatosSeed) {
   }
 }
 
+// Conserva la identidad de la sala por nombre al cargar su capacidad y tipo iniciales.
 async function asegurarSala(baseDatos: BaseDatosSeed, sala: typeof datosSalas[number]) {
   const [existente] = await baseDatos.select().from(esquema.salas).where(eq(esquema.salas.nombre, sala.nombre)).limit(1);
   if (existente) {
@@ -32,6 +34,7 @@ async function asegurarSala(baseDatos: BaseDatosSeed, sala: typeof datosSalas[nu
   return insertada;
 }
 
+// Vincula las reservas iniciales con carreras y bloques existentes sin duplicar la relación.
 export async function sembrarBloquesReservados(baseDatos: BaseDatosSeed) {
   const reservas: esquema.NuevoBloqueReservado[] = [];
   for (const dato of datosBloquesReservados) {
@@ -48,6 +51,7 @@ export async function sembrarBloquesReservados(baseDatos: BaseDatosSeed) {
   }
 }
 
+// Carga grilla, salas y reservas iniciales sin generar clases ni ejecutar el modelo.
 export async function sembrarHorarios(baseDatos: BaseDatosSeed) {
   await asegurarBloques(baseDatos);
   console.log(`✓ Asegurados ${datosBloques.length} bloques horarios (${modulos.length} módulos por ${dias.length} días)`);

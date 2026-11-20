@@ -17,7 +17,7 @@ const resultado = { ofertasCreadas: 0, ofertasActualizadas: 0, ofertasEliminadas
   cobertura: [{ codigo: 'MAT', nombre: 'Course', semestreMalla: 2, obligatorio: true, estado: 'faltante_obligatoria', secciones: [] }],
   errores: [{ fila: 0, columna: 'Cobertura', codigoAsignatura: 'MAT', mensaje: 'Faltan horarios' }] };
 beforeEach(() => vi.clearAllMocks());
-it('multipart rejection carries row errors and the complete coverage without reporting success', async () => {
+it('el rechazo multipart incluye errores por fila y la cobertura completa sin informar éxito', async () => {
   vi.mocked(horariosService.importarExcelExternos).mockResolvedValue(resultado as never);
   const respuesta = await request(app).post('/horarios/excel/externos/importar?planificacionSemestreId=9&departamentoId=4')
     .attach('archivo', Buffer.from('workbook'), 'horarios.xlsx');
@@ -25,21 +25,21 @@ it('multipart rejection carries row errors and the complete coverage without rep
   expect(respuesta.body).toEqual({ status: 'error', errores: resultado.errores, data: resultado });
   expect(horariosService.importarExcelExternos).toHaveBeenCalledWith(9, 4, Buffer.from('workbook'), { id: 1, rol: 'secretaria' });
 });
-it('coverage GET validates its context, uses the authenticated user, and returns persisted coverage', async () => {
+it('GET de cobertura valida su contexto, usa el usuario autenticado y devuelve la cobertura persistida', async () => {
   vi.mocked(horariosService.coberturaExcelExternos).mockResolvedValue({ codigoPeriodo: '2026-2', cobertura: [] });
   expect((await request(app).get('/horarios/excel/externos/cobertura?planificacionSemestreId=9&departamentoId=4')).body)
     .toEqual({ status: 'success', data: { codigoPeriodo: '2026-2', cobertura: [] } });
   expect(horariosService.coberturaExcelExternos).toHaveBeenCalledWith(9, 4, { id: 1, rol: 'secretaria' });
   expect((await request(app).get('/horarios/excel/externos/cobertura?planificacionSemestreId=oops')).status).toBe(400);
 });
-it.each(['admin', 'profesor'])('%s cannot read external coverage or import workbooks', async rol => {
+it.each(['admin', 'profesor'])('%s no puede consultar cobertura externa ni importar libros de Excel', async rol => {
   expect((await request(app).get('/horarios/excel/externos/cobertura?planificacionSemestreId=9&departamentoId=4').set('x-test-role', rol)).status).toBe(403);
   expect((await request(app).post('/horarios/excel/externos/importar?planificacionSemestreId=9&departamentoId=4').set('x-test-role', rol)
     .attach('archivo', Buffer.from('workbook'), 'horarios.xlsx')).status).toBe(403);
   expect(horariosService.coberturaExcelExternos).not.toHaveBeenCalled();
   expect(horariosService.importarExcelExternos).not.toHaveBeenCalled();
 });
-it('the real application exposes coverage at the exact frontend URL and returns JSON errors', async () => {
+it('la aplicación real expone cobertura en la URL exacta de la interfaz y devuelve errores JSON', async () => {
   const { app: aplicacion } = await import('../src/app.js');
   const ruta = '/api/horarios-asignaturas/excel/externos/cobertura?planificacionSemestreId=9&departamentoId=4';
   vi.mocked(horariosService.coberturaExcelExternos).mockResolvedValue({ codigoPeriodo: '2026-2', cobertura: [] });

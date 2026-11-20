@@ -2,12 +2,13 @@ import type { AlcanceProfesores, CarreraProfesor } from "./types";
 
 type ProfesorEnAlcance = { departamentoId: number; tipo: string; tieneDependenciasAcademicas?: boolean };
 
+// Habilita el catálogo docente para administración y secretaría.
 export function puedeGestionarProfesores(rol?: string): boolean {
   return rol === "admin" || rol === "secretaria";
 }
 
-// Usar exclusivamente GET /carreras de la sesión actual, no las relaciones de
-// GET /departamentos: estas últimas pueden incluir carreras de otras secretarias.
+// Usar solo GET /carreras de la sesión actual, GET /departamentos puede incluir carreras de otras secretarías.
+// Deriva los departamentos consultables y propios desde las carreras de la cuenta.
 export function derivarAlcanceProfesores(carreras: readonly CarreraProfesor[]): AlcanceProfesores {
   const relaciones = carreras.flatMap((carrera) => carrera.carreraDepartamentos);
   return {
@@ -18,7 +19,8 @@ export function derivarAlcanceProfesores(carreras: readonly CarreraProfesor[]): 
   };
 }
 
-// Aplica a crear y editar identidad. Al editar, comprobar también el destino.
+// Aplica al crear y editar identidad, al editar también se debe comprobar el destino.
+// Acota la gestión de identidad de secretaría a docentes de tipo "part time" de su alcance.
 export function puedeAdministrarProfesor(
   rol: string | undefined, profesor: ProfesorEnAlcance, alcance?: AlcanceProfesores,
 ): boolean {
@@ -27,6 +29,7 @@ export function puedeAdministrarProfesor(
 }
 
 // Aplica tanto al acceso opcional al crear como a POST/PUT/DELETE :id/usuario.
+// Restringe los accesos de secretaría a docentes de tipo "part time" de departamentos propios.
 export function puedeAdministrarAcceso(
   rol: string | undefined, profesor: ProfesorEnAlcance, alcance?: AlcanceProfesores,
 ): boolean {
@@ -34,6 +37,7 @@ export function puedeAdministrarAcceso(
     && alcance?.departamentosGestionadosIds.includes(profesor.departamentoId) === true);
 }
 
+// Filtra la eliminación docente considerando permisos y dependencias del administrador.
 export function puedeEliminarProfesor(
   rol: string | undefined, profesor: ProfesorEnAlcance, alcance?: AlcanceProfesores,
 ): boolean {

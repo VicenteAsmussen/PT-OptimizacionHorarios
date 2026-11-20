@@ -14,6 +14,7 @@ interface Props {
   alAccionar: (accion: AccionProfesor, profesor: Profesor) => void;
 }
 
+// Presenta docentes y acciones diferenciadas por permisos de identidad y acceso.
 export default function TablaProfesores({ profesores, rol, alcance, alAccionar }: Props) {
   const { referencia, desborda } = useDesbordamientoTabla();
   return <>
@@ -27,6 +28,7 @@ export default function TablaProfesores({ profesores, rol, alcance, alAccionar }
         const gestionaProfesor = puedeAdministrarProfesor(rol, profesor, alcance);
         const gestionaAcceso = puedeAdministrarAcceso(rol, profesor, alcance);
         const conAcceso = profesor.usuarioId !== null;
+        // Vincula una acción de la fila con el docente y su etiqueta accesible.
         const boton = (accion: AccionProfesor, texto: string, etiqueta: string,
           icono: Parameters<typeof IconoProfesor>[0]["tipo"], variante = "gris", principal = false) => <button type="button"
           className={`boton boton--${variante} ${estilos.botonConIcono} ${principal ? estilos.accionPrincipal : estilos.accionSecundaria}`}

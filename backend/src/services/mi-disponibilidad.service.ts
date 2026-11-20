@@ -3,6 +3,7 @@ import { planificacionesSemestresRepository } from "../repositories/planificacio
 import { BadRequestError, ConflictError, ForbiddenError } from "../utils/errors.js";
 import type { UsuarioPlanificacion } from "./planificaciones-semestres.service.js";
 
+// Resuelve el perfil propio y rechaza la suplantación de otro docente en el autoservicio.
 async function profesorPropio(usuario: UsuarioPlanificacion, profesorId?: number) {
   if (usuario.rol !== "profesor") throw new ForbiddenError("Esta función es exclusiva para profesores");
   const profesor = await planificacionesSemestresRepository.findProfesorByUsuarioId(usuario.id);
@@ -11,12 +12,14 @@ async function profesorPropio(usuario: UsuarioPlanificacion, profesorId?: number
   return profesor.id;
 }
 export const miDisponibilidadService = {
+  // Presenta períodos y selección de disponibilidad del profesor autenticado.
   async get(usuario: UsuarioPlanificacion, planificacionSemestreId?: number, incluirAnteriores = false) {
     const profesorId = await profesorPropio(usuario);
     const contexto = await miDisponibilidadRepository.contexto(profesorId, undefined, incluirAnteriores);
     return { planificaciones: contexto.planificaciones, bloques: contexto.bloques,
       seleccion: planificacionSemestreId === undefined ? null : contexto.seleccion(planificacionSemestreId) };
   },
+  // Reemplaza la selección propia solo con carga positiva, capacidad suficiente y bloques utilizables.
   async modificar(usuario: UsuarioPlanificacion, planificacionSemestreId: number,
     cambio: { bloquesIds: number[] } | { agregar: number } | { quitar: number }, profesorId?: number) {
     const propioId = await profesorPropio(usuario, profesorId);

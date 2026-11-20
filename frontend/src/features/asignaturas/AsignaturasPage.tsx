@@ -16,6 +16,7 @@ import iconoVer from '../../assets/iconos/ojo.svg';
 import iconoEditar from '../../assets/iconos/editar_Asignatura.svg';
 import iconoSecciones from '../../assets/iconos/secciones.svg';
 
+// Reserva la consulta del catálogo académico para administración y secretaría.
 export function RequireGestionAsignaturas() {
   const { usuario } = useAuth();
   return puedeGestionarAsignaturas(usuario?.rol) ? <Outlet /> : <Navigate to="/app/dashboard" replace />;
@@ -24,6 +25,7 @@ interface Datos { asignaturas: Asignatura[]; departamentos: Departamento[]; plan
 type Conteos = { usuarioId: number | undefined; planificacionSemestreId: number } & (
   { estado: 'cargando' } | { estado: 'error'; mensaje: string } | { estado: 'listo'; cantidades: Map<string, number> }
 );
+// Coordina el catálogo, los conteos por período y los paneles de asignaturas.
 export default function AsignaturasPage() {
   const { usuario } = useAuth();
   const puedeEditar = puedeEditarAsignaturas(usuario?.rol);
@@ -41,6 +43,7 @@ export default function AsignaturasPage() {
   const solicitud = useRef(0);
   const titulo = useRef<HTMLHeadingElement>(null);
   const { referencia, desborda } = useDesbordamientoTabla();
+  // Renueva catálogos y períodos e ignora respuestas de una consulta anterior.
   const cargar = useCallback(async () => {
     const numero = ++solicitud.current;
     setCargando(true);
@@ -66,6 +69,7 @@ export default function AsignaturasPage() {
     void cargar();
     return () => { solicitud.current++; };
   }, [cargar, usuario?.id]);
+  // Renueva las cantidades de secciones sin reutilizar conteos de otro contexto.
   const cargarConteos = useCallback(async () => {
     const numero = ++solicitudConteos.current;
     if (planificacionSemestreId === null) {
@@ -90,6 +94,7 @@ export default function AsignaturasPage() {
     return () => { solicitudConteos.current++; };
   }, [cargarConteos]);
   const conteoVigente = conteos?.usuarioId === usuario?.id && conteos?.planificacionSemestreId === planificacionSemestreId ? conteos : null;
+  // Restablece la consulta del catálogo sin cambiar el período de sus secciones.
   function restablecerFiltros() {
     const filtros = limpiarFiltros({ busqueda, departamento, malla });
     setBusqueda(filtros.busqueda);

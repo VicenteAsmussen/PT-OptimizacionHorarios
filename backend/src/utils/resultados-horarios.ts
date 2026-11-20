@@ -13,7 +13,7 @@ export type AsignaturaResultado = EntradaResultado["oferta"]["asignatura"];
 /** Presupuesto inmutable de la ejecución, independiente del catálogo físico de salas. */
 export interface RecursosOptimizacionResultado {
   categorias: { id: string | number; edificio: string; tipo: string; capacidad: number; cantidad: number; fuente: string }[];
-  // Asignación original del solver. Tras movimientos se comprueba una reasignación factible por bloque.
+  // Asignación original del solucionador, las filas vinculadas a la ejecución conservan su categoría al moverlas.
   asignaciones: { ofertaId: number; tipoHoraId: number; bloqueId: number; categoriaId: string | number }[];
 }
 export interface ContextoResultado {
@@ -32,23 +32,29 @@ export interface ProblemaResultado { codigo: string; mensaje: string; idsHorario
 export interface MovimientoResultado { revision: string; idsHorarios: number[]; bloqueInicioId: number }
 
 // El orden de las consultas no debe producir revisiones obsoletas falsas.
+// Normaliza el contexto para que la revisión no dependa del orden de sus colecciones.
 function canonico(valor: unknown): unknown {
   if (Array.isArray(valor)) return valor.map(canonico).sort((primero, segundo) => JSON.stringify(primero).localeCompare(JSON.stringify(segundo)));
   if (valor !== null && typeof valor === "object") return Object.fromEntries(Object.entries(valor).sort(([primero], [segundo]) => primero.localeCompare(segundo)).map(([clave, contenido]) => [clave, canonico(contenido)]));
   return valor;
 }
+// Identifica la versión de horarios y restricciones que debe confirmar una operación sobre el resultado.
 export function revisionResultado(contexto: ContextoResultado) {
   return createHash("sha256").update(JSON.stringify(canonico(contexto))).digest("hex");
 }
+// Distingue las clases que la carrera programa de los horarios externos que conserva fijos.
 export function esGestionada(contexto: ContextoResultado, entrada: EntradaResultado) {
   return contexto.departamentosGestionadosIds.includes(entrada.oferta.asignatura.departamentoId);
 }
+// Reconoce sesiones de laboratorio para aplicar su tratamiento separado de salas físicas.
 export function esLaboratorio(entrada: EntradaResultado) {
   return ["laboratorio", "laboratory"].includes(normalizarTipoHoraExcel(entrada.tipoHora.tipo));
 }
+// Selecciona clases gestionadas que requieren una sala física mediante el intercambio operativo.
 export function solicitaSala(contexto: ContextoResultado, entrada: EntradaResultado) {
   return esGestionada(contexto, entrada) && entrada.oferta.asignatura.requiereSala && !esLaboratorio(entrada);
 }
+// Reúne bloques continuos de una misma sección, componente y docente en sesiones visibles.
 export function agruparEntradasResultado(entradas: EntradaResultado[]) {
   const grupos = new Map<string, EntradaResultado[]>();
   for (const entrada of entradas) {
@@ -67,6 +73,7 @@ export function agruparEntradasResultado(entradas: EntradaResultado[]) {
   }
   return sesiones.sort((primera, segunda) => primera.entradas[0]!.id - segunda.entradas[0]!.id);
 }
+// Presenta sesiones, revisión y pendientes de sala sin confundir propuesta con publicación.
 export function presentarResultado(contexto: ContextoResultado, semestreMalla?: number) {
   const sesiones = agruparEntradasResultado(contexto.entradas).map(sesion => {
     const entrada = sesion.entradas[0]!;
@@ -87,6 +94,7 @@ export function presentarResultado(contexto: ContextoResultado, semestreMalla?: 
     disponibilidades: contexto.disponibilidades, pendientesSala: sesiones.filter(sesion => sesion.estadoSala === "pendiente").length,
     sesiones: semestreMalla === undefined ? sesiones : sesiones.filter(sesion => sesion.asignatura.semestreMalla === semestreMalla) };
 }
+// Detecta colisiones de docente, sección y sala, opcionalmente limitadas a filas modificadas.
 function conflictos(entradas: EntradaResultado[], cambiadas?: Set<number>) {
   const problemas: ProblemaResultado[] = [];
   const ocupaciones = new Map<number, EntradaResultado[]>();
@@ -101,12 +109,14 @@ function conflictos(entradas: EntradaResultado[], cambiadas?: Set<number>) {
   }
   return problemas;
 }
+// Contrasta las clases gestionadas con la disponibilidad docente declarada para el período.
 function comprobarDisponibilidad(contexto: ContextoResultado, entradas: EntradaResultado[]) {
   const disponibles = new Set(contexto.disponibilidades.filter(fila => fila.planificacionSemestreId === contexto.planificacion.id).map(fila => `${fila.profesorId}:${fila.bloqueId}`));
   return entradas.filter(entrada => esGestionada(contexto, entrada) && !disponibles.has(`${entrada.asignacion.profesorId}:${entrada.bloqueId}`))
     .map(entrada => ({ codigo: "disponibilidad", mensaje: "El profesor no tiene disponibilidad declarada en este bloque.", idsHorarios: [entrada.id], bloqueId: entrada.bloqueId }));
 }
 /** El inventario sólo existe si llegó desde la ejecución, nunca se deduce de salaId. */
+// Verifica capacidad, cantidad y continuidad de categorías contra el presupuesto de la ejecución.
 export function comprobarRecursosResultado(contexto: ContextoResultado): ProblemaResultado[] {
   if (!contexto.recursosOptimizacion) return [];
   const categorias = contexto.recursosOptimizacion.categorias;
@@ -155,6 +165,7 @@ export function comprobarRecursosResultado(contexto: ContextoResultado): Problem
   }
   return problemas;
 }
+// Comprueba inicio impar y duración continua de las sesiones y de la sección gestionada completa.
 function comprobarContinuidad(contexto: ContextoResultado, entradas: EntradaResultado[], cambiadas?: Set<number>): ProblemaResultado[] {
   try {
     const gestionadas = entradas.filter(entrada => esGestionada(contexto, entrada));
@@ -176,8 +187,10 @@ function comprobarContinuidad(contexto: ContextoResultado, entradas: EntradaResu
     return [{ codigo: "continuidad", mensaje: error.message }];
   }
 }
+// Simula el traslado consecutivo y valida el horario final sin modificar las filas del contexto.
 export function prepararMovimiento(contexto: ContextoResultado, datos: MovimientoResultado) {
   const problemas: ProblemaResultado[] = [];
+  // Descarta la propuesta de movimiento sin ofrecer cambios parciales para persistir.
   const rechazar = (codigo: string, mensaje: string) => ({ valido: false, problemas: [{ codigo, mensaje }], cambios: [] as { id: number; bloqueId: number }[] });
   const seleccionadas = contexto.entradas.filter(entrada => datos.idsHorarios.includes(entrada.id));
   if (seleccionadas.length !== datos.idsHorarios.length || seleccionadas.length < 2) return rechazar("seleccion", "Seleccione al menos dos bloques existentes de una sesión.");
@@ -213,6 +226,7 @@ export function prepararMovimiento(contexto: ContextoResultado, datos: Movimient
   return { valido: problemas.length === 0, problemas, cambios };
 }
 /** Valida incorporación y Propuesta sin anticipar la asignación física posterior. */
+// Exige carga completa y restricciones académicas para una propuesta, aún sin salas físicas finales.
 export function validarPropuestaResultado(contexto: ContextoResultado) {
   const problemas: ProblemaResultado[] = conflictos(contexto.entradas);
   for (const entrada of contexto.entradas) if (contexto.bloquesReservadosIds.includes(entrada.bloqueId)) {
@@ -237,6 +251,7 @@ export function validarPropuestaResultado(contexto: ContextoResultado) {
     .map(oferta => ({ codigo: "requiereSala", mensaje: `${oferta.asignatura.codigo}, sección ${oferta.seccion}: tiene carga positiva aunque requiereSala=false. Su carga no se excluye de la validación.`, ofertaId: oferta.id }));
   return { valido: problemas.length === 0, problemas, advertencias, revision: revisionResultado(contexto) };
 }
+// Añade a la validación de propuesta la asignación física de las clases que solicitan sala.
 export function validarPublicacionResultado(contexto: ContextoResultado) {
   const resultado = validarPropuestaResultado(contexto);
   for (const entrada of contexto.entradas) if (solicitaSala(contexto, entrada) && entrada.salaId === null) {

@@ -4,7 +4,7 @@ $archivoCompose = Join-Path $PSScriptRoot "../docker-compose.yml"
 & docker compose -f $archivoCompose up -d --no-recreate postgres
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-# TCP avoids accepting the temporary Unix-socket server used during initdb.
+# TCP evita aceptar el servidor temporal que usa un socket Unix durante initdb.
 $listo = $false
 for ($intento = 0; $intento -lt 30; $intento++) {
     & docker compose -f $archivoCompose exec -T postgres pg_isready -h 127.0.0.1 -U postgres -d postgres *> $null
@@ -16,7 +16,7 @@ if (-not $listo) {
     exit 1
 }
 
-# Fixed identifiers only: never drop a database or alter the development role.
+# Solo identificadores fijos, nunca elimina una base ni modifica el rol de desarrollo.
 $sql = @'
 \set ON_ERROR_STOP on
 SET lock_timeout = '5s';

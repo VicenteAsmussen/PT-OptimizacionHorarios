@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { notificaciones } from '../../lib/notificaciones';
 
+// Coordina validación, bloqueo y avisos de las escrituras de asignaturas y secciones.
 export function useMutacion() {
   const bloqueo = useRef(false);
   const vigente = useRef(false);
@@ -15,14 +16,17 @@ export function useMutacion() {
       if (!aviso.current?.confirmado) cerrarAviso();
     };
   }, []);
+  // Retira el aviso asociado a la última escritura del panel.
   function cerrarAviso() {
     if (aviso.current !== undefined) notificaciones.cerrar(aviso.current.id);
     aviso.current = undefined;
   }
+  // Descarta errores previos al corregir los datos o iniciar otra escritura.
   function limpiarError() {
     setError('');
     if (aviso.current && !aviso.current.confirmado) cerrarAviso();
   }
+  // Ejecuta una escritura validada y separa su confirmación de la actualización visual.
   async function ejecutar(guardar: () => Promise<unknown>, completar: () => void, validar?: () => void) {
     if (!vigente.current || bloqueo.current) return;
     cerrarAviso();

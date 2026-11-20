@@ -22,7 +22,7 @@ test("el arnés desactiva entorno, WebSocket y vigilancia sin perder opciones de
   assert.equal(configuracion.appType, "custom");
 });
 
-test("carga la configuración real sin bundle temporal y cierra el servidor SSR con caché externa", async () => {
+test("carga la configuración real sin paquete temporal y cierra el servidor SSR con caché externa", async () => {
   const raiz = fileURLToPath(new URL("../../", import.meta.url));
   const cargada = await loadConfigFromFile({ command: "serve", mode: "test" }, `${raiz}/vite.config.ts`);
   assert.equal(cargada.config.server.proxy["/api"].target, "http://127.0.0.1:3000");

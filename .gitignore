@@ -1,27 +1,27 @@
-# Dependencies
+# Dependencias
 node_modules/
 .pnpm-store/
 
-# Build and Transpilation outputs
+# Archivos de compilación y transpilación
 dist/
 build/
 *.tsbuildinfo
 
-# Environment variables
+# Variables de entorno
 .env
 .env.*
 !.env.example
 
-# Logs
+# Registros
 *.log
 npm-debug.log*
 pnpm-debug.log*
 yarn-debug.log*
 
-# OS Files
+# Archivos del sistema operativo
 .DS_Store
 Thumbs.db
 
-# IDE & Editor files
+# Archivos del IDE y del editor
 .vscode/
 .idea/

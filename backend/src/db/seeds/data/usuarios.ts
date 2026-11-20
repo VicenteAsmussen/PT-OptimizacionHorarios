@@ -1,4 +1,4 @@
-// Synthetic RUTs for development fixtures, not institutional identities.
+// Genera identificadores ficticios para los datos de desarrollo, no identidades institucionales.
 function crearRut(indice: number) {
   const cuerpo = String(90000000 + indice);
   const suma = [...cuerpo].reverse().reduce((total, digito, posicion) => total + Number(digito) * (2 + posicion % 6), 0);
@@ -6,7 +6,7 @@ function crearRut(indice: number) {
   return `${cuerpo}-${resto === 11 ? "0" : resto === 10 ? "K" : resto}`;
 }
 
-// Named professors from Requerimientos + Profesores; affiliations confirmed by the user.
+// Docentes de Requerimientos y Profesores, con departamentos confirmados por el usuario.
 // Los índices de RUT no dependen del orden, los retirados 21, 44 y 45 no se reutilizan.
 const profesoresBase: [indiceRut: number, nombre: string, correo: string, departamento: string, tipo?: string][] = [
   [0, "Christian Lautaro Vidal Castro", "cvidal", "Sistemas de Información"],

@@ -5,6 +5,7 @@ import { useMutacion } from './useMutacion';
 import PanelAsignatura from './PanelAsignatura';
 import estilos from './Asignaturas.module.css';
 
+// Presenta la ficha académica y su edición cuando no está restringida a consulta.
 export default function EditarAsignatura({ asignatura, departamentos, alCerrar, alCompletar, soloLectura = false }: {
   asignatura: Asignatura; departamentos: Departamento[]; alCerrar: () => void; alCompletar: () => void;
   soloLectura?: boolean;
@@ -15,6 +16,7 @@ export default function EditarAsignatura({ asignatura, departamentos, alCerrar, 
   const [semestreMalla, setSemestreMalla] = useState(asignatura.semestreMalla);
   const [esCritica, setEsCritica] = useState(asignatura.esCritica);
   const { ocupado, error, ejecutar, limpiarError } = useMutacion();
+  // Comprueba los campos editables antes de solicitar el cambio de asignatura.
   function enviar(evento: FormEvent) {
     evento.preventDefault();
     if (soloLectura) return;

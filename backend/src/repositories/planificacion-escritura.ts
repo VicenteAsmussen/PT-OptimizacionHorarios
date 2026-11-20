@@ -7,10 +7,12 @@ import { exigirSinEjecucionActiva } from "./optimizacion-bloqueos.js";
 
 export type TransaccionPlanificacion = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
+// Rechaza escrituras sobre un vínculo de planificación distinto del consultado.
 export function exigirVinculoEsperado(actual: number, esperado?: number) {
   if (esperado !== undefined && actual !== esperado) throw new ConflictError("El vínculo de planificación cambió; vuelva a intentar");
 }
 
+// Limita la preparación de datos a la planificación actual que aún no tiene propuesta.
 export function exigirPlanificacionEditable(planificacion: Pick<PlanificacionSemestre, "actual" | "estadoPlanificacion">) {
   if (!planificacion.actual || planificacion.estadoPlanificacion !== "preparacion") {
     throw new ConflictError("Solo se puede modificar una planificación actual en preparación");
@@ -19,6 +21,7 @@ export function exigirPlanificacionEditable(planificacion: Pick<PlanificacionSem
 
 // Se descubren los dueños antes de bloquear, pero nunca se escribe confiando en esa lectura.
 // Un cambio de vínculo aborta: adquirir nuevos bloqueos aquí rompería el orden global.
+// Ejecuta la escritura con los períodos bloqueados y habilitados para preparación.
 export async function conPlanificacionesEditables<T>(
   resolver: (tx: TransaccionPlanificacion) => Promise<number[]>,
   escribir: (tx: TransaccionPlanificacion) => Promise<T>,
@@ -26,6 +29,7 @@ export async function conPlanificacionesEditables<T>(
   return conPlanificacionesBloqueadas(resolver, escribir, true);
 }
 
+// Serializa cambios por carrera y período, y revalida vínculos y ejecuciones activas.
 export async function conPlanificacionesBloqueadas<T>(
   resolver: (tx: TransaccionPlanificacion) => Promise<number[]>,
   escribir: (tx: TransaccionPlanificacion) => Promise<T>,

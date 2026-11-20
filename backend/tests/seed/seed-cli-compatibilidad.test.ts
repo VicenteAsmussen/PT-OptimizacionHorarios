@@ -1,6 +1,7 @@
 import { expect, it } from "vitest";
 import { spawnSync } from "node:child_process";
 
+// El hijo carga configuración desde el script de carga inicial, usar solo una copia externa sin archivos de entorno.
 it.each([
   {
     argumento: "--invalid",
@@ -14,7 +15,7 @@ it.each([
     salida: "Conectando a la base de datos para ejecutar el seed...\nReemplazando asignaturas, profesores y sus datos dependientes en la base local...\n",
     marcos: ["reemplazo.ts:12:11", "seed.ts:22:13", "seed.ts:37:1"],
   },
-])("preserves rejected CLI output: $argumento", ({ argumento, mensaje, salida, marcos }) => {
+])("conserva la salida CLI de rechazo: $argumento", ({ argumento, mensaje, salida, marcos }) => {
   const resultado = spawnSync(process.execPath, [
     "node_modules/tsx/dist/cli.mjs", "src/db/seed.ts", argumento,
   ], {

@@ -5,6 +5,7 @@ import estilos from './IconoActualizar.module.css';
 
 const iconos = { importar, exportar, publicar };
 
+// Distingue las acciones de intercambio de archivos y publicación del horario.
 export default function IconoArchivo({ tipo }: { tipo: keyof typeof iconos }) {
   const mascara = `url("${iconos[tipo]}")`;
   return <span aria-hidden="true" className={estilos.icono}

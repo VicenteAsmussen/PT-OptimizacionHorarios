@@ -17,13 +17,16 @@ import { cargarContextoResultado } from "./resultados-horarios.repository.js";
 import { validarPropuestaResultado } from "../utils/resultados-horarios.js";
 import { LIMITE_SOLVER_SEGUNDOS } from "../optimizacion/contrato.js";
 
+// Normaliza objetos y colecciones para comparar capturas sin depender de su orden de lectura.
 function canonico(valor: unknown): unknown {
   if (Array.isArray(valor)) return valor.map(canonico).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
   if (valor !== null && typeof valor === "object") return Object.fromEntries(Object.entries(valor).sort(([a], [b]) => a.localeCompare(b)).map(([clave, contenido]) => [clave, canonico(contenido)]));
   return valor;
 }
+// Identifica una captura o solicitud para detectar cambios antes de reutilizarla.
 export function huellaOptimizacion(valor: unknown) { return createHash("sha256").update(JSON.stringify(canonico(valor))).digest("hex"); }
 
+// Bloquea carrera y período y limita la integración del modelo al contexto ICINF autorizado.
 async function bloquearPlanificacion(tx: TransaccionPlanificacion, id: number, alcance?: AlcanceCarrera) {
   const inicial = await tx.query.planificacionesSemestres.findFirst({ where: eq(planificacionesSemestres.id, id) });
   if (!inicial) throw new NotFoundError("Planificación no encontrada.");
@@ -37,6 +40,7 @@ async function bloquearPlanificacion(tx: TransaccionPlanificacion, id: number, a
   return { planificacion, carrera };
 }
 
+// Reúne la preparación académica y su revisión para generar y revalidar la propuesta.
 export async function capturarEntradasOptimizacion(tx: TransaccionPlanificacion, id: number) {
   const planificacion = await tx.query.planificacionesSemestres.findFirst({ where: eq(planificacionesSemestres.id, id) });
   if (!planificacion) throw new NotFoundError("Planificación no encontrada.");
@@ -71,6 +75,7 @@ async function fijarCatalogos(tx: TransaccionPlanificacion, captura: CapturaOpti
 }
 
 export const optimizacionRepository = {
+  // Recupera intentos vencidos y captura el período junto a su eventual ejecución activa.
   async preparar(id: number, alcance?: AlcanceCarrera) {
     await recuperarEjecucionesVencidas(db);
     return db.transaction(async tx => {
@@ -80,6 +85,7 @@ export const optimizacionRepository = {
       return { captura, activa: activa?.id ?? null };
     });
   },
+  // Serializa el inicio y conserva la idempotencia antes de registrar el nuevo intento.
   async iniciar(id: number, parametros: InicioOptimizacionDTO, propietario: string, versionModelo: string,
     adaptar: (captura: CapturaOptimizacion) => unknown, alcance?: AlcanceCarrera) {
     await recuperarEjecucionesVencidas(db);
@@ -101,6 +107,7 @@ export const optimizacionRepository = {
       return { ejecucion: ejecucion!, nueva: true };
     }, { isolationLevel: "read committed" });
   },
+  // Recupera el intento solicitado y comprueba su pertenencia al alcance de carrera.
   async consultar(id: string, alcance?: AlcanceCarrera) {
     await recuperarEjecucionesVencidas(db);
     const [ejecucion] = await db.select({ ejecucion: ejecucionesOptimizacion, carreraId: planificacionesSemestres.carreraId }).from(ejecucionesOptimizacion)
@@ -110,6 +117,7 @@ export const optimizacionRepository = {
     if (alcance && alcance.carreraId !== ejecucion.carreraId) throw new ForbiddenError("La ejecución no pertenece a su carrera.");
     return ejecucion.ejecucion;
   },
+  // Busca el intento más reciente del período accesible, incluidos sus estados terminales.
   async ultima(id: number, alcance?: AlcanceCarrera) {
     await recuperarEjecucionesVencidas(db);
     const planificacion = await db.query.planificacionesSemestres.findFirst({ where: eq(planificacionesSemestres.id, id) });
@@ -119,15 +127,18 @@ export const optimizacionRepository = {
       .where(eq(ejecucionesOptimizacion.planificacionSemestreId, id)).orderBy(desc(ejecucionesOptimizacion.iniciadaEn), desc(ejecucionesOptimizacion.id)).limit(1);
     return ultima ?? null;
   },
+  // Extiende el arrendamiento solo si el cálculo continúa activo y pertenece al mismo proceso.
   async renovar(id: string, propietario: string) {
     const filas = await db.update(ejecucionesOptimizacion).set({ vigenteHasta: sql`now() + interval '120 seconds'` })
       .where(and(eq(ejecucionesOptimizacion.id, id), eq(ejecucionesOptimizacion.propietario, propietario), eq(ejecucionesOptimizacion.estado, "en_ejecucion"), sql`${ejecucionesOptimizacion.vigenteHasta} > now()`)).returning({ id: ejecucionesOptimizacion.id });
     return filas.length === 1;
   },
+  // Registra el término sin horarios de un intento aún activo del proceso propietario.
   async terminar(id: string, propietario: string, estado: Exclude<EstadoEjecucion, "en_ejecucion" | "aplicada">, resultado: unknown, diagnostico: unknown) {
     await db.update(ejecucionesOptimizacion).set({ estado, resultado, diagnostico, finalizadaEn: new Date() })
       .where(and(eq(ejecucionesOptimizacion.id, id), eq(ejecucionesOptimizacion.propietario, propietario), eq(ejecucionesOptimizacion.estado, "en_ejecucion")));
   },
+  // Incorpora atómicamente la solución vigente y validada como propuesta, nunca como publicación.
   async aplicar(id: string, propietario: string, resultado: unknown,
     validar: (captura: CapturaOptimizacion, entrada: unknown) => { ofertaId: number; tipoHoraId: number; bloqueId: number; categoriaOptimizacionId?: string }[], diagnostico: Record<string, unknown> = {}) {
     const previa = await this.consultar(id);
@@ -156,5 +167,6 @@ export const optimizacionRepository = {
       return true;
     }, { isolationLevel: "read committed" });
   },
+  // Marca como interrumpidos los cálculos cuyo propietario dejó vencer su arrendamiento.
   recuperar: () => recuperarEjecucionesVencidas(db),
 };

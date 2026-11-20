@@ -85,7 +85,7 @@ test('salas conserva una sola tarjeta tras rechazos, SIN SALA y cambios de revis
     await unaTarjeta('Revisión de publicación con salas pendientes'); await cerrarDialogo();
     await unaTarjeta('Cierre de revisión de publicación sin duplicar la gestión de salas');
     const archivo = join(navegador.temporal, 'respuesta.xlsx');
-    // La prueba verifica DOM/transportes, el parser Excel pertenece a las pruebas backend.
+    // Verifica el DOM y el transporte, el análisis de Excel se prueba en el servidor.
     await writeFile(archivo, 'Contenido sintético para el selector de archivo');
     for (const modo of ['rechazo', 'sinSala', 'sinSala', 'revision', 'revision']) {
       await evaluar(`window.modoImportacion = ${JSON.stringify(modo)}`);

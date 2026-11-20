@@ -1,7 +1,9 @@
+# Esta comparación ejecuta HiGHS, requiere autorización aunque sus problemas sean pequeños y sintéticos.
 using Test
 include("diagnostico.jl")
 
 # Dos problemas sintéticos pequeños, sin entradas académicas ni acceso a la base de datos.
+# Construye el mismo problema binario para comparar la resolución directa con la resolución instrumentada.
 function modelo_sintetico()
     modelo = Model(HiGHS.Optimizer)
     set_silent(modelo)
@@ -16,6 +18,7 @@ function modelo_sintetico()
 end
 
 @testset "Transferencia explícita y resolución conservan el resultado" begin
+    # La instrumentación debe conservar solución, objetivo y configuración, además de emitir los hitos permitidos.
     referencia = modelo_sintetico()
     optimize!(referencia)
     @test termination_status(referencia) == JuMP.MOI.OPTIMAL

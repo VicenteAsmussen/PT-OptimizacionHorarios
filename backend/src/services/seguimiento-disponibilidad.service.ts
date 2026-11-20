@@ -4,6 +4,7 @@ import type { AlcanceCarrera } from "../utils/alcance-carrera.js";
 import { ForbiddenError } from "../utils/errors.js";
 
 export const seguimientoDisponibilidadService = {
+  // Resume carga y bloques enviados de docentes gestionados para el seguimiento de secretaría.
   async get(planificacionSemestreId: number, usuario: UsuarioPlanificacion, alcance?: AlcanceCarrera) {
     if (usuario.rol !== "secretaria" || !alcance) throw new ForbiddenError("Se requiere una secretaria con carrera asociada");
     const planificacion = await planificacionesSemestresService.getById(planificacionSemestreId, alcance, usuario);

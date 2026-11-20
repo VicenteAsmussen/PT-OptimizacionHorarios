@@ -19,6 +19,7 @@ export async function resolverAlcanceCarrera(usuario?: { id: number; rol: string
   return alcance;
 }
 
+// Rechaza recursos fuera de una lista de alcance cuando la operación tiene esa restricción.
 export function exigirEnAlcance<T>(permitidos: T[] | undefined, valor: T) {
   if (permitidos && !permitidos.includes(valor)) {
     throw new ForbiddenError("El recurso no pertenece al alcance de la carrera");

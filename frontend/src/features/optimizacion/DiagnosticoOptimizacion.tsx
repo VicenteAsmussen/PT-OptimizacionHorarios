@@ -6,6 +6,7 @@ export interface CatalogoNombresDocentes {
   nombres: Record<number, string>;
 }
 
+// Presenta disponibilidad considerada con nombres actuales sin atribuir causas de fallo.
 export function DisponibilidadOptimizacion({ filas, titulo = 'Disponibilidad docente', catalogoDocentes, secundaria = false }: {
   filas: Disponibilidad[]; titulo?: string; catalogoDocentes?: CatalogoNombresDocentes; secundaria?: boolean;
 }) {
@@ -20,6 +21,7 @@ export function DisponibilidadOptimizacion({ filas, titulo = 'Disponibilidad doc
     </table></div>
   </details>;
 }
+// Expone el diagnóstico del intento sin equiparar carga pendiente con infactibilidad.
 export default function DiagnosticoOptimizacion({ datos, resumirAplicada = false, catalogoDocentes, disponibilidadSecundaria = false }: {
   datos: Diagnostico | null; resumirAplicada?: boolean; catalogoDocentes?: CatalogoNombresDocentes; disponibilidadSecundaria?: boolean;
 }) {

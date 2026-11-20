@@ -12,14 +12,18 @@ interface OpcionesApagado {
   informar: (mensaje: string) => void;
 }
 
+// Coordina un cierre único del servidor y sus recursos con un tiempo máximo de espera.
 export function crearApagado(opciones: OpcionesApagado, limiteMs = 30000) {
   let cerrando = false;
   let tarea: Promise<void> | undefined;
 
+  // Espera el cierre de solicitudes HTTP y tareas antes de liberar la conexión SQL.
   async function ejecutar() {
     let fallo = false;
     let vencido = false;
+    // Registra un cierre incompleto para que el proceso termine con estado de error.
     const informarFallo = (mensaje: string) => { fallo = true; opciones.informar(mensaje); };
+    // Continúa el apagado tras informar el fallo de una liberación de recursos.
     const intentar = async (operacion: () => void | Promise<void>, mensaje: string) => {
       try { await operacion(); } catch { informarFallo(mensaje); }
     };
@@ -35,6 +39,7 @@ export function crearApagado(opciones: OpcionesApagado, limiteMs = 30000) {
       temporizador.unref();
     });
 
+    // Espera las solicitudes admitidas y detiene el trabajo de optimización antes de SQL.
     async function finalizar() {
       const drenaje = new Promise<void>(resolve => {
         try {
@@ -67,7 +72,9 @@ export function crearApagado(opciones: OpcionesApagado, limiteMs = 30000) {
   }
 
   return {
+    // Permite rechazar nuevas solicitudes mientras terminan las ya admitidas.
     estaCerrando: () => cerrando,
+    // Reutiliza la misma promesa de cierre ante señales repetidas.
     cerrar: () => {
       cerrando = true;
       tarea ??= ejecutar();

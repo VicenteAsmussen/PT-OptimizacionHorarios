@@ -2,8 +2,10 @@ import { claveDia, ordenarBloques } from '../../disponibilidad/estado';
 import { bloquesDestino, rangoBloque } from '../modelo';
 import type { Bloque, SesionResultado } from '../types';
 
+// Distingue cada sesión por oferta, componente, docente y bloques de horario.
 export const identidadSesion = (sesion: SesionResultado) => JSON.stringify([sesion.ofertaId, sesion.tipoHora.id, sesion.profesorId, sesion.idsHorarios]);
 
+// Asigna carriles visuales separados a sesiones que coinciden en una jornada.
 export function distribuirSesiones(bloques: Bloque[], sesiones: SesionResultado[]) {
   const ordenados = ordenarBloques(bloques);
   const franjas = [...new Set(ordenados.map(rangoBloque))].sort();
@@ -25,6 +27,7 @@ export function distribuirSesiones(bloques: Bloque[], sesiones: SesionResultado[
   return { dias, franjas };
 }
 
+// Agrupa reservas consecutivas para representarlas como tramos del calendario.
 export function distribuirReservas(bloques: Bloque[], idsReservados: number[]) {
   const ordenados = ordenarBloques(bloques);
   const franjas = [...new Set(ordenados.map(rangoBloque))].sort();
@@ -41,6 +44,7 @@ export function distribuirReservas(bloques: Bloque[], idsReservados: number[]) {
   return reservas;
 }
 
+// Describe los tramos de una sesión que comparten la misma sala indicada.
 export function tramosSalas(sesion: SesionResultado, bloques: Bloque[]) {
   const tramos: { sala: string; inicio: string; fin: string }[] = [];
   sesion.bloquesIds.forEach((id, indice) => {

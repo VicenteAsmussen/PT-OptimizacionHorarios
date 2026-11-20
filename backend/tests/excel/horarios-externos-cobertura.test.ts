@@ -32,7 +32,7 @@ beforeEach(() => {
   vi.mocked(horariosRepository.sincronizarExternosEnTransaccion).mockResolvedValue({ ofertasCreadas: 1, ofertasActualizadas: 0, ofertasEliminadas: 0 });
 });
 it.each([['2026-1', 'IMPAR', 'PAR'], ['2026-2', 'PAR', 'IMPAR']])(
-  'requires matching curriculum parity for %s and permits missing opposite parity', async (periodo, obligatorio, opcional) => {
+  'exige paridad de malla coincidente con %s y permite faltantes de paridad opuesta', async (periodo, obligatorio, opcional) => {
     vi.mocked(horariosRepository.findContextoExternos).mockResolvedValue(contexto(periodo) as never);
     const resultado = await importarHorariosExternos(9, 4, await archivo([obligatorio]), 3);
     expect(resultado.errores).toEqual([]);
@@ -43,7 +43,7 @@ it.each([['2026-1', 'IMPAR', 'PAR'], ['2026-2', 'PAR', 'IMPAR']])(
     expect(horariosRepository.sincronizarExternosEnTransaccion).toHaveBeenCalledOnce();
   });
 it.each([['2026-1', 'PAR', 'IMPAR'], ['2026-2', 'IMPAR', 'PAR']])(
-  'rejects missing mandatory schedules in %s without persisting any valid row', async (periodo, opcional, faltante) => {
+  'rechaza horarios obligatorios ausentes en %s sin persistir ninguna fila válida', async (periodo, opcional, faltante) => {
     vi.mocked(horariosRepository.findContextoExternos).mockResolvedValue(contexto(periodo) as never);
     const resultado = await importarHorariosExternos(9, 4, await archivo([opcional]), 3);
     expect(resultado.errores).toContainEqual(expect.objectContaining({ codigoAsignatura: faltante, columna: 'Cobertura' }));
@@ -53,19 +53,20 @@ it.each([['2026-1', 'PAR', 'IMPAR'], ['2026-2', 'IMPAR', 'PAR']])(
     ]) });
     expect(horariosRepository.sincronizarExternosEnTransaccion).not.toHaveBeenCalled();
   });
-it('defers coverage until all capacities are valid, including optional rows', async () => {
+it('posterga la cobertura hasta validar todos los cupos, incluidas las filas opcionales', async () => {
   const resultado = await importarHorariosExternos(9, 4, await archivo(['PAR', 'IMPAR'], true), 3);
   expect(resultado.errores).toEqual([expect.objectContaining({ fila: 3, columna: 'Cupos', codigoAsignatura: 'IMPAR', valor: '-1' })]);
   expect(resultado).toMatchObject({ ofertasCreadas: 0, horariosCreados: 0, cobertura: [] });
   expect(horariosRepository.sincronizarExternosEnTransaccion).not.toHaveBeenCalled();
 });
-it('keeps opposite-parity scheduled courses and ignores unrelated malformed rows', async () => {
+it('conserva asignaturas programadas de paridad opuesta e ignora filas ajenas malformadas', async () => {
   const resultado = await importarHorariosExternos(9, 4, await archivo(['PAR', 'IMPAR', 'AJENA']), 3);
   expect(resultado.errores).toEqual([]);
   expect(horariosRepository.sincronizarExternosEnTransaccion).toHaveBeenCalledWith(9, 4,
     [expect.objectContaining({ asignaturaCodigo: 'PAR' }), expect.objectContaining({ asignaturaCodigo: 'IMPAR' })], 3);
 });
-it('persisted coverage excludes offers without schedules', async () => {
+it('la cobertura persistida excluye ofertas sin horarios', async () => {
+  // Una oferta vacía no acredita cobertura, la ocupación distingue carga declarada de horario registrado.
   vi.mocked(horariosRepository.findCarreraSecretariaByUsuarioId).mockResolvedValue({ carreraId: 3 } as never);
   vi.mocked(horariosRepository.findPlanificacionById).mockResolvedValue({ id: 9, carreraId: 3, codigo: '2026-2' } as never);
   vi.mocked(horariosRepository.findContextoExternos).mockResolvedValue({ ...contexto(),
@@ -79,13 +80,13 @@ it('persisted coverage excludes offers without schedules', async () => {
     { codigo: 'IMPAR', estado: 'cargada', secciones: [2] },
   ]);
 });
-it.each(['admin', 'profesor'])('direct %s service calls cannot read external coverage or access persistence', async rol => {
+it.each(['admin', 'profesor'])('las llamadas directas al servicio de %s no consultan cobertura externa ni acceden a persistencia', async rol => {
   await expect(horariosService.coberturaExcelExternos(9, 4, { id: 1, rol })).rejects.toMatchObject({ statusCode: 403 });
   expect(horariosRepository.findCarreraSecretariaByUsuarioId).not.toHaveBeenCalled();
   expect(horariosRepository.findPlanificacionById).not.toHaveBeenCalled();
   expect(horariosRepository.findContextoExternos).not.toHaveBeenCalled();
 });
-it.each([undefined, { carreraId: 99 }])('secretary external coverage requires a profile scoped to the selected career %j', async perfil => {
+it.each([undefined, { carreraId: 99 }])('la cobertura externa de secretaría exige un perfil de la carrera seleccionada %j', async perfil => {
   vi.mocked(horariosRepository.findCarreraSecretariaByUsuarioId).mockResolvedValue(perfil as never);
   vi.mocked(horariosRepository.findPlanificacionById).mockResolvedValue({ id: 9, carreraId: 3, codigo: '2026-2' } as never);
   await expect(horariosService.coberturaExcelExternos(9, 4, { id: 1, rol: 'secretaria' })).rejects.toMatchObject({ statusCode: 403 });

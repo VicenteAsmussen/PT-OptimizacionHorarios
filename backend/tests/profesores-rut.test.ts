@@ -4,7 +4,7 @@ import { profesoresRepository } from "../src/repositories/profesores.repository.
 import { createProfesorValidation, updateProfesorValidation } from "../src/validations/profesores.validation.js";
 import type { CreateProfesorDTO, UpdateProfesorDTO } from "../src/validations/profesores.validation.js";
 
-// Todos los límites de persistencia y hashing están simulados: no se importa config/db.
+// Simula la persistencia y el cálculo de hashes, sin importar config/db.
 vi.mock("../src/repositories/profesores.repository.js", () => ({ profesoresRepository: {
   findByRut: vi.fn(), findById: vi.fn(), checkDepartamentoExists: vi.fn(),
   create: vi.fn(), createWithUsuario: vi.fn(), updateWithSyncedUsuarioName: vi.fn(),
@@ -39,7 +39,7 @@ describe("proyecciones anidadas sin nueva exposición de RUT", () => {
     const { disponibilidadRepository } = await import("../src/repositories/disponibilidad.repository.js");
     await disponibilidadRepository.findAll();
     await disponibilidadRepository.findById(1);
-    // Solo las lecturas de recursos hidratan profesor; findSpecific comprueba existencia.
+    // Solo las lecturas de recursos cargan profesor, findSpecific comprueba existencia.
     expect(db.query.disponibilidadProfesores.findMany).toHaveBeenCalledTimes(1);
     expect(db.query.disponibilidadProfesores.findFirst).toHaveBeenCalledTimes(1);
     for (const consulta of [db.query.disponibilidadProfesores.findMany, db.query.disponibilidadProfesores.findFirst]) {
@@ -86,17 +86,17 @@ describe("proyecciones anidadas sin nueva exposición de RUT", () => {
   });
 });
 
-describe("validación de payload RUT", () => {
+describe("validación de datos de entrada de RUT", () => {
   it("requiere RUT al crear y normaliza en el límite", () => {
     expect(createProfesorValidation.parse(datos).rut).toBe("12345678-5");
     const { rut, ...sinRut } = datos;
     expect(createProfesorValidation.safeParse(sinRut).success).toBe(false);
   });
-  it.each([["00000001-9", "1-9"], ["123.456-0", "123456-0"]])("normaliza RUT corto %s en create/update", (rut, esperado) => {
+  it.each([["00000001-9", "1-9"], ["123.456-0", "123456-0"]])("normaliza RUT corto %s al crear y actualizar", (rut, esperado) => {
     expect(createProfesorValidation.parse({ ...datos, rut }).rut).toBe(esperado);
     expect(updateProfesorValidation.parse({ rut })).toEqual({ rut: esperado });
   });
-  it.each([null, "", "0-0", "12345678-9", "basura123456785"])("rechaza RUT explícito inválido %s en create/update", (rut) => {
+  it.each([null, "", "0-0", "12345678-9", "basura123456785"])("rechaza RUT explícito inválido %s al crear y actualizar", (rut) => {
     expect(createProfesorValidation.safeParse({ ...datos, rut }).success).toBe(false);
     expect(updateProfesorValidation.safeParse({ rut }).success).toBe(false);
   });
@@ -106,17 +106,17 @@ describe("validación de payload RUT", () => {
   });
 });
 
-describe("servicio RUT sin bypass en llamadas directas", () => {
+describe("servicio RUT sin omitir validaciones en llamadas directas", () => {
   it("crea con RUT canónico conservando ID numérico", async () => {
     expect(await profesoresService.createProfesor(datos)).toMatchObject({ id: 7, rut: "12345678-5" });
     expect(profesoresRepository.findByRut).toHaveBeenCalledWith("12345678-5");
     expect(profesoresRepository.create).toHaveBeenCalledWith({ ...datos, rut: "12345678-5" });
   });
-  it.each([undefined, null, "", "12345678-9"])("rechaza create directo inválido %s antes de escribir", async (rut) => {
+  it.each([undefined, null, "", "12345678-9"])("rechaza creación directa inválida %s antes de escribir", async (rut) => {
     await expect(profesoresService.createProfesor({ ...datos, rut } as CreateProfesorDTO)).rejects.toMatchObject({ statusCode: 400 });
     expect(profesoresRepository.create).not.toHaveBeenCalled();
   });
-  it.each([null, "", "12345678-9"])("rechaza update directo inválido %s", async (rut) => {
+  it.each([null, "", "12345678-9"])("rechaza actualización directa inválida %s", async (rut) => {
     await expect(profesoresService.updateProfesor(7, { rut } as UpdateProfesorDTO)).rejects.toMatchObject({ statusCode: 400 });
     expect(profesoresRepository.updateWithSyncedUsuarioName).not.toHaveBeenCalled();
   });
@@ -135,7 +135,7 @@ describe("servicio RUT sin bypass en llamadas directas", () => {
     await profesoresService.updateProfesor(7, { rut: "6.000.000-k" });
     expect(profesoresRepository.updateWithSyncedUsuarioName).toHaveBeenLastCalledWith(7, { rut: "6000000-K" }, null);
   });
-  it("no modifica RUT en un update parcial", async () => {
+  it("no modifica RUT en una actualización parcial", async () => {
     await profesoresService.updateProfesor(7, { nombre: "Cambio" });
     expect(profesoresRepository.findByRut).not.toHaveBeenCalled();
     expect(profesoresRepository.updateWithSyncedUsuarioName).toHaveBeenCalledWith(7, { nombre: "Cambio" }, null);

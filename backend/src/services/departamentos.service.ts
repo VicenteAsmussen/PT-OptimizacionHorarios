@@ -4,6 +4,7 @@ import { type CreateDepartamentoDTO, type UpdateDepartamentoDTO } from "../valid
 import { NotFoundError, ConflictError } from "../utils/errors.js";
 
 export const departamentosService = {
+  // Presenta departamentos relacionados y distingue cuáles gestiona la carrera solicitante.
   async getAllDepartamentos(alcance?: AlcanceCarrera) {
     const departamentos = await departamentosRepository.findAll(alcance);
     if (!alcance) return departamentos;
@@ -13,6 +14,7 @@ export const departamentosService = {
     }));
   },
 
+  // Resuelve el departamento sin revelar registros ajenos al alcance recibido.
   async getDepartamentoById(id: number, alcance?: AlcanceCarrera) {
     const departamento = await departamentosRepository.findById(id);
     if (!departamento || (alcance && !alcance.departamentosIds.includes(id))) {
@@ -21,6 +23,7 @@ export const departamentosService = {
     return departamento;
   },
 
+  // Registra un departamento después de descartar un nombre ya utilizado.
   async createDepartamento(dto: CreateDepartamentoDTO) {
     const existing = await departamentosRepository.findByNombre(dto.nombre);
     if (existing) {
@@ -31,6 +34,7 @@ export const departamentosService = {
     return await this.getDepartamentoById(created.id);
   },
 
+  // Valida el nombre y delega el mantenimiento con protección de dependencias académicas.
   async updateDepartamento(id: number, dto: UpdateDepartamentoDTO) {
     await this.getDepartamentoById(id);
 
@@ -43,6 +47,7 @@ export const departamentosService = {
     return await this.getDepartamentoById(id);
   },
 
+  // Impide retirar departamentos con asignaturas y traduce el conflicto referencial concurrente conocido.
   async deleteDepartamento(id: number) {
     await this.getDepartamentoById(id);
     const mensaje = "No se puede eliminar el departamento porque tiene asignaturas asociadas";

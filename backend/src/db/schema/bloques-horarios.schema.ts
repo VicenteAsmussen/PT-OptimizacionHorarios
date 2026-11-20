@@ -6,10 +6,10 @@ import { bloquesReservados } from "./bloques-reservados.schema.js";
 
 export const bloquesHorarios = pgTable("bloques_horarios", {
   id: serial("id").primaryKey(),
-  dia: varchar("dia", { length: 15 }).notNull(), // e.g. "Lunes", "Martes"
+  dia: varchar("dia", { length: 15 }).notNull(), // Por ejemplo, "Lunes", "Martes".
   numeroBloque: integer("numero_bloque").notNull(),
-  horaInicio: varchar("hora_inicio", { length: 10 }).notNull(), // e.g. "08:15"
-  horaTermino: varchar("hora_termino", { length: 10 }).notNull(), // e.g. "09:45"
+  horaInicio: varchar("hora_inicio", { length: 10 }).notNull(), // Por ejemplo, "08:15".
+  horaTermino: varchar("hora_termino", { length: 10 }).notNull(), // Por ejemplo, "09:45".
 }, (tabla) => [
   unique("uq_bloques_horarios_dia_numero").on(tabla.dia, tabla.numeroBloque),
   unique("uq_bloques_horarios_dia_rango").on(tabla.dia, tabla.horaInicio, tabla.horaTermino),

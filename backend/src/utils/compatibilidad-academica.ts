@@ -1,6 +1,7 @@
 import type { ContextoResultado, ProblemaResultado } from "./resultados-horarios.js";
 
 /** Una oferta representa una sección completa, nunca una elección independiente de T/P/L. */
+// Exige por pareja del mismo nivel el mínimo de combinaciones de secciones completas sin topes.
 export function comprobarCompatibilidadAcademica(contexto: ContextoResultado): ProblemaResultado[] {
   const asignaturas = new Map<string, ContextoResultado["ofertas"]>();
   for (const oferta of contexto.ofertas) {

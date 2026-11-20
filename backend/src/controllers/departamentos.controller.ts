@@ -3,6 +3,7 @@ import { resolverAlcanceCarrera } from "../utils/alcance-carrera.js";
 import { departamentosService } from "../services/departamentos.service.js";
 
 export const departamentosController = {
+  // Presenta los departamentos relacionados con el alcance académico del usuario.
   async getAll(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const data = await departamentosService.getAllDepartamentos(await resolverAlcanceCarrera(req.user));
@@ -15,6 +16,7 @@ export const departamentosController = {
     }
   },
 
+  // Devuelve el departamento solicitado si pertenece al alcance permitido.
   async getById(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = Number(req.params.id);
@@ -28,6 +30,7 @@ export const departamentosController = {
     }
   },
 
+  // Confirma el alta validada de un departamento del catálogo institucional.
   async create(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const data = await departamentosService.createDepartamento(req.body);
@@ -40,6 +43,7 @@ export const departamentosController = {
     }
   },
 
+  // Entrega el departamento después de aplicar el mantenimiento permitido.
   async update(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = Number(req.params.id);
@@ -53,6 +57,7 @@ export const departamentosController = {
     }
   },
 
+  // Confirma sin cuerpo la eliminación del departamento permitida por sus dependencias.
   async delete(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const id = Number(req.params.id);

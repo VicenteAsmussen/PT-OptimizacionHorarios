@@ -9,6 +9,7 @@ import { createServer, loadConfigFromFile, transformWithEsbuild } from "./soport
 
 const raiz = fileURLToPath(new URL("../", import.meta.url));
 
+// Inyecta configuración sintética en el cliente real sin leer archivos de entorno de la aplicación.
 async function cargarApi(entorno = {}) {
   const fuente = await readFile(new URL("../src/lib/api.ts", import.meta.url), "utf8");
   const { code } = await transformWithEsbuild(fuente.replaceAll("import.meta.env", JSON.stringify(entorno)), "api.ts", { loader: "ts" });
@@ -61,6 +62,7 @@ test("conserva la URL de API explícita, los errores y las respuestas vacías", 
 });
 
 test("Vite reenvía /api sin quitar rutas, cookies, formularios ni archivos", async () => {
+  // El destino simulado reemplaza el puerto de desarrollo, ambos servidores usan direcciones locales y puertos efímeros.
   const configuracion = await loadConfigFromFile({ command: "serve", mode: "test" }, join(raiz, "vite.config.ts"));
   assert.equal(configuracion.config.server.proxy?.["/api"]?.target, "http://127.0.0.1:3000");
   const solicitudes = [];

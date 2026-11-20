@@ -12,10 +12,12 @@ import {
 } from "../utils/errors.js";
 
 export const asignaturasService = {
+  // Lista la malla visible con su carga por tipo de hora y dependencias académicas.
   async getAllAsignaturas(alcance?: AlcanceCarrera, departamentoId?: number) {
     return await asignaturasRepository.findAll(alcance, departamentoId);
   },
 
+  // Resuelve una asignatura sin exponer códigos ajenos al alcance de carrera.
   async getAsignaturaByCodigo(codigo: string, alcance?: AlcanceCarrera) {
     const asignatura = await asignaturasRepository.findByCodigo(codigo);
     if (!asignatura || (alcance && !alcance.asignaturasCodigos.includes(codigo))) {
@@ -24,6 +26,7 @@ export const asignaturasService = {
     return asignatura;
   },
 
+  // Valida unicidad y relaciones antes de registrar la asignatura con su carga y mallas.
   async createAsignatura(dto: CreateAsignaturaDTO, alcance?: AlcanceCarrera) {
     if (alcance && (!dto.carrerasIds || dto.carrerasIds.length !== 1 || dto.carrerasIds[0] !== alcance.carreraId)) {
       throw new BadRequestError("La asignatura debe quedar asociada únicamente a la carrera de la secretaria");
@@ -87,6 +90,7 @@ export const asignaturasService = {
     return await this.getAsignaturaByCodigo(dto.codigo);
   },
 
+  // Comprueba las relaciones propuestas y delega el cambio con protección de dependencias académicas.
   async updateAsignatura(codigo: string, dto: UpdateAsignaturaDTO, alcance?: AlcanceCarrera) {
     await this.getAsignaturaByCodigo(codigo, alcance);
     if (alcance && dto.carrerasIds !== undefined && (dto.carrerasIds.length !== 1 || dto.carrerasIds[0] !== alcance.carreraId)) {
@@ -135,6 +139,7 @@ export const asignaturasService = {
     return await this.getAsignaturaByCodigo(codigo);
   },
 
+  // Solicita retirar una asignatura accesible sin omitir los controles de dependencia del catálogo.
   async deleteAsignatura(codigo: string, alcance?: AlcanceCarrera) {
     await this.getAsignaturaByCodigo(codigo, alcance);
     await asignaturasRepository.delete(codigo);

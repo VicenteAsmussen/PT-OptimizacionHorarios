@@ -15,6 +15,7 @@ const presupuestoPersistido = z.object({ recursos: z.array(recursoOptimizacion) 
 const salidaPersistida = z.object({ asignaciones: z.array(z.object({ ofertaId: z.number().int(), tipoHoraId: z.number().int(), bloqueId: z.number().int(), categoriaId: z.union([z.string(), z.number()]) })) });
 
 const conAsignatura = { asignatura: { with: { tiposHora: { with: { tipoHora: true as const } } } } };
+// Reúne horarios y restricciones con el presupuesto persistido que respalda su ejecución.
 export async function cargarContextoResultado(tx: TransaccionPlanificacion, id: number, incorporando = false): Promise<ContextoResultado> {
   const planificacion = await tx.query.planificacionesSemestres.findFirst({ where: eq(planificacionesSemestres.id, id) });
   if (!planificacion) throw new NotFoundError("Planificación no encontrada.");
@@ -46,20 +47,23 @@ export interface PersistenciaResultado {
   publicar(): Promise<void>;
 }
 export const resultadosHorariosRepository = {
+  // Lee el resultado en una instantánea consistente sin habilitar escrituras en la transacción.
   leer(id: number) {
     return db.transaction(tx => cargarContextoResultado(tx, id), { isolationLevel: "repeatable read", accessMode: "read only" });
   },
+  // Entrega contexto y operaciones de persistencia bajo el bloqueo del período sin cálculo activo.
   async conBloqueo<T>(id: number, operar: (contexto: ContextoResultado, persistencia: PersistenciaResultado) => Promise<T>): Promise<T> {
     return db.transaction(async tx => {
       const inicial = await tx.query.planificacionesSemestres.findFirst({ where: eq(planificacionesSemestres.id, id) });
       if (!inicial) throw new NotFoundError("Planificación no encontrada.");
-      // Match the lock order used by every preparation write and period transition.
+      // Conserva el orden de bloqueo utilizado en preparación y en las transiciones del período.
       await tx.select({ id: carreras.id }).from(carreras).where(eq(carreras.id, inicial.carreraId)).for("update");
       const [planificacion] = await tx.select().from(planificacionesSemestres).where(eq(planificacionesSemestres.id, id)).for("update");
       if (!planificacion || planificacion.carreraId !== inicial.carreraId) throw new ConflictError("La planificación cambió; vuelva a consultar.");
       await exigirSinEjecucionActiva(tx, [id]);
       const contexto = await cargarContextoResultado(tx, id);
       const persistencia: PersistenciaResultado = {
+        // Retira las filas y ejecuciones indicadas y devuelve el período a preparación.
         async descartar(idsHorarios, ejecucionesIds) {
           if (idsHorarios.length) {
             const eliminadas = await tx.delete(horariosAsignaturas).where(and(eq(horariosAsignaturas.planificacionSemestreId, id), inArray(horariosAsignaturas.id, idsHorarios))).returning({ id: horariosAsignaturas.id });
@@ -71,25 +75,28 @@ export const resultadosHorariosRepository = {
           }
           await tx.update(planificacionesSemestres).set({ estadoPlanificacion: "preparacion" }).where(eq(planificacionesSemestres.id, id));
         },
+        // Sustituye en conjunto los bloques de las filas seleccionadas conservando sus identidades.
         async mover(cambios) {
           const originales = await tx.select().from(horariosAsignaturas).where(and(eq(horariosAsignaturas.planificacionSemestreId, id), inArray(horariosAsignaturas.id, cambios.map(cambio => cambio.id))));
           if (originales.length !== cambios.length) throw new ConflictError("El horario cambió; vuelva a consultar.");
           await exigirBloquesNoReservados(tx, id, cambios.map(cambio => cambio.bloqueId));
-          // Remove the complete group first, avoiding transient unique-index conflicts.
+          // Retira primero el grupo completo para evitar conflictos transitorios de índices únicos.
           await tx.delete(horariosAsignaturas).where(and(eq(horariosAsignaturas.planificacionSemestreId, id), inArray(horariosAsignaturas.id, cambios.map(cambio => cambio.id))));
           await tx.insert(horariosAsignaturas).values(originales.map(original => ({ ...original, bloqueId: cambios.find(cambio => cambio.id === original.id)!.bloqueId })));
         },
+        // Aplica las salas del lote validado sin colisiones transitorias entre sus asignaciones.
         async asignarSalas(cambios) {
           if (!cambios.length) return;
           const ids = cambios.map(cambio => cambio.id);
           await exigirBloquesNoReservados(tx, id, contexto.entradas.filter(entrada => ids.includes(entrada.id)).map(entrada => entrada.bloqueId));
-          // Release assignments together before applying a validated final state (room swaps).
+          // Libera las asignaciones juntas antes de aplicar el estado final validado, incluidos intercambios.
           await tx.update(horariosAsignaturas).set({ salaId: null }).where(and(eq(horariosAsignaturas.planificacionSemestreId, id), inArray(horariosAsignaturas.id, ids)));
           for (const cambio of cambios) {
             const filas = await tx.update(horariosAsignaturas).set({ salaId: cambio.salaId }).where(and(eq(horariosAsignaturas.planificacionSemestreId, id), eq(horariosAsignaturas.id, cambio.id))).returning({ id: horariosAsignaturas.id });
             if (filas.length !== 1) throw new ConflictError("El horario cambió durante la importación.");
           }
         },
+        // Persiste el estado publicado dentro de la operación de resultado que ya lo validó.
         async publicar() {
           await tx.update(planificacionesSemestres).set({ estadoPlanificacion: "publicado" }).where(eq(planificacionesSemestres.id, id));
         },

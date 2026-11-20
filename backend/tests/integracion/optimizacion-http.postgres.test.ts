@@ -93,7 +93,7 @@ describe.skipIf(!habilitado)("Optimización HTTP en PostgreSQL aislado", () => {
       expect(respuesta.status).toBe(200); expect(respuesta.body.data.estado).toBe(esperado);
     }, { timeout: 15000, interval: 100 });
   }
-  it("aplica timeout completo, conserva recursos y rechaza incompletos sin cambios parciales", async () => {
+  it("aplica el límite de tiempo completo, conserva recursos y rechaza incompletos sin cambios parciales", async () => {
     await prepararDatosAislados();
     let anterior = await huellaHorarios();
     let inicio = await autorizar(request(app).post("/modelo/planificaciones/1/ejecuciones")).send(parametros);

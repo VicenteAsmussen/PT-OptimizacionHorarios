@@ -4,6 +4,7 @@ import { Toaster } from "sonner";
 import { ubicarContenedorNotificaciones } from "./contenedor";
 import estilos from "./Notificaciones.module.css";
 
+// Presenta avisos compartidos también cuando hay un diálogo modal abierto.
 export default function Notificaciones() {
   const [contenedor] = useState(() => typeof document === "undefined" ? null : document.createElement("div"));
   useLayoutEffect(() => {

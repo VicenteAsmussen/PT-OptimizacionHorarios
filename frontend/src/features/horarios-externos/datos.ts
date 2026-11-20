@@ -1,10 +1,12 @@
 import type { CoberturaExterna, DepartamentoExterno, ResumenDepartamento } from './types';
 
+// Identifica los departamentos no gestionados asociados a la carrera seleccionada.
 export function departamentosExternos(departamentos: DepartamentoExterno[], carreraId?: number) {
   return departamentos.filter(departamento => departamento.carreraDepartamentos.some(
     relacion => relacion.carreraId === carreraId && !relacion.esGestionado));
 }
 
+// Resume las asignaturas con carga guardada por cada departamento externo.
 export async function cargarResumenDepartamentos(
   planificacionId: number, departamentos: DepartamentoExterno[],
   consultar: (planificacionId: number, departamentoId: number) => Promise<{ cobertura: CoberturaExterna[] }>,
@@ -16,6 +18,7 @@ export async function cargarResumenDepartamentos(
   }));
 }
 
+// Explica los fallos de consulta de carga externa conservando el estado HTTP conocido.
 export function mensajeErrorCobertura(fallo: unknown): string {
   const mensaje = fallo instanceof Error ? fallo.message : 'No se pudo consultar la carga guardada.';
   const estado = fallo instanceof Error && 'status' in fallo && typeof fallo.status === 'number' ? fallo.status : null;
@@ -23,6 +26,7 @@ export function mensajeErrorCobertura(fallo: unknown): string {
   return estado === null ? mensaje : `${mensaje} (HTTP ${estado})`;
 }
 
+// Distingue la cobertura persistida de los datos de un archivo todavía no guardado.
 export function presentacionCobertura(estado: CoberturaExterna['estado'], sinGuardar: boolean) {
   switch (estado) {
     case 'cargada': return { color: 'verde', texto: sinGuardar ? 'Datos válidos en el archivo (sin guardar)' : 'Cargada' };

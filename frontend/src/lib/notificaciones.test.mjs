@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { notificaciones } from './notificaciones.ts';
 import { toast } from 'sonner';
 
-test('all shared notices provide Sonner five seconds, explicit close and stable optional IDs', () => {
+test('todos los avisos compartidos proporcionan a Sonner cinco segundos, cierre explícito e ID opcionales estables', () => {
   const ids = [];
   for (const tipo of ['exito', 'error', 'advertencia']) {
     for (const id of [undefined, `aviso-${tipo}`, 100 + ids.length]) {
@@ -19,7 +19,7 @@ test('all shared notices provide Sonner five seconds, explicit close and stable 
   assert.equal(new Set(ids).size, ids.length);
 });
 
-test('cerrar delegates the supplied string or numeric ID without altering other notices', () => {
+test('cerrar delega el ID recibido como texto o número sin alterar otros avisos', () => {
   const original = toast.dismiss; const llamadas = [];
   try {
     toast.dismiss = id => { llamadas.push(id); return id; };

@@ -4,6 +4,7 @@ import { hashPassword } from "../../utils/password.js";
 import type { BaseDatosSeed, CatalogosAcademicosSeed } from "./contexto.js";
 import { datosUsuarios, datosProfesores } from "./data/usuarios.js";
 
+// Conserva el acceso existente si su rol coincide y crea únicamente las cuentas iniciales faltantes.
 async function asegurarUsuario(baseDatos: BaseDatosSeed, usuario: typeof datosUsuarios[number]) {
   const [existente] = await baseDatos.select().from(esquema.usuarios).where(eq(esquema.usuarios.correo, usuario.correo)).limit(1);
   if (existente) {
@@ -20,6 +21,7 @@ async function asegurarUsuario(baseDatos: BaseDatosSeed, usuario: typeof datosUs
   return insertado;
 }
 
+// Vincula las cuentas iniciales con perfiles de secretaría y docentes usando los catálogos resueltos.
 export async function sembrarUsuarios(baseDatos: BaseDatosSeed, catalogos: CatalogosAcademicosSeed, soloProfesores = false) {
   const usuariosAsegurados = [];
   for (const usuario of datosUsuarios.filter(usuario => !soloProfesores || usuario.rol === "profesor")) {

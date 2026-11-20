@@ -40,7 +40,8 @@ it("no borra la carga anterior si el archivo no contiene asignaturas pertinentes
   expect(resultado.errores).toContainEqual(expect.objectContaining({ columna: "archivo" }));
   expect(horariosRepository.sincronizarExternosEnTransaccion).not.toHaveBeenCalled();
 });
-it("stages missing course codes before duplicate sections without writing", async () => {
+it("valida códigos de asignatura ausentes antes de las secciones duplicadas sin escribir", async () => {
+  // Corregir el formato habilita la siguiente etapa, no debe adelantar errores de negocio en cascada.
   const resultado = await importarHorariosExternos(9, 4, await archivo([["", "Sin código"], fila(), fila()]), 3);
   expect(resultado.errores).toEqual([expect.objectContaining({ fila: 2, columna: "Código Asig." })]);
   expect(resultado.cobertura).toEqual([]);

@@ -18,7 +18,7 @@ test('las secciones de admin son de consulta y secretaría conserva edición por
   }
 });
 
-test('semester selector cannot clear the current selection', async () => {
+test('el selector de semestre no permite vaciar la selección actual', async () => {
   const ts = await import('typescript');
   const React = await import('react');
   const { renderToStaticMarkup } = await import('react-dom/server');
@@ -43,7 +43,7 @@ test('semester selector cannot clear the current selection', async () => {
   assert.ok(vacia?.props.hidden);
 });
 
-// Ejecuta los handlers reales con dobles controlados, igual que el callback de conteos.
+// Ejecuta los manejadores reales y la actualización de conteos con dobles controlados.
 async function handlers(contexto) {
   const ts = await import('typescript');
   const panel = await fuente('./PanelSecciones.tsx');
@@ -55,7 +55,7 @@ async function handlers(contexto) {
   return new Function(...Object.keys(contexto), `${funciones}; return { abrir, completar, enviar };`)(...Object.values(contexto));
 }
 
-test('handlers impiden crear, editar y eliminar bloqueados; cierre ignora resultados tardíos', async () => {
+test('los manejadores impiden crear, editar y eliminar cuando hay bloqueo, cerrar ignora resultados tardíos', async () => {
   const { estadoSecciones } = await import('../../lib/periodos.ts');
   for (const tipo of ['crear', 'editar', 'eliminar']) {
     for (const actual of [true, false]) for (const estadoPlanificacion of ['preparacion', 'propuesta', 'publicado', undefined, 'otro']) {
@@ -137,7 +137,7 @@ test('agregar y editar sección muestran el formulario completo en una tarjeta s
   assert.match(tarjeta, /background:\s*var\(--color-superficie\)/);
 });
 
-test('render React muestra estados y motivo accesible; cambios de contexto renuevan clave', async () => {
+test('la vista de React muestra estados y motivo accesible, los cambios de contexto renuevan la clave', async () => {
   const ts = await import('typescript');
   const React = await import('react');
   const { renderToStaticMarkup } = await import('react-dom/server');
@@ -216,7 +216,7 @@ test('UI usa planificación, carrera visible y conteo desconocido distinto de ce
 test('carga real invalida cantidades, ignora lecturas tardías y permite reintentar', async () => {
   const pagina = await fuente('./AsignaturasPage.tsx');
   const cuerpo = pagina.match(/const cargarConteos = useCallback\(async \(\) => \{([\s\S]*?)\n  \}, \[planificacionSemestreId, usuario\?\.id\]\);/)?.[1];
-  assert.ok(cuerpo, 'localiza el callback ejecutado por React');
+  assert.ok(cuerpo, 'localiza la función de retorno ejecutada por React');
   const { contarSecciones } = await import('./datos.ts');
   let estado;
   const pendientes = [];
@@ -270,7 +270,7 @@ test('mutaciones notifican al padre sin recargar catálogo ni desmontar panel', 
   assert.match(pagina, /conteos\?\.usuarioId === usuario\?\.id && conteos\?\.planificacionSemestreId === planificacionSemestreId/);
 });
 
-// Exercise the component's real event handlers with deterministic hook state.
+// Ejecuta los manejadores reales del componente con un estado de hooks controlado y reproducible.
 async function componenteConEstado(ruta, nombre = 'default', dobles = {}) {
   const ts = await import('typescript');
   const React = await import('react');
@@ -319,7 +319,7 @@ function textoElemento(elemento) {
 }
 const botonConTexto = (arbol, texto) => elementos(arbol, e => e.type === 'button' && textoElemento(e) === texto)[0];
 
-test('section loading restricts teacher selection and submission to the subject department', async () => {
+test('la carga de secciones restringe la selección y el envío de profesores al departamento de la asignatura', async () => {
   const panel = await fuente('./PanelSecciones.tsx');
   const cuerpo = panel.match(/const cargar = useCallback\(async \(\) => \{([\s\S]*?)\n  \}, \[/)?.[1];
   assert.ok(cuerpo);
@@ -340,7 +340,7 @@ test('section loading restricts teacher selection and submission to the subject 
     await cargar();
     assert.deepEqual(errores, []);
     assert.deepEqual(datos.profesores.map(p => p.id), profesores.filter(p => p.departamento.id === departamentoId).map(p => p.id));
-    assert.equal(profesores.length, 2, 'the global catalogue is not modified');
+  assert.equal(profesores.length, 2, 'el catálogo global no se modifica');
     for (const profesor of profesores) {
       const entrada = { seccion: '1', cupos: '0', asignaciones: [{ tipoHoraId: 1, profesorId: profesor.id }] };
       if (profesor.departamento.id === departamentoId) {
@@ -356,7 +356,7 @@ test('section loading restricts teacher selection and submission to the subject 
       elementos(renderizar(propiedades), e => e.type === 'input')[0].props.onChange({ target: { value: busqueda } });
       const sugerencias = elementos(renderizar(propiedades), e => e.props?.role === 'option').map(textoElemento).join(' ');
       for (const profesor of datos.profesores.filter(p => busqueda === 'Ana' || p.id === 2)) {
-        assert.ok(sugerencias.includes(profesor.nombre), 'eligible teachers remain selectable by name and RUT');
+    assert.ok(sugerencias.includes(profesor.nombre), 'los profesores elegibles siguen disponibles por nombre y RUT');
       }
       for (const profesor of profesores.filter(p => p.departamento.id !== departamentoId)) {
         assert.ok(!sugerencias.includes(profesor.nombre));
@@ -365,7 +365,7 @@ test('section loading restricts teacher selection and submission to the subject 
   }
 });
 
-test('editing a subject displays its hour breakdown without adding editable hour controls', async () => {
+test('editar una asignatura muestra el desglose de horas sin añadir controles para editarlas', async () => {
   const renderizar = await componenteConEstado('./EditarAsignatura.tsx');
   const { renderToStaticMarkup } = await import('react-dom/server');
   const asignatura = { codigo: 'A', nombre: 'Álgebra', departamentoId: 1, semestreMalla: 2, esCritica: false,
@@ -375,7 +375,7 @@ test('editing a subject displays its hour breakdown without adding editable hour
   assert.match(html, /Horas por tipo/);
   assert.match(html, /Teoría/); assert.match(html, /4 h/);
   assert.match(html, /Práctica/); assert.match(html, /2 h/);
-  assert.equal(elementos(arbol, e => e.type === 'input' && e.props.type === 'number').length, 1, 'only curriculum semester is editable');
+  assert.equal(elementos(arbol, e => e.type === 'input' && e.props.type === 'number').length, 1, 'solo se puede editar el semestre de la malla');
   const vacia = renderToStaticMarkup(renderizar({ asignatura: { ...asignatura, tiposHora: [] }, departamentos: [], alCerrar() {}, alCompletar() {} }));
   assert.match(vacia, /Sin tipos de hora registrados/);
 });
@@ -470,7 +470,7 @@ test('los textos de secciones conservan contexto y reglas sin repetir período n
   assert.match(pagina, /placeholder="Ej\.: Álgebra o MAT101"/);
 });
 
-test('teacher autocomplete selects a suggestion and can be cleared and rewritten directly', async () => {
+test('el autocompletado de profesores selecciona una sugerencia y permite borrar y reescribir directamente', async () => {
   const renderizar = await componenteConEstado('./SelectorProfesor.tsx');
   const profesores = [{ id: 1, nombre: 'Ana', rut: '1-9', departamento: { nombre: 'A' } },
     { id: 2, nombre: 'Pedro', rut: '2-7', departamento: { nombre: 'B' } }];
@@ -480,11 +480,11 @@ test('teacher autocomplete selects a suggestion and can be cleared and rewritten
   let arbol = dibujar();
   let entrada = elementos(arbol, e => e.type === 'input')[0];
   assert.equal(entrada.props.value, 'Ana');
-  assert.equal(elementos(arbol, e => e.type === 'button').length, 0, 'no extra assign/change/remove controls');
+  assert.equal(elementos(arbol, e => e.type === 'button').length, 0, 'sin controles adicionales para asignar, cambiar o quitar');
   const etiqueta = elementos(arbol, e => e.type === 'label' && e.props.htmlFor === entrada.props.id)[0];
   assert.match(textoElemento(etiqueta), /Teoría/);
   entrada.props.onChange({ target: { value: 'Pedro' } });
-  assert.deepEqual(cambios, [null], 'editing makes the field pending until a suggestion is selected');
+  assert.deepEqual(cambios, [null], 'editar deja el campo pendiente hasta seleccionar una sugerencia');
   arbol = dibujar();
   assert.equal(elementos(arbol, e => e.type === 'input')[0].props.value, 'Pedro');
   const pedro = elementos(arbol, e => e.type === 'button' && textoElemento(e).includes('Pedro'))[0];
@@ -501,10 +501,10 @@ test('teacher autocomplete selects a suggestion and can be cleared and rewritten
   assert.equal(elementos(arbol, e => e.type === 'input')[0].props.value, '');
   assert.equal(elementos(arbol, e => e.props?.role === 'listbox').length, 0);
   profesorId = 1;
-  assert.equal(elementos(dibujar(), e => e.type === 'input')[0].props.value, 'Ana', 'parent autofill is reflected in the input');
+  assert.equal(elementos(dibujar(), e => e.type === 'input')[0].props.value, 'Ana', 'el autocompletado del padre se refleja en la entrada');
 });
 
-test('the first typed selection fills only empty lower rows and each remains independently editable', async () => {
+test('la primera selección por tipo completa solo las filas inferiores vacías y cada una sigue siendo editable por separado', async () => {
   const renderizar = await componenteConEstado('./PanelSecciones.tsx', 'EditorAsignaciones');
   const tiposHora = ['Teoría', 'Práctica', 'Laboratorio'].map((tipo, indice) => ({ tipoHoraId: indice + 1, horas: 2, tipoHora: { tipo } }));
   const profesores = [{ id: 1, nombre: 'Ana' }, { id: 2, nombre: 'Pedro' }];
@@ -530,10 +530,10 @@ test('the first typed selection fills only empty lower rows and each remains ind
   assert.deepEqual([...asignaciones].sort((a,b) => a.tipoHoraId-b.tipoHoraId), tiposHora.map(t => ({ tipoHoraId: t.tipoHoraId, profesorId: 2 })));
   assert.equal(elementos(dibujar(), e => e.type === 'details' || (e.type === 'input' && e.props.type === 'checkbox')).length, 0);
   elementos(dibujar(), e => e.props?.contexto === 'Teoría')[0].props.alSeleccionar(null);
-  assert.equal(asignaciones.find(a => a.tipoHoraId === 2).profesorId, 2, 'clearing first row does not erase lower rows');
+  assert.equal(asignaciones.find(a => a.tipoHoraId === 2).profesorId, 2, 'vaciar la primera fila no borra las inferiores');
 });
 
-test('autocomplete supports keyboard choice and never assigns unmatched text', async () => {
+test('el autocompletado permite elegir con teclado y nunca asigna texto sin coincidencia', async () => {
   const renderizar = await componenteConEstado('./SelectorProfesor.tsx');
   const profesores = [{ id: 1, nombre: 'Ana', rut: '1-9', departamento: { nombre: 'A' } },
     { id: 2, nombre: 'Pedro', rut: '2-7', departamento: { nombre: 'B' } }];

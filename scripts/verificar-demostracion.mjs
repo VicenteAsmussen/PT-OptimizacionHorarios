@@ -9,6 +9,7 @@ import { crearEntorno } from "./verificar-local.mjs";
 
 const raiz = fileURLToPath(new URL("../", import.meta.url));
 const puerto = 55432;
+// Exige consentimiento explícito antes de preparar el PostgreSQL efímero de demostración.
 export function validarOpciones(argumentos) {
   if (!argumentos.includes("--autorizar-entorno-efimero")) throw new Error("Debe autorizar el entorno con --autorizar-entorno-efimero. Consulte docs/escenario-demostracion.md.");
   const opciones = {};
@@ -19,6 +20,7 @@ export function validarOpciones(argumentos) {
   }
   return opciones;
 }
+// Limita la demostración a la identidad y dirección del clúster sintético previsto.
 export function validarDestino(destino) {
   let url;
   try { url = new URL(destino); } catch { throw new Error("Destino de demostración inválido."); }
@@ -28,9 +30,11 @@ export function validarDestino(destino) {
   }
   return { database: url.pathname.slice(1) };
 }
+// Reutiliza el aislamiento local sin incorporar conexiones ni credenciales del ambiente.
 export function crearEntornoDemostracion(temporal, origen = process.env) {
   return crearEntorno(temporal, origen);
 }
+// Reserva brevemente el puerto local para rechazar ocupantes sin conectarse a ellos.
 async function comprobarPuertoLibre() {
   const servidor = createServer();
   await new Promise((aceptar, rechazar) => {
@@ -39,9 +43,11 @@ async function comprobarPuertoLibre() {
   });
   await new Promise((aceptar, rechazar) => servidor.close(error => error ? rechazar(error) : aceptar()));
 }
+// Comprueba el recorrido académico con SQL efímero real y una respuesta de Julia simulada.
 export async function ejecutarDemostracion(argumentos) {
   const opciones = validarOpciones(argumentos);
   const bin = opciones.bin ?? (process.platform === "win32" ? "C:/Program Files/PostgreSQL/18/bin" : "/usr/lib/postgresql/18/bin");
+  // Localiza los binarios PostgreSQL en el directorio elegido para el clúster propio.
   const exe = nombre => join(bin, nombre + (process.platform === "win32" ? ".exe" : ""));
   for (const archivo of [exe("initdb"), exe("pg_ctl"), exe("createdb"), join(raiz, "backend/node_modules/vitest/vitest.mjs")]) {
     if (!existsSync(archivo)) throw new Error("Falta PostgreSQL 18 o Vitest instalado. No se instalarán herramientas.");
@@ -57,8 +63,9 @@ export async function ejecutarDemostracion(argumentos) {
   const destino = `postgres://demo_tesis:${clave}@127.0.0.1:${puerto}/demo_tesis_fase2`;
   validarDestino(destino);
   const entorno = { ...crearEntornoDemostracion(temporal), PGPASSWORD: clave, PGCONNECT_TIMEOUT: "5" };
+  // Ejecuta cada etapa sin shell y oculta la clave efímera en los errores comunicados.
   const ejecutar = (programa, tokens, heredar = false) => {
-    // En Windows, el servidor hijo puede conservar los pipes de pg_ctl después de su salida.
+    // En Windows, el servidor hijo puede conservar los canales de pg_ctl después de que pg_ctl termine.
     const salida = programa === exe("pg_ctl") ? "ignore" : heredar ? "inherit" : "pipe";
     const resultado = spawnSync(programa, tokens, { cwd: join(raiz, "backend"), env: entorno, shell: false,
       encoding: "utf8", stdio: salida, timeout: 180000 });
@@ -75,7 +82,7 @@ export async function ejecutarDemostracion(argumentos) {
     rmSync(archivoClave);
     // El archivo evita que Windows interprete las comillas como parte del directorio.
     appendFileSync(join(datos, "postgresql.conf"), `\nlisten_addresses = '127.0.0.1'\nport = ${puerto}\nunix_socket_directories = ''\nmax_connections = 10\n`);
-    // pg_ctl controla exclusivamente este data dir nuevo. No se registra un servicio.
+    // pg_ctl controla solo este directorio de datos nuevo, sin registrar un servicio.
     detenido = false;
     ejecutar(exe("pg_ctl"), ["start", "-D", datos, "-l", join(temporal, "postgres.log"), "-w", "-t", "30"]);
     ejecutar(exe("createdb"), ["-h", "127.0.0.1", "-p", String(puerto), "-U", "demo_tesis", "--no-password", "demo_tesis_fase2"]);
@@ -91,7 +98,7 @@ export async function ejecutarDemostracion(argumentos) {
     if (existsSync(registro)) console.error(readFileSync(registro, "utf8").split(/\r?\n/).slice(-8).join("\n"));
   } finally {
     if (!detenido) {
-      // También tras un inicio incompleto, el PID solo puede proceder de nuestro cluster.
+      // Incluso tras un inicio incompleto, el PID solo puede proceder de nuestro clúster.
       if (existsSync(join(datos, "postmaster.pid"))) {
         try { ejecutar(exe("pg_ctl"), ["stop", "-D", datos, "-m", "fast", "-w", "-t", "30"]); detenido = true; }
         catch { fallo = new Error(`No se confirmó la detención del cluster propio. Se preservó ${temporal}.`); }

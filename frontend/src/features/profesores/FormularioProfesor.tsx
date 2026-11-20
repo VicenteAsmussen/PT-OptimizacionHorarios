@@ -17,6 +17,7 @@ interface Props {
   alCompletar: () => void;
 }
 
+// Edita la identidad docente y ofrece acceso inicial cuando el alcance lo permite.
 export default function FormularioProfesor({ profesor, departamentos, rol, alcance, alCerrar, alCompletar }: Props) {
   const destinos = departamentos.filter((departamento) => puedeAdministrarProfesor(rol,
     { departamentoId: departamento.id, tipo: profesor?.tipo ?? "part time" }, alcance));
@@ -31,6 +32,7 @@ export default function FormularioProfesor({ profesor, departamentos, rol, alcan
   const destino = { departamentoId, tipo };
   const permiteAcceso = puedeAdministrarAcceso(rol, destino, alcance);
 
+  // Descarta el acceso inicial si el departamento de destino no permite gestionarlo.
   function cambiarDepartamento(id: number) {
     setDepartamentoId(id);
     if (!puedeAdministrarAcceso(rol, { departamentoId: id, tipo }, alcance)) {
@@ -40,6 +42,7 @@ export default function FormularioProfesor({ profesor, departamentos, rol, alcan
     }
   }
 
+  // Valida la identidad y los departamentos antes de crear o editar al profesor.
   async function guardar() {
     const datos = prepararDatosProfesor({ rut, nombre, departamentoId, tipo });
     if (!departamentos.some((departamento) => departamento.id === departamentoId)

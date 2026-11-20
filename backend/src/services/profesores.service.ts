@@ -7,12 +7,14 @@ import { hashPassword } from "../utils/password.js";
 import type { TokenPayload } from "../utils/jwt.js";
 import { normalizarRut } from "../utils/rut.js";
 
+// Rechaza identificadores inválidos y conserva una representación única del RUT docente.
 function exigirRut(valor: unknown): string {
   const rut = normalizarRut(valor);
   if (rut === null) throw new BadRequestError("El RUT del profesor no es válido");
   return rut;
 }
 
+// Impide que dos perfiles docentes compartan el mismo RUT normalizado.
 async function exigirRutDisponible(rut: string, id?: number) {
   const existente = await profesoresRepository.findByRut(rut);
   if (existente && existente.id !== id) {
@@ -20,7 +22,8 @@ async function exigirRutDisponible(rut: string, id?: number) {
   }
 }
 
-// Drizzle puede envolver el error PostgreSQL en cause; no mapear otras restricciones.
+// Drizzle puede envolver el error de PostgreSQL en cause, no traducir otras restricciones.
+// Traduce también la duplicidad concurrente del RUT sin ocultar otros errores de persistencia.
 async function conConflictoRut<T>(operacion: () => Promise<T>): Promise<T> {
   try {
     return await operacion();
@@ -39,10 +42,12 @@ async function conConflictoRut<T>(operacion: () => Promise<T>): Promise<T> {
   }
 }
 
+// Identifica las operaciones sujetas a las facultades acotadas de secretaría.
 function esSecretaria(usuario?: Pick<TokenPayload, "rol">) {
   return usuario?.rol === "secretaria";
 }
 
+// Limita la gestión de acceso por secretaría a docentes part time de departamentos gestionados.
 function exigirProfesorPartTimeGestionado(alcance: AlcanceCarrera | undefined, departamentoId: number, tipo: string) {
   if (tipo !== "part time") {
     throw new ForbiddenError("La secretaria solo puede gestionar acceso de profesores part time");
@@ -50,6 +55,7 @@ function exigirProfesorPartTimeGestionado(alcance: AlcanceCarrera | undefined, d
   exigirEnAlcance(alcance?.departamentosGestionadosIds, departamentoId);
 }
 
+// Evita que la gestión de un perfil docente permita modificar una cuenta privilegiada.
 async function exigirCuentaProfesorGestionable(usuarioId: number | null) {
   if (!usuarioId) return;
   const cuenta = await usuariosRepository.findById(usuarioId);
@@ -59,15 +65,18 @@ async function exigirCuentaProfesorGestionable(usuarioId: number | null) {
 }
 
 export const profesoresService = {
+  // Entrega los datos docentes necesarios para los selectores autorizados.
   async getSeleccionProfesores() {
     return await profesoresRepository.findSeleccion();
   },
 
+  // Consulta perfiles sin permitir filtros de departamentos ajenos al alcance.
   async getAllProfesores(departamentoId?: number, alcance?: AlcanceCarrera) {
     if (departamentoId !== undefined) exigirEnAlcance(alcance?.departamentosIds, departamentoId);
     return await profesoresRepository.findAll(departamentoId, alcance);
   },
 
+  // Resuelve el perfil docente accesible y oculta perfiles fuera de los departamentos permitidos.
   async getProfesorById(id: number, alcance?: AlcanceCarrera) {
     const profesor = await profesoresRepository.findById(id, alcance);
     if (!profesor || (alcance && !alcance.departamentosIds.includes(profesor.departamentoId))) {
@@ -76,6 +85,7 @@ export const profesoresService = {
     return profesor;
   },
 
+  // Crea el perfil y su acceso opcional tras validar identidad, departamento y facultades del actor.
   async createProfesor(dto: CreateProfesorDTO, alcance?: AlcanceCarrera, usuario?: TokenPayload) {
     const { acceso, ...datosProfesor } = dto;
     exigirEnAlcance(alcance?.departamentosIds, datosProfesor.departamentoId);
@@ -131,6 +141,7 @@ export const profesoresService = {
     return await this.getProfesorById(created.id, alcance);
   },
 
+  // Valida cambios de perfil y sincroniza el nombre de la cuenta sin ampliar facultades de secretaría.
   async updateProfesor(id: number, dto: UpdateProfesorDTO, alcance?: AlcanceCarrera, usuario?: TokenPayload) {
     const profesor = await this.getProfesorById(id, alcance);
     const departamentoDestino = dto.departamentoId ?? profesor.departamentoId;
@@ -186,6 +197,7 @@ export const profesoresService = {
     return await this.getProfesorById(id, alcance);
   },
 
+  // Habilita una cuenta de rol profesor para un perfil que aún no tiene acceso.
   async createUsuarioProfesor(id: number, dto: AccesoProfesorDTO, alcance?: AlcanceCarrera, usuario?: TokenPayload) {
     const profesor = await this.getProfesorById(id, alcance);
     if (profesor.usuarioId) {
@@ -209,6 +221,7 @@ export const profesoresService = {
     return await this.getProfesorById(id, alcance);
   },
 
+  // Modifica credenciales del acceso vinculado después de comprobar que el actor pueda gestionarlo.
   async updateUsuarioProfesor(id: number, dto: UpdateAccesoProfesorDTO, alcance?: AlcanceCarrera, usuario?: TokenPayload) {
     const profesor = await this.getProfesorById(id, alcance);
     if (!profesor.usuarioId || !profesor.usuario) {
@@ -236,6 +249,7 @@ export const profesoresService = {
     return await this.getProfesorById(id, alcance);
   },
 
+  // Retira el acceso vinculado sin eliminar el perfil ni sus datos académicos.
   async deleteUsuarioProfesor(id: number, alcance?: AlcanceCarrera, usuario?: TokenPayload) {
     const profesor = await this.getProfesorById(id, alcance);
     if (!profesor.usuarioId) {
@@ -249,6 +263,7 @@ export const profesoresService = {
     else await profesoresRepository.deleteUsuarioForProfesor(id, profesor.usuarioId);
   },
 
+  // Aplica las restricciones de dependencia y rol antes de retirar el perfil docente y su acceso.
   async deleteProfesor(id: number, alcance?: AlcanceCarrera, usuario?: TokenPayload) {
     const profesor = await this.getProfesorById(id, alcance);
 

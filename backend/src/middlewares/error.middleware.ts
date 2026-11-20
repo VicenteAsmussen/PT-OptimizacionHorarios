@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from "express";
 import { AppError } from "../utils/errors.js";
 
+// Reconoce rechazos del cuerpo JSON sin confiar en estados contradictorios.
 function obtenerEstadoErrorJson(error: unknown): 400 | 413 | undefined {
   if (!(error instanceof Error) || !("type" in error)) return;
 
@@ -18,6 +19,7 @@ function obtenerEstadoErrorJson(error: unknown): 400 | 413 | undefined {
   }
 }
 
+// Traduce fallos a respuestas HTTP y evita exponer detalles de errores internos.
 export function errorHandler(
   err: Error,
   _req: Request,

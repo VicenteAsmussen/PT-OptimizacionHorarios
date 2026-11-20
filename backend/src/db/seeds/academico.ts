@@ -10,6 +10,7 @@ import {
   datosSemestres,
 } from "./data/academico.js";
 
+// Reutiliza el tipo de hora registrado o incorpora el que falta al catálogo inicial.
 async function asegurarTipoHora(baseDatos: BaseDatosSeed, tipo: typeof datosTiposHora[number]) {
   const [existente] = await baseDatos.select().from(esquema.tiposHora).where(eq(esquema.tiposHora.tipo, tipo.tipo)).limit(1);
   if (existente) return existente;
@@ -17,6 +18,7 @@ async function asegurarTipoHora(baseDatos: BaseDatosSeed, tipo: typeof datosTipo
   return insertado;
 }
 
+// Conserva la identidad del departamento existente al completar el catálogo inicial.
 async function asegurarDepartamento(baseDatos: BaseDatosSeed, departamento: typeof datosDepartamentos[number]) {
   const [existente] = await baseDatos.select().from(esquema.departamentos).where(eq(esquema.departamentos.nombre, departamento.nombre)).limit(1);
   if (existente) return existente;
@@ -24,6 +26,7 @@ async function asegurarDepartamento(baseDatos: BaseDatosSeed, departamento: type
   return insertado;
 }
 
+// Reutiliza la carrera por nombre para vincular los datos iniciales sin duplicar su identidad.
 async function asegurarCarrera(baseDatos: BaseDatosSeed, carrera: typeof datosCarreras[number]) {
   const [existente] = await baseDatos.select().from(esquema.carreras).where(eq(esquema.carreras.nombre, carrera.nombre)).limit(1);
   if (existente) return existente;
@@ -31,6 +34,7 @@ async function asegurarCarrera(baseDatos: BaseDatosSeed, carrera: typeof datosCa
   return insertada;
 }
 
+// Completa catálogos, componentes y mallas iniciales sin sustituir el período actual ya seleccionado.
 export async function sembrarAcademico(baseDatos: BaseDatosSeed): Promise<CatalogosAcademicosSeed> {
   const tiposHoraAsegurados: (typeof esquema.tiposHora.$inferSelect)[] = [];
   for (const tipoHora of datosTiposHora) tiposHoraAsegurados.push(await asegurarTipoHora(baseDatos, tipoHora));

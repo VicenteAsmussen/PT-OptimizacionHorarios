@@ -43,7 +43,7 @@ router.get(
   horariosController.getAll
 );
 
-// Descarga administrativa: antes de las rutas con parámetros.
+// Descarga operativa de secretaría, antes de las rutas con parámetros.
 router.get(
   "/excel/salas",
   authorizeRoles("secretaria"),
@@ -55,7 +55,9 @@ const subirExcelSalas = multer({ storage: multer.memoryStorage(), limits: { file
 router.post(
   "/excel/salas/importar",
   authorizeRoles("secretaria"),
+  // Recibe un único archivo acotado en memoria antes de validar las asignaciones de salas.
   (req, res, next) => {
+    // Convierte los rechazos de carga en errores del archivo sin invocar la importación.
     subirExcelSalas(req, res, (error) => {
       if (error) {
         res.status(400).json({ status: "error", errores: [{ fila: 1, columna: "archivo", mensaje: "Adjunte un único archivo en el campo archivo (máximo 10 MB)." }] });
@@ -72,7 +74,9 @@ router.get("/excel/externos/cobertura", authorizeRoles("secretaria"), horariosCo
 router.post(
   "/excel/externos/importar",
   authorizeRoles("secretaria"),
+  // Recibe el lote externo sin iniciar su sincronización si falla la carga del archivo.
   (req, res, next) => {
+    // Expone el rechazo de tamaño o cantidad de archivos antes de aplicar reglas académicas.
     subirExcelSalas(req, res, (error) => {
       if (error) {
         res.status(400).json({ status: "error", errores: [{ fila: 1, columna: "archivo", mensaje: "Adjunte un único archivo en el campo archivo (máximo 10 MB)." }] });

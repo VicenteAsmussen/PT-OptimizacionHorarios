@@ -22,6 +22,7 @@ type RelacionDepartamentoInput = {
 };
 
 export const carrerasRepository = {
+  // Deriva desde el perfil de secretaría los identificadores que delimitan su alcance académico.
   async findAlcanceByUsuarioId(usuarioId: number): Promise<AlcanceCarrera | undefined> {
     const [perfil] = await db.select({ carreraId: secretarias.carreraId }).from(secretarias)
       .where(eq(secretarias.usuarioId, usuarioId)).limit(1);
@@ -29,8 +30,8 @@ export const carrerasRepository = {
     const { carreraId } = perfil;
     const asignaciones = await db.select({ codigo: carreraAsignatura.asignaturaCodigo }).from(carreraAsignatura)
       .where(eq(carreraAsignatura.carreraId, carreraId));
-    // No filtrar esGestionado para el alcance: tanto departamentos propios como externos están relacionados con la carrera.
-    // La gestión operativa se expone aparte para permisos de acceso/disponibilidad.
+    // El alcance incluye departamentos propios y externos, sin filtrar por esGestionado.
+    // La gestión operativa se informa aparte para los permisos de acceso y disponibilidad.
     const relaciones = await db.select({
       id: carreraDepartamento.departamentoId,
       esGestionado: carreraDepartamento.esGestionado,
@@ -50,6 +51,7 @@ export const carrerasRepository = {
       profesoresIds: docentes.map((docente) => docente.id), ofertasIds: ofertas.map((oferta) => oferta.id) };
   },
 
+  // Carga carreras con sus mallas y departamentos dentro del alcance recibido.
   async findAll(alcance?: AlcanceCarrera) {
     return await db.query.carreras.findMany({
       where: alcance ? eq(carreras.id, alcance.carreraId) : undefined,
@@ -68,6 +70,7 @@ export const carrerasRepository = {
     });
   },
 
+  // Reúne los vínculos de malla y departamento de una carrera para consulta y mantenimiento.
   async findById(id: number) {
     return await db.query.carreras.findFirst({
       where: eq(carreras.id, id),
@@ -86,6 +89,7 @@ export const carrerasRepository = {
     });
   },
 
+  // Detecta nombres de carrera existentes antes de crear o renombrar un registro.
   async findByNombre(nombre: string): Promise<Carrera | undefined> {
     const [result] = await db
       .select()
@@ -95,6 +99,7 @@ export const carrerasRepository = {
     return result;
   },
 
+  // Devuelve los departamentos registrados entre los vínculos propuestos para la carrera.
   async findExistingDepartamentosIds(ids: number[]): Promise<number[]> {
     if (ids.length === 0) return [];
     const results = await db
@@ -104,6 +109,7 @@ export const carrerasRepository = {
     return results.map((r) => r.id);
   },
 
+  // Guarda la carrera y sus facultades de gestión departamental en una misma transacción.
   async create(data: NuevaCarrera, departamentos: RelacionDepartamentoInput[] = []): Promise<Carrera> {
     return await db.transaction(async (tx) => {
       const [created] = await tx.insert(carreras).values(data).returning();
@@ -122,6 +128,7 @@ export const carrerasRepository = {
     });
   },
 
+  // Cambia carrera y vínculos solo sin dependencias académicas ni cálculos activos asociados.
   async update(
     id: number,
     data: Partial<Omit<NuevaCarrera, "id">>,
@@ -168,6 +175,7 @@ export const carrerasRepository = {
     });
   },
 
+  // Retira la carrera después de comprobar dependencias y ejecuciones bajo bloqueo de catálogos.
   async delete(id: number): Promise<boolean> {
     return conCatalogosBloqueados(async tx => {
       await exigirCatalogoSinDependencias(tx, { tipo: "carrera", id });

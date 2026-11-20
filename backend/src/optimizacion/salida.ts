@@ -1,6 +1,7 @@
 import { esquemaSalida, type EntradaOptimizacion, type ValidacionSalidaOptimizacion } from "./contrato.js";
 import { clave } from "./entrada.js";
 
+// Contrasta la solución declarada con carga, recursos, continuidad y protecciones por pareja de la entrada.
 export function validarSalidaOptimizacion(entrada: EntradaOptimizacion, salida: unknown): ValidacionSalidaOptimizacion {
   const errores: string[] = [];
   const reservas = new Set(entrada.reservas);
@@ -10,6 +11,7 @@ export function validarSalidaOptimizacion(entrada: EntradaOptimizacion, salida: 
   })).sort((a, b) => a.bloquesDisponibles - b.bloquesDisponibles || a.profesorId - b.profesorId);
   const requerimientos = entrada.ofertas.flatMap(o => o.componentes.map(c => ({ ...c, ofertaId: o.id, cupos: o.cupos })));
   const faltantes = requerimientos.map(r => ({ ofertaId: r.ofertaId, tipoHoraId: r.tipoHoraId, horas: r.horas }));
+  // Resume faltantes y errores sin declarar completa una solución que incumple restricciones.
   const responder = (completa = false): ValidacionSalidaOptimizacion => ({ valida: errores.length === 0,
     completa: completa && errores.length === 0, errores: [...new Set(errores)], faltantes: faltantes.filter(f => f.horas > 0), disponibilidadDocente });
   const lectura = esquemaSalida.safeParse(salida);

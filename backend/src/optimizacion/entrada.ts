@@ -3,15 +3,20 @@ import { DIAS_MODELO, VERSION_MODELO, esquemaDatos, esquemaParametros,
   type DatosOptimizacion, type EntradaOptimizacion, type ParametrosOptimizacion,
   type ParejaOptimizacion } from "./contrato.js";
 
+// Identifica combinaciones académicas sin ambigüedad entre sus componentes.
 export function clave(...valores: (string | number)[]): string { return JSON.stringify(valores); }
+// Mantiene un orden textual determinista para categorías y parejas del contrato matemático.
 export function comparar(a: string, b: string): number { return a < b ? -1 : a > b ? 1 : 0; }
+// Conserva una fila por identidad al normalizar disponibilidades y ocupaciones externas.
 function unicos<T>(filas: T[], obtenerClave: (fila: T) => string): T[] {
   return [...new Map(filas.map(fila => [obtenerClave(fila), fila])).values()];
 }
+// Rechaza identidades repetidas donde el modelo necesita elementos distinguibles.
 function exigirUnicos<T>(filas: T[], obtenerClave: (fila: T) => string): void {
   if (unicos(filas, obtenerClave).length !== filas.length) throw new Error("Entrada con identidades duplicadas.");
 }
 
+// Normaliza los datos y deriva parejas, revisión y certificado de prioridad para el modelo.
 export function construirEntradaOptimizacion(datos: DatosOptimizacion, parametros: ParametrosOptimizacion = {}): EntradaOptimizacion {
   const resultado = esquemaDatos.safeParse(datos);
   const configuracion = esquemaParametros.safeParse(parametros);
@@ -41,6 +46,7 @@ export function construirEntradaOptimizacion(datos: DatosOptimizacion, parametro
   const identidades = new Map<number, string>();
   const secciones = new Map<string, number>();
   const tiposHora = new Map<number, string>();
+  // Contrasta identidad, nivel y carga de las secciones gestionadas y externas de una asignatura.
   function registrar(id: number, codigo: string, seccion: number, nivel: number, critica: boolean, carga?: string) {
     const identidad = clave(codigo, seccion);
     if ((identidades.has(id) && identidades.get(id) !== identidad) ||
@@ -67,7 +73,7 @@ export function construirEntradaOptimizacion(datos: DatosOptimizacion, parametro
     registrar(o.id, o.asignaturaCodigo, o.seccion, o.semestreMalla, o.esCritica,
       JSON.stringify(o.componentes.filter(c => c.horas > 0).map(c => [c.tipo, c.horas]).sort()));
   }
-  // Registrar antes de deduplicar evita ocultar identidades externas contradictorias.
+  // Registrar antes de quitar duplicados evita ocultar identidades externas contradictorias.
   for (const e of resultado.data.externos) registrar(e.ofertaId, e.asignaturaCodigo, e.seccion, e.semestreMalla, e.esCritica ?? false);
   for (const e of datos.externos) {
     const identidad = identidades.get(e.ofertaId);

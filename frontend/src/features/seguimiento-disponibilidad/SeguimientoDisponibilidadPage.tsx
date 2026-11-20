@@ -10,16 +10,19 @@ import base from '../../styles/paginas.module.css';
 import estilos from './SeguimientoDisponibilidad.module.css';
 import IconoActualizar from '../../components/IconoActualizar';
 
+// Redirige a las cuentas sin permiso para revisar los envíos docentes.
 export function RequireSeguimientoDisponibilidad() {
   const { usuario } = useAuth();
   return puedeVerSeguimiento(usuario?.rol) ? <Outlet /> : <Navigate to="/app/dashboard" replace />;
 }
 
+// Aísla el seguimiento de disponibilidad por cuenta y rol de sesión.
 export default function SeguimientoDisponibilidadPage() {
   const { usuario } = useAuth();
   return <PaginaSeguimiento key={`${usuario?.id}:${usuario?.rol}`} />;
 }
 
+// Coordina la selección del período y la consulta de envíos con sus mínimos.
 function PaginaSeguimiento() {
   const [planificaciones, setPlanificaciones] = useState<PlanificacionSemestre[] | null>(null);
   const [errorCarga, setErrorCarga] = useState('');

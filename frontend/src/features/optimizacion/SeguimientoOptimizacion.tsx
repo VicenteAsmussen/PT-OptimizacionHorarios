@@ -16,10 +16,12 @@ const Contexto = createContext<{
 } | null>(null);
 const vacio: Record<number, EstadoSeguimiento> = {};
 
+// Aísla el seguimiento global de optimización por cuenta autenticada.
 export function SeguimientoOptimizacion({ children }: { children: ReactNode }) {
   const { usuario } = useAuth();
   return <SeguimientoCuenta key={usuario?.id ?? 'sin-cuenta'}>{children}</SeguimientoCuenta>;
 }
+// Mantiene el seguimiento al navegar y comunica el término del cálculo de secretaría.
 function SeguimientoCuenta({ children }: { children: ReactNode }) {
   const { usuario } = useAuth();
   const habilitado = puedeOptimizar(usuario?.rol);
@@ -28,8 +30,11 @@ function SeguimientoCuenta({ children }: { children: ReactNode }) {
   const [intento, setIntento] = useState(0);
   const [aviso, setAviso] = useState<Ejecucion | null>(null);
   const seguimiento = useMemo(() => crearSeguimiento(optimizacionApi, {
+    // Recupera el intento guardado en esta sesión del navegador.
     getItem: clave => sessionStorage.getItem(clave),
+    // Conserva la solicitud recuperable antes de enviarla al servicio.
     setItem: (clave, valor) => sessionStorage.setItem(clave, valor),
+    // Retira el registro local cuando ya no hay intento que recuperar.
     removeItem: clave => sessionStorage.removeItem(clave),
   }, String(usuario?.id)), [usuario?.id]);
   const filas = useSyncExternalStore(seguimiento.suscribir, seguimiento.estado);
@@ -63,6 +68,7 @@ function SeguimientoCuenta({ children }: { children: ReactNode }) {
     if (!habilitado || !planificaciones) return;
     let activo = true;
     let temporizador: ReturnType<typeof setTimeout>;
+    // Renueva periódicamente los intentos sin disparar nuevas ejecuciones.
     async function consultar() {
       await Promise.all(planificaciones!.map(p => seguimiento.actualizar(p.id)));
       if (activo) temporizador = setTimeout(() => { void consultar(); }, 5000);
@@ -71,6 +77,7 @@ function SeguimientoCuenta({ children }: { children: ReactNode }) {
     return () => { activo = false; clearTimeout(temporizador); };
   }, [habilitado, planificaciones, seguimiento]);
   const activas = Object.values(filas).filter(f => f.ejecucion?.estado === 'en_ejecucion');
+  // Identifica carrera y período en los avisos globales del cálculo.
   function contextoPlanificacion(id: number) {
     const planificacion = planificaciones?.find(p => p.id === id);
     return planificacion ? ` · ${planificacion.carrera.nombre} · ${planificacion.codigo}` : '';
@@ -91,18 +98,21 @@ function SeguimientoCuenta({ children }: { children: ReactNode }) {
     {children}
   </Contexto.Provider>;
 }
+// Comparte el controlador y la instantánea de intentos con las pantallas del modelo.
 export function useOptimizacion() {
   const contexto = useContext(Contexto);
   if (!contexto) throw new Error('Falta el seguimiento de optimización.');
   const filas = useSyncExternalStore(contexto.seguimiento.suscribir, contexto.seguimiento.estado);
   return { ...contexto, filas };
 }
+// Detecta cálculos activos que bloquean la edición del período o de su carrera.
 export function useBloqueoOptimizacion(id?: number | null, carreraId?: number) {
   const contexto = useContext(Contexto);
   const filas = useSyncExternalStore(contexto?.seguimiento.suscribir ?? (() => () => {}), contexto?.seguimiento.estado ?? (() => vacio));
   return Object.values(filas).some(f => f.ejecucion?.estado === 'en_ejecucion' && (f.ejecucion.planificacionSemestreId === id
     || (carreraId !== undefined && contexto?.planificaciones?.some(p => p.id === f.ejecucion!.planificacionSemestreId && p.carreraId === carreraId))));
 }
+// Explica el bloqueo local de escritura sin atribuirle la autorización del servidor.
 export function AvisoBloqueo({ bloqueado }: { bloqueado: boolean }) {
   return bloqueado ? <p role="status">Edición bloqueada mientras el modelo calcula esta planificación. La lectura y la navegación siguen disponibles. El backend valida cada operación.</p> : null;
 }

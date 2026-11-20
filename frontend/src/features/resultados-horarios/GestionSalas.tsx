@@ -4,6 +4,7 @@ import { etiquetasSala, etiquetaSesion, puedeEditarResultado, puedeMoverSesion }
 import type { ResultadoHorario, SesionResultado } from './types';
 import estilos from './SuperficiesResultados.module.css';
 
+// Coordina la solicitud y respuesta de salas con los pendientes de toda la planificación.
 export default function GestionSalas({ resultado, ocupado, exportar, importar, seleccionar, verPendientes }: {
   resultado: ResultadoHorario; ocupado: boolean; exportar: (soloPendientes: boolean) => void;
   importar: (archivo: File) => void; seleccionar: (sesion: SesionResultado) => void; verPendientes: () => void;

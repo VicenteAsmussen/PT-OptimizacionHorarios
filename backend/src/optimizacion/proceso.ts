@@ -15,9 +15,11 @@ export interface OpcionesProcesoJulia {
   alDiagnostico?: (diagnostico: DiagnosticoProcesoJulia) => void;
 }
 const activos = new Map<ChildProcessWithoutNullStreams, () => void>();
-/** Invocar desde el cierre ordenado del servidor. No se agregan listeners globales al importar. */
+/** Invocar durante el cierre ordenado del servidor. Importar no registra manejadores globales de eventos. */
+// Cancela los procesos de cálculo registrados sin incorporar resultados parciales.
 export function cerrarProcesosJulia(): void { for (const cancelar of [...activos.values()]) cancelar(); }
 
+// Intercambia JSON con Julia y exige límites de proceso y una salida conforme al contrato.
 export async function ejecutarJulia(entrada: EntradaOptimizacion, opciones: OpcionesProcesoJulia = {}): Promise<SalidaOptimizacion> {
   const { signal, alDiagnostico, ...configuracion } = opciones;
   if (signal?.aborted) throw new Error("Julia interrumpido antes del arranque.");
@@ -39,8 +41,10 @@ export async function ejecutarJulia(entrada: EntradaOptimizacion, opciones: Opci
     let progresoNoDisponible = false;
     const muestrasProgreso: ProgresoSolverJulia[] = [];
     let registroHiGHS: RegistroHiGHS | undefined;
+    // Emite tiempos y métricas acotadas sin conceder al observador autoridad sobre el cálculo.
     const notificar = (origenFin: DiagnosticoProcesoJulia["origenFin"]) => {
       const fin = performance.now();
+      // Expresa la duración de cada fase en milisegundos no negativos para el diagnóstico.
       const diferencia = (a: number, b: number) => Math.max(0, Math.round((b - a) * 1000) / 1000);
       const diagnostico: DiagnosticoProcesoJulia = { origenFin, fase: fase === "extracción" ? "extraccion" : fase,
         ...(fase !== "solver" || inicioTransferencia === undefined ? {} : {
@@ -68,16 +72,20 @@ export async function ejecutarJulia(entrada: EntradaOptimizacion, opciones: Opci
     let temporizador: ReturnType<typeof setTimeout>;
     let bytesSalida = 0, bytesError = 0, pendienteError = "";
     const fragmentos: Buffer[] = [];
+    // Interrumpe el cálculo cuando deja de tener vigencia para incorporar horarios.
     const cancelar = () => fallar("Julia interrumpido por pérdida de vigencia del proceso.", "interrupcion");
+    // Libera el seguimiento temporal del proceso que ya tiene un desenlace.
     const limpiar = () => { clearTimeout(temporizador); activos.delete(hijo); signal?.removeEventListener("abort", cancelar); };
+    // Cierra los canales y el proceso ante un fallo sin admitir una salida posterior.
     const fallar = (mensaje: string, origen: DiagnosticoProcesoJulia["origenFin"] = "error") => {
       if (terminado) return;
       terminado = true; limpiar();
-      // Mantener los listeners de error hasta el cierre evita errores de stream no atendidos.
+      // Mantener los manejadores de error hasta el cierre evita errores de los flujos sin atender.
       hijo.stdin.destroy(); hijo.stdout.destroy(); hijo.stderr.destroy(); hijo.kill("SIGKILL");
       notificar(origen);
       rechazar(new Error(mensaje));
     };
+    // Sustituye el límite de espera al cambiar de fase del cálculo.
     const vigilar = (milisegundos: number) => {
       clearTimeout(temporizador);
       temporizador = setTimeout(() => fallar(`Julia excedió el tiempo de ${fase}.`, "watchdog"), milisegundos);

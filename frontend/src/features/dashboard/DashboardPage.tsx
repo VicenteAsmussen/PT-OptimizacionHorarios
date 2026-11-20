@@ -8,11 +8,13 @@ import { accionesPanel } from './modelo';
 import type { PlanificacionPanel, ResumenPanel } from './modelo';
 import estilos from './PanelPrincipal.module.css';
 
+// Reinicia el panel académico cuando cambia la cuenta o su rol.
 export default function DashboardPage() {
   const { usuario } = useAuth();
   return <PanelPrincipal key={`${usuario?.id}:${usuario?.rol}`} rol={usuario?.rol ?? ''} />;
 }
 
+// Carga el contexto académico y el resumen disponible para el perfil activo.
 function PanelPrincipal({ rol }: { rol: string }) {
   const [planificaciones, setPlanificaciones] = useState<PlanificacionPanel[] | null>(null);
   const [planificacionId, setPlanificacionId] = useState<number | null>(null);
@@ -61,6 +63,7 @@ interface PropiedadesPanel {
   actualizar: () => void;
 }
 
+// Presenta contexto y accesos prioritarios según el rol y el estado del período.
 export function VistaPanel({ rol, planificaciones, planificacionId, resumen, error, errorResumen, seleccionar, actualizar }: PropiedadesPanel) {
   const planificacion = planificaciones?.find(disponible => disponible.id === planificacionId);
   const acciones = accionesPanel(rol, planificacion);

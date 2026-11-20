@@ -13,7 +13,7 @@ export const profesores = pgTable("profesores", {
     .references(() => departamentos.id, { onDelete: "restrict" }),
   rut: text("rut").notNull().unique("profesores_rut_unique"),
   nombre: varchar("nombre", { length: 100 }).notNull(),
-  tipo: text("tipo").notNull(), // e.g. "Jornada Completa", "Media Jornada", "Part-Time"
+  tipo: text("tipo").notNull(), // La API admite "planta" y "part time", esta columna no define un enum SQL.
 });
 
 export const profesoresRelations = relations(profesores, ({ one, many }) => ({

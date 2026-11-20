@@ -13,12 +13,15 @@ interface Propiedades {
   alternar: (id: number) => void;
 }
 
+// Permite declarar disponibilidad por parejas utilizables mediante clic o arrastre.
 export default function GrillaDisponibilidad({ bloques, bloquesIds, bloquesReservadosIds = [], bloqueada, guardada, alternar }: Propiedades) {
   const arrastre = useRef<{ punteroId: number; marcar: boolean; visitados: Set<number> } | null>(null);
   const omitirClick = useRef(false);
   useEffect(() => {
     arrastre.current = null;
+    // Finaliza la selección continua sin alterar los bloques ya marcados.
     const terminar = () => { arrastre.current = null; };
+    // Finaliza el arrastre solo para el puntero que inició la selección.
     const soltar = (evento: PointerEvent) => {
       if (evento.pointerId === arrastre.current?.punteroId) terminar();
     };
@@ -33,6 +36,7 @@ export default function GrillaDisponibilidad({ bloques, bloquesIds, bloquesReser
     };
   }, [bloqueada, guardada, bloques]);
 
+  // Aplica la intención de marcado a una pareja una sola vez durante el arrastre.
   function pintar(id: number) {
     const gesto = arrastre.current;
     if (!gesto || bloqueada || !parejaUtilizable(bloques, id, bloquesReservadosIds) || gesto.visitados.has(id)) return;

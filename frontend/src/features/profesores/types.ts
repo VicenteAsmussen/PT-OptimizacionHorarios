@@ -14,7 +14,7 @@ export interface CarreraProfesor {
   }[];
 }
 
-// Modelo de lectura deliberadamente reducido: nunca contiene claves ni hashes.
+// Modelo de lectura reducido, sin claves ni resúmenes criptográficos (hashes).
 export interface Profesor {
   tieneDependenciasAcademicas?: boolean;
   id: number;
@@ -43,7 +43,7 @@ export interface DatosProfesor {
   tipo: TipoProfesor;
 }
 
-// La UI administra el acceso por sus endpoints, no vincula usuarios arbitrarios.
+// La interfaz gestiona el acceso por sus rutas específicas, no vincula usuarios arbitrarios.
 export interface CrearProfesor extends DatosProfesor {
   acceso?: AccesoProfesor;
 }

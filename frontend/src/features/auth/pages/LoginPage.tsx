@@ -6,6 +6,7 @@ import iconoUsuario from "../../../assets/iconos/usuario.svg";
 import iconoCandado from "../../../assets/iconos/candado.svg";
 import iconoLlave from "../../../assets/iconos/llave.svg";
 
+// Presenta el ingreso institucional y los errores de autenticación o conexión.
 export default function LoginPage() {
   const { login, errorSesion } = useAuth();
   const [correo, setCorreo] = useState("");
@@ -13,6 +14,7 @@ export default function LoginPage() {
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Envía las credenciales y mantiene el formulario disponible ante un rechazo.
   async function ingresar(evento: FormEvent<HTMLFormElement>) {
     evento.preventDefault();
     if (enviando) return;

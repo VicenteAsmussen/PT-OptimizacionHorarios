@@ -1,4 +1,5 @@
 /** Acepta cuerpos no nulos de 1–8 dígitos, con puntos convencionales y guion opcional. */
+// Valida el dígito verificador y unifica el RUT para identificar docentes sin duplicidad de formato.
 export function normalizarRut(valor: unknown): string | null {
   if (typeof valor !== "string") return null;
   const entrada = valor.trim();

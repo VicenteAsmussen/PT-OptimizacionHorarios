@@ -26,6 +26,7 @@ import iconoGestionPeriodos from "../../assets/iconos/Gestion-periodos.svg";
 
 const consultaMovil = "(max-width: 48rem)";
 
+// Compone la navegación por permisos y los controles de la sesión académica.
 export default function AppLayout() {
   const { usuario, logout } = useAuth();
   const nombreCompleto = usuario?.nombre || "Usuario";
@@ -43,6 +44,7 @@ export default function AppLayout() {
 
   useEffect(() => {
     const consulta = window.matchMedia(consultaMovil);
+    // Cierra la navegación móvil al cambiar el tamaño de presentación.
     const actualizar = () => {
       setEsMovil(consulta.matches);
       setNavegacionAbierta(false);
@@ -53,6 +55,7 @@ export default function AppLayout() {
 
   useEffect(() => {
     if (!menuUsuarioAbierto) return;
+    // Retira el menú de cuenta cuando la interacción pasa fuera de sus controles.
     const cerrarFuera = (evento: Event) => {
       if (evento.target instanceof Node && !controlesUsuario.current?.contains(evento.target)) {
         setMenuUsuarioAbierto(false);
@@ -61,6 +64,7 @@ export default function AppLayout() {
         }
       }
     };
+    // Devuelve el foco a la cuenta al cancelar su menú con el teclado.
     const cerrarConEscape = (evento: KeyboardEvent) => {
       if (evento.key === "Escape") {
         evento.preventDefault();
@@ -96,6 +100,7 @@ export default function AppLayout() {
     };
   }, [esMovil, navegacionAbierta]);
 
+  // Solicita el cierre de sesión y conserva una explicación si no se completa.
   async function cerrarSesion() {
     if (cerrando) return;
     setCerrando(true);

@@ -17,10 +17,12 @@ type Propiedades = {
 };
 type Asignaciones = { tipoHoraId: number; profesorId: number | null }[];
 
+// Distribuye los profesores elegibles entre los componentes horarios de la sección.
 export function EditorAsignaciones({ asignatura, profesores, asignaciones, alCambiar }: {
   asignatura: Asignatura; profesores: ProfesorSeccion[]; asignaciones: Asignaciones; alCambiar: (valor: Asignaciones) => void;
 }) {
   const tipos = (asignatura.tiposHora ?? []).filter(t => t.horas > 0 || asignaciones.some(a => a.tipoHoraId === t.tipoHoraId));
+  // Completa componentes vacíos con el primer docente sin sustituir los ya elegidos.
   function seleccionar(tipoHoraId: number, profesorId: number | null) {
     let nuevas = [...asignaciones.filter(a => a.tipoHoraId !== tipoHoraId), { tipoHoraId, profesorId }];
     if (profesorId !== null && tipoHoraId === tipos[0]?.tipoHoraId) {
@@ -47,12 +49,14 @@ export function EditorAsignaciones({ asignatura, profesores, asignaciones, alCam
     {tipos.length > 1 && <p className={estilos.ayudaFormulario}>Al elegir el primer profesor se completan los tipos vacíos. Puedes cambiarlos.</p>}
   </>;
 }
+// Reinicia la gestión de secciones al cambiar la asignatura o el estado del período.
 export default function PanelSecciones(propiedades: Propiedades) {
   const { asignatura, semestre } = propiedades;
   // Cambiar de contexto desmonta formularios y silencia las mutaciones tardías.
   return <ContenidoSecciones key={`${asignatura.codigo}-${semestre.id}-${semestre.actual}-${semestre.estadoPlanificacion}`}
     {...propiedades} />;
 }
+// Coordina la consulta y las escrituras de secciones según estado, rol y cálculo activo.
 function ContenidoSecciones({ asignatura, semestre, alCerrar, alCambiarOfertas }: Propiedades) {
   const { usuario } = useAuth();
   const { etiqueta, puedeEditar: editablePorEstado, motivo } = estadoSecciones(semestre);
@@ -74,6 +78,7 @@ function ContenidoSecciones({ asignatura, semestre, alCerrar, alCambiarOfertas }
   const solicitud = useRef(0);
   const contenido = useRef<HTMLHeadingElement>(null);
   const { ocupado, error, ejecutar, limpiarError } = useMutacion();
+  // Recupera las secciones del contexto y docentes del departamento de la asignatura.
   const cargar = useCallback(async () => {
     const numero = ++solicitud.current;
     setCargando(true);
@@ -105,6 +110,7 @@ function ContenidoSecciones({ asignatura, semestre, alCerrar, alCambiarOfertas }
   const profesoresNoElegibles = datos && accion?.tipo === 'editar' ? accion.oferta.asignaciones.filter(anterior =>
     asignaciones.some(actual => actual.tipoHoraId === anterior.tipoHoraId && actual.profesorId === anterior.profesorId)
     && !datos.profesores.some(profesor => profesor.id === anterior.profesorId)).map(anterior => anterior.profesor.nombre) : [];
+  // Prepara una acción de sección solo cuando el contexto permite editarla.
   function abrir(nueva: Accion) {
     if (!vigente.current || !puedeEditar || ocupado) return;
     if (nueva.tipo === 'eliminar' && nueva.oferta.horarios?.length) return;
@@ -114,6 +120,7 @@ function ContenidoSecciones({ asignatura, semestre, alCerrar, alCambiarOfertas }
     setCupos(String(nueva.tipo === 'crear' ? 0 : nueva.oferta.cupos));
     setAsignaciones(nueva.tipo === 'crear' ? [] : nueva.oferta.asignaciones.map(({ tipoHoraId, profesorId }) => ({ tipoHoraId, profesorId })));
   }
+  // Actualiza las secciones y los conteos después de una escritura confirmada.
   function completar() {
     if (!vigente.current) return;
     alCambiarOfertas();
@@ -122,6 +129,7 @@ function ContenidoSecciones({ asignatura, semestre, alCerrar, alCambiarOfertas }
     void cargar();
     contenido.current?.focus();
   }
+  // Valida y despacha la creación, edición o eliminación de la sección activa.
   function enviar(evento: FormEvent) {
     evento.preventDefault();
     if (!vigente.current || !puedeEditar || ocupado || !accion || !datos) return;

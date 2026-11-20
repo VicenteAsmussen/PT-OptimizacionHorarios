@@ -13,6 +13,7 @@ interface Propiedades {
   bloquesReservadosIds?: number[];
 }
 
+// Presenta las clases propias agrupadas por sesión y las reservas de la carrera.
 export default function CalendarioSemanal({ bloques, horarios, planificacionId, bloquesReservadosIds = [] }: Propiedades) {
   const [claseId, setClaseId] = useState<number | null>(null);
   const calendario = crearCalendarioSesiones(bloques, horarios, planificacionId, bloquesReservadosIds);

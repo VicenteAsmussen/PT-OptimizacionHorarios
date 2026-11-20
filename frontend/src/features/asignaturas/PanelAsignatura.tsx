@@ -1,6 +1,7 @@
 import { useEffect, useRef, type ReactNode } from 'react';
 import estilos from './Asignaturas.module.css';
 
+// Aloja la gestión de asignaturas en un modal y restaura el foco al cerrarlo.
 export default function PanelAsignatura({ titulo, ocupado, alCerrar, children }: {
   titulo: string; ocupado: boolean; alCerrar: () => void; children: ReactNode;
 }) {

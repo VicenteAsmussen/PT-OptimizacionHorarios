@@ -84,7 +84,7 @@ test('reservas consecutivas vacías se agrupan sin ocultar clases ni atravesar h
   assert.equal(hueco.filas[0].celdas[0].filas, 1);
 });
 
-test('render de sesión única, detalle completo y sala en línea propia sin controles de edición', async () => {
+test('la vista de sesión única muestra el detalle completo y la sala en línea propia sin controles de edición', async () => {
   const { createServer } = await import('../../../tests/soporte/vite.mjs');
   const servidor = await createServer({ envFile: false, server: { middlewareMode: true, hmr: false }, appType: 'custom' });
   try {

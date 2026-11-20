@@ -27,7 +27,7 @@ test('el selector filtra gestionadas y no gestionadas sin perder los filtros ind
   assert.deepEqual(filtrarAsignaturas(asignaturas, '', '2', '4', departamentos), [asignaturas[1]]);
   assert.equal(filtrarAsignaturas(asignaturas, '', '', '', departamentos).length, 3);
 });
-test('subjects sort by numeric curriculum semester, then name, without mutating input', async () => {
+test('las asignaturas se ordenan por semestre numérico de la malla y luego por nombre sin mutar la entrada', async () => {
   const { filtrarAsignaturas } = await cargar();
   const asignaturas = Object.freeze([
     { codigo: 'INF-10', nombre: 'A', departamentoId: 1, semestreMalla: 10 },
@@ -82,7 +82,7 @@ test('aislamiento y conteos por asignatura/semestre; números libres sin renumer
   assert.deepEqual(seccionesLibres(propias.filter(o => o.id !== 1)), [1, 2, 4, 5]);
   assert.deepEqual(ofertasDePlanificacion(ofertas, 'A', null), []);
 });
-test('payload allows pending teachers and validates typed assignments, section and capacity', async () => {
+test('los datos de envío permiten profesores pendientes y validan asignaciones por tipo, sección y capacidad', async () => {
   const { prepararOferta } = await cargar();
   const entrada = { seccion: '2', cupos: '0', asignaciones: [{ tipoHoraId: 1, profesorId: 1 }] };
   assert.deepEqual(prepararOferta(entrada, profesores, [1, 2]), { seccion: 2, cupos: 0, asignaciones: entrada.asignaciones });
@@ -97,7 +97,7 @@ test('payload allows pending teachers and validates typed assignments, section a
     assert.throws(() => prepararOferta({ ...entrada, cupos }, profesores, [2]), /cupos/i);
   }
 });
-test('pending indicators compare curriculum types to saved teacher assignments', async () => {
+test('los indicadores de pendientes comparan tipos de la malla con asignaciones de profesores guardadas', async () => {
   const { tiposPendientes, prepararOferta } = await cargar();
   const asignatura = { tiposHora: [1, 2, 3].map(tipoHoraId => ({ tipoHoraId, horas: 2, tipoHora: { tipo: `Type ${tipoHoraId}` } })) };
   const oferta = { asignaciones: [{ tipoHoraId: 1, profesorId: 1 }] };

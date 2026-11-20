@@ -14,13 +14,13 @@ describe.skipIf(!ejecutarIntegracion)("Módulo Asignaturas (/api/asignaturas)", 
   let departamentoId: number;
 
   beforeAll(async () => {
-    // 1. Iniciar sesión como secretaria
+    // Inicia sesión como secretaría.
     const secRes = await request(app)
       .post("/api/auth/login")
       .send({ correo: "maraguayo@ubiobio.cl", clave: "maraguayo123" });
     secretariaCookie = secRes.headers["set-cookie"];
 
-    // 2. Obtener un tipoHora y carrera válidos de la BD
+    // Obtiene un tipoHora y una carrera válidos de la base.
     const th = await db.query.tiposHora.findFirst();
     tipoHoraId = th!.id;
 
@@ -75,7 +75,7 @@ describe.skipIf(!ejecutarIntegracion)("Módulo Asignaturas (/api/asignaturas)", 
         codigo: `FAIL${Date.now()}`.slice(0, 15),
         nombre: "Malla Inválida",
         departamentoId,
-        semestreMalla: 20, // Inválido: max 14
+        semestreMalla: 20, // Inválido, el máximo es 14.
       });
 
     expect(res.status).toBe(400);
