@@ -152,7 +152,7 @@ export default function DisponibilidadPage() {
     {planificaciones === null ? errorCarga
       ? <button type="button" className="boton boton--azul" onClick={() => setIntento(i => i + 1)}>Reintentar</button>
       : <p role="status">Cargando disponibilidad…</p>
-      : planificaciones.length === 0 ? <p>No tienes carga docente asignada en el período actual.</p>
+      : planificaciones.length === 0 ? <p className={horario.tarjeta} role="status">No tienes carga docente asignada en el período actual.</p>
       : <>
         <div className={estilos.contexto}>
           <label className={estilos.selector}>Carrera y período<select value={planificacionId ?? ''} disabled={guardando}

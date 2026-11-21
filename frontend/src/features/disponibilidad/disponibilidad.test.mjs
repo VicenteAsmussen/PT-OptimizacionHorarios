@@ -189,7 +189,7 @@ async function montarPagina(api, rol = 'profesor') {
     '../../assets/iconos/Enviar.svg': { default: 'Enviar.svg' },
     '../../assets/iconos/editar_Asignatura.svg': { default: 'editar_Asignatura.svg' },
     '../../assets/iconos/marcar-todo.svg': { default: 'marcar-todo.svg' },
-    '../mi-horario/MiHorario.module.css': { default: { estado: 'estado', publicado: 'publicado', propuesta: 'propuesta', preparacion: 'preparacion' } },
+    '../mi-horario/MiHorario.module.css': { default: { tarjeta: 'tarjeta-mi-horario', estado: 'estado', publicado: 'publicado', propuesta: 'propuesta', preparacion: 'preparacion' } },
     './GrillaDisponibilidad': { default: 'grilla' }, './Disponibilidad.module.css': { default: {
       tarjeta: 'tarjeta', panelGrilla: 'panelGrilla', contexto: 'contexto', pieGrilla: 'pieGrilla',
     } },
@@ -229,6 +229,17 @@ const planes = [
 ];
 const bloques = [{ id: 20, dia: 'Lunes', numeroBloque: 1, horaInicio: '08:10:00', horaTermino: '08:50:00' },
   { id: 10, dia: 'Lunes', numeroBloque: 2, horaInicio: '08:50:00', horaTermino: '09:30:00' }];
+
+test('sin carga docente la página muestra un aviso de estado y no ofrece la grilla', async () => {
+  const pagina = await montarPagina({ consultar: async () => ({ planificaciones: [], bloques, seleccion: null }) });
+  try {
+    await pagina.esperar();
+    const avisos = pagina.elementos('p').filter(p => p.props.role === 'status');
+    assert.deepEqual(avisos.map(p => p.props.children), ['No tienes carga docente asignada en el período actual.']);
+    assert.equal(avisos[0].props.className, 'tarjeta-mi-horario');
+    assert.equal(pagina.elementos('grilla').length, 0);
+  } finally { pagina.desmontar(); }
+});
 
 test('sondeo de cálculo bloquea edición y conserva borrador al bloquear, fallar y liberar', async t => {
   t.mock.timers.enable({ apis: ['setTimeout'] });
