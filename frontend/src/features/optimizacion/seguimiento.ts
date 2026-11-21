@@ -13,6 +13,16 @@ const vacio = (): EstadoSeguimiento => ({ ejecucion: null, error: '', incierta: 
 // Conserva el diagnóstico recibido o explica que el estado del intento no pudo consultarse.
 const mensaje = (error: unknown) => error instanceof Error ? error.message : 'No se pudo consultar la ejecución.';
 
+// Conserva el UUID v4 en HTTP, donde el navegador no ofrece randomUUID.
+function generarClaveIdempotencia(): string {
+  if (typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+  const bytes = crypto.getRandomValues(new Uint8Array(16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = Array.from(bytes, byte => byte.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+
 // Coordina intentos por cuenta y período conservando solicitudes de inicio inciertas.
 export function crearSeguimiento(servicio: Servicio, almacen: Almacen, cuenta: string) {
   let filas: Instantanea = {};
@@ -84,7 +94,7 @@ export function crearSeguimiento(servicio: Servicio, almacen: Almacen, cuenta: s
     if (pendientes.has(id)) return pendientes.get(id)!;
     if (filas[id]?.ejecucion?.estado === 'en_ejecucion') return Promise.reject(new Error('Hay una ejecución activa.'));
     versiones.set(id, (versiones.get(id) ?? 0) + 1);
-    const solicitud = solicitudes.get(id) ?? leerGuardado(id).solicitud ?? { claveIdempotencia: crypto.randomUUID(), recursos: structuredClone(recursos) };
+    const solicitud = solicitudes.get(id) ?? leerGuardado(id).solicitud ?? { claveIdempotencia: generarClaveIdempotencia(), recursos: structuredClone(recursos) };
     try { almacen.setItem(clave(id), JSON.stringify({ ...leerGuardado(id), solicitud })); }
     catch { return Promise.reject(new Error('Habilita el almacenamiento de sesión para conservar la clave de esta solicitud antes de iniciarla.')); }
     solicitudes.set(id, solicitud);
