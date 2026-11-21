@@ -31,11 +31,11 @@ test("Editar profesor sigue siendo principal con solo icono y las acciones de ac
       profesores: [{ id: 1, nombre: "Profesor de prueba", tipo: "planta", usuarioId, tieneDependenciasAcademicas: utilizada, departamento: { nombre: "Departamento" } }],
     }));
     const botones = [...html.matchAll(/<button\b[^]*?<\/button>/g)].map(coincidencia => coincidencia[0]);
+    assert.doesNotMatch(html, /No eliminable: tiene dependencias académicas/);
     for (const [etiqueta, icono] of [["Ver", "ver"], ["Editar", "editar"], ["Eliminar", "eliminar"]]) {
       const boton = botones.find(elemento => elemento.includes(`aria-label="${etiqueta} profesor: Profesor de prueba"`));
       if (etiqueta === "Eliminar" && utilizada) {
         assert.equal(boton, undefined);
-        assert.match(html, /No eliminable: tiene dependencias académicas/);
         continue;
       }
       assert.ok(boton);

@@ -43,7 +43,7 @@ export default function TablaProfesores({ profesores, rol, alcance, alAccionar }
             {gestionaProfesor && boton("editar", "", "Editar profesor", "editar", "azul", true)}
             {boton("ver", "", "Ver profesor", "ver")}
             {puedeEliminarProfesor(rol, profesor, alcance) && boton("eliminar", "", "Eliminar profesor", "eliminar", "eliminar")}
-          </div>{rol === "admin" && profesor.tieneDependenciasAcademicas && <small>No eliminable: tiene dependencias académicas.</small>}</td>
+          </div></td>
           <td>{gestionaAcceso ? <div className={estilos.acciones} role="group" aria-label={`Acceso: ${profesor.nombre}`}>
             {conAcceso ? <>{boton("editarAcceso", "Editar", "Editar acceso", "acceso")}
               {boton("eliminarAcceso", "Retirar", "Retirar acceso", "retirarAcceso", "eliminar")}</>
