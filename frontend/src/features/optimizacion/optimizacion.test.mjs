@@ -40,6 +40,27 @@ test('salas mantienen categorías separadas, sugerencia recibida de mitad superi
   assert.deepEqual(categorias, anterior);
 });
 
+test('inicia en HTTP sin randomUUID y guarda la clave UUID v4 antes del POST', async t => {
+  t.mock.method(globalThis, 'crypto', () => ({
+    getRandomValues(bytes) {
+      assert.ok(bytes instanceof Uint8Array);
+      assert.equal(bytes.length, 16);
+      return bytes.fill(0xff);
+    },
+  }), { getter: true });
+  const { crearSeguimiento } = await cargar();
+  const storage = almacen();
+  const llamadas = [];
+  const s = crearSeguimiento({ iniciar: async (id, datos) => {
+    assert.deepEqual(JSON.parse(storage.getItem(`optimizacion:cuenta:${id}`)).solicitud, datos);
+    llamadas.push({ id, datos });
+    return ejecucion();
+  } }, storage, 'cuenta');
+
+  assert.deepEqual(await s.iniciar(2, [recurso]), ejecucion());
+  assert.deepEqual(llamadas, [{ id: 2, datos: { claveIdempotencia: 'ffffffff-ffff-4fff-bfff-ffffffffffff', recursos: [recurso] } }]);
+});
+
 test('doble solicitud comparte POST, clave y parámetros sin crear otra ejecución', async () => {
   const { crearSeguimiento } = await cargar();
   let resolver; const llamadas = [];
