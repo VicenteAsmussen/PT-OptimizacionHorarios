@@ -80,6 +80,7 @@
 .detalleAsignatura { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem 1.5rem; margin: 1rem 0 1.5rem; overflow-wrap: anywhere; }
 .detalleAsignatura dt { font-size: var(--tamano-etiqueta); font-weight: var(--peso-etiqueta); color: var(--color-gris-texto); }
 .detalleAsignatura dd { margin: 0.25rem 0 0; line-height: 1.5; }
+.detalleSala { grid-column: -2 / -1; }
 .camposAsignatura { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
 .campoCompleto { grid-column: 1 / -1; }
 .avisoConfirmacion { margin: 0; padding: 1rem; border-inline-start: 3px solid var(--color-eliminar-borde); border-radius: 0.25rem; background: var(--color-alerta-fondo); overflow-wrap: anywhere; }

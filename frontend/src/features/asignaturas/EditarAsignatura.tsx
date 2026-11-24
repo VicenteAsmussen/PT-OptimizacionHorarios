@@ -42,6 +42,7 @@ export default function EditarAsignatura({ asignatura, departamentos, alCerrar, 
     {soloLectura && <dl className={estilos.detalleAsignatura}>
       <div><dt>Semestre de malla</dt><dd>{asignatura.semestreMalla}</dd></div>
       <div><dt>Asignatura crítica</dt><dd>{asignatura.esCritica ? 'Sí' : 'No'}</dd></div>
+      <div className={estilos.detalleSala}><dt>Requiere sala</dt><dd>{asignatura.requiereSala ? 'Sí' : 'No'}</dd></div>
     </dl>}
     <section aria-label="Horas por tipo" className={estilos.resumenHoras}>
       <h3>Horas por tipo</h3>
