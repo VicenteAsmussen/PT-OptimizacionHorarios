@@ -5,7 +5,8 @@ import { optimizacionRepository, type CapturaOptimizacion } from "../repositorie
 import type { AlcanceCarrera } from "../utils/alcance-carrera.js";
 import type { InicioOptimizacionDTO } from "../validations/optimizacion.validation.js";
 import type { EjecucionOptimizacion } from "../db/schema/ejecuciones-optimizacion.schema.js";
-import { BadRequestError } from "../utils/errors.js";
+import { BadRequestError, DisponibilidadNoRegistradaError } from "../utils/errors.js";
+import { resumirDisponibilidadDocente, type DocenteSinDisponibilidad } from "../utils/disponibilidad-docente.js";
 import { normalizarTipoHoraExcel } from "../utils/excel/excel-comun.js";
 import { exigirInicioOptimizacion } from "../utils/optimizacion-ejecuciones.js";
 
@@ -59,6 +60,24 @@ export function adaptarCapturaOptimizacion(captura: CapturaOptimizacion, recurso
   } catch (error) {
     throw new BadRequestError(error instanceof Error ? error.message : "No se pudo preparar una entrada válida.");
   }
+}
+
+// Solo los componentes que programa el modelo aportan carga. Se cuentan los registros crudos del período.
+function docentesSinDisponibilidad(captura: CapturaOptimizacion, entrada: EntradaOptimizacion): DocenteSinDisponibilidad[] {
+  const horasPorDocente = new Map<number, number[]>();
+  for (const { componentes } of entrada.ofertas) {
+    for (const { profesorId, horas } of componentes) {
+      if (profesorId === null || horas <= 0) continue;
+      const asignadas = horasPorDocente.get(profesorId);
+      if (asignadas) asignadas.push(horas);
+      else horasPorDocente.set(profesorId, [horas]);
+    }
+  }
+  const nombres = new Map(captura.ofertas.flatMap(oferta => oferta.asignaciones.map(({ profesor }) => [profesor.id, profesor.nombre] as const)));
+  return [...horasPorDocente].flatMap(([profesorId, horas]) => {
+    const resumen = resumirDisponibilidadDocente(horas, captura.disponibilidades, profesorId, captura.planificacion.id);
+    return resumen.bloquesEnviados === 0 ? [{ profesorId, nombre: nombres.get(profesorId)!, ...resumen }] : [];
+  }).sort((a, b) => a.nombre.localeCompare(b.nombre, "es") || a.profesorId - b.profesorId);
 }
 
 // Expone el seguimiento del cálculo sin publicar su propietario ni su captura interna completa.
@@ -137,7 +156,8 @@ export const optimizacionService = {
     return { planificacion: captura.planificacion, puedeEjecutar: bloqueos.length === 0, bloqueos, ejecucionActivaId: activa,
       revisionEntrada: captura.revision, categoriasSalas: categorias.categorias, diagnosticosCatalogo: categorias.diagnosticos,
       laboratorios: { requiereDeclaracion: requiereLaboratorios, categoriasSugeridas: [], mensaje: "Declare capacidad, cantidad total departamental y fuente por ejecución. No se asumen seis laboratorios de capacidad 60." },
-      limiteSolverSegundos: LIMITE_SOLVER_SEGUNDOS, disponibilidadDocente: entrada ? validarSalidaOptimizacion(entrada, null).disponibilidadDocente : [],
+       limiteSolverSegundos: LIMITE_SOLVER_SEGUNDOS, disponibilidadDocente: entrada ? validarSalidaOptimizacion(entrada, null).disponibilidadDocente : [],
+       docentesSinDisponibilidad: entrada ? docentesSinDisponibilidad(captura, entrada) : [],
       certificadoPrioridad: entrada?.certificadoPrioridad ?? null,
       advertencia: "Las cantidades de salas sugeridas no constituyen disponibilidad garantizada. Deben confirmarse para esta ejecución." };
   },
@@ -145,7 +165,12 @@ export const optimizacionService = {
   async iniciar(id: number, parametros: InicioOptimizacionDTO, alcance?: AlcanceCarrera) {
     if (cerrando) throw new BadRequestError("El backend está cerrando, no se iniciarán nuevas ejecuciones.");
     const { ejecucion, nueva } = await optimizacionRepository.iniciar(id, parametros, propietario, VERSION_MODELO,
-      captura => adaptarCapturaOptimizacion(captura, parametros.recursos), alcance);
+      captura => {
+        const entrada = adaptarCapturaOptimizacion(captura, parametros.recursos);
+        const pendientes = docentesSinDisponibilidad(captura, entrada);
+        if (pendientes.length) throw new DisponibilidadNoRegistradaError(pendientes);
+        return entrada;
+      }, alcance);
     if (nueva) {
       const cancelar = new AbortController();
       // La tarea pertenece al servidor, no al ciclo de vida de la solicitud HTTP.

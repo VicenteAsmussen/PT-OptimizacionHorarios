@@ -1,4 +1,5 @@
 import type { Ejecucion, Recurso, Solicitud } from './types';
+import { leerDocentesSinDisponibilidad } from './disponibilidad-inicio';
 
 interface Servicio {
   iniciar: (id: number, datos: Solicitud) => Promise<Ejecucion>;
@@ -108,7 +109,8 @@ export function crearSeguimiento(servicio: Servicio, almacen: Almacen, cuenta: s
         solicitudes.delete(id);
         try { almacen.setItem(clave(id), JSON.stringify({ informada: leerGuardado(id).informada })); } catch { /* Conserva el rechazo en memoria. */ }
       }
-      publicar(id, { error: mensaje(error), incierta: !rechazo }); throw error;
+      // Este rechazo se presenta con tarjetas en el diálogo de inicio.
+      publicar(id, { error: leerDocentesSinDisponibilidad(error) ? '' : mensaje(error), incierta: !rechazo }); throw error;
     }).finally(() => { pendientes.delete(id); publicar(id, { enviando: false }); });
     pendientes.set(id, tarea); return tarea;
   }

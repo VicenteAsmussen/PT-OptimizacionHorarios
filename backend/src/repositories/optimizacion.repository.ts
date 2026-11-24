@@ -47,7 +47,7 @@ export async function capturarEntradasOptimizacion(tx: TransaccionPlanificacion,
   const relaciones = await tx.query.carreraDepartamento.findMany({ where: eq(carreraDepartamento.carreraId, planificacion.carreraId) });
   const malla = await tx.query.carreraAsignatura.findMany({ where: eq(carreraAsignatura.carreraId, planificacion.carreraId), with: { asignatura: { with: { tiposHora: { with: { tipoHora: true } } } } } });
   const ofertas = await tx.query.ofertasAsignaturas.findMany({ where: eq(ofertasAsignaturas.planificacionSemestreId, id),
-    with: { asignatura: { with: { tiposHora: { with: { tipoHora: true } } } }, asignaciones: { with: { tipoHora: true, profesor: { columns: { id: true, departamentoId: true } } } } } });
+    with: { asignatura: { with: { tiposHora: { with: { tipoHora: true } } } }, asignaciones: { with: { tipoHora: true, profesor: { columns: { id: true, nombre: true, departamentoId: true } } } } } });
   const docentesIds = [...new Set(ofertas.flatMap(oferta => oferta.asignaciones.map(asignacion => asignacion.profesorId)))];
   const disponibilidades = docentesIds.length ? await tx.query.disponibilidadProfesores.findMany({ where: and(eq(disponibilidadProfesores.planificacionSemestreId, id), inArray(disponibilidadProfesores.profesorId, docentesIds)) }) : [];
   const horarios = await tx.query.horariosAsignaturas.findMany({ where: eq(horariosAsignaturas.planificacionSemestreId, id) });

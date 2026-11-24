@@ -3,12 +3,15 @@ export interface Recurso { id: string; edificio: string; tipo: 'Sala' | 'Laborat
 export interface CategoriaSala extends Omit<Recurso, 'cantidad'> { cantidadCatalogo: number; cantidadSugerida: number }
 export interface Disponibilidad { profesorId: number; bloquesDisponibles: number }
 export interface CertificadoPrioridad { prioridadCertificada: boolean }
+export interface DocenteSinDisponibilidad { profesorId: number; nombre: string; minimoBloques: number; bloquesEnviados: number }
+
 export interface Preparacion {
   planificacion: { id: number; carreraId: number; codigo: string; actual: boolean; estadoPlanificacion: string };
   puedeEjecutar: boolean; bloqueos: string[]; ejecucionActivaId: string | null; revisionEntrada: string;
   categoriasSalas: CategoriaSala[]; diagnosticosCatalogo: { salaId: number; mensaje: string }[];
   laboratorios: { requiereDeclaracion: boolean; mensaje: string }; limiteSolverSegundos: number;
-  disponibilidadDocente: Disponibilidad[]; certificadoPrioridad: CertificadoPrioridad | null; advertencia: string;
+  disponibilidadDocente: Disponibilidad[]; docentesSinDisponibilidad: DocenteSinDisponibilidad[];
+  certificadoPrioridad: CertificadoPrioridad | null; advertencia: string;
 }
 export interface Diagnostico {
   procesoJulia?: {
