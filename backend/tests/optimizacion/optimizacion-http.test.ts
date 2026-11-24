@@ -53,12 +53,12 @@ beforeEach(() => {
   controles.real = false; controles.hijo = undefined; controles.salidaObservada = false; controles.corteSolicitado = false;
   controles.enviarSenal = undefined;
   captura = { planificacion: { id: 1, carreraId: 1, codigo: "2099-2", actual: true, estadoPlanificacion: "preparacion" },
-    revision: "revision-db", horariosGestionados: 0, gestionados: [1], relaciones: [], disponibilidades: [{ profesorId: 1, bloqueId: 1 }, { profesorId: 1, bloqueId: 2 }],
+    revision: "revision-db", horariosGestionados: 0, gestionados: [1], relaciones: [], disponibilidades: [{ profesorId: 1, bloqueId: 1, planificacionSemestreId: 1 }, { profesorId: 1, bloqueId: 2, planificacionSemestreId: 1 }],
     horarios: [], bloques, catalogoSalas: [{ id: 1, nombre: "A101AA", capacidad: 90, tipo: "Sala" }], reservas: [],
     malla: [{ asignaturaCodigo: "INT" }], ofertas: [{ id: 1, asignaturaCodigo: "INT", seccion: 1, cupos: 30,
       asignatura: { codigo: "INT", departamentoId: 1, semestreMalla: 2, esCritica: false, requiereSala: true,
         tiposHora: [{ tipoHoraId: 1, horas: 2, tipoHora: { id: 1, tipo: "Teórica" } }] },
-      asignaciones: [{ tipoHoraId: 1, profesorId: 1, profesor: { id: 1, departamentoId: 1 } }] }] } as unknown as CapturaOptimizacion;
+      asignaciones: [{ tipoHoraId: 1, profesorId: 1, profesor: { id: 1, nombre: "Docente Uno", departamentoId: 1 } }] }] } as unknown as CapturaOptimizacion;
   controles.repositorio.preparar = vi.fn(async () => ({ captura, activa: null }));
   controles.repositorio.iniciar = vi.fn(async (_id, cuerpo, propietario, versionModelo, adaptar) => {
     if (ejecucion) return { ejecucion, nueva: false };
@@ -130,6 +130,52 @@ describe("contrato HTTP y seguimiento del modelo", () => {
     expect(respuesta.body.data.laboratorios.categoriasSugeridas).toEqual([]);
     expect(respuesta.body.data.limiteSolverSegundos).toBe(1800);
     expect(controles.entradas).toEqual([]);
+  });
+
+  it("agrupa la carga programable y rechaza el inicio sin registrar ejecución ni invocar al solver", async () => {
+    const base = captura.ofertas[0]!;
+    const componente = base.asignatura.tiposHora[0]!;
+    const asignacion = base.asignaciones[0]!;
+    captura.disponibilidades = captura.disponibilidades.map(fila => ({ ...fila, planificacionSemestreId: 2 }));
+    captura.ofertas.push({ ...base, id: 2, seccion: 2 },
+      { ...base, id: 3, seccion: 3, asignaciones: [{ ...asignacion, profesorId: 2, profesor: { ...asignacion.profesor, id: 2, nombre: "Docente Dos" } }] },
+      { ...base, id: 4, seccion: 4, asignaturaCodigo: "SIN", asignatura: { ...base.asignatura, tiposHora: [{ ...componente, horas: 0 }] },
+        asignaciones: [{ ...asignacion, profesorId: 3, profesor: { ...asignacion.profesor, id: 3, nombre: "Docente Sin Carga" } }] },
+      { ...base, id: 5, seccion: 5, asignaturaCodigo: "EXT", asignatura: { ...base.asignatura, departamentoId: 2 },
+        asignaciones: [{ ...asignacion, profesorId: 4, profesor: { ...asignacion.profesor, id: 4, nombre: "Docente Externo", departamentoId: 2 } }] });
+    captura.malla.push(...["SIN", "EXT"].map(asignaturaCodigo => ({ ...captura.malla[0]!, asignaturaCodigo })));
+    captura.horarios = [5, 6].map(bloqueId => ({ ofertaId: 5, tipoHoraId: 1, bloqueId })) as CapturaOptimizacion["horarios"];
+    const pendientes = [
+      { profesorId: 1, nombre: "Docente Uno", minimoBloques: 4, bloquesEnviados: 0 },
+      { profesorId: 2, nombre: "Docente Dos", minimoBloques: 2, bloquesEnviados: 0 },
+    ];
+    const preparacion = await request(app).get("/modelo/planificaciones/1/preparacion");
+    expect(preparacion.body.data).toMatchObject({ puedeEjecutar: true, docentesSinDisponibilidad: expect.arrayContaining(pendientes) });
+    expect(preparacion.body.data.docentesSinDisponibilidad).toHaveLength(2);
+    const respuesta = await request(app).post("/modelo/planificaciones/1/ejecuciones").send(parametros);
+    expect(respuesta.status).toBe(409);
+    expect(respuesta.body).toMatchObject({ codigo: "disponibilidad_no_registrada", docentesSinDisponibilidad: preparacion.body.data.docentesSinDisponibilidad });
+    expect(ejecucion).toBeUndefined();
+    expect(controles.entradas).toEqual([]);
+  });
+
+  it("revalida los datos vigentes y admite el inicio al guardar incluso un bloque reservado e insuficiente", async () => {
+    const registrada = captura.disponibilidades[0]!;
+    const revisada = await request(app).get("/modelo/planificaciones/1/preparacion");
+    expect(revisada.body.data.docentesSinDisponibilidad).toEqual([]);
+    captura.disponibilidades = [];
+    const rechazada = await request(app).post("/modelo/planificaciones/1/ejecuciones").send(parametros);
+    expect(rechazada.status).toBe(409);
+    expect(rechazada.body.docentesSinDisponibilidad).toEqual([{ profesorId: 1, nombre: "Docente Uno", minimoBloques: 2, bloquesEnviados: 0 }]);
+    expect(ejecucion).toBeUndefined();
+    expect(controles.entradas).toEqual([]);
+    captura.disponibilidades = [registrada];
+    captura.reservas = [registrada.bloqueId];
+    const iniciada = await request(app).post("/modelo/planificaciones/1/ejecuciones").send(parametros);
+    expect(iniciada.status).toBe(202);
+    expect(controles.entradas).toHaveLength(1);
+    controles.resolver!(salida("infactible", false));
+    await vi.waitFor(() => expect(controles.repositorio.terminar).toHaveBeenCalledOnce());
   });
   it("responde 202 y permite recuperar por ID y última aunque termine la solicitud", async () => {
     const iniciada = await request(app).post("/modelo/planificaciones/1/ejecuciones").send(parametros);

@@ -6,11 +6,14 @@ import { useAuth } from '../../hooks/useAuth';
 import { profesoresApi } from '../profesores/profesores.api';
 import { puedeOptimizar, prepararRecursos, sugerirRecursos, etiquetasEstado, rutaResultados, crearLaboratoriosModelo, cantidadInicialLaboratoriosModelo, capacidadLaboratoriosModelo, planificacionesModelo, fechaEjecucion } from './modelo';
 import { optimizacionApi } from './optimizacion.api';
+import { leerDocentesSinDisponibilidad } from './disponibilidad-inicio';
 import { useOptimizacion } from './SeguimientoOptimizacion';
 import DiagnosticoOptimizacion, { DisponibilidadOptimizacion, type CatalogoNombresDocentes } from './DiagnosticoOptimizacion';
 import IconoModelo from './IconoModelo';
-import type { BorradorRecurso, Preparacion, Recurso } from './types';
+import type { BorradorRecurso, DocenteSinDisponibilidad, Preparacion, Recurso } from './types';
+import Dialogo from '../resultados-horarios/Dialogo';
 import estilos from '../resultados-horarios/ResultadosHorarios.module.css';
+import superficies from '../resultados-horarios/SuperficiesResultados.module.css';
 import './optimizacion.css';
 
 // Redirige a las cuentas sin permiso para solicitar el cálculo del modelo.
@@ -63,8 +66,11 @@ function PreparacionModelo({ id }: { id: number }) {
   const [error, setError] = useState('');
   const [intento, setIntento] = useState(0);
   const [cargando, setCargando] = useState(true);
+  const [docentesPendientes, setDocentesPendientes] = useState<DocenteSinDisponibilidad[]>([]);
+  const [revisandoDisponibilidad, setRevisandoDisponibilidad] = useState(false);
   const [catalogoDocentes, setCatalogoDocentes] = useState<CatalogoNombresDocentes>({ estado: 'cargando', nombres: {} });
   const vivo = useRef(true);
+  const solicitandoInicio = useRef(false);
   useEffect(() => { vivo.current = true; return () => { vivo.current = false; }; }, []);
   useEffect(() => {
     let actual = true;
@@ -91,19 +97,39 @@ function PreparacionModelo({ id }: { id: number }) {
   const bloqueado = activa || estado?.enviando || estado?.incierta;
   // Inicia un cálculo validado o reenvía la solicitud incierta con sus parámetros originales.
   async function iniciar() {
-    if (activa || estado?.enviando) return;
+    if (activa || estado?.enviando || solicitandoInicio.current) return;
+    solicitandoInicio.current = true;
     setError('');
     try {
       let recursos: Recurso[] = [];
       if (!estado?.incierta) {
         if (!preparacion || !confirmado || !preparacion.puedeEjecutar || cargando || !estado?.consultado) return;
         recursos = prepararRecursos(preparacion.categoriasSalas, salas, [crearLaboratoriosModelo(cantidadLaboratorios)], preparacion.laboratorios.requiereDeclaracion);
+        if (preparacion.docentesSinDisponibilidad?.length) {
+          // Reconsulta los registros para que el reintento no quede bloqueado por una lista antigua.
+          setRevisandoDisponibilidad(true);
+          const actual = await optimizacionApi.preparar(id);
+          if (!vivo.current) return;
+          const pendientes = actual.docentesSinDisponibilidad ?? [];
+          setPreparacion(previa => previa && { ...previa, docentesSinDisponibilidad: pendientes });
+          if (pendientes.length) { setDocentesPendientes(pendientes); return; }
+        }
       }
       await seguimiento.iniciar(id, recursos);
       if (vivo.current) setIntento(i => i + 1);
     } catch (fallo) {
+      if (!vivo.current) return;
+      const pendientes = leerDocentesSinDisponibilidad(fallo);
+      if (pendientes) {
+        setPreparacion(previa => previa && { ...previa, docentesSinDisponibilidad: pendientes });
+        setDocentesPendientes(pendientes);
+        return;
+      }
       // El seguimiento conserva el fallo remoto y su recuperación, sin duplicarlo en recursos.
-      if (vivo.current && !seguimiento.estado()[id]?.error) setError(fallo instanceof Error ? fallo.message : 'No se pudo confirmar el inicio.');
+      if (!seguimiento.estado()[id]?.error) setError(fallo instanceof Error ? fallo.message : 'No se pudo confirmar el inicio.');
+    } finally {
+      solicitandoInicio.current = false;
+      if (vivo.current) setRevisandoDisponibilidad(false);
     }
   }
   const seguimientoPrimero = Boolean(ejecucion || estado?.incierta || estado?.error);
@@ -127,7 +153,7 @@ function PreparacionModelo({ id }: { id: number }) {
         </dl>
         <DiagnosticoOptimizacion datos={ejecucion.diagnostico} ejecucion={ejecucion} resumirAplicada={ejecucion.estado === 'aplicada'} catalogoDocentes={catalogoDocentes} disponibilidadSecundaria={disponibilidadActualPrioritaria} />
       </> : estado?.consultado && <p>No hay ejecuciones registradas para esta planificación.</p>}
-      <button type="button" className="boton" disabled={estado?.enviando} onClick={() => { void seguimiento.actualizar(id); setIntento(i => i + 1); }}><IconoActualizar />Actualizar preparación y seguimiento</button>
+       <button type="button" className="boton" disabled={estado?.enviando || revisandoDisponibilidad} onClick={() => { void seguimiento.actualizar(id); setIntento(i => i + 1); }}><IconoActualizar />Actualizar preparación y seguimiento</button>
       {estado?.incierta && <div className="recuperacion-modelo" role="alert"><p>No se confirmó la respuesta de inicio. Consulta el seguimiento antes de reenviar. Si decides reenviar, se conservarán la misma clave y los parámetros originales, aunque hayas recargado.</p>
         <button type="button" className="boton" disabled={estado.enviando || activa} onClick={() => { void iniciar(); }}>Reenviar la misma solicitud</button></div>}
     </section>;
@@ -140,13 +166,13 @@ function PreparacionModelo({ id }: { id: number }) {
         <div className="revision-entradas-modelo">
           <h3>Revisión de entradas</h3>
           {preparacion.bloqueos.length > 0 ? <div id="bloqueos-modelo" role="status" className="condiciones-optimizacion"><p><strong>No se puede iniciar una ejecución</strong></p><ul>{preparacion.bloqueos.map((b, i) => <li key={i}>{b}</li>)}</ul></div>
-            : <p>La preparación no informa bloqueos para iniciar.</p>}
+            : <p>{preparacion.docentesSinDisponibilidad?.length ? 'Hay docentes sin disponibilidad registrada.' : 'La preparación no informa bloqueos para iniciar.'}</p>}
           {preparacion.diagnosticosCatalogo.length > 0 && <details><summary>Observaciones del catálogo</summary><ul>{preparacion.diagnosticosCatalogo.map((d, i) => <li key={i}>Sala {d.salaId}: {d.mensaje}</li>)}</ul></details>}
           {(!ejecucion || disponibilidadActualPrioritaria) && <DisponibilidadOptimizacion filas={preparacion.disponibilidadDocente} catalogoDocentes={catalogoDocentes} titulo="Disponibilidad docente de la preparación" />}
         </div>
         <p id="ayuda-recursos-modelo" className="ayuda-salas-modelo">Indica las cantidades para esta ejecución, sin garantía de disponibilidad física. Para las salas se sugiere la mitad del catálogo.</p>
         <form onSubmit={e => { e.preventDefault(); void iniciar(); }}>
-          <fieldset disabled={Boolean(bloqueado) || !preparacion.puedeEjecutar || cargando} aria-describedby={`ayuda-recursos-modelo${preparacion.bloqueos.length ? ' bloqueos-modelo' : ''}`}>
+          <fieldset disabled={Boolean(bloqueado) || !preparacion.puedeEjecutar || cargando || revisandoDisponibilidad} aria-describedby={`ayuda-recursos-modelo${preparacion.bloqueos.length ? ' bloqueos-modelo' : ''}`}>
             <legend className="solo-lectores-modelo">Cantidades para esta ejecución</legend>
             <div className="tabla-optimizacion tabla-salas-modelo" role="region" aria-label="Salas por categoría" tabIndex={0}><table><caption className="solo-lectores-modelo">Salas por categoría</caption><thead><tr><th scope="col">Edificio</th><th scope="col">Tipo</th><th scope="col" className="numero-modelo">Capacidad</th><th scope="col" className="numero-modelo">Total en catálogo</th><th scope="col" className="numero-modelo">Cantidad para el modelo</th></tr></thead>
               <tbody>{preparacion.categoriasSalas.map((c, i) => <tr key={c.id}><th scope="row">{c.edificio}</th><td>{c.tipo}</td><td className="numero-modelo">{c.capacidad}</td><td className="numero-modelo">{c.cantidadCatalogo}</td>
@@ -157,11 +183,24 @@ function PreparacionModelo({ id }: { id: number }) {
               onChange={e => { setConfirmado(false); setCantidadLaboratorios(e.target.value); }} /></label>
               <p id="supuesto-laboratorios">Capacidad del modelo: {capacidadLaboratoriosModelo} estudiantes, fija para los laboratorios.</p></div>
             <label className="confirmacion-optimizacion"><input type="checkbox" checked={confirmado} onChange={e => setConfirmado(e.target.checked)} /><span>Confirmo las cantidades para esta ejecución.</span></label>
-            <button type="submit" className="boton boton--azul" disabled={!confirmado || !estado?.consultado || Boolean(estado?.error) || Boolean(bloqueado)}><IconoModelo tipo="ejecutar" />{estado?.enviando ? 'Iniciando…' : 'Iniciar ejecución'}</button>
+            <button type="submit" className="boton boton--azul" disabled={!confirmado || !estado?.consultado || Boolean(estado?.error) || Boolean(bloqueado)}><IconoModelo tipo="ejecutar" />{estado?.enviando ? 'Iniciando…' : revisandoDisponibilidad ? 'Revisando disponibilidad…' : 'Iniciar ejecución'}</button>
           </fieldset>
         </form>
       </>}
     </section>
     {!seguimientoPrimero && vistaSeguimiento}
+    {docentesPendientes.length > 0 && <Dialogo titulo="No se puede iniciar la optimización" tamano="detalle" ocupado={false} cerrar={() => setDocentesPendientes([])}>
+      <p>Los siguientes profesores tienen carga asignada y aún no han registrado su disponibilidad para este período</p>
+      <ul className={superficies.tarjetasPendientes} aria-label="Profesores sin disponibilidad registrada">
+        {docentesPendientes.map(docente => <li key={docente.profesorId}>
+          <article className={superficies.tarjeta} aria-label={docente.nombre}>
+            <h3 className="nombre-docente-pendiente">{docente.nombre}</h3>
+            <p>Disponibilidad no registrada</p>
+            <p><strong className="etiqueta-bloques-pendientes">{docente.bloquesEnviados} / {docente.minimoBloques} bloques</strong></p>
+          </article>
+        </li>)}
+      </ul>
+      <p>Cada profesor debe guardar su disponibilidad en Mi disponibilidad. Después, vuelva a intentar iniciar la ejecución</p>
+    </Dialogo>}
   </>;
 }

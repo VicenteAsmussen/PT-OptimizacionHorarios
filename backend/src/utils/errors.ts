@@ -1,3 +1,5 @@
+import type { DocenteSinDisponibilidad } from "./disponibilidad-docente.js";
+
 export class AppError extends Error {
   public readonly statusCode: number;
   public readonly isOperational: boolean;
@@ -30,6 +32,14 @@ export class ConflictError extends AppError {
   // Representa un conflicto entre la operación solicitada y el estado académico vigente.
   constructor(message = "Conflict occurred") {
     super(message, 409);
+  }
+}
+
+export class DisponibilidadNoRegistradaError extends ConflictError {
+  readonly codigo = "disponibilidad_no_registrada";
+
+  constructor(public readonly docentesSinDisponibilidad: DocenteSinDisponibilidad[]) {
+    super("No se puede iniciar la optimización.");
   }
 }
 

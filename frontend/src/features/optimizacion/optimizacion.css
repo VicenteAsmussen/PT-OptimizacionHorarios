@@ -12,6 +12,22 @@
 .aviso-optimizacion .enlace-modelo { display: inline-flex; align-items: center; min-height: 2.75rem; }
 .aviso-optimizacion .boton { margin-left: .5rem; }
 .pagina-optimizacion { min-width: 0; }
+.pagina-optimizacion .nombre-docente-pendiente {
+  margin: 0;
+  color: var(--color-azul-texto);
+  font-size: 1.125rem;
+  font-weight: var(--peso-titulo-seccion);
+}
+.pagina-optimizacion .etiqueta-bloques-pendientes {
+  display: inline-block;
+  padding: .125rem .625rem;
+  border: 1px solid var(--color-azul-borde);
+  border-radius: 999px;
+  background: var(--color-azul-fondo);
+  color: var(--color-azul-texto);
+  font-size: var(--tamano-secundario);
+  font-variant-numeric: tabular-nums;
+}
 .pagina-optimizacion .contexto-modelo > div { margin: 0; }
 .pagina-optimizacion .contexto-lectura-modelo { display: none; }
 .pagina-optimizacion .cabecera-seguimiento-modelo { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem; }

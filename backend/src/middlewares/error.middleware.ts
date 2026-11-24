@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from "express";
-import { AppError } from "../utils/errors.js";
+import { AppError, DisponibilidadNoRegistradaError } from "../utils/errors.js";
 
 // Reconoce rechazos del cuerpo JSON sin confiar en estados contradictorios.
 function obtenerEstadoErrorJson(error: unknown): 400 | 413 | undefined {
@@ -31,6 +31,10 @@ export function errorHandler(
       status: "error",
       statusCode: err.statusCode,
       message: err.message,
+      ...(err instanceof DisponibilidadNoRegistradaError && {
+        codigo: err.codigo,
+        docentesSinDisponibilidad: err.docentesSinDisponibilidad,
+      }),
     });
     return;
   }

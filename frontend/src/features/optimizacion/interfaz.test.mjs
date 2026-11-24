@@ -11,11 +11,13 @@ registerHooks({ resolve(nombre, contexto, siguiente) {
 } });
 const modelo = await import('./modelo.ts');
 const { crearSeguimiento } = await import('./seguimiento.ts');
+const { ApiError } = await import('../../lib/api.ts');
+const { leerDocentesSinDisponibilidad } = await import('./disponibilidad-inicio.ts');
 const { estadoSecciones, planificacionInicial } = await import('../../lib/periodos.ts');
 const recurso = { id: 'AC-Sala-32', edificio: 'AC', tipo: 'Sala', capacidad: 32, cantidad: 2, fuente: 'Catálogo acreditado' };
 const preparar = () => ({ planificacion: { id: 2 }, puedeEjecutar: true, bloqueos: [], ejecucionActivaId: null,
   revisionEntrada: 'revision-consultada', categoriasSalas: [{ ...recurso, cantidadCatalogo: 4, cantidadSugerida: 2 }], diagnosticosCatalogo: [],
-  laboratorios: { requiereDeclaracion: false, mensaje: 'Declare el total departamental por capacidad.' }, limiteSolverSegundos: 300, disponibilidadDocente: [], advertencia: 'Sugerencias sin garantía de disponibilidad.' });
+  laboratorios: { requiereDeclaracion: false, mensaje: 'Declare el total departamental por capacidad.' }, limiteSolverSegundos: 300, disponibilidadDocente: [], docentesSinDisponibilidad: [], advertencia: 'Sugerencias sin garantía de disponibilidad.' });
 const ejecutar = estado => ({ id: 'e1', planificacionSemestreId: 2, estado, parametros: { recursos: [recurso] }, revisionEntrada: 'revision-ejecutada', versionModelo: 'v1', resultado: null, diagnostico: null });
 const memoria = () => { const mapa = new Map(); return { getItem: k => mapa.get(k) ?? null, setItem: (k, v) => mapa.set(k, v) }; };
 
@@ -96,7 +98,7 @@ async function montar(archivo, nombre, extras, propiedades = {}) {
     ordenarPeriodosPorFechaAcademica: (await import('../../lib/periodos.ts')).ordenarPeriodosPorFechaAcademica,
     useAuth: () => ({ usuario: { id: 9, rol: 'secretaria' } }), profesoresApi: { listar: async () => [] },
     IconoModelo: () => null, IconoActualizar: () => null,
-    DisponibilidadOptimizacion: () => null, DiagnosticoOptimizacion: () => null, ...extras };
+    DisponibilidadOptimizacion: () => null, DiagnosticoOptimizacion: () => null, leerDocentesSinDisponibilidad, ...extras };
   const fuente = (await readFile(new URL(archivo, import.meta.url), 'utf8')).replace(/^import .*;\r?\n/gm, '').replace(/^export default /gm, '').replace(/^export /gm, '');
   for (const declaracion of fuente.matchAll(/^(?:async )?function (\w+)/gm)) delete entorno[declaracion[1]];
   delete entorno[nombre];
@@ -111,14 +113,16 @@ async function montar(archivo, nombre, extras, propiedades = {}) {
     boton: nombre => nodos(arbol).find(n => n.type === 'button' && texto(n).includes(nombre)),
     salir: () => { vivo = false; celdas.forEach(c => c?.limpiar?.()); } };
 }
-async function pagina(opciones = {}) {
-  let datos = preparar(), posts = 0;
+async function pagina(opciones = {}, datosIniciales = preparar()) {
+  let datos = datosIniciales, posts = 0;
   const servicio = { ultima: async () => null, consultar: async () => ejecutar('en_ejecucion'), iniciar: async () => { posts++; return ejecutar('en_ejecucion'); }, ...opciones };
   const seguimiento = crearSeguimiento(servicio, memoria(), 'cuenta');
   let vista;
   seguimiento.suscribir(() => vista?.dibujar());
   vista = await montar('./OptimizacionPage.tsx', 'PreparacionModelo', {
-    useOptimizacion: () => ({ seguimiento, filas: seguimiento.estado() }), optimizacionApi: { preparar: async () => datos },
+    useOptimizacion: () => ({ seguimiento, filas: seguimiento.estado() }),
+    Dialogo: 'dialogo', superficies: {},
+    optimizacionApi: { preparar: async () => datos },
   }, { id: 2 });
   return { vista, seguimiento, servicio, posts: () => posts, preparacion: valor => { datos = valor; } };
 }
@@ -135,6 +139,74 @@ test('preparación muestra revisión, sugerencias y confirma parámetros antes d
   const formulario = vista.nodos().find(n => n.type === 'form');
   formulario.props.onSubmit({ preventDefault() {} }); formulario.props.onSubmit({ preventDefault() {} }); await vista.asentar();
   assert.equal(posts(), 1); assert.match(vista.texto(), /En ejecución/); vista.salir();
+});
+
+const docentesPendientes = [
+  { profesorId: 1, nombre: 'Docente Uno', minimoBloques: 4, bloquesEnviados: 0 },
+  { profesorId: 2, nombre: 'Docente Dos', minimoBloques: 2, bloquesEnviados: 0 },
+];
+async function confirmarRecursos(vista) {
+  vista.nodos().find(n => n.type === 'input' && n.props.type === 'checkbox').props.onChange({ target: { checked: true } });
+  await vista.asentar();
+  assert.equal(vista.boton('Iniciar ejecución').props.disabled, false);
+}
+async function enviar(vista) {
+  vista.nodos().find(n => n.type === 'form').props.onSubmit({ preventDefault() {} });
+  await vista.asentar();
+}
+function comprobarDialogo(vista) {
+  const dialogo = vista.nodos().find(n => n.type === 'dialogo');
+  assert.equal(dialogo?.props.titulo, 'No se puede iniciar la optimización');
+  assert.equal(dialogo.props.tamano, 'detalle');
+  assert.match(texto(dialogo), /Los siguientes profesores tienen carga asignada y aún no han registrado su disponibilidad para este período/);
+  assert.match(texto(dialogo), /Cada profesor debe guardar su disponibilidad en Mi disponibilidad\. Después, vuelva a intentar iniciar la ejecución/);
+  assert.doesNotMatch(texto(dialogo), /Continuar de todos modos/);
+  const tarjetas = nodos(dialogo).filter(n => n.type === 'article');
+  assert.equal(tarjetas.length, 2);
+  for (const [indice, docente] of docentesPendientes.entries()) {
+    const nombre = nodos(tarjetas[indice]).find(n => n.type === 'h3');
+    assert.equal(texto(nombre), docente.nombre);
+    assert.equal(nombre.props.className, 'nombre-docente-pendiente');
+    const etiqueta = nodos(tarjetas[indice]).find(n => n.props.className === 'etiqueta-bloques-pendientes');
+    assert.equal(texto(etiqueta), `0 / ${docente.minimoBloques} bloques`);
+    assert.match(texto(tarjetas[indice]), /Disponibilidad no registrada/);
+    assert.doesNotMatch(texto(tarjetas[indice]), /Registrados \/ mínimo requerido/);
+  }
+  return dialogo;
+}
+test('abre una tarjeta por docente sin enviar el POST, y permite reintentar tras el último registro', async () => {
+  const { vista, posts, preparacion } = await pagina({}, { ...preparar(), docentesSinDisponibilidad: docentesPendientes });
+  try {
+    await confirmarRecursos(vista);
+    await enviar(vista);
+    comprobarDialogo(vista).props.cerrar(); await vista.asentar();
+    assert.equal(posts(), 0);
+    assert.equal(vista.nodos().some(n => n.type === 'dialogo'), false);
+    preparacion(preparar());
+    await enviar(vista);
+    assert.equal(posts(), 1);
+    assert.equal(vista.nodos().some(n => n.type === 'dialogo'), false);
+  } finally { vista.salir(); }
+});
+
+test('muestra las mismas tarjetas ante un rechazo estructurado tras revisar sin pendientes', async () => {
+  let solicitudes = 0;
+  const { vista, seguimiento } = await pagina({ iniciar: async () => {
+    solicitudes++;
+    if (solicitudes === 1) throw new ApiError('Mensaje independiente de la causa', 409, {
+      codigo: 'disponibilidad_no_registrada', docentesSinDisponibilidad: docentesPendientes,
+    });
+    return ejecutar('en_ejecucion');
+  } });
+  try {
+    await confirmarRecursos(vista);
+    await enviar(vista);
+    comprobarDialogo(vista).props.cerrar(); await vista.asentar();
+    assert.equal(seguimiento.estado()[2].incierta, false);
+    assert.doesNotMatch(vista.texto(), /Mensaje independiente de la causa/);
+    await enviar(vista);
+    assert.equal(solicitudes, 2);
+  } finally { vista.salir(); }
 });
 
 test('el reinicio remoto retira el resultado y vuelve a consultar la preparación sin iniciar otro cálculo', async () => {
