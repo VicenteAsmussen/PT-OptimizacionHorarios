@@ -386,7 +386,7 @@ test('ver asignatura presenta una ficha completa sin controles de edición ni po
     './useMutacion': { useMutacion: () => ({ ocupado: false, error: '', ejecutar: (...argumentos) => llamadas.push(argumentos) }) },
   });
   const { renderToStaticMarkup } = await import('react-dom/server');
-  const asignatura = { codigo: 'INF100', nombre: 'Álgebra', departamentoId: 1, departamento: { id: 1, nombre: 'Departamento' }, semestreMalla: 2, esCritica: true,
+  const asignatura = { codigo: 'INF100', nombre: 'Álgebra', departamentoId: 1, departamento: { id: 1, nombre: 'Departamento' }, semestreMalla: 2, esCritica: true, requiereSala: true,
     tiposHora: [{ tipoHoraId: 1, horas: 4, tipoHora: { tipo: 'Teoría' } }] };
   const propiedades = { asignatura, departamentos: [{ id: 1, nombre: 'Departamento' }], alCerrar() {}, alCompletar() {} };
   const lectura = renderizar({ ...propiedades, soloLectura: true });
@@ -399,6 +399,11 @@ test('ver asignatura presenta una ficha completa sin controles de edición ni po
   for (const dato of ['INF100', 'Álgebra', 'Departamento', 'Semestre de malla', 'Asignatura crítica', 'Teoría', '4 h']) {
     assert.ok(html.includes(dato), dato);
   }
+  assert.match(html, /<dt>Asignatura crítica<\/dt><dd>Sí<\/dd><\/div><div[^>]*><dt>Requiere sala<\/dt><dd>Sí<\/dd>/);
+  const conDependencias = renderizar({ ...propiedades, asignatura: { ...asignatura, requiereSala: false, tieneDependenciasAcademicas: true } });
+  assert.equal(conDependencias.props.titulo, 'Ver asignatura');
+  assert.match(renderToStaticMarkup(conDependencias), /<dt>Requiere sala<\/dt><dd>No<\/dd>/);
+  assert.equal(elementos(conDependencias, e => ['input', 'form'].includes(e.type)).length, 0);
   assert.deepEqual(llamadas, [], 'la consulta no inicia mutaciones');
   const edicion = renderizar(propiedades);
   assert.equal(edicion.props.titulo, 'Editar asignatura');
