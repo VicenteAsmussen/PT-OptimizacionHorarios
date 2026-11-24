@@ -108,12 +108,15 @@ async function calcular(ejecucion: EjecucionOptimizacion, cancelar: AbortControl
       const estado = !validacion.valida ? "error" : salida.estado === "infactible" ? "infactible" : salida.estado === "limite_tiempo" ? "limite_tiempo" : "carga_incompleta";
       await optimizacionRepository.terminar(ejecucion.id, propietario, estado, salida, diagnostico);
     }
-  } catch (error) {
-    const mensaje = error instanceof Error ? error.message : "";
-    const estado = !vigente || cerrando || cancelar.signal.aborted ? "interrumpida" : mensaje.includes("tiempo de solver") ? "limite_tiempo" : "error";
+  } catch {
+    const estado = !vigente || cerrando || cancelar.signal.aborted || procesoJulia?.origenFin === "interrupcion" ? "interrumpida"
+      : procesoJulia?.origenFin === "watchdog" ? "limite_tiempo" : "error";
     await optimizacionRepository.terminar(ejecucion.id, propietario, estado, null, { codigo: estado,
-      mensaje: estado === "error" ? "No se obtuvo una salida válida del proceso Julia. No se incorporaron horarios. Compruebe el runtime y el diagnóstico del servidor." : "El cálculo terminó sin una solución completa validada. No se incorporaron horarios.",
-      fase: mensaje.includes("arranque") ? "arranque" : mensaje.includes("extracción") ? "extraccion" : mensaje.includes("solver") ? "solver" : "proceso",
+      mensaje: estado === "error" ? procesoJulia?.origenFin === "salida"
+        ? "No se pudo registrar o incorporar el resultado validado. No se incorporaron horarios. Compruebe el diagnóstico del servidor."
+        : "No se obtuvo una salida válida del proceso Julia. No se incorporaron horarios. Compruebe el runtime y el diagnóstico del servidor."
+        : "El cálculo terminó sin una solución completa validada. No se incorporaron horarios.",
+      fase: procesoJulia?.fase ?? "proceso",
       ...(procesoJulia ? { procesoJulia } : {}) });
   } finally { clearInterval(seguimiento); procesos.delete(ejecucion.id); }
 }

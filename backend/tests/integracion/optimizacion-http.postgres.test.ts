@@ -8,21 +8,25 @@ import express, { type Express } from "express";
 import request, { type Test } from "../soporte/solicitud-api.js";
 import { exigirBasePruebas } from "../soporte/base-pruebas.js";
 import type { EntradaOptimizacion, SalidaOptimizacion } from "../../src/optimizacion/contrato.js";
+import type { OpcionesProcesoJulia } from "../../src/optimizacion/proceso.js";
 
 const control = vi.hoisted(() => ({ entrada: undefined as EntradaOptimizacion | undefined,
-  resolver: undefined as ((salida: SalidaOptimizacion) => void) | undefined }));
+  resolver: undefined as ((salida: SalidaOptimizacion) => void) | undefined,
+  rechazar: undefined as ((error: Error) => void) | undefined,
+  diagnosticar: undefined as OpcionesProcesoJulia["alDiagnostico"] }));
 // Solo se sustituye el proceso hijo. HTTP, permisos, servicios y PostgreSQL son reales.
 vi.mock("../../src/optimizacion/proceso.js", () => ({
-  ejecutarJulia: (entrada: EntradaOptimizacion) => {
+  ejecutarJulia: (entrada: EntradaOptimizacion, opciones?: OpcionesProcesoJulia) => {
     control.entrada = entrada;
-    return new Promise<SalidaOptimizacion>(resolver => { control.resolver = resolver; });
+    control.diagnosticar = opciones?.alDiagnostico;
+    return new Promise<SalidaOptimizacion>((resolver, rechazar) => { control.resolver = resolver; control.rechazar = rechazar; });
   }, cerrarProcesosJulia: () => {},
 }));
 
 const habilitado = process.env.BASE_PRUEBAS_REINICIABLE !== undefined;
 if (habilitado) exigirBasePruebas(process.env);
 describe.skipIf(!habilitado)("Optimización HTTP en PostgreSQL aislado", () => {
-  let cliente: ReturnType<typeof postgres>, app: Express, token: string, cerrar: () => Promise<void>;
+  let cliente: ReturnType<typeof postgres>, app: Express, token: string, tokenAdmin: string, cerrar: () => Promise<void>;
   async function exigirAislamiento() {
     exigirBasePruebas(process.env);
     const [identidad] = await cliente`select current_database() as base,current_user as usuario,pg_try_advisory_lock(18874001,1) as bloqueo`;
@@ -51,6 +55,8 @@ describe.skipIf(!habilitado)("Optimización HTTP en PostgreSQL aislado", () => {
     await cliente.begin(async conexion => {
       await conexion`insert into usuarios(id,nombre,correo,clave,rol) values(1,'Administrador sintético','admin@example.test','sin-login','admin')`;
       await conexion`insert into carreras(id,nombre) values(1,'Ingeniería Civil en Informática')`;
+      await conexion`insert into usuarios(id,nombre,correo,clave,rol) values(2,'Secretaría sintética','secretaria@example.test','sin-login','secretaria')`;
+      await conexion`insert into secretarias(usuario_id,carrera_id) values(2,1)`;
       await conexion`insert into departamentos(id,nombre) values(1,'Gestionado'),(2,'Externo')`;
       await conexion`insert into carrera_departamento(carrera_id,departamento_id,es_gestionado) values(1,1,true),(1,2,false)`;
       await conexion`insert into asignaturas(codigo,nombre,departamento_id,semestre_malla) values('INT','Interna',1,2),('EXT','Externa',2,2)`;
@@ -73,9 +79,12 @@ describe.skipIf(!habilitado)("Optimización HTTP en PostgreSQL aislado", () => {
     const { usuariosRepository } = await import("../../src/repositories/usuarios.repository.js");
     const { generateToken } = await import("../../src/utils/jwt.js");
     const usuario = (await usuariosRepository.findById(1))!;
-    token = generateToken(usuario, usuario.versionSesion);
+    tokenAdmin = generateToken(usuario, usuario.versionSesion);
+    const secretaria = (await usuariosRepository.findById(2))!;
+    token = generateToken(secretaria, secretaria.versionSesion);
   }
-  const autorizar = (solicitud: Test) => solicitud.set("Authorization", `Bearer ${token}`);
+  // Mantiene los permisos reales: administración para períodos y secretaría para operaciones académicas.
+  const autorizar = (solicitud: Test) => solicitud.set("Authorization", `Bearer ${new URL(solicitud.url).pathname.startsWith("/admin/") ? tokenAdmin : token}`);
   const parametros = { claveIdempotencia: "solicitud-regresion-http", recursos: [{ id: "AA-Sala-90", edificio: "AA", tipo: "Sala", capacidad: 90, cantidad: 1, fuente: "Datos sintéticos aislados" }] };
   async function huellaHorarios() {
     return createHash("sha256").update(JSON.stringify(await cliente`select * from horarios_asignaturas order by id`)).digest("hex");
@@ -93,6 +102,28 @@ describe.skipIf(!habilitado)("Optimización HTTP en PostgreSQL aislado", () => {
       expect(respuesta.status).toBe(200); expect(respuesta.body.data.estado).toBe(esperado);
     }, { timeout: 15000, interval: 100 });
   }
+  it.each(["incompleta", "invalida", "arranque", "solver", "extraccion"] as const)("conserva físicamente los horarios ante salida %s", async caso => {
+    await prepararDatosAislados();
+    const anterior = await huellaHorarios();
+    const inicio = await autorizar(request(app).post("/modelo/planificaciones/1/ejecuciones")).send(parametros);
+    expect(inicio.status).toBe(202);
+    const id = inicio.body.data.id;
+    if (caso === "incompleta") control.resolver!({ ...salida(false), estado: "limite_tiempo" });
+    else if (caso === "invalida") control.resolver!({ ...salida(true), revision: "b".repeat(64) });
+    else {
+      control.diagnosticar?.({ origenFin: "watchdog", fase: caso, tiemposMs: { total: 100, arranque: 100 }, muestrasProgreso: [], progresoNoDisponible: false,
+        cierreProceso: { estado: "confirmada", esperaMs: 10, senalEnviada: true } });
+      control.rechazar!(new Error("Corte externo simulado"));
+    }
+    await esperarEstado(id, caso === "invalida" ? "error" : "limite_tiempo");
+    expect(await huellaHorarios()).toBe(anterior);
+    expect((await cliente`select estado_planificacion as estado from planificaciones_semestres where id=1`)[0]!.estado).toBe("preparacion");
+    if (caso !== "incompleta" && caso !== "invalida") {
+      const consulta = await autorizar(request(app).get(`/modelo/ejecuciones/${id}`));
+      expect(consulta.body.data.resultado).toBeNull();
+      expect(consulta.body.data.diagnostico).toMatchObject({ procesoJulia: { origenFin: "watchdog", fase: caso, cierreProceso: { estado: "confirmada" } } });
+    }
+  }, 30000);
   it("aplica el límite de tiempo completo, conserva recursos y rechaza incompletos sin cambios parciales", async () => {
     await prepararDatosAislados();
     let anterior = await huellaHorarios();

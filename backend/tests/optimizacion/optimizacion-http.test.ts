@@ -1,7 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import express, { type Request, type Response, type NextFunction } from "express";
-import request from "supertest";
+import request from "../soporte/solicitud-api.js";
 import { randomUUID } from "node:crypto";
+import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import { optimizacionRouter } from "../../src/routes/optimizacion.routes.js";
 import { errorHandler } from "../../src/middlewares/error.middleware.js";
 import type { CapturaOptimizacion } from "../../src/repositories/optimizacion.repository.js";
@@ -10,12 +11,29 @@ import type { EntradaOptimizacion, SalidaOptimizacion, DiagnosticoProcesoJulia, 
 const controles = vi.hoisted(() => ({ rol: "secretaria", repositorio: {} as Record<string, ReturnType<typeof vi.fn>>,
   entradas: [] as EntradaOptimizacion[], resolver: undefined as undefined | ((salida: SalidaOptimizacion) => void),
   rechazar: undefined as undefined | ((error: Error) => void),
-  diagnosticar: undefined as OpcionesProcesoJulia["alDiagnostico"] }));
+  diagnosticar: undefined as OpcionesProcesoJulia["alDiagnostico"], real: false,
+  hijo: undefined as ChildProcessWithoutNullStreams | undefined, salidaObservada: false, corteSolicitado: false,
+  enviarSenal: undefined as (() => boolean) | undefined }));
+// Ejecuta Node como hijo portátil, nunca Julia. Una barrera controla la entrega de la señal real.
+vi.mock("node:child_process", async importar => {
+  const original = await importar<typeof import("node:child_process")>();
+  return { ...original, spawn: () => {
+    const hijo = original.spawn(process.execPath, ["-e", "process.stdin.resume(); setInterval(() => {}, 1000)"], { stdio: ["pipe", "pipe", "pipe"] });
+    controles.hijo = hijo;
+    hijo.once("exit", () => { controles.salidaObservada = true; });
+    const matar = hijo.kill.bind(hijo);
+    controles.enviarSenal = () => matar("SIGKILL");
+    hijo.kill = () => { controles.corteSolicitado = true; return true; };
+    return hijo;
+  } };
+});
 vi.mock("../../src/repositories/optimizacion.repository.js", () => ({ optimizacionRepository: controles.repositorio }));
 vi.mock("../../src/utils/alcance-carrera.js", () => ({ resolverAlcanceCarrera: async () => ({ carreraId: 1 }) }));
-// La promesa pendiente separa la respuesta HTTP del fin del cálculo, sin lanzar un proceso real.
+// Por defecto se controla la resolución en memoria. La prueba de cierre usa un hijo real.
 vi.mock("../../src/optimizacion/proceso.js", () => ({ ejecutarJulia: vi.fn((entrada: EntradaOptimizacion, opciones?: OpcionesProcesoJulia) => {
   controles.entradas.push(entrada);
+  if (controles.real) return vi.importActual<typeof import("../../src/optimizacion/proceso.js")>("../../src/optimizacion/proceso.js")
+    .then(modulo => modulo.ejecutarJulia(entrada, { ...opciones, arranqueMs: 100 }));
   controles.diagnosticar = opciones?.alDiagnostico;
   return new Promise<SalidaOptimizacion>((resolver, rechazar) => { controles.resolver = resolver; controles.rechazar = rechazar; });
 }), cerrarProcesosJulia: vi.fn() }));
@@ -23,7 +41,7 @@ vi.mock("../../src/middlewares/auth.middleware.js", () => ({ authenticate(req: R
   req.user = { id: 1, rol: controles.rol } as Request["user"]; next();
 } }));
 
-const app = express(); app.use(express.json()); app.use("/modelo", optimizacionRouter); app.use(errorHandler);
+const app = express(); app.use(express.json()); app.use("/modelo", optimizacionRouter); app.use("/api/optimizacion", optimizacionRouter); app.use(errorHandler);
 const dias = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"];
 const bloques = dias.flatMap((dia, indice) => Array.from({ length: 16 }, (_, numero) => ({ id: indice * 16 + numero + 1, dia, numeroBloque: numero + 1, horaInicio: "08:10", horaTermino: "08:50" })));
 let captura: CapturaOptimizacion;
@@ -32,6 +50,8 @@ const parametros = { claveIdempotencia: "solicitud-http-1", recursos: [{ id: "AA
 beforeEach(() => {
   controles.rol = "secretaria"; controles.entradas.length = 0; controles.resolver = undefined; ejecucion = undefined;
   controles.rechazar = undefined; controles.diagnosticar = undefined;
+  controles.real = false; controles.hijo = undefined; controles.salidaObservada = false; controles.corteSolicitado = false;
+  controles.enviarSenal = undefined;
   captura = { planificacion: { id: 1, carreraId: 1, codigo: "2099-2", actual: true, estadoPlanificacion: "preparacion" },
     revision: "revision-db", horariosGestionados: 0, gestionados: [1], relaciones: [], disponibilidades: [{ profesorId: 1, bloqueId: 1 }, { profesorId: 1, bloqueId: 2 }],
     horarios: [], bloques, catalogoSalas: [{ id: 1, nombre: "A101AA", capacidad: 90, tipo: "Sala" }], reservas: [],
@@ -62,6 +82,47 @@ function salida(estado: SalidaOptimizacion["estado"] = "optimo", completa = true
     faltantes: [{ ofertaId: 1, tipoHoraId: 1, horas: completa ? 0 : 2 }], protecciones: [] };
 }
 describe("contrato HTTP y seguimiento del modelo", () => {
+  it("confirma la salida de un hijo real y responde por la ruta API durante la espera de cierre", async () => {
+    controles.real = true;
+    const inicio = await request(app).post("/api/optimizacion/planificaciones/1/ejecuciones").send(parametros);
+    expect(inicio.status).toBe(202);
+    try {
+      await vi.waitFor(() => expect(controles.corteSolicitado).toBe(true), { interval: 5 });
+      expect(controles.salidaObservada).toBe(false);
+      expect((await request(app).get(`/api/optimizacion/ejecuciones/${inicio.body.data.id}`)).body.data.estado).toBe("en_ejecucion");
+      expect(controles.salidaObservada).toBe(false);
+      expect(controles.enviarSenal!()).toBe(true);
+      await vi.waitFor(() => expect(controles.repositorio.terminar).toHaveBeenCalledOnce());
+      expect(controles.salidaObservada).toBe(true);
+      expect(controles.hijo!.exitCode !== null || controles.hijo!.signalCode !== null).toBe(true);
+      expect(ejecucion!.diagnostico).toMatchObject({ procesoJulia: { origenFin: "watchdog", fase: "arranque", cierreProceso: { estado: "confirmada" } } });
+      expect(ejecucion!.estado).toBe("limite_tiempo");
+      expect(controles.repositorio.aplicar).not.toHaveBeenCalled();
+    } finally { if (controles.hijo?.exitCode === null && controles.hijo?.signalCode === null) controles.enviarSenal?.(); }
+  });
+
+  it.each(["arranque", "solver", "extraccion"] as const)("persiste watchdog de %s sin interpretar el mensaje ni los hitos nativos", async fase => {
+    await request(app).post("/modelo/planificaciones/1/ejecuciones").send(parametros);
+    controles.diagnosticar?.({ origenFin: "watchdog", fase, tiemposMs: { total: 100, arranque: 100 }, muestrasProgreso: [], progresoNoDisponible: false,
+      registroHiGHS: { configurado: true, hitos: [{ hito: "limite_tiempo", tiempoDesdeSolverMs: 1 }] },
+      cierreProceso: { estado: "no_confirmada", esperaMs: 2000, senalEnviada: false } });
+    controles.rechazar!(new Error("Mensaje sin indicaciones de etapa"));
+    await vi.waitFor(() => expect(controles.repositorio.terminar).toHaveBeenCalledOnce());
+    expect(ejecucion!.estado).toBe("limite_tiempo");
+    expect(ejecucion!.diagnostico).toMatchObject({ fase, procesoJulia: { origenFin: "watchdog", cierreProceso: { estado: "no_confirmada" } } });
+    expect(controles.repositorio.aplicar).not.toHaveBeenCalled();
+    expect(ejecucion!.resultado).toBeNull();
+  });
+
+  it("un error al incorporar TIME_LIMIT conserva el error, no lo transforma en límite del solver", async () => {
+    await request(app).post("/modelo/planificaciones/1/ejecuciones").send(parametros);
+    controles.repositorio.aplicar!.mockRejectedValueOnce(new Error("Fallo transaccional"));
+    controles.diagnosticar?.({ origenFin: "salida", fase: "extraccion", tiemposMs: { total: 100, arranque: 10 }, muestrasProgreso: [], progresoNoDisponible: false });
+    controles.resolver!(salida("limite_tiempo"));
+    await vi.waitFor(() => expect(controles.repositorio.terminar).toHaveBeenCalledOnce());
+    expect(ejecucion!.estado).toBe("error");
+    expect(ejecucion!.resultado).toBeNull();
+  });
   it("consulta preparación y cantidades sugeridas sin ejecutar ni asumir laboratorios", async () => {
     const respuesta = await request(app).get("/modelo/planificaciones/1/preparacion");
     expect(respuesta.status).toBe(200);

@@ -14,7 +14,7 @@ function entrada() {
 // Sustituye spawn con canales en memoria para ensayar fallos y plazos sin iniciar Julia.
 function proceso() {
   const hijo = Object.assign(new EventEmitter(), { stdout: new PassThrough(), stderr: new PassThrough(),
-    stdin: new Writable({ write(_datos, _codificacion, callback) { callback(); } }), kill: vi.fn(() => true) });
+    stdin: new Writable({ write(_datos, _codificacion, callback) { callback(); } }), kill: vi.fn(() => { hijo.emit("exit", null, "SIGKILL"); return true; }) });
   crearProceso.mockReturnValue(hijo);
   return hijo;
 }
@@ -22,6 +22,72 @@ const opciones = { arranqueMs: 100, extraccionMs: 200, margenSolverMs: 50, maxEn
 afterEach(() => { cerrarProcesosJulia(); vi.useRealTimers(); vi.restoreAllMocks(); vi.clearAllMocks(); });
 
 describe("proceso Julia aislado", () => {
+  it.each(["exit", "close"])("confirma por %s incluso si kill devuelve falso", async evento => {
+    vi.useFakeTimers();
+    const hijo = proceso(), diagnostico = vi.fn();
+    hijo.kill.mockImplementation(() => false);
+    const promesa = ejecutarJulia(entrada(), { ...opciones, alDiagnostico: diagnostico });
+    const rechazo = expect(promesa).rejects.toThrow("arranque");
+    await vi.advanceTimersByTimeAsync(100);
+    hijo.emit(evento, null, "SIGKILL"); await rechazo;
+    expect(diagnostico.mock.calls[0]![0]).toMatchObject({ cierreProceso: { estado: "confirmada", senalEnviada: false } });
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("aprovecha una salida ya observada y atiende el fallo de spawn sin esperar una salida inexistente", async () => {
+    vi.useFakeTimers();
+    let hijo = proceso(), diagnostico = vi.fn();
+    let promesa = ejecutarJulia(entrada(), { ...opciones, alDiagnostico: diagnostico });
+    let rechazo = expect(promesa).rejects.toThrow("arranque");
+    hijo.emit("exit", 0, null);
+    hijo.kill.mockImplementation(() => false);
+    await vi.advanceTimersByTimeAsync(100); await rechazo;
+    expect(diagnostico.mock.calls[0]![0]).toMatchObject({ cierreProceso: { estado: "confirmada", esperaMs: 0 } });
+    hijo = proceso(); diagnostico = vi.fn();
+    promesa = ejecutarJulia(entrada(), { ...opciones, alDiagnostico: diagnostico });
+    rechazo = expect(promesa).rejects.toThrow("no pudo ejecutarse");
+    hijo.emit("error", new Error("ENOENT privado")); hijo.emit("close", -2, null); await rechazo;
+    expect(diagnostico).toHaveBeenCalledOnce();
+    expect(diagnostico.mock.calls[0]![0]).toMatchObject({ origenFin: "error" });
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it("espera salida observada, descarta eventos tardíos y congela el diagnóstico en el corte", async () => {
+    vi.useFakeTimers();
+    let ahora = 0;
+    vi.spyOn(performance, "now").mockImplementation(() => ahora);
+    const hijo = proceso(), diagnostico = vi.fn(), datos = entrada();
+    hijo.kill.mockImplementation(() => true);
+    const promesa = ejecutarJulia(datos, { ...opciones, alDiagnostico: diagnostico });
+    const rechazo = expect(promesa).rejects.toThrow("arranque");
+    ahora = 100; await vi.advanceTimersByTimeAsync(100);
+    expect(diagnostico).not.toHaveBeenCalled();
+    hijo.stderr.emit("data", Buffer.from("OPTIMIZACION:SOLVER\nOPTIMIZACION:EXTRACCION\n"));
+    hijo.stdout.emit("data", Buffer.from(JSON.stringify({ version: 1, revision: datos.revision, estado: "optimo", asignaciones: [], faltantes: [], protecciones: [], objetivo: 0 })));
+    ahora = 150; hijo.emit("exit", null, "SIGKILL"); await rechazo;
+    hijo.emit("close", 0, null);
+    expect(diagnostico).toHaveBeenCalledOnce();
+    expect(diagnostico.mock.calls[0]![0]).toMatchObject({ origenFin: "watchdog", fase: "arranque",
+      tiemposMs: { total: 100, arranque: 100 }, cierreProceso: { estado: "confirmada", esperaMs: 50 } });
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it.each(["aceptada", "rechazada", "excepcion"])("acota la confirmación ausente aunque kill sea %s", async caso => {
+    vi.useFakeTimers();
+    const hijo = proceso(), diagnostico = vi.fn(), registro = vi.spyOn(console, "error").mockImplementation(() => {});
+    hijo.kill.mockImplementation(() => { if (caso === "excepcion") throw new Error("privado"); return caso === "aceptada"; });
+    const promesa = ejecutarJulia(entrada(), { ...opciones, alDiagnostico: diagnostico });
+    const rechazo = expect(promesa).rejects.toThrow("arranque");
+    await vi.advanceTimersByTimeAsync(100);
+    expect(diagnostico).not.toHaveBeenCalled();
+    await vi.advanceTimersByTimeAsync(2000); await rechazo;
+    expect(diagnostico.mock.calls[0]![0]).toMatchObject({ cierreProceso: { estado: "no_confirmada", senalEnviada: caso === "aceptada" } });
+    expect(registro).toHaveBeenCalledWith("No se confirmó la salida del proceso Julia tras el corte externo.");
+    hijo.emit("error", new Error("tardío")); hijo.stdin.emit("error", new Error("tardío")); hijo.emit("exit", 0, null);
+    expect(diagnostico).toHaveBeenCalledOnce();
+    expect(hijo.listenerCount("exit")).toBe(0);
+    expect(vi.getTimerCount()).toBe(0);
+  });
   it("usa spawn sin intérprete de comandos, proyecto fijo y JSON por stdin/stdout", async () => {
     const hijo = proceso(); const datos = entrada();
     const escribir = vi.spyOn(hijo.stdin, "end");

@@ -41,9 +41,11 @@ export async function ejecutarJulia(entrada: EntradaOptimizacion, opciones: Opci
     let progresoNoDisponible = false;
     const muestrasProgreso: ProgresoSolverJulia[] = [];
     let registroHiGHS: RegistroHiGHS | undefined;
+    let finIntento: number | undefined;
+    let cierreProceso: DiagnosticoProcesoJulia["cierreProceso"];
     // Emite tiempos y métricas acotadas sin conceder al observador autoridad sobre el cálculo.
     const notificar = (origenFin: DiagnosticoProcesoJulia["origenFin"]) => {
-      const fin = performance.now();
+      const fin = finIntento ?? performance.now();
       // Expresa la duración de cada fase en milisegundos no negativos para el diagnóstico.
       const diferencia = (a: number, b: number) => Math.max(0, Math.round((b - a) * 1000) / 1000);
       const diagnostico: DiagnosticoProcesoJulia = { origenFin, fase: fase === "extracción" ? "extraccion" : fase,
@@ -58,6 +60,7 @@ export async function ejecutarJulia(entrada: EntradaOptimizacion, opciones: Opci
           ...(inicioResolucion === undefined ? {} : { resolucion: diferencia(inicioResolucion, inicioExtraccion ?? fin) }),
           ...(inicioExtraccion === undefined ? {} : { extraccion: diferencia(inicioExtraccion, fin) }) },
         muestrasProgreso: muestrasProgreso.map(muestra => ({ ...muestra })), progresoNoDisponible,
+        ...(cierreProceso ? { cierreProceso } : {}),
         ...(registroHiGHS === undefined ? {} : { registroHiGHS: { ...registroHiGHS, hitos: registroHiGHS.hitos.map(hito => ({ ...hito })) } }) };
       // Un observador no tiene autoridad para cambiar el resultado ni detener Julia.
       try { alDiagnostico?.(diagnostico); } catch { /* El cálculo conserva su desenlace. */ }
@@ -69,21 +72,46 @@ export async function ejecutarJulia(entrada: EntradaOptimizacion, opciones: Opci
         { shell: false, windowsHide: true, stdio: ["pipe", "pipe", "pipe"] });
     } catch { notificar("error"); rechazar(new Error("Julia no pudo iniciarse.")); return; }
     let terminado = false;
+    let salidaObservada = false, noIniciado = false;
+    const observarSalida = () => { salidaObservada = true; };
+    hijo.once("exit", observarSalida);
     let temporizador: ReturnType<typeof setTimeout>;
     let bytesSalida = 0, bytesError = 0, pendienteError = "";
     const fragmentos: Buffer[] = [];
     // Interrumpe el cálculo cuando deja de tener vigencia para incorporar horarios.
     const cancelar = () => fallar("Julia interrumpido por pérdida de vigencia del proceso.", "interrupcion");
     // Libera el seguimiento temporal del proceso que ya tiene un desenlace.
-    const limpiar = () => { clearTimeout(temporizador); activos.delete(hijo); signal?.removeEventListener("abort", cancelar); };
+    const limpiar = () => { clearTimeout(temporizador); activos.delete(hijo); signal?.removeEventListener("abort", cancelar); hijo.removeListener("exit", observarSalida); };
     // Cierra los canales y el proceso ante un fallo sin admitir una salida posterior.
     const fallar = (mensaje: string, origen: DiagnosticoProcesoJulia["origenFin"] = "error") => {
       if (terminado) return;
-      terminado = true; limpiar();
+      terminado = true; finIntento = performance.now(); limpiar();
+      const externo = origen === "watchdog" || origen === "interrupcion";
+      const inicioEspera = performance.now();
+      // La señal no acredita salida. La espera adicional no amplía el plazo del cálculo.
+      const confirmacion = externo ? new Promise<"confirmada" | "no_confirmada" | "no_iniciado">(resolverCierre => {
+        if (salidaObservada || noIniciado) { resolverCierre(noIniciado ? "no_iniciado" : "confirmada"); return; }
+        let espera: ReturnType<typeof setTimeout>;
+        const completar = (estado: "confirmada" | "no_confirmada" | "no_iniciado") => {
+          clearTimeout(espera);
+          hijo.removeListener("exit", confirmar); hijo.removeListener("close", confirmar);
+          resolverCierre(estado);
+        };
+        const confirmar = () => completar(noIniciado ? "no_iniciado" : "confirmada");
+        hijo.once("exit", confirmar); hijo.once("close", confirmar);
+        espera = setTimeout(() => completar("no_confirmada"), 2000);
+      }) : undefined;
       // Mantener los manejadores de error hasta el cierre evita errores de los flujos sin atender.
-      hijo.stdin.destroy(); hijo.stdout.destroy(); hijo.stderr.destroy(); hijo.kill("SIGKILL");
-      notificar(origen);
-      rechazar(new Error(mensaje));
+      hijo.stdin.destroy(); hijo.stdout.destroy(); hijo.stderr.destroy();
+      let senalEnviada = false;
+      try { senalEnviada = hijo.kill("SIGKILL"); } catch { /* La confirmación sigue dependiendo de la salida observada. */ }
+      const finalizar = () => { notificar(origen); rechazar(new Error(mensaje)); };
+      if (confirmacion) void confirmacion.then(estado => {
+        cierreProceso = { estado, esperaMs: Math.max(0, Math.round((performance.now() - inicioEspera) * 1000) / 1000), senalEnviada };
+        if (estado === "no_confirmada") console.error("No se confirmó la salida del proceso Julia tras el corte externo.");
+        finalizar();
+      });
+      else finalizar();
     };
     // Sustituye el límite de espera al cambiar de fase del cálculo.
     const vigilar = (milisegundos: number) => {
@@ -93,7 +121,7 @@ export async function ejecutarJulia(entrada: EntradaOptimizacion, opciones: Opci
     activos.set(hijo, () => fallar("Julia interrumpido por apagado del servidor.", "interrupcion"));
     signal?.addEventListener("abort", cancelar, { once: true });
     vigilar(limites.arranqueMs);
-    hijo.on("error", () => fallar("Julia no pudo ejecutarse."));
+    hijo.on("error", () => { if (!hijo.pid) noIniciado = true; fallar("Julia no pudo ejecutarse."); });
     hijo.stdin.on("error", () => fallar("Julia rechazó la entrada."));
     hijo.stdout.on("error", () => fallar("Salida Julia interrumpida."));
     hijo.stderr.on("error", () => fallar("Julia interrumpió el canal de control."));
@@ -147,7 +175,8 @@ export async function ejecutarJulia(entrada: EntradaOptimizacion, opciones: Opci
         }
       }
     });
-    hijo.on("close", (codigo, senal) => {
+    hijo.once("close", (codigo, senal) => {
+      salidaObservada = true;
       if (terminado) return;
       if (codigo !== 0 || senal) { fallar("Julia terminó sin resultado válido."); return; }
       let salida: unknown;
