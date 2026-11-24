@@ -1,5 +1,5 @@
-import { ordenarDisponibilidad } from './modelo';
-import type { Diagnostico, Disponibilidad } from './types';
+import { ordenarDisponibilidad, resumenDiagnostico } from './modelo';
+import type { Diagnostico, Disponibilidad, Ejecucion } from './types';
 
 export interface CatalogoNombresDocentes {
   estado: 'cargando' | 'disponible' | 'error';
@@ -22,14 +22,20 @@ export function DisponibilidadOptimizacion({ filas, titulo = 'Disponibilidad doc
   </details>;
 }
 // Expone el diagnóstico del intento sin equiparar carga pendiente con infactibilidad.
-export default function DiagnosticoOptimizacion({ datos, resumirAplicada = false, catalogoDocentes, disponibilidadSecundaria = false }: {
-  datos: Diagnostico | null; resumirAplicada?: boolean; catalogoDocentes?: CatalogoNombresDocentes; disponibilidadSecundaria?: boolean;
+export default function DiagnosticoOptimizacion({ datos: detalle, ejecucion, resumirAplicada = false, catalogoDocentes, disponibilidadSecundaria = false }: {
+  datos: Diagnostico | null; ejecucion?: Ejecucion; resumirAplicada?: boolean; catalogoDocentes?: CatalogoNombresDocentes; disponibilidadSecundaria?: boolean;
 }) {
-  if (!datos) return null;
+  if (!detalle && !ejecucion) return null;
+  const datos = detalle ?? {};
   const faltantes = datos.faltantes?.filter(f => f.horas > 0) ?? [];
+  const resumen = resumenDiagnostico({ estado: ejecucion?.estado, resultado: ejecucion?.resultado, diagnostico: datos });
+  const cierre = datos.procesoJulia?.cierreProceso;
   const mensajeResumido = resumirAplicada && datos.codigo === 'aplicada'
     && datos.mensaje === 'Solución completa, válida y vigente incorporada como Propuesta. No está publicada.';
   return <section className="diagnostico-modelo" aria-label="Diagnóstico de la ejecución">
+    {resumen.causa && <p>{resumen.causa}</p>}
+    {resumen.incorporacion && <p>{resumen.incorporacion}</p>}
+    {cierre && <p>{cierre.estado === 'confirmada' ? 'Salida del proceso Julia confirmada.' : cierre.estado === 'no_iniciado' ? 'El proceso Julia no llegó a iniciarse.' : 'No se confirmó la salida del proceso Julia dentro de la espera acotada.'}</p>}
     {datos.mensaje && !mensajeResumido && <p>{datos.mensaje}</p>}
     {datos.fase && <details><summary>Etapa del cálculo</summary><p>Etapa informada por el sistema: {datos.fase}.</p></details>}
     {datos.errores && datos.errores.length > 0 && <ul>{datos.errores.map((error, i) => <li key={i}>{error}</li>)}</ul>}

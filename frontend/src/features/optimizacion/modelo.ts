@@ -32,6 +32,28 @@ export const etiquetasEstado = {
   carga_incompleta: 'Carga incompleta', limite_tiempo: 'Límite de tiempo sin incorporación', error: 'Error',
   interrumpida: 'Ejecución interrumpida', datos_desactualizados: 'Datos desactualizados',
 };
+// Separa la causa del cálculo de la incorporación y no atribuye límites históricos a HiGHS.
+export function resumenDiagnostico(ejecucion: { estado?: string; resultado?: Ejecucion['resultado']; diagnostico: Ejecucion['diagnostico'] }) {
+  const proceso = ejecucion.diagnostico?.procesoJulia;
+  const estado = ejecucion.estado ?? ejecucion.diagnostico?.codigo;
+  const etapas = { arranque: 'arranque', solver: 'llamada al solver' };
+  const subfases = { transferencia: 'transferencia del modelo', resolucion: 'resolución' };
+  let causa = '';
+  if (proceso?.origenFin === 'watchdog') {
+    causa = proceso.fase === 'extraccion'
+      ? 'El sistema detuvo la ejecución porque se agotó el tiempo para recuperar el resultado.'
+      : `Corte externo por tiempo agotado durante ${etapas[proceso.fase]}${proceso.subfaseSolver && proceso.fase === 'solver' ? `, ${subfases[proceso.subfaseSolver]}` : ''}. No es un TIME_LIMIT devuelto por HiGHS.`;
+  }
+  else if (estado === 'error' || proceso?.origenFin === 'error') causa = 'Error de ejecución o de incorporación del resultado.';
+  else if (proceso?.origenFin === 'interrupcion' || estado === 'interrumpida') causa = 'Ejecución interrumpida, sin incorporación.';
+  else if (ejecucion.resultado?.estado === 'infactible' || estado === 'infactible') causa = 'Inviabilidad reportada por el modelo.';
+  else if (ejecucion.resultado?.estado === 'limite_tiempo') causa = 'El optimizador alcanzó su límite de tiempo. No se pudo confirmar que hubiera encontrado el mejor horario posible.';
+  else if (ejecucion.resultado?.estado === 'optimo') causa = 'El optimizador confirmó el mejor resultado según los criterios del modelo.';
+  else if (estado === 'limite_tiempo') causa = 'Límite de tiempo registrado sin detalle suficiente para distinguir HiGHS de un corte externo.';
+  const incorporacion = estado === 'aplicada' ? 'Se incorporó una propuesta. No está publicada.'
+    : estado && estado !== 'en_ejecucion' ? 'No se incorporó una propuesta en este intento.' : '';
+  return { causa, incorporacion };
+}
 // Prioriza en el diagnóstico los docentes con menos bloques disponibles.
 export const ordenarDisponibilidad = (filas: Disponibilidad[]) => [...filas].sort((a, b) => a.bloquesDisponibles - b.bloquesDisponibles || a.profesorId - b.profesorId);
 // Conserva la planificación al enlazar al seguimiento del modelo.

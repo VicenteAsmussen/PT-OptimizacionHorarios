@@ -18,6 +18,52 @@ const preparar = () => ({ planificacion: { id: 2 }, puedeEjecutar: true, bloqueo
   laboratorios: { requiereDeclaracion: false, mensaje: 'Declare el total departamental por capacidad.' }, limiteSolverSegundos: 300, disponibilidadDocente: [], advertencia: 'Sugerencias sin garantía de disponibilidad.' });
 const ejecutar = estado => ({ id: 'e1', planificacionSemestreId: 2, estado, parametros: { recursos: [recurso] }, revisionEntrada: 'revision-ejecutada', versionModelo: 'v1', resultado: null, diagnostico: null });
 const memoria = () => { const mapa = new Map(); return { getItem: k => mapa.get(k) ?? null, setItem: (k, v) => mapa.set(k, v) }; };
+
+test('diagnóstico distingue causa, incorporación, etapas y registros históricos', async () => {
+  for (const fase of ['arranque', 'solver', 'extraccion']) {
+    const datos = { procesoJulia: { origenFin: 'watchdog', fase, subfaseSolver: 'transferencia', cierreProceso: { estado: 'no_confirmada' } } };
+    const ejecucion = { ...ejecutar('limite_tiempo'), diagnostico: datos };
+    const vista = await montar('./DiagnosticoOptimizacion.tsx', 'DiagnosticoOptimizacion', {}, { datos, ejecucion });
+    if (fase === 'extraccion') {
+      assert.match(vista.texto(), /El sistema detuvo la ejecución porque se agotó el tiempo para recuperar el resultado\./);
+      assert.doesNotMatch(vista.texto(), /TIME_LIMIT|HiGHS/);
+    } else {
+      assert.match(vista.texto(), /Corte externo por tiempo agotado/);
+      assert.match(vista.texto(), /No es un TIME_LIMIT devuelto por HiGHS/);
+    }
+    assert.match(vista.texto(), /No se incorporó una propuesta/);
+    assert.match(vista.texto(), /No se confirmó la salida del proceso Julia/);
+    if (fase === 'solver') assert.match(vista.texto(), /transferencia del modelo/);
+    vista.salir();
+  }
+  for (const estado of ['aplicada', 'limite_tiempo']) {
+    const datos = { procesoJulia: { origenFin: 'salida', fase: 'extraccion', cierreProceso: { estado: 'confirmada' } } };
+    const ejecucion = { ...ejecutar(estado), resultado: { estado: 'limite_tiempo' }, diagnostico: datos };
+    const vista = await montar('./DiagnosticoOptimizacion.tsx', 'DiagnosticoOptimizacion', {}, { datos, ejecucion });
+    assert.match(vista.texto(), /El optimizador alcanzó su límite de tiempo\. No se pudo confirmar que hubiera encontrado el mejor horario posible\./);
+    assert.doesNotMatch(vista.texto(), /TIME_LIMIT|HiGHS/);
+    assert.match(vista.texto(), estado === 'aplicada' ? /Se incorporó una propuesta. No está publicada/ : /No se incorporó una propuesta/);
+    vista.salir();
+  }
+  assert.match(modelo.resumenDiagnostico({ ...ejecutar('limite_tiempo') }).causa, /sin detalle suficiente/);
+  assert.match(modelo.resumenDiagnostico({ ...ejecutar('error'), resultado: { estado: 'limite_tiempo' } }).causa, /Error de ejecución o de incorporación/);
+  assert.match(modelo.resumenDiagnostico(ejecutar('infactible')).causa, /Inviabilidad reportada por el modelo/);
+});
+
+test('el óptimo confirmado no implica que se haya incorporado una propuesta', async () => {
+  for (const [estado, estadoResultado, optimoConfirmado, incorporacion] of [
+    ['aplicada', 'optimo', true, 'Se incorporó una propuesta. No está publicada.'],
+    ['carga_incompleta', 'optimo', true, 'No se incorporó una propuesta en este intento.'],
+    ['aplicada', 'factible', false, 'Se incorporó una propuesta. No está publicada.'],
+    ['aplicada', null, false, 'Se incorporó una propuesta. No está publicada.'],
+  ]) {
+    const ejecucion = { ...ejecutar(estado), resultado: estadoResultado ? { estado: estadoResultado } : null };
+    const vista = await montar('./DiagnosticoOptimizacion.tsx', 'DiagnosticoOptimizacion', {}, { datos: ejecucion.diagnostico, ejecucion });
+    const parrafos = vista.nodos().filter(n => n.type === 'p').map(texto);
+    assert.deepEqual(parrafos, optimoConfirmado ? ['El optimizador confirmó el mejor resultado según los criterios del modelo.', incorporacion] : [incorporacion]);
+    vista.salir();
+  }
+});
 function nodos(arbol) {
   return React.isValidElement(arbol) ? [arbol, ...React.Children.toArray(arbol.props.children).flatMap(nodos)] : [];
 }
@@ -295,7 +341,14 @@ test('seguimiento muestra inicio y término sin identificadores ni detalles téc
   assert.ok(primerPlano.includes(modelo.fechaEjecucion(ejecucion.iniciadaEn)));
   assert.ok(primerPlano.includes(modelo.fechaEjecucion(ejecucion.finalizadaEn)));
   assert.doesNotMatch(vista.texto(), /Detalles técnicos|ID de ejecución|revision-ejecutada|Versión del modelo|Estado del solver|Recursos declarados en esta ejecución/);
-  assert.ok(!primerPlano.includes('Estado del solver')); assert.match(primerPlano, /La propuesta no está publicada/);
+  assert.doesNotMatch(primerPlano, /no está publicada/i);
+  const diagnostico = vista.nodos().find(n => n.type?.name === 'DiagnosticoOptimizacion');
+  assert.ok(diagnostico);
+  assert.equal(diagnostico.props.ejecucion, ejecucion);
+  const detalle = await montar('./DiagnosticoOptimizacion.tsx', 'DiagnosticoOptimizacion', {}, diagnostico.props);
+  const pantalla = primerPlano + textoVisible(detalle.arbol());
+  assert.equal((pantalla.match(/no está publicada/gi) ?? []).length, 1);
+  detalle.salir();
   assert.equal(vista.nodos().filter(n => n.type === 'a' && texto(n) === 'Ver horario generado').length, 1);
   assert.doesNotMatch(primerPlano, /Recargar o salir de esta página/);
   assert.match(primerPlano, /Última ejecución/); vista.salir();

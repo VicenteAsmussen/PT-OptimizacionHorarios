@@ -121,12 +121,11 @@ function PreparacionModelo({ id }: { id: number }) {
         {activa ? <><p>Recargar o salir de esta página no cancela el cálculo. Al volver se consulta la última ejecución, sin iniciar otra.</p>
           <p>Puedes navegar mientras se genera la propuesta. Los datos utilizados no se pueden editar hasta que termine.</p></>
           : ejecucion.estado !== 'aplicada' && <p>No se incorporaron horarios parciales. No se reiniciará el cálculo automáticamente.</p>}
-        {ejecucion.estado === 'aplicada' && <p>La propuesta no está publicada.</p>}
         <dl className="horas-optimizacion">
           <div><dt>Inicio</dt><dd>{fechaEjecucion(ejecucion.iniciadaEn)}</dd></div>
           <div><dt>Término</dt><dd>{ejecucion.finalizadaEn ? fechaEjecucion(ejecucion.finalizadaEn) : activa ? 'En curso' : 'No informado'}</dd></div>
         </dl>
-        <DiagnosticoOptimizacion datos={ejecucion.diagnostico} resumirAplicada={ejecucion.estado === 'aplicada'} catalogoDocentes={catalogoDocentes} disponibilidadSecundaria={disponibilidadActualPrioritaria} />
+        <DiagnosticoOptimizacion datos={ejecucion.diagnostico} ejecucion={ejecucion} resumirAplicada={ejecucion.estado === 'aplicada'} catalogoDocentes={catalogoDocentes} disponibilidadSecundaria={disponibilidadActualPrioritaria} />
       </> : estado?.consultado && <p>No hay ejecuciones registradas para esta planificación.</p>}
       <button type="button" className="boton" disabled={estado?.enviando} onClick={() => { void seguimiento.actualizar(id); setIntento(i => i + 1); }}><IconoActualizar />Actualizar preparación y seguimiento</button>
       {estado?.incierta && <div className="recuperacion-modelo" role="alert"><p>No se confirmó la respuesta de inicio. Consulta el seguimiento antes de reenviar. Si decides reenviar, se conservarán la misma clave y los parámetros originales, aunque hayas recargado.</p>

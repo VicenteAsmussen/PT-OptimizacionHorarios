@@ -11,6 +11,11 @@ export interface Preparacion {
   disponibilidadDocente: Disponibilidad[]; certificadoPrioridad: CertificadoPrioridad | null; advertencia: string;
 }
 export interface Diagnostico {
+  procesoJulia?: {
+    origenFin: 'salida' | 'watchdog' | 'interrupcion' | 'error'; fase: 'arranque' | 'solver' | 'extraccion';
+    subfaseSolver?: 'transferencia' | 'resolucion';
+    cierreProceso?: { estado: 'confirmada' | 'no_confirmada' | 'no_iniciado'; esperaMs: number; senalEnviada: boolean };
+  };
   mensaje?: string; codigo?: string; fase?: string; errores?: string[]; valida?: boolean; completa?: boolean;
   faltantes?: { ofertaId: number; asignaturaCodigo: string; seccion: number; tipoHoraId: number; componente?: string; horas: number }[];
   disponibilidadDocente?: Disponibilidad[]; certificadoPrioridad?: CertificadoPrioridad;

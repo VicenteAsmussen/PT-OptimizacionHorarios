@@ -7,7 +7,7 @@ import type { PlanificacionSemestre } from '../../types/periodos';
 import { crearSeguimiento } from './seguimiento';
 import type { EstadoSeguimiento } from './seguimiento';
 import { optimizacionApi } from './optimizacion.api';
-import { destinoAlTerminar, etiquetasEstado, puedeOptimizar, rutaModelo, rutaResultados } from './modelo';
+import { destinoAlTerminar, etiquetasEstado, puedeOptimizar, rutaModelo, rutaResultados, resumenDiagnostico } from './modelo';
 import type { Ejecucion } from './types';
 import IconoModelo from './IconoModelo';
 
@@ -45,11 +45,11 @@ function SeguimientoCuenta({ children }: { children: ReactNode }) {
   useEffect(() => seguimiento.alTerminar(ejecucion => {
     const actual = ubicacionActual.current;
     if (destinoAlTerminar(ejecucion, actual.pathname, actual.search) === 'redirigir') {
-      notificaciones.exito('La solución se incorporó como Propuesta. No está publicada.');
+      notificaciones.exito(`La solución se incorporó como Propuesta. No está publicada.${resumenDiagnostico(ejecucion).causa ? ` ${resumenDiagnostico(ejecucion).causa}` : ''}`);
       navegar(rutaResultados(ejecucion.planificacionSemestreId));
     } else {
       setAviso(ejecucion);
-      const texto = `Modelo: ${etiquetasEstado[ejecucion.estado]}.`;
+      const texto = `Modelo: ${etiquetasEstado[ejecucion.estado]}. ${resumenDiagnostico(ejecucion).causa}`;
       if (ejecucion.estado === 'aplicada') notificaciones.exito(texto);
       else notificaciones.advertencia(texto);
     }
@@ -90,6 +90,7 @@ function SeguimientoCuenta({ children }: { children: ReactNode }) {
     </aside>}
     {habilitado && aviso && filas[aviso.planificacionSemestreId]?.ejecucion?.id === aviso.id && <aside className="aviso-optimizacion" aria-label="Resultado del modelo">
       <p role="status"><strong>{etiquetasEstado[aviso.estado]}</strong>{contextoPlanificacion(aviso.planificacionSemestreId)}</p>
+      {resumenDiagnostico(aviso).causa && <p>{resumenDiagnostico(aviso).causa}</p>}
       <Link className="enlace-modelo" to={aviso.estado === 'aplicada' ? rutaResultados(aviso.planificacionSemestreId) : rutaModelo(aviso.planificacionSemestreId)}>
         {aviso.estado === 'aplicada' && <IconoModelo tipo="ver" />}
         {aviso.estado === 'aplicada' ? 'Ver horario generado' : 'Ver diagnóstico'}</Link>{' '}

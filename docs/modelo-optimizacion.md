@@ -52,7 +52,8 @@ El campo opcional `diagnostico.procesoJulia` conserva el origen del término, la
 - **Corte durante el solver:** `subfaseSolver` identifica el último hito recibido, `transferencia` o `resolucion`. El tiempo de la subfase interrumpida es parcial, hasta el corte. Los registros anteriores o sin estos hitos omiten los campos nuevos, no se reconstruyen tiempos históricos. Los hitos fuera de orden o repetidos se ignoran.
 - **Progreso:** el callback público de HiGHS.jl 1.10.0 observa tiempo interno, nodos, objetivo candidato, cota dual y brecha relativa. Espacia las muestras al menos `max(5 segundos, límite configurado / 60)`, actualmente 30 segundos para 1800, y conserva el máximo de 60 muestras. Sin límite configurado usa cinco segundos. No emite texto libre ni datos de docentes. Un candidato interno no acredita un horario completo ni validado. Los valores no finitos se representan como `null`.
 - **Límites:** el progreso no renueva los watchdogs. El solver tiene un límite predeterminado y máximo de 1800 segundos, se mantienen los márgenes y el límite total de 64 KiB del canal de control. Si el callback no puede instalarse se registra `progresoNoDisponible`, sin alterar el cálculo.
-- **Interpretación:** `origenFin: "watchdog"` con resultado nulo significa interrupción del proceso, no una respuesta `TIME_LIMIT` de HiGHS ni una prueba de infactibilidad. La ausencia de muestras tampoco demuestra ausencia de soluciones, el solver puede no invocar el callback durante parte de su trabajo.
+- **Interpretación:** el corte externo por tiempo se registra como `limite_tiempo` con `origenFin: "watchdog"`, la fase (`arranque`, `solver` o `extraccion`) y resultado nulo. No equivale a una respuesta `TIME_LIMIT` de HiGHS ni a una declaración de inviabilidad. El diagnóstico visible distingue estas causas del error de ejecución e indica por separado si se incorporó una propuesta. Si un intento anterior no contiene evidencia suficiente, se muestra el límite sin atribuirlo a HiGHS. La ausencia de muestras de progreso tampoco demuestra ausencia de soluciones.
+- **Confirmación del cierre:** ante un corte externo o una interrupción, se descartan las salidas del intento y se envía `SIGKILL`. La espera asíncrona de `exit` o `close` tiene un plazo de 2000 ms y no extiende el cálculo ni bloquea la API. El campo opcional `procesoJulia.cierreProceso` registra el estado (`confirmada`, `no_confirmada` o `no_iniciado`), la duración de la espera y si se envió la señal. Cuando no se confirma la salida, el servidor también lo registra sin exponer la salida del hijo.
 
 El campo opcional `procesoJulia.registroHiGHS` agrega un registro nativo filtrado:
 
@@ -62,7 +63,7 @@ El campo opcional `procesoJulia.registroHiGHS` agrega un registro nativo filtrad
 
 En HiGHS 1.7.2, `log_to_console=false` también impide estos callbacks cuando no hay un stream de log. Por eso el registro se instala primero y luego activa `log_to_console` y `output_flag`, el callback sustituye la escritura a consola. Solo cambian opciones de observación, no las del algoritmo. Si falla la activación se restauran silencio, progreso y opciones previas. Si no se puede restablecer un canal seguro, se aborta antes de `optimize!`. El registro está desactivado por defecto en el helper y se habilita explícitamente desde `ejecutar.jl`. Registrar mensajes puede añadir sobrecarga, no acelera la resolución.
 
-El diagnóstico no publica logs crudos, rutas, credenciales ni contenidos de entrada. No agrega una barra de porcentaje ni modifica la interfaz operativa. `pruebas-diagnostico.jl` simula eventos y adjunta un callback a un modelo vacío, sin resolverlo, las pruebas de transporte y persistencia usan procesos y repositorios simulados.
+El diagnóstico no publica logs crudos, rutas, credenciales ni contenidos de entrada. No agrega una barra de porcentaje. `pruebas-diagnostico.jl` simula eventos y adjunta un callback a un modelo vacío, sin resolverlo. El alcance de las comprobaciones de cierre y persistencia se describe más abajo.
 
 `pruebas-etapas.jl` compara dos modelos sintéticos de cuatro variables binarias, uno con la llamada habitual y otro con transferencia y registro explícitos. Comprueba el mismo óptimo, solución, opciones del algoritmo e hitos, con un límite de solver de tres segundos por modelo. Solo esta prueba desactiva presolve para observar también el progreso MIP, el modelo académico conserva sus opciones. Se ejecuta con `julia --startup-file=no --project=backend/optimizacion/julia backend/optimizacion/julia/pruebas-etapas.jl`, no usa datos académicos ni inicia una planificación real.
 
@@ -212,7 +213,7 @@ Desde `backend`:
 pnpm exec vitest run tests/optimizacion/optimizacion-matematica.test.ts tests/optimizacion/optimizacion-proceso.test.ts
 ```
 
-Las pruebas son sintéticas, en memoria y con proceso falso. No ejecutan seeds, DB, datos de desarrollo, instalaciones ni solver. Cubren adaptación, revisión determinista, T/P/L, carga cero, inconsistencias, 50 % por pareja, críticas, pesos, recursos, externos, continuidad, estados incompletos, transporte acotado, relojes y apagado.
+Estas pruebas son sintéticas, en memoria y con proceso simulado. No ejecutan seeds, bases de datos ni el solver. Cubren adaptación, revisión determinista, T/P/L, carga cero, inconsistencias, 50 % por pareja, críticas, pesos, recursos, externos, continuidad, estados incompletos, transporte acotado, relojes y apagado.
 
 La imagen de prueba se construyó y ejecutó sin red, con Julia 1.11.5, JuMP 1.25.0, HiGHS 1.10.0 y JSON3 1.14.3. `pruebas.jl` aprobó 30 comprobaciones sintéticas de carga, recursos, externos, protección por parejas sin selección global, críticas y continuidad. Para repetirlas sobre una imagen aprovisionada:
 
@@ -221,6 +222,29 @@ julia --startup-file=no --project=optimizacion/julia optimizacion/julia/pruebas.
 ```
 
 Las pruebas PostgreSQL de `tests/integracion/optimizacion.postgres.test.ts` son opt-in. Antes de escribir verifican explícitamente la base `horarios_test`, el usuario restringido y un bloqueo exclusivo de pruebas. Cubren idempotencia, exclusión de ediciones, vigencia, interrupciones, aplicación atómica y preservación de externos/publicados. No deben habilitarse contra desarrollo.
+
+### Corte externo e incorporación de propuestas
+
+| Comprobación | Evidencia |
+|---|---|
+| Rechazo de salida tardía y cierre sin confirmar | Pruebas del proceso simulado. La espera concluye al observar la salida o al vencer el plazo, sin aceptar datos tardíos. |
+| Disponibilidad HTTP durante el cierre | `optimizacion-http.test.ts` ejercita la ruta de consulta mientras la confirmación está pendiente y comprueba la salida de un hijo real de Node. Se sustituyen Julia, la autenticación y el repositorio en esa prueba. |
+| Confirmación con Julia real | En un contenedor aislado se ejecutó `ejecutarJulia` sin sustituir el hijo y con un plazo de arranque de 100 ms, solo para la prueba. Se observó `exit` por `SIGKILL` antes del rechazo, el PID ya no existía y `cierreProceso.estado` fue `confirmada`. Un servidor HTTP mínimo respondió a una consulta durante la ejecución, sin usar la aplicación completa ni una base de datos. |
+| Persistencia transaccional | `optimizacion-http.postgres.test.ts`, en PostgreSQL 18 descartable, usa rutas, permisos y persistencia reales con respuestas de Julia simuladas. Un `TIME_LIMIT` completo y válido queda en Propuesta, no Publicado. Una salida incompleta o inválida y los cortes de arranque, solver y extracción conservan la huella de los horarios y el estado Preparación. |
+
+### Ensayo aislado con HiGHS nativo
+
+Se reprodujo dos veces `TIME_LIMIT` con `FEASIBLE_POINT` y 64 bloques completos, **solo al proporcionar un inicio MIP factible en el ensayo**. Se usaron `construir_modelo` y `extraer_salida` sin cambios, junto con el adaptador y el validador TypeScript. Las dos salidas pasaron la validación completa, sin faltantes ni errores.
+
+El ensayo se realizó sin red ni base de datos, con Julia 1.11.5, JuMP 1.25.0, HiGHS.jl 1.10.0 y HiGHS nativo 1.7.2. La entrada sintética tenía dos asignaturas con 16 secciones cada una, dos bloques teóricos por sección, docentes independientes, una categoría ficticia con 32 salas y 256 combinaciones de protección. El inicio MIP asignó a cada oferta un intervalo disponible de dos bloques y activó las protecciones sin coincidencia. No se cambió la formulación ni el presupuesto operativo.
+
+| Límite de ensayo | Inicio MIP | Resultado nativo |
+|---|---|---|
+| 1 s | Con y sin | `OPTIMAL`, objetivo 0, 64 bloques en ambos casos. |
+| 0,001 s | Sin | Dos `TIME_LIMIT` con `NO_SOLUTION`, sin asignaciones. |
+| 0,001 s | Con | Dos `TIME_LIMIT` con `FEASIBLE_POINT`, objetivo 35, 64 bloques. |
+
+El corte fue del solver durante el preprocesamiento, no del vigilante externo. Los dos casos completos registraron aproximadamente 0,057 y 0,028 s de tiempo de solver. El ensayo no demuestra que HiGHS encuentre por sí solo una solución completa al límite, ni comprueba de extremo a extremo que una salida nativa `TIME_LIMIT` se incorpore desde `ejecutar.jl` hasta la base de datos. La incorporación se comprobó por separado con la salida simulada.
 
 ### Ensayo local del flujo completo
 

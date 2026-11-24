@@ -30,6 +30,7 @@ export interface DiagnosticoProcesoJulia {
   origenFin: "salida" | "watchdog" | "interrupcion" | "error";
   fase: "arranque" | "solver" | "extraccion";
   subfaseSolver?: "transferencia" | "resolucion";
+  cierreProceso?: { estado: "confirmada" | "no_confirmada" | "no_iniciado"; esperaMs: number; senalEnviada: boolean };
   tiemposMs: {
     total: number;
     arranque: number;

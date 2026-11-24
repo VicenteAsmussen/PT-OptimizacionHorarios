@@ -28,6 +28,12 @@ Antes de la primera ejecución, los recursos tienen prioridad sobre el estado va
 
 La vista operativa no muestra desplegables de detalles técnicos ni de preparación, IDs de ejecución, revisiones o versión del modelo. Esos datos se conservan en el registro de la ejecución, no se eliminan del contrato ni de la persistencia. El resumen no repite el mensaje de incorporación del servidor ni presenta hashes o fechas ISO. Los motivos que impiden iniciar permanecen visibles junto al formulario, aunque el envío esté deshabilitado. Los diagnósticos específicos pueden incluir detalles de fase y cota de prioridad.
 
+Si se agota el tiempo de extracción, el diagnóstico explica que el sistema detuvo la ejecución porque se agotó el tiempo para recuperar el resultado. La vista indica por separado que no se incorporó una propuesta.
+
+Si el optimizador alcanza su propio límite de tiempo, el diagnóstico aclara que no se pudo confirmar que hubiera encontrado el mejor horario posible. El aviso no presupone que se haya incorporado una propuesta.
+
+Cuando el optimizador confirma un resultado óptimo, el diagnóstico indica que es el mejor según los criterios del modelo. No significa que estén completos todos los bloques. Si se incorporó una propuesta, el diagnóstico informa una sola vez que no está publicada.
+
 Los laboratorios se envían siempre como una categoría abstracta `laboratorios-modelo`, de capacidad 60 y con la cantidad confirmada, incluso si es cero. La fuente declara expresamente el supuesto y la ausencia de inventario físico. La cantidad no se guarda como configuración, solo forma parte de los parámetros de la solicitud, incluida su recuperación idempotente. El contrato genérico del backend no cambia ni fuerza capacidad 60 para otros clientes.
 
 El seguimiento distingue ejecución activa, incorporación, infactibilidad, carga incompleta, límite de tiempo, error, interrupción y datos desactualizados. La incorporación no demuestra optimalidad, un límite de tiempo puede producir una solución incorporable sin optimalidad demostrada.
