@@ -16,11 +16,6 @@ function partesCompactas(sesion: SesionResultado, sala: string) {
   return [`Sec. ${sesion.seccion} · ${tipos[tipo] ?? sesion.tipoHora.tipo}`, estado];
 }
 
-// Reúne en una línea el contexto académico compacto de la sesión.
-export function resumenCompacto(sesion: SesionResultado, sala: string) {
-  return partesCompactas(sesion, sala).join(' · ');
-}
-
 // Separa el contexto compacto de la sesión en líneas de presentación.
 export function lineasCompactas(sesion: SesionResultado, sala: string) {
   return partesCompactas(sesion, sala);
