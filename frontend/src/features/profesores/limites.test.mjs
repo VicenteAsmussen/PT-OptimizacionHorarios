@@ -56,12 +56,16 @@ test("los formularios conectan límites nativos, ayuda accesible y funciones aux
     assert.match(correo, /maxLength=\{254\}/);
     assert.match(clave, /maxLength=\{72\}/);
     assert.match(clave, /aria-describedby="[^"]+"/);
-    assert.match(fuente, /72 bytes/);
-    assert.match(fuente, /más de un byte/);
+    const idAyuda = clave.match(/aria-describedby="(ayuda-[^ ]+)/)?.[1];
+    assert.ok(idAyuda);
+    assert.match(fuente, new RegExp(`<p id="${idAyuda}"[^>]*>Máximo 72 caracteres\\.</p>`));
     assert.match(fuente, /prepararNuevoAcceso\(correo, clave\)/);
     if (archivo === "FormularioProfesor.tsx") {
       assert.match(fuente.match(/<input id="profesor-nombre"[\s\S]*?\/>/)?.[0], /maxLength=\{100\}/);
-    } else assert.match(fuente, /prepararCambiosAcceso\(correo, clave,/);
+    } else {
+      assert.match(fuente, /prepararCambiosAcceso\(correo, clave,/);
+      assert.match(fuente, /accion === "editarAcceso" && <p[^>]*>Puedes cambiar el correo, la contraseña o ambos\. Si dejas la contraseña vacía, se conserva la actual\.<\/p>/);
+    }
   }
 });
 

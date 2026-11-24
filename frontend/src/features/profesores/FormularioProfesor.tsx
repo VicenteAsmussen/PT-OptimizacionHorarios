@@ -106,7 +106,7 @@ export default function FormularioProfesor({ profesor, departamentos, rol, alcan
               setClave(evento.target.value);
               evento.target.setCustomValidity(errorClaveAcceso(evento.target.value));
             }} />
-          <p id="ayuda-profesor-clave" className={estilos.ayuda}>Máximo 72 bytes UTF-8; algunos caracteres, como acentos y emojis, ocupan más de un byte.</p>
+          <p id="ayuda-profesor-clave" className={estilos.ayuda}>Máximo 72 caracteres.</p>
           <p id="error-profesor-clave" role={errorClave ? "alert" : undefined} className={errorClave ? estilos.error : undefined}>{errorClave}</p>
         </div>
       </>}

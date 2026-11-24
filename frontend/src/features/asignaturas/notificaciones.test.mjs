@@ -16,6 +16,7 @@ async function montar(ruta, api, propiedades) {
   let identificador = 0;
   const iguales = (a, b) => a && b && a.length === b.length && a.every((valor, i) => Object.is(valor, b[i]));
   const react = { ...React,
+    useId: () => 'ayuda-sala',
     useState(inicial) {
       const indice = cursor++;
       celdas[indice] ??= { valor: typeof inicial === 'function' ? inicial() : inicial };
@@ -91,11 +92,59 @@ function cambiar(montaje, tipo, indice, valor) {
   elementos(montaje.dibujar(), e => e.type === tipo)[indice].props.onChange({ target: { value: valor } });
   formulario(montaje).props.onChange?.();
 }
-const asignatura = { codigo: 'PRUEBA', nombre: 'Asignatura de prueba', departamentoId: 1, semestreMalla: 2, esCritica: false, tiposHora: [] };
+const asignatura = { codigo: 'PRUEBA', nombre: 'Asignatura de prueba', departamentoId: 1, semestreMalla: 2, esCritica: false,
+  departamento: { id: 1, nombre: 'Departamento de prueba' }, requiereSala: true, tiposHora: [] };
 const semestre = { id: 2, actual: true, estadoPlanificacion: 'preparacion', codigo: '2026-2', carrera: { nombre: 'Carrera de prueba' } };
 const oferta = { id: 8, asignaturaCodigo: asignatura.codigo, planificacionSemestreId: 2, seccion: 1, cupos: 0, asignaciones: [], horarios: [] };
 const propiedadesEdicion = alCompletar => ({ asignatura, departamentos: [{ id: 1, nombre: 'Departamento de prueba' }], alCerrar() {}, alCompletar });
 const propiedadesSecciones = alCambiarOfertas => ({ asignatura, semestre, alCerrar() {}, alCambiarOfertas });
+
+test('Requiere sala aparece debajo de Asignatura crítica y envía el booleano desmarcado', async () => {
+  const llamadas = [];
+  const montaje = await montar('./EditarAsignatura.tsx', { editar: (...args) => llamadas.push(args) }, propiedadesEdicion(() => {}));
+  const etiquetas = elementos(montaje.dibujar(), e => e.type === 'div' && Array.isArray(e.props.children)
+    && texto(e.props.children[0]) === 'Asignatura crítica')[0]?.props.children;
+  assert.equal(texto(etiquetas?.[1]), 'Requiere sala');
+  const entrada = elementos(etiquetas[1], e => e.type === 'input')[0];
+  assert.equal(entrada.props.checked, true);
+  assert.equal(entrada.props.disabled, false);
+  entrada.props.onChange({ target: { checked: false } });
+  await enviar(montaje);
+  assert.equal(llamadas[0][1].requiereSala, false);
+  montaje.desmontar();
+});
+
+test('las horas positivas impiden desmarcar, pero permiten volver a marcar una asignatura sin sala', async () => {
+  for (const requiereSala of [true, false]) {
+    const llamadas = [];
+    const montaje = await montar('./EditarAsignatura.tsx', { editar: (...args) => llamadas.push(args) }, {
+      ...propiedadesEdicion(() => {}), asignatura: { ...asignatura, requiereSala,
+        tiposHora: [{ tipoHoraId: 1, horas: 2, tipoHora: { id: 1, tipo: 'Teoría' } }] },
+    });
+    const arbol = montaje.dibujar();
+    const etiqueta = elementos(arbol, e => e.type === 'label' && texto(e) === 'Requiere sala')[0];
+    const { props } = elementos(etiqueta, e => e.type === 'input')[0];
+    assert.equal(props.checked, requiereSala);
+    assert.equal(props.disabled, requiereSala);
+    if (requiereSala) {
+      const ayuda = elementos(arbol, e => e.type === 'p' && e.props.id === props['aria-describedby'])[0];
+      assert.match(texto(ayuda), /tiene horas registradas/);
+    } else {
+      props.onChange({ target: { checked: true } });
+    }
+    await enviar(montaje);
+    assert.equal(llamadas[0][1].requiereSala, requiereSala ? undefined : true);
+    montaje.desmontar();
+  }
+});
+
+test('la ficha con dependencias académicas sigue sin formulario de edición', async () => {
+  const montaje = await montar('./EditarAsignatura.tsx', {}, {
+    ...propiedadesEdicion(() => {}), asignatura: { ...asignatura, tieneDependenciasAcademicas: true },
+  });
+  assert.equal(formulario(montaje), undefined);
+  montaje.desmontar();
+});
 
 test('validaciones de asignatura solo se anuncian junto al formulario y no escriben ni actualizan contadores', async () => {
   for (const [tipo, indice, valor, mensaje] of [
