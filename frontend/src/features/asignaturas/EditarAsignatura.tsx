@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react';
+import { useId, useState, type FormEvent } from 'react';
 import { asignaturasApi } from './asignaturas.api';
 import type { Asignatura, Departamento } from './types';
 import { useMutacion } from './useMutacion';
@@ -15,13 +15,17 @@ export default function EditarAsignatura({ asignatura, departamentos, alCerrar, 
   const [departamentoId, setDepartamentoId] = useState(asignatura.departamentoId);
   const [semestreMalla, setSemestreMalla] = useState(asignatura.semestreMalla);
   const [esCritica, setEsCritica] = useState(asignatura.esCritica);
+  const [requiereSala, setRequiereSala] = useState(asignatura.requiereSala);
+  const bloqueaDesmarcar = asignatura.requiereSala && asignatura.tiposHora.some(tipo => tipo.horas > 0);
+  const idAyudaSala = useId();
   const { ocupado, error, ejecutar, limpiarError } = useMutacion();
   // Comprueba los campos editables antes de solicitar el cambio de asignatura.
   function enviar(evento: FormEvent) {
     evento.preventDefault();
     if (soloLectura) return;
     void ejecutar(async () => {
-      await asignaturasApi.editar(asignatura.codigo, { nombre: nombre.trim(), departamentoId, semestreMalla, esCritica });
+      await asignaturasApi.editar(asignatura.codigo, { nombre: nombre.trim(), departamentoId, semestreMalla, esCritica,
+        ...(requiereSala !== asignatura.requiereSala ? { requiereSala } : {}) });
     }, alCompletar, () => {
       if (!nombre.trim()) throw new Error('Ingresa el nombre de la asignatura.');
       if (!departamentos.some(d => d.id === departamentoId)) throw new Error('Selecciona un departamento válido.');
@@ -53,7 +57,13 @@ export default function EditarAsignatura({ asignatura, departamentos, alCerrar, 
         </select></label>
         <label>Semestre de malla<input type="number" required min="1" max="14" step="1" value={semestreMalla}
           onChange={e => setSemestreMalla(Number(e.target.value))} /></label>
-        <label className={estilos.casilla}><input type="checkbox" checked={esCritica} onChange={e => setEsCritica(e.target.checked)} />Asignatura crítica</label>
+        <div>
+          <label className={estilos.casilla}><input type="checkbox" checked={esCritica} onChange={e => setEsCritica(e.target.checked)} />Asignatura crítica</label>
+          <label className={estilos.casilla}><input type="checkbox" checked={requiereSala} disabled={bloqueaDesmarcar}
+            aria-describedby={bloqueaDesmarcar ? idAyudaSala : undefined}
+            onChange={e => setRequiereSala(e.target.checked)} />Requiere sala</label>
+          {bloqueaDesmarcar && <p id={idAyudaSala} className={estilos.ayudaFormulario}>No se puede desmarcar porque la asignatura tiene horas registradas.</p>}
+        </div>
         <p className={`${estilos.ayudaFormulario} ${estilos.campoCompleto}`}>Se conservan las carreras y los tipos de hora asociados.</p>
         <div className={`${estilos.acciones} ${estilos.pieFormulario} ${estilos.campoCompleto}`}>
           <button className={`boton boton--gris ${estilos.accionSecundaria}`} type="button" onClick={alCerrar}>Cancelar</button>

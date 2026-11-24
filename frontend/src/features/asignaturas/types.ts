@@ -7,6 +7,7 @@ export interface Asignatura {
   departamento: Departamento;
   semestreMalla: number;
   esCritica: boolean;
+  requiereSala: boolean;
   tiposHora: { tipoHoraId: number; horas: number; tipoHora: { id: number; tipo: string } }[];
 }
 export interface ProfesorSeccion {
@@ -25,4 +26,5 @@ export interface Oferta {
   horarios: { id: number }[];
 }
 export interface DatosOferta { seccion: number; asignaciones: { tipoHoraId: number; profesorId: number }[]; cupos: number }
-export type CambiosAsignatura = Pick<Asignatura, 'nombre' | 'departamentoId' | 'semestreMalla' | 'esCritica'>;
+export type CambiosAsignatura = Pick<Asignatura, 'nombre' | 'departamentoId' | 'semestreMalla' | 'esCritica'>
+  & Partial<Pick<Asignatura, 'requiereSala'>>;

@@ -62,9 +62,9 @@ export default function AccionesProfesor({ accion, profesor, rol, alcance, alCer
             setClave(evento.target.value);
             evento.target.setCustomValidity(errorClaveAcceso(evento.target.value));
           }} />
-        <p id="ayuda-acceso-clave" className={estilos.ayuda}>Máximo 72 bytes UTF-8; algunos caracteres, como acentos y emojis, ocupan más de un byte.</p>
+        <p id="ayuda-acceso-clave" className={estilos.ayuda}>Máximo 72 caracteres.</p>
         <p id="error-acceso-clave" role={errorClave ? "alert" : undefined}>{errorClave}</p>
-        {accion === "editarAcceso" && <p className={estilos.ayuda}>Deja la contraseña vacía para conservarla. Puedes cambiar solo el correo o solo la contraseña.</p>}
+        {accion === "editarAcceso" && <p className={estilos.ayuda}>Puedes cambiar el correo, la contraseña o ambos. Si dejas la contraseña vacía, se conserva la actual.</p>}
       </div>
     </> : accion === "ver" ? <div className={estilos.fichaProfesor}>
       <section className={estilos.identidad} aria-label="Identificación del profesor">
