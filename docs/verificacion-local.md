@@ -10,6 +10,7 @@ La fase siguiente tiene un [ensayo HTTP/SQL separado con PostgreSQL efímero y r
 | --- | --- | --- |
 | `node scripts/verificar-local.mjs --listar` | Muestra las listas positivas exactas, sin ejecutar pruebas | Solo lectura |
 | `node --test scripts/verificar-local.test.mjs frontend/tests/soporte/vite.test.mjs` | Regresión del selector, entorno hijo, conservación de scripts y aislamiento Vite | Sin aplicación ni base, un servidor SSR sin listener HTTP/WebSocket |
+| `node --test scripts/verificar-demostracion.test.mjs` | Prueba aislada de los validadores de demostración: autorización explícita, validación del destino y aislamiento del entorno hijo | No ejecuta el ensayo HTTP/SQL, no arranca PostgreSQL ni ejecuta Julia |
 | `pnpm --dir frontend test:transporte` | Cliente API y proxy Vite contra destino HTTP sintético | Servidores loopback efímeros y caché temporal externa |
 | `pnpm --dir frontend test:funcionalidades` | 40 archivos seleccionados de `src`, lógica, render y estilos con dobles | Vite/compilación de pruebas en memoria, temporales externos, sin backend real |
 | `pnpm --dir backend test:local` | Inventario explícito de validación, autenticación HTTP, CSRF, frontend compilado, Excel y contratos del optimizador con dobles | HTTP local de Supertest, sin PostgreSQL ni proceso Julia real |
